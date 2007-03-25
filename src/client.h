@@ -43,7 +43,6 @@
 #include "gameserver_interface.h"
 #include "log.h"
 #include "mutex.h"
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "thread.h"
 #include "world.h"
 
@@ -241,11 +240,9 @@ class Client : public ClientInterface {
     double lastpackettime;
     NLubyte clFrameSent, clFrameWorld;
     double botReactedFrame;
-    #ifdef SEND_FRAMEOFFSET
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
     double netsendAdjustment;
-    #endif
     double averageLag;
     double frameReceiveTime;    // when fx was received
     ClientControls controlHistory[256]; // the section between clFrameWorld and clFrameSent (circularly) is in use on a given moment
@@ -261,7 +258,7 @@ class Client : public ClientInterface {
 
     int protocolExtensionsS2C; // -1 means unextended protocol, 0 up are extension version numbers (<= PROTOCOL_EXTENSIONS_VERSION)
     int protocolExtensionsC2S; // can only be -1 (before extension negotiation completes), or C2S == S2C (afterwards)
-    // we must be ready to process frame data with extensions as soon as protocolExtensionsC2S is set (and we must recognize from frame data whether extensions are enabled)
+    bool frameExtensionsAcknowledged;
 
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 

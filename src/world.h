@@ -35,7 +35,6 @@
 
 #include "commont.h"
 #include "nassert.h"
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET
 #include "utility.h"
 
 typedef std::pair<double, double> Coords;
@@ -459,15 +458,16 @@ public:
 
     int cid;    // client id (network identity)
     NLubyte lastClientFrame;    // client set frame identifier of the latest data received
-    #ifdef SEND_FRAMEOFFSET
     double frameOffset; // at what time within the frame the client's packet arrived
-    #endif
     double waitnametime;
     bool localIP;
     int oldfrags;   // last value informed to clients
     int megabonus;
 
     int protocolExtensionsLevel;
+    bool protocolExtensionsLevelSet;
+    bool needSignalFrameExtensions;
+    bool toldAboutExtensionAdvantage;
 
     bool drop_key;
     bool dropped_flag;

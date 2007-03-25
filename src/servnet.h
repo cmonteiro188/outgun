@@ -31,7 +31,7 @@
 
 #include "mutex.h"
 #include "network.h"    // for NetworkResult
-#include "protocol.h"   // needed for possible definition of SEND_FRAMEOFFSET, and otherwise
+#include "protocol.h"
 #include "thread.h"
 #include "utility.h"
 
@@ -122,9 +122,7 @@ private:
 
     mutable LogSet  log;
 
-    #ifdef SEND_FRAMEOFFSET
     double          frameSentTime;  // at what time the last frame was sent
-    #endif
 
     volatile bool   mjob_exit;              //flag for all pending master jobs to quit now
     volatile bool   mjob_fastretry;         //flag for all pending master jobs to stop waiting and retry immediately
@@ -171,6 +169,7 @@ private:
     int  client_connected(int id);
     void client_disconnected(int id);
     void ping_result(int client_id, int ping_time);
+    bool processMessage(int pid, char* const msg, int msglen);
     void incoming_client_data(int id, char *data, int length);
 
     void master_job_response(MasterQuery *j);
@@ -186,6 +185,7 @@ private:
     void broadcast_message(const char* data, int length) const;
     void send_simple_message(Network_data_code code, int pid) const;
     void broadcast_simple_message(Network_data_code code) const;
+    void broadcast_screen_message(int px, int py, const char *lebuf, int count) const;
 
     void record_message(const std::string& msg) const;
     void record_message(const char* data, int length) const;
@@ -214,6 +214,7 @@ public:
     void send_player_crap_update(int cid, int pid);
     void broadcast_player_crap(int pid);
     void broadcast_team_change(int from, int to, bool swap) const;
+    void warnAboutExtensionAdvantage(int pid) const;
     void send_acceleration_modes(int pid) const;
 
     void broadcast_reset_map_list();

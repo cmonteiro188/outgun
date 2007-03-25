@@ -833,9 +833,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     localIP = false;
 
     lastClientFrame = 0;
-    #ifdef SEND_FRAMEOFFSET
     frameOffset = 0;
-    #endif
     awaiting_client_readies = 0;
     item_deathbringer_frame = 0;
     deathbringer_team = 0;  // need not be valid yet
@@ -862,6 +860,10 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     minimapPlayersPerFrame = 2;
 
     protocolExtensionsLevel = -1;
+    protocolExtensionsLevelSet = false;
+    needSignalFrameExtensions = true; // until we either know the client is unextended, or receive data_acknowledge_frame_extensions
+    toldAboutExtensionAdvantage = false;
+
     uniqueId = uniqueId_;
 
     PlayerBase::clear(enable, _pid, _name, team_id);

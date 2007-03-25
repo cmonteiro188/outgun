@@ -1442,6 +1442,14 @@ void Server::simulate_and_broadcast_frame() {
         if (world.getMapTime() == settings.get_vote_block_time())
             check_map_exit();
     }
+
+    if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].protocolExtensionsLevel < 0 && world.player[i].protocolExtensionsLevelSet && !world.player[i].toldAboutExtensionAdvantage) {
+                network.warnAboutExtensionAdvantage(i);
+                world.player[i].toldAboutExtensionAdvantage = true;
+            }
+
     for (int i = 0; i < maxplayers; ++i) {
         if (!world.player[i].used)
             continue;

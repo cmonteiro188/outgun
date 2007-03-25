@@ -34,7 +34,6 @@
 
 #include "leetnet/server.h"
 #include "leetnet/rudp.h"   // get_self_IP
-#include "server.h"
 #include "admshell.h"
 #include "debug.h"
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
@@ -42,7 +41,8 @@
 #include "language.h"
 #include "nassert.h"
 #include "platform.h"
-#include "servnet.h"
+#include "protocol.h"
+#include "server.h"
 #include "timer.h"
 
 // Delay for the server contacting the master server, in seconds.
@@ -91,9 +91,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     reservedPlayerSlots(0)
 {
     server = 0;
-    #ifdef SEND_FRAMEOFFSET
     frameSentTime = 0;  // no meaning
-    #endif
 }
 
 ServerNetworking::~ServerNetworking() {
@@ -288,6 +286,13 @@ void ServerNetworking::send_acceleration_modes(int pid) const {
                 server->send_message(world.player[i].cid, lebuf, count);
         record_message(lebuf, count);
     }
+}
+
+void ServerNetworking::warnAboutExtensionAdvantage(int pid) const {
+    if (world.player[pid].protocolExtensionsLevel < 0)
+        player_message(pid, msg_warning, "Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.");
+    else
+        send_simple_message(data_extension_advantage, pid);
 }
 
 void ServerNetworking::move_update_player(int a) {
@@ -1504,6 +1509,218 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const {
     nlWrite(shellssock, buf, count);
 }
 
+bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
+    ServerPlayer& sender = world.player[pid];
+
+    int count = 0;
+    NLubyte code;
+    readByte(msg, count, code);
+    if (LOG_MESSAGE_TRAFFIC)
+        log("Message from client, code = %i", code);
+    switch (code) {
+    /*break;*/ case data_name_update: {
+        string name, password;
+        readStr(msg, count, name);
+        readStr(msg, count, password);
+        host->nameChange(sender.cid, pid, name, password);
+        // not related to name update, but this is a convenient place that's always (with a normal client) entered soon after making the connection but after data_set_extension_level
+        sender.protocolExtensionsLevelSet = true; // the point is that if we haven't received a data_set_extensions_level so far, that's because the client actually is unextended
+        if (sender.protocolExtensionsLevel < 0)
+            sender.needSignalFrameExtensions = false; // unextended clients don't need to know, since we aren't using any extensions with them
+    }
+    break; case data_text_message:
+        if (find_nonprintable_char(msg + 1)) {
+            log("Received unprintable characters.");
+            return false;
+        }
+        else if (string(msg + 1).length() > max_chat_message_length) {
+            log("Received a too long message (%lu characters).", (unsigned long)string(msg + 1).length());
+            return false;
+        }
+        else
+            host->chat(pid, msg + 1);
+    break; case data_fire_on:
+        sender.attackOnce = sender.attack = true;
+        sender.attackGunDir = sender.gundir;
+    break; case data_fire_off:
+        sender.attack = false;
+    break; case data_suicide:
+        if (!sender.under_deathbringer_effect(get_time()))
+            world.suicide(pid);
+    break; case data_change_team_on:
+        if (!sender.want_change_teams) {
+            sender.want_change_teams = true;
+            host->check_team_changes();
+        }
+    break; case data_change_team_off:
+        sender.want_change_teams = false;
+    break; case data_client_ready:
+        #ifdef EXTRA_DEBUG
+        nAssert(sender.awaiting_client_readies); // this is an abnormal condition, but it could be the client's fault so normally we can ignore it
+        #endif
+        if (sender.awaiting_client_readies)
+            --sender.awaiting_client_readies;
+    break; case data_map_exit_on:
+        if (sender.want_map_exit == false) {
+            sender.want_map_exit = true;
+            // Make sure that this message matches with the one in client.cpp.
+            if (host->specific_map_vote_required() && sender.mapVote == -1)
+                player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
+            host->check_map_exit();
+        }
+    break; case data_map_exit_off:
+        if (sender.want_map_exit == true) {
+            sender.want_map_exit = false;
+            host->check_map_exit();
+        }
+    break; case data_file_request: {
+        string ftype, fname;
+        readStr(msg, count, ftype);
+        readStr(msg, count, fname);
+        if (fileTransfer[sender.cid].serving_udp_file) {
+            log("Another download already in progress.");
+            return false;
+        }
+        else {
+            //alloc to download
+            fileTransfer[sender.cid].serving_udp_file = true;
+            fileTransfer[sender.cid].data = get_download_file(ftype, fname);
+            if (fileTransfer[sender.cid].data.empty()) {
+                log("Invalid download attempt");
+                return false;
+            }
+            else {
+                fileTransfer[sender.cid].dp = 0;
+                upload_next_file_chunk(sender.cid);
+            }
+        }
+    }
+    break; case data_file_ack:
+        if (fileTransfer[sender.cid].dp >= fileTransfer[sender.cid].data.size()) {
+            //no more data, this was the last ack. close stuff
+            fileTransfer[sender.cid].reset();   //reset the download data structs
+            //the client will carry on from here
+        }
+        else {
+            //send next
+            upload_next_file_chunk(sender.cid);
+        }
+    break; case data_registration_token: {
+        string tok;
+        readStr(msg, count, tok);
+        if (host->changeRegistration(sender.cid, tok)) {
+            MasterQuery *job = new MasterQuery();
+            job->cid = sender.cid;
+            job->code = MasterQuery::JT_login;
+            job->request = string() +
+                    "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
+                    "&chktk" +
+                    "&name=" + url_encode(sender.name) +
+                    "&token=" + url_encode(tok) +
+                    " HTTP/1.0\r\n"
+                    "Host: www.mycgiserver.com\r\n"
+                    "\r\n";
+            {
+                MutexLock ml(mjob_mutex);
+                mjob_count++;
+            }
+
+            RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+            Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
+        }
+    }
+    break; case data_tournament_participation: {
+        NLubyte data;
+        readByte(msg, count, data);
+        ClientData& clid = host->getClientData(sender.cid);
+        clid.next_participation = data;
+        if (!clid.participation_info_received) {
+            clid.current_participation = clid.next_participation;
+            clid.participation_info_received = true;
+            broadcast_player_crap(pid);
+        }
+    }
+    break; case data_drop_flag:
+        sender.drop_key = true;
+        sender.dropped_flag = true;
+        world.dropFlagIfAny(pid, true);
+    break; case data_stop_drop_flag:
+        sender.drop_key = false;
+    break; case data_map_vote: {
+        NLubyte vote;
+        readByte(msg, count, vote);
+        if (sender.mapVote != vote) {
+            if (vote < 255 && vote < static_cast<int>(host->maplist().size()))
+                sender.mapVote = vote;
+            else {
+                sender.mapVote = -1;
+                // Make sure that this message matches with the one in client.cpp.
+                if (host->specific_map_vote_required() && sender.want_map_exit)
+                    player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
+            }
+            host->check_map_exit();
+        }
+    }
+    break; case data_fav_colors: {
+        NLbyte size;
+        readByte(msg, count, size);
+        vector<char> fav_colors;
+        // two colours in a byte
+        for (int i = 0; i < size; i++) {
+            NLubyte col;
+            readByte(msg, count, col);
+            int c = (col & 0x0F);
+            if (c >= 0 && c < 16)
+                fav_colors.push_back(c);
+            c = (col >> 4);
+            if (++i < size && c >= 0 && c < 16)
+                fav_colors.push_back(c);
+        }
+        host->set_fav_colors(pid, fav_colors);
+        broadcast_player_crap(pid);
+    }
+    break; case data_bot: {
+        NLaddress address = get_client_address(sender.cid);
+        nlSetAddrPort(&address, 0);
+        char buf[NL_MAX_STRING_LENGTH];
+        nlAddrToString(&address, buf);
+        if (strcmp(buf, "127.0.0.1"))
+            log("Remote bot from %s.", buf);
+        if (!sender.is_bot()) {
+            ++bot_count;
+            sender.set_bot();
+            update_serverinfo();
+        }
+    }
+    break; case data_set_extension_level: {
+        NLubyte level;
+        readByte(msg, count, level);
+        if (level > PROTOCOL_EXTENSIONS_VERSION) {
+            log("Tried to set unknown extension level %d.", level);
+            return false;
+        }
+        sender.protocolExtensionsLevel = level;
+        sender.protocolExtensionsLevelSet = true;
+        send_simple_message(data_set_extension_level, pid);
+        send_acceleration_modes(pid);
+    }
+    break; case data_set_minimap_player_bandwidth: {
+        NLubyte number;
+        readByte(msg, count, number);
+        sender.minimapPlayersPerFrame = number;
+    }
+    break; case data_acknowledge_frame_extensions:
+        sender.needSignalFrameExtensions = false;
+    break; default:
+        if (code < data_reserved_range_first || code > data_reserved_range_last) {
+            log("Invalid message code: %i, length %i.", code, msglen);
+            return false;
+        }
+        // just ignore commands in reserved range: they're probably some extension we don't have to care about
+    }
+    return true;
+}
+
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     (void)length;
@@ -1526,12 +1743,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
             plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
     }
     if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) { // this frame is very likely newer or the same as the previous one
-        #ifdef SEND_FRAMEOFFSET
         if (clFrame != pl.lastClientFrame) {
             g_timeCounter.refresh(); // we prefer an exact time here
             pl.frameOffset = 10. * (get_time() - frameSentTime);
         }
-        #endif
         pl.lastClientFrame = clFrame;
 
         NLubyte ccb;
@@ -1560,231 +1775,18 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
     }
 
     //2. process messages
-    char* msg;
-    do {
+    for (;;) {
         int msglen;
-        msg = server->receive_message(id, &msglen);
-        if (msg != 0) {
-            // process a client's message
-            int count = 0;
-            NLubyte code;
-            readByte(msg, count, code);
-            if (LOG_MESSAGE_TRAFFIC)
-                log("Message from client, code = %i", code);
-            if (code == data_name_update) {
-                string name, password;
-                readStr(msg, count, name);
-                readStr(msg, count, password);
-                host->nameChange(id, pid, name, password);
-            }
-            else if (code == data_text_message) {
-                if (find_nonprintable_char(msg + 1)) {
-                    log("Kicked player %d for client misbehavior: sent unprintable characters.", pid);
-                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
-                    break;  // don't process the rest of the messages
-                }
-                else if (string(msg + 1).length() > max_chat_message_length) {
-                    log("Kicked player %d for client misbehavior: sent too long message (%lu characters).", pid, (unsigned long)string(msg + 1).length());
-                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
-                    break;  // don't process the rest of the messages
-                }
-                else
-                    host->chat(pid, msg + 1);
-            }
-            else if (code == data_fire_on) {
-                world.player[pid].attackOnce = world.player[pid].attack = true;
-                world.player[pid].attackGunDir = world.player[pid].gundir;
-            }
-            else if (code == data_fire_off)
-                world.player[pid].attack = false;
-            else if (code == data_suicide) {
-                if (!world.player[pid].under_deathbringer_effect(get_time()))
-                    world.suicide(pid);
-            }
-            else if (code == data_change_team_on) {
-                if (!world.player[pid].want_change_teams) {
-                    world.player[pid].want_change_teams = true;
-                    host->check_team_changes();
-                    pid = ctop[id];
-                }
-            }
-            else if (code == data_change_team_off)
-                world.player[pid].want_change_teams = false;
-            else if (code == data_client_ready) {
-                #ifdef EXTRA_DEBUG
-                nAssert(world.player[pid].awaiting_client_readies); // this is an abnormal condition, but it could be the client's fault se normally we can ignore it
-                #endif
-                if (world.player[pid].awaiting_client_readies)
-                    --world.player[pid].awaiting_client_readies;
-            }
-            else if (code == data_map_exit_on) {
-                if (world.player[pid].want_map_exit == false) {
-                    world.player[pid].want_map_exit = true;
-                    // Make sure that this message matches with the one in client.cpp.
-                    if (host->specific_map_vote_required() && world.player[pid].mapVote == -1)
-                        player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
-                    host->check_map_exit();
-                    pid = ctop[id]; // check_map_exit may move players
-                }
-            }
-            else if (code == data_map_exit_off) {
-                if (world.player[pid].want_map_exit == true) {
-                    world.player[pid].want_map_exit = false;
-                    host->check_map_exit();
-                    pid = ctop[id]; // check_map_exit may move players
-                }
-            }
-            else if (code == data_file_request) {
-                string ftype, fname;
-                readStr(msg, count, ftype);
-                readStr(msg, count, fname);
-                if (fileTransfer[id].serving_udp_file) {
-                    log("Kicked player %d for client misbehavior: already downloading", pid);
-                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
-                    break;  // don't process the rest of the messages
-                }
-                else {
-                    //alloc to download
-                    fileTransfer[id].serving_udp_file = true;
-                    fileTransfer[id].data = get_download_file(ftype, fname);
-                    if (fileTransfer[id].data.empty()) {
-                        log("Kicked player %d for client misbehavior: invalid download attempt", pid);
-                        host->disconnectPlayer(pid, disconnect_client_misbehavior); // don't process the rest of the messages
-                        break;  // don't process the rest of the messages
-                    }
-                    else {
-                        fileTransfer[id].dp = 0;
-                        upload_next_file_chunk(id);
-                    }
-                }
-            }
-            else if (code == data_file_ack) {
-                if (fileTransfer[id].dp >= fileTransfer[id].data.size()) {
-                    //no more data, this was the last ack. close stuff
-                    fileTransfer[id].reset();   //reset the download data structs
-                                    //the client will carry on from here
-                }
-                else {
-                    //send next
-                    upload_next_file_chunk(id);
-                }
-            }
-            else if (code == data_registration_token) {
-                string tok;
-                readStr(msg, count, tok);
-                if (host->changeRegistration(id, tok)) {
-                    MasterQuery *job = new MasterQuery();
-                    job->cid = id;
-                    job->code = MasterQuery::JT_login;
-                    job->request = string() +
-                        "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-                        "&chktk" +
-                        "&name=" + url_encode(world.player[ctop[id]].name) +
-                        "&token=" + url_encode(tok) +
-                        " HTTP/1.0\r\n"
-                        "Host: www.mycgiserver.com\r\n"
-                        "\r\n";
-                    {
-                        MutexLock ml(mjob_mutex);
-                        mjob_count++;
-                    }
-
-                    RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-                    Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
-                }
-            }
-            else if (code == data_tournament_participation) {
-                NLubyte data;
-                readByte(msg, count, data);
-                ClientData& clid = host->getClientData(world.player[pid].cid);
-                clid.next_participation = data;
-                if (!clid.participation_info_received) {
-                    clid.current_participation = clid.next_participation;
-                    clid.participation_info_received = true;
-                    broadcast_player_crap(pid);
-                }
-            }
-            else if (code == data_drop_flag) {
-                world.player[pid].drop_key = true;
-                world.player[pid].dropped_flag = true;
-                world.dropFlagIfAny(pid, true);
-            }
-            else if (code == data_stop_drop_flag)
-                world.player[pid].drop_key = false;
-            else if (code == data_map_vote) {
-                NLubyte vote;
-                readByte(msg, count, vote);
-                if (world.player[pid].mapVote != vote) {
-                    if (vote < 255 && vote < static_cast<int>(host->maplist().size()))
-                        world.player[pid].mapVote = vote;
-                    else {
-                        world.player[pid].mapVote = -1;
-                        // Make sure that this message matches with the one in client.cpp.
-                        if (host->specific_map_vote_required() && world.player[pid].want_map_exit)
-                            player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
-                    }
-                    host->check_map_exit();
-                    pid = ctop[id]; // check_map_exit may move players
-                }
-            }
-            else if (code == data_fav_colors) {
-                NLbyte size;
-                readByte(msg, count, size);
-                vector<char> fav_colors;
-                // two colours in a byte
-                for (int i = 0; i < size; i++) {
-                    NLubyte col;
-                    readByte(msg, count, col);
-                    int c = (col & 0x0F);
-                    if (c >= 0 && c < 16)
-                        fav_colors.push_back(c);
-                    c = (col >> 4);
-                    if (++i < size && c >= 0 && c < 16)
-                        fav_colors.push_back(c);
-                }
-                host->set_fav_colors(pid, fav_colors);
-                broadcast_player_crap(pid);
-            }
-            else if (code == data_bot) {
-                NLaddress address = get_client_address(world.player[pid].cid);
-                nlSetAddrPort(&address, 0);
-                char buf[NL_MAX_STRING_LENGTH];
-                nlAddrToString(&address, buf);
-                if (strcmp(buf, "127.0.0.1"))
-                    log("Remote bot from %s.", buf);
-                if (!world.player[pid].is_bot()) {
-                    ++bot_count;
-                    world.player[pid].set_bot();
-                    update_serverinfo();
-                }
-            }
-            else if (code == data_set_extension_level) {
-                NLubyte level;
-                readByte(msg, count, level);
-                if (level > PROTOCOL_EXTENSIONS_VERSION) {
-                    log("Kicked player %d for client misbehavior: tried to set unknown extension level %d.", pid, level);
-                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
-                    break;  // don't process the rest of the messages
-                }
-                world.player[pid].protocolExtensionsLevel = level;
-                send_simple_message(data_set_extension_level, pid);
-                send_acceleration_modes(pid);
-            }
-            else if (code == data_set_minimap_player_bandwidth) {
-                NLubyte number;
-                readByte(msg, count, number);
-                world.player[pid].minimapPlayersPerFrame = number;
-            }
-            else {
-                if (code < data_reserved_range_first || code > data_reserved_range_last) {
-                    log("Kicked player %d for client misbehavior: an unknown message code: %i, length %i.", pid, code, msglen);
-                    host->disconnectPlayer(pid, disconnect_client_misbehavior);
-                    break;  // don't process the rest of the messages
-                }
-                // just ignore commands in reserved range: they're probably some extension we don't have to care about
-            }
+        char* const msg = server->receive_message(id, &msglen);
+        if (msg == 0)
+            break;
+        if (!processMessage(pid, msg, msglen)) {
+            log("Kicked player %d for client misbehavior.", pid);
+            host->disconnectPlayer(pid, disconnect_client_misbehavior);
+            break;
         }
-    } while (msg != 0);
+        pid = ctop[id]; // the message might have affected the pid
+    }
     if (!world.player[pid].attackOnce) // if the player did started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
         world.player[pid].attackGunDir = world.player[pid].gundir;
 }
@@ -1907,27 +1909,35 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     //   BUILD AND SEND EVERY DAMN PACKET
     // ==================================================================
     for (int i = 0; i < maxplayers; i++) {
-        if (!world.player[i].used)
+        ServerPlayer& recipient = world.player[i];
+
+        if (!recipient.used)
             continue;
 
         // start writing at end of common data
         lecount = count;
 
         // first send client prediction synchronization data
-        NLubyte clFrame = world.player[i].lastClientFrame;
+        const NLubyte clFrame = recipient.lastClientFrame;
         writeByte(lebuf, lecount, clFrame);
-        #ifdef SEND_FRAMEOFFSET
-        NLubyte fo = static_cast<NLubyte>(bound<double>(world.player[i].frameOffset, 0., .999) * 256.);
-        writeByte(lebuf, lecount, fo);
-        #endif
 
-        const bool skip_frame = world.player[i].awaiting_client_readies || !gameRunning;
+        NLubyte fo = static_cast<NLubyte>(bound<double>(recipient.frameOffset, 0., .999) * 256.);
+        // the frame offset field is now hijacked to signal whether extensions are enabled in this frame, for the first few frames until the client is certain to know that future frames are all extended
+        if (recipient.needSignalFrameExtensions) {
+            if (recipient.protocolExtensionsLevel < 0)
+                fo = 127; // 127 marks unextended frames
+            else if (fo == 127)
+                fo = 128;
+        }
+        writeByte(lebuf, lecount, fo);
+
+        const bool skip_frame = recipient.awaiting_client_readies || !gameRunning;
 
         // first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
         NLubyte xtra = i << 3;
-        if (iround(world.player[i].health) & 256)
+        if (iround(recipient.health) & 256)
             xtra |= 1;
-        if (iround(world.player[i].energy) & 256)
+        if (iround(recipient.energy) & 256)
             xtra |= 2;
         if (skip_frame)
             xtra |= 4;
@@ -1936,8 +1946,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
         // send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
         if (!skip_frame) {
             // 2 bytes with the screen of self
-            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].roomx));
-            writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[i].roomy));
+            writeByte(lebuf, lecount, static_cast<NLubyte>(recipient.roomx));
+            writeByte(lebuf, lecount, static_cast<NLubyte>(recipient.roomy));
 
             // player data field to indicate which players are on screen (and therefore sent on the frame)
             NLulong players_onscreen = 0;
@@ -1947,12 +1957,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             writeLong(lebuf, lecount, 0);
 
             for (int j = 0; j < maxplayers; j++) {
+                const ServerPlayer& h = world.player[j];
                 // player j exists, in same room, visible or in same team or has a flag
-                if (world.player[j].used && world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-                        (world.player[j].visibility > 0 || i / TSIZE == j / TSIZE || world.player[j].stats().has_flag())) {
+                if (h.used && h.roomx == recipient.roomx && h.roomy == recipient.roomy && (h.visibility > 0 || i / TSIZE == j / TSIZE || h.stats().has_flag())) {
                     players_onscreen |= (1 << j);
-
-                    const ServerPlayer& h = world.player[j];
 
                     // position in 3 bytes
                     NLubyte xy;
@@ -1966,34 +1974,43 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                     xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
                     writeByte(lebuf, lecount, xy);
 
-                    // speed in 2 bytes //#fix: don't send if dead
-                    typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                    writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
-                    writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
+                    if (recipient.protocolExtensionsLevel < 0) {
+                        // speed in 2 bytes
+                        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                        writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
+                        writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
+                    }
 
                     // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
                     NLubyte extra = 0;
-                    if (world.player[j].health <= 0)
+                    if (h.dead)
                         extra |= 1;
-                    if (world.player[j].item_deathbringer)
+                    if (h.item_deathbringer)
                         extra |= 2;
-                    if (world.player[j].deathbringer_end > get_time())
+                    if (h.deathbringer_end > get_time())
                         extra |= 4;
-                    if (world.player[j].item_shield)
+                    if (h.item_shield)
                         extra |= 8;
-                    if (world.player[j].item_turbo)
+                    if (h.item_turbo)
                         extra |= 16;
-                    if (world.player[j].item_power)
+                    if (h.item_power)
                         extra |= 32;
-                    const bool preciseGundir = world.player[i].protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
+                    const bool preciseGundir = recipient.protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
                     if (preciseGundir)
                         extra |= 64;
                     writeByte(lebuf, lecount, extra);
 
+                    if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
+                        // speed in 2 bytes
+                        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                        writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
+                        writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
+                    }
+
                     // controls and gundirection in 1 byte
                     NLubyte ccb;
-                    if (world.player[j].health > 0) // if dead player, don't send keys
-                        ccb = world.player[j].controls.toNetwork(true);
+                    if (!h.dead) // if dead player, don't send keys
+                        ccb = h.controls.toNetwork(true);
                     else
                         ccb = ClientControls().toNetwork(true);
                     if (preciseGundir) {
@@ -2008,12 +2025,14 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         writeByte(lebuf, lecount, ccb);
                     }
 
-                    // visibility in 1 byte
-                    const bool safeAfterSpawn = world.frame < world.player[j].start_take_damage_frame;
-                    if (safeAfterSpawn)
-                        writeByte(lebuf, lecount, world.frame & 2 ? 128 : 220);
-                    else
-                        writeByte(lebuf, lecount, static_cast<NLubyte>(world.player[j].visibility));
+                    if (!h.dead || recipient.protocolExtensionsLevel < 0) {
+                        // visibility in 1 byte
+                        const bool safeAfterSpawn = world.frame < h.start_take_damage_frame;
+                        if (safeAfterSpawn)
+                            writeByte(lebuf, lecount, world.frame & 2 ? 128 : 220);
+                        else
+                            writeByte(lebuf, lecount, static_cast<NLubyte>(h.visibility));
+                    }
                 }
             }
 
@@ -2028,14 +2047,14 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
              *          byte2,
              *          byte3 = coords of player byte1
              *  }
-             * extended protocol: (can be distinguished by examining byte1: byte1 != 255 && (byte1 & 0xE0) != 0)
+             * extended protocol:
              *  P = bitmask indicating visible players (32 bits long)
              *  to use the minimum amount of bytes, we use
-             *   - 3 bits to indicate which 5-bit boundary the sent data begins from (excluding the boundary at 30; this intentionally leaves 2 values unused)
+             *   - 3 bits to indicate which 4-bit boundary the sent data begins from
              *   - 2 bits to tell how many extra bytes of mask are sent (1..4)
              *  this leaves us with free 3 bits in byte1 which we use to start the mask with
              *
-             *  byte1 & 0xE0 == (5-bit boundary of P to start from) + 1  (1->start from bit 0, 2->bit 5, ..., 6->bit 25; 0 and 7 (binary 000 and 111) aren't used so that we can't be confused with the old protocol)
+             *  byte1 & 0xE0 == 4-bit boundary of P to start from
              *  byte1 & 0x18 == extra byte count - 1
              *  byte1 & 0x07 == first 3 bits of P
              *  extra byte count *
@@ -2044,23 +2063,22 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
              *    byte1,
              *    byte2 = coords of the player
              *  }
-             * note: there still remains room for extensions where byte1 & 0xE0 == 0xE0 && byte1 & 0x1F != 0x1F
              */
-            if (world.player[i].protocolExtensionsLevel >= 0) {
-                NLulong P = (world.player[i].item_shadow() ? shadowView : normalView)[i / TSIZE];
+            if (recipient.protocolExtensionsLevel >= 0) {
+                NLulong P = (recipient.item_shadow() ? shadowView : normalView)[i / TSIZE];
                 for (int pi = 0; pi < maxplayers; ++pi)
-                    if (world.player[pi].roomx == world.player[i].roomx && world.player[pi].roomy == world.player[i].roomy)
+                    if (world.player[pi].roomx == recipient.roomx && world.player[pi].roomy == recipient.roomy)
                         P &= ~(NLulong(1) << pi);
-                const unsigned maxPlayers = min(settings.minimapSendLimit(), world.player[i].minimapPlayersPerFrame);
+                const unsigned maxPlayers = min(settings.minimapSendLimit(), recipient.minimapPlayersPerFrame);
                 if (P == 0 || maxPlayers == 0) {
-                    writeByte(lebuf, lecount, 0x20); // start from bit 0 (irrelevant), only 1 (mandatory) extra byte
+                    writeByte(lebuf, lecount, 0x00); // start from bit 0 (irrelevant), only 1 (mandatory) extra byte
                     writeByte(lebuf, lecount, 0x00);
                 }
                 else {
-                    int nextPlayer = world.player[i].nextMinimapPlayer;
+                    int nextPlayer = recipient.nextMinimapPlayer;
                     while ((P & (NLulong(1) << nextPlayer)) == 0)
                         nextPlayer = (nextPlayer + 1) % MAX_PLAYERS;
-                    const int sendBoundary = nextPlayer >= 25 ? 25 : nextPlayer - nextPlayer % 5;
+                    const int sendBoundary = nextPlayer & ~3;
                     NLulong rotP = rotateRight(P, sendBoundary);
                     nextPlayer -= sendBoundary; // now nextPlayer is relative to rotP
                     rotP &= ~NLulong(0) << nextPlayer;
@@ -2073,10 +2091,10 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                         if ((rotP >> bits) & 1)
                             players.push_back((bits + sendBoundary) % 32);
                     }
-                    world.player[i].nextMinimapPlayer = (sendBoundary + bits) % 32;
+                    recipient.nextMinimapPlayer = (sendBoundary + bits) % 32;
                     rotP &= ~NLulong(0) >> (32 - bits);
                     const int extraBytes = max(1, (bits - 3 + 7) / 8);
-                    writeByte(lebuf, lecount, ((sendBoundary / 5 + 1) << 5) | ((extraBytes - 1) << 3) | (rotP & 7));
+                    writeByte(lebuf, lecount, ((sendBoundary / 4) << 5) | ((extraBytes - 1) << 3) | (rotP & 7));
                     rotP >>= 3;
                     for (int eb = 0; eb < extraBytes; ++eb) {
                         writeByte(lebuf, lecount, rotP & 0xFF);
@@ -2088,7 +2106,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
             }
             else
                 for (int round = 0; round < 2; ++round) {
-                    const int who = (world.player[i].item_shadow() ? shadowIters : normalIters)[i / TSIZE][round];
+                    const int who = (recipient.item_shadow() ? shadowIters : normalIters)[i / TSIZE][round];
                     if (who == -1)
                         writeByte(lebuf, lecount, 255);
                     else {
@@ -2098,29 +2116,28 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
                 }
 
             // send 8 bits of player's health
-            if (world.player[i].health < 0)
-                world.player[i].health = 0;
-            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(world.player[i].health) & 255));
+            nAssert(recipient.health >= 0);
+            nAssert((recipient.health == 0) == recipient.dead);
+            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(recipient.health) & 255));
 
             // send 8 bits of player's energy
-            if (world.player[i].energy < 0)
-                world.player[i].energy = 0;
-            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(world.player[i].energy) & 255));
+            nAssert(recipient.energy >= 0);
+            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(recipient.energy) & 255));
 
             // ping of player frame# % maxplayers
-            if (world.player[i].protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used) {
+            if (recipient.protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used) {
                 const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
                 writeShort(lebuf, lecount, theping);
             }
         }
 
         //send the packet
-        server->send_frame(world.player[i].cid, lebuf, lecount);
+        server->send_frame(recipient.cid, lebuf, lecount);
 
         //send server map list if not sent yet
-        if (world.player[i].current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
-            send_map_info(world.player[i]);
-            ++world.player[i].current_map_list_item;
+        if (recipient.current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
+            send_map_info(recipient);
+            ++recipient.current_map_list_item;
         }
     }
 
@@ -2145,10 +2162,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) {
     if (world.player[ping_send_client].used)
         server->ping_client(world.player[ping_send_client].cid);
 
-    #ifdef SEND_FRAMEOFFSET
     g_timeCounter.refresh(); // we prefer an exact time here
     frameSentTime = get_time();
-    #endif
 }
 
 double ServerNetworking::getTraffic() const {

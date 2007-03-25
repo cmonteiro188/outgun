@@ -43,6 +43,7 @@
 #include "nassert.h"
 #include "network.h"
 #include "platform.h"
+#include "protocol.h"
 #include "timer.h"
 #include "utility.h"
 
@@ -705,10 +706,8 @@ bool Client::start() {
     #endif
     frameReceiveTime = 0;
 
-    #ifdef SEND_FRAMEOFFSET
     frameOffsetDeltaTotal = 0;
     frameOffsetDeltaNum = 0;
-    #endif
     averageLag = 0;
 
     netsendAdjustment = 0;
@@ -930,11 +929,6 @@ void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang,
     set_ping(ping);
 
     connect_command(false);
-
-    // Tell server that I am a bot.
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_bot);
-    client->send_message(lebuf, count);
 }
 
 void Client::set_ping(int ping) {
@@ -1121,7 +1115,8 @@ void Client::disconnect_command() { // do not call from a network thread
 void Client::client_connected(const char* data, int length) {   // call with frameMutex locked
     log("Connection successful");
 
-    (void)length;
+    connected = true;
+    gameshow = true;
 
     //"data" from connection accepted:
     //  BYTE    maxplayers
@@ -1149,16 +1144,68 @@ void Client::client_connected(const char* data, int length) {   // call with fra
             client->send_message(lebuf, count);
         }
         protocolExtensionsC2S = protoExt; // server will know how to interpret because data_set_extension_level will be received before any messages with extensions
+        frameExtensionsAcknowledged = false;
     }
-    else
+    else {
         protocolExtensionsC2S = -1;
+        frameExtensionsAcknowledged = true; // sort of: since the server is unextended, there's nothing to acknowledge
+    }
     protocolExtensionsS2C = -1; // server can't use any extensions until us telling them the appropriate version (and then we will also receive data_set_extension_level before messages with extensions)
 
-    if (botmode)
-        sendMinimapBandwidthAny(32);
+    if (botmode) {
+        // Tell server that I am a bot.
+        char lebuf[256]; int count = 0;
+        writeByte(lebuf, count, data_bot);
+        client->send_message(lebuf, count);
 
+        sendMinimapBandwidthAny(32);
+    }
+
+    //avoid "dropped" plaque
+    lastpackettime = get_time() + 4.0;
+
+    averageLag = 0;
+
+    clFrameSent = clFrameWorld = 0;
+    frameReceiveTime = 0;
+
+    remove_flags = 0;
+
+    issue_change_name_command();
+
+    map_ready = false;
+    clientReadiesWaiting = 0;
+    servermap.clear();
+
+    gameover_plaque = NEXTMAP_NONE;
+
+    gunDir.from8way(0);
+    gunDirRefreshedTime = get_time();
+
+    me = -1;    // will be corrected from the first frame
+
+    for (int i = 0; i < 2; i++) {
+        fx.teams[i].clear_stats();
+        fx.teams[i].remove_flags();
+    }
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        fx.player[i].clear(false, i, "", i / TSIZE);
+    for (int i = 0; i < MAX_PICKUPS; ++i)
+        fx.item[i].kind = Powerup::pup_unused;
+
+    fx.frame = -1;
+    fx.skipped = true;
     fx.physics = PhysicalSettings(); // to be filled later by a message
+
+    if (botmode) {
+        bot_send_frame(ClientControls());
+        return;
+    }
+
     #ifndef DEDICATED_SERVER_ONLY
+
+    fd.frame = -1;
+    fd.skipped = true;
     fd.physics = fx.physics;
 
     m_serverInfo.clear();
@@ -1182,107 +1229,45 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     want_map_exit_delayed = false;
 
     deadAfterHighlighted = true;
-    #endif
 
-    //avoid "dropped" plaque
-    lastpackettime = get_time() + 4.0;
-
-    averageLag = 0;
-
-    clFrameSent = clFrameWorld = 0;
-    frameReceiveTime = 0;
-
-    // reset gamestate?
-    connected = true;
-    gameshow = true;
-    #ifndef DEDICATED_SERVER_ONLY
     openMenus.clear();  // connect progress menu is showing; exceptions are when it's been closed and the disconnect is still pending, and when help is opened on top of it
 
-    fd.frame = -1;
-    fd.skipped = true;
-    #endif
-    fx.frame = -1;
-    fx.skipped = true;
-    me = -1;    // will be corrected from the first frame
-
-    #ifndef DEDICATED_SERVER_ONLY
-    //reset chat buffer
     talkbuffer.clear();
     talkbuffer_cursor = 0;
     chatbuffer.clear();
-    #endif
 
-    //reset world data
-    // teams
-    for (int i = 0; i < 2; i++) {
-        fx.teams[i].clear_stats();
-        fx.teams[i].remove_flags();
-    }
-    // players
-    for (int i = 0; i < MAX_PLAYERS; i++)
-        fx.player[i].clear(false, i, "", i / TSIZE);
-    #ifndef DEDICATED_SERVER_ONLY
     players_sb.clear();
-    #endif
-    // powerups
-    for (int i = 0; i < MAX_PICKUPS; ++i)
-        fx.item[i].kind = Powerup::pup_unused;
 
     //reset FPS count vars
     framecount = 0;
     frameCountStartTime = get_time();
     FPS = 0;
 
-    #ifndef DEDICATED_SERVER_ONLY
     //reset map time
     map_time_limit = false;
     map_start_time = 0;
     map_end_time = 0;
     map_vote = -1;
-    #endif
-    remove_flags = 0;
 
-    //send name update request
-    issue_change_name_command();
-    #ifndef DEDICATED_SERVER_ONLY
     // send registration token (if any)
     const string s = tournamentPassword.getToken();
     if (!s.empty())
         CB_tournamentToken(s);
     send_tournament_participation();
-    #endif
 
-    map_ready = false;
-    clientReadiesWaiting = 0;
-    servermap.clear();
-
-    #ifndef DEDICATED_SERVER_ONLY
     {
         MutexLock ml(mapInfoMutex);
         maps.clear();
         mapListChangedAfterSort = true;
     }
-    #endif
 
-    //not showing gameover plaque
-    gameover_plaque = NEXTMAP_NONE;
-
-    #ifndef DEDICATED_SERVER_ONLY
     //clear client side effects
     graphics.clear_fx();
 
-    gunDir.from8way(0);
-    gunDirRefreshedTime = get_time();
-
     mouseClicked.clear();
 
-    if (!botmode) {
-        send_frame(true, true);
-        return;
-    }
+    send_frame(true, true);
     #endif
-
-    bot_send_frame(ClientControls());
 }
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -1740,10 +1725,12 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
         const double oldy = fx.player[pid].roomy * plh + fx.player[pid].ly;
         const int xmul = 255 / fx.map.w;
         const int ymul = 255 / fx.map.h;
+        const double xStep = double(plw) / xmul;
+        const double yStep = double(plh) / ymul;
         fx.player[pid].roomx = whox / xmul;
         fx.player[pid].roomy = whoy / ymul;
-        fx.player[pid].lx = (xmul == 1) ? 0 : (whox % xmul) * plw / (xmul - 1);
-        fx.player[pid].ly = (ymul == 1) ? 0 : (whoy % ymul) * plh / (ymul - 1);
+        fx.player[pid].lx = (whox % xmul + .5) * xStep;
+        fx.player[pid].ly = (whoy % ymul + .5) * yStep;
         fx.player[pid].posUpdated = fx.frame;
         double newx = fx.player[pid].roomx * plw + fx.player[pid].lx;
         double newy = fx.player[pid].roomy * plh + fx.player[pid].ly;
@@ -1752,7 +1739,7 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
         if (fabs(newy - oldy) > fx.map.h * plh / 2)
             newy += fx.map.h * plh * (newy < oldy ? +1 : -1);
         const double dx = newx - oldx, dy = newy - oldy;
-        if (fabs(dx) + fabs(dy) > .1)
+        if (fabs(dx) >= xStep || fabs(dy) >= yStep)
             fx.player[pid].gundir.fromRad(atan2(dy, dx));
     }
 }
@@ -1790,18 +1777,29 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
     averageLag = averageLag * .99 + currentLag * .01;
 
-    #ifdef SEND_FRAMEOFFSET
+    int frameExtensions = protocolExtensionsC2S; // C2S used deliberately: the S2C-setting message might still be waiting
+
     NLubyte fo;
     readByte(data, count, fo);
-    const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
-    frameOffsetDeltaTotal += offsetDelta;
-    if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
-        frameOffsetDeltaTotal /= 10.;
-        netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
-        frameOffsetDeltaTotal = 0;
-        frameOffsetDeltaNum = 0;
+    if (!frameExtensionsAcknowledged && fo == 127)
+        frameExtensions = -1;
+    else {
+        if (!frameExtensionsAcknowledged) {
+            frameExtensionsAcknowledged = true;
+            // after receiving data_acknowledge_frame_extensions, the server stops flagging unextended frames in fo; we stop caring about the flag immediately, since once the server sends an extended frame, every frame will be one
+            char lebuf[16]; int count = 0;
+            writeByte(lebuf, count, data_acknowledge_frame_extensions);
+            client->send_message(lebuf, count);
+        }
+        const double offsetDelta = (fo / 256.) - .5;    // the deviation from aim, in frames
+        frameOffsetDeltaTotal += offsetDelta;
+        if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
+            frameOffsetDeltaTotal /= 10.;
+            netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
+            frameOffsetDeltaTotal = 0;
+            frameOffsetDeltaNum = 0;
+        }
     }
-    #endif
 
     NLubyte xtra;
     readByte(data, count, xtra);
@@ -1875,12 +1873,14 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
         h.lx = hx * (plw / double(0xFFF));
         h.ly = hy * (plh / double(0xFFF));
 
-        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-        NLubyte byte;
-        readByte(data, count, byte);
-        h.sx = SpeedType::toDouble(byte);
-        readByte(data, count, byte);
-        h.sy = SpeedType::toDouble(byte);
+        if (frameExtensions < 0) {
+            typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+            NLubyte byte;
+            readByte(data, count, byte);
+            h.sx = SpeedType::toDouble(byte);
+            readByte(data, count, byte);
+            h.sy = SpeedType::toDouble(byte);
+        }
 
         //EXTRA BYTE
         NLubyte byt, extra;
@@ -1896,6 +1896,19 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
         h.item_power = (extra & 32) != 0;
         const bool preciseGundir = (extra & 64) != 0;
 
+        if (frameExtensions >= 0) {
+            if (h.dead)
+                h.sx = h.sy = 0;
+            else {
+                typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                NLubyte byte;
+                readByte(data, count, byte);
+                h.sx = SpeedType::toDouble(byte);
+                readByte(data, count, byte);
+                h.sy = SpeedType::toDouble(byte);
+            }
+        }
+
         NLubyte ccb;
         readByte(data, count, ccb);
         h.controls.fromNetwork(ccb, true);
@@ -1908,9 +1921,13 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
         else
             h.gundir.fromNetworkShortForm(ccb >> 5);
 
-        //read shadow byte
-        readByte(data, count, byt);
-        h.visibility = byt;
+        if (frameExtensions < 0 || !h.dead) {
+            //read shadow byte
+            readByte(data, count, byt);
+            h.visibility = byt;
+        }
+        else
+            h.visibility = 255;
 
         if (i == me) {
             if (!h.item_turbo)
@@ -1926,17 +1943,19 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     }
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
-    NLubyte mmByte;
-    readByte(data, count, mmByte);
-    if (mmByte == 255 || (mmByte & 0xE0) == 0) { // old protocol
+    if (frameExtensions < 0) {
+        NLubyte mmByte;
+        readByte(data, count, mmByte);
         if (mmByte != 255)
             readMinimapPlayerPosition(data, count, mmByte);
         readByte(data, count, mmByte);
         if (mmByte != 255)
             readMinimapPlayerPosition(data, count, mmByte);
     }
-    else { // new protocol
-        int pos = 5 * (((mmByte & 0xE0) >> 5) - 1);
+    else {
+        NLubyte mmByte;
+        readByte(data, count, mmByte);
+        const int pos = 4 * (mmByte >> 5);
         const int extraBytes = ((mmByte & 0x18) >> 3) + 1;
         NLulong rotP = mmByte & 0x07;
         for (int i = 0, rotPpos = 3; i < extraBytes; ++i, rotPpos += 8) {
@@ -3442,6 +3461,11 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
     }
 
+    break; case data_extension_advantage:
+        #ifndef DEDICATED_SERVER_ONLY
+        addThreadMessage(new TM_Text(msg_warning, _("Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.")));
+        #endif
+
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log("Unknown message code: %d, length %d", code, msglen);
@@ -4354,10 +4378,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
         if (get_time() >= nextSend) {
             nextSend += .1; // match 10 Hz frame frequency of server
-            #ifdef SEND_FRAMEOFFSET
             nextSend += netsendAdjustment;
             netsendAdjustment = 0;  // losing a value due to concurrency is vaguely possible but affordable
-            #endif
             if (get_time() > nextSend)   // don't accumulate lag
                 nextSend = get_time();
             if (!replaying)
