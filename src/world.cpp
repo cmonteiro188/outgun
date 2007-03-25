@@ -2132,7 +2132,7 @@ void ServerWorld::game_player_screen_change(int p) {
 }
 
 void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the player out of the game; the clients must be informed and this function doesn't do that
-    player[target].health = 0;
+    player[target].health = player[target].energy = 0;
 
     player[target].visibility = 255;
     player[target].item_power = false;
