@@ -2321,7 +2321,7 @@ bool ServerWorld::doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) co
         dx = map.w - dx;
     if (dy > map.h / 2)
         dy = map.h - dy;
-    return dx <= config.see_rockets_distance && dy <= config.see_rockets_distance;
+    return dx + dy <= config.see_rockets_distance;
 }
 
 void ServerWorld::shootRockets(int pid, int shots) {
