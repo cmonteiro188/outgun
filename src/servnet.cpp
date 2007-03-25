@@ -1726,7 +1726,6 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
 
 //process incoming client data (callback function)
 void ServerNetworking::incoming_client_data(int id, char *data, int length) {
-    (void)length;
     if (ctop[id] == -1)
         return;
 
