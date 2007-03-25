@@ -3072,6 +3072,13 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it)
         server->send_message(world.player[pid].cid, lebuf, count);
 }
 
+void ServerNetworking::broadcastPickupPicked(int roomx, int roomy, int pup_id) const {
+    char lebuf[256]; int count = 0;
+    writeByte(lebuf, count, data_pup_picked);
+    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));
+    broadcast_screen_message(roomx, roomy, lebuf, count);
+}
+
 void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_timer);

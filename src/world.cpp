@@ -1982,14 +1982,9 @@ void ServerWorld::check_pickup_creation(bool instant) {
 
 void ServerWorld::game_touch_pickup(int pid, int pk) {
     Powerup& it = item[pk];
-
-    //send "item removed" message to all players on the current screen
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_pup_picked);
-    writeByte(lebuf, count, static_cast<NLubyte>(pk));  //what item id
-    net->broadcast_screen_message(it.px, it.py, lebuf, count);
-
     ServerPlayer& pl = player[pid];
+
+    net->broadcastPickupPicked(it.px, it.py, pk);
 
     // Check which powerups player has.
     bool pups[Powerup::pup_last_real + 1];
