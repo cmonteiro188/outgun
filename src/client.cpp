@@ -623,7 +623,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     replaying(false),
     visible_rooms(1),
     spectating(false),
-    spectate_socket(0),
+    spectate_socket(NL_INVALID),
     #endif
     mapChanged(false),
     #ifndef DEDICATED_SERVER_ONLY
