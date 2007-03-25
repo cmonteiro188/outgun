@@ -364,7 +364,7 @@ public:
     void check_fav_colors(int pid);
     void set_fav_colors(int pid, const std::vector<char>& colors);
 
-    void nameChange(int id, int pid, const std::string& tempname, const std::string& password);
+    void nameChange(int id, int pid, std::string name, const std::string& password);
     void chat(int pid, const std::string& sbuf);   //#fix: separate console handling
 
     const ClientData& getClientData(int cid) const { return client[cid]; }

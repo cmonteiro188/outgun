@@ -939,8 +939,10 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
     network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void Server::nameChange(int id, int pid, const string& tempname, const string& password) {
-    if (tempname == world.player[pid].name)
+void Server::nameChange(int id, int pid, string name, const string& password) {
+    if (!world.player[pid].is_bot() && name.substr(0, 4) == "BOT" && (name.length() == 3 || name[3] == ' '))
+        name = "NOB" + name.substr(3);
+    if (name == world.player[pid].name)
         return;
     //name change flooding protection
     if (get_time() < world.player[pid].waitnametime)
@@ -957,14 +959,14 @@ void Server::nameChange(int id, int pid, const string& tempname, const string& p
     // must have just entered the game
     const bool entered_game = world.player[pid].name.empty();
 
-    if (!check_name(tempname)) {
-        log("Kicked player %d for client misbehavior: attempted invalid name '%s'.", pid, tempname.c_str());
+    if (!check_name(name)) {
+        log("Kicked player %d for client misbehavior: attempted invalid name '%s'.", pid, name.c_str());
         disconnectPlayer(pid, disconnect_client_misbehavior);
         return;
     }
     else {
-        if (authorizations.checkNamePassword(tempname, password)) {
-            world.player[pid].name = tempname;
+        if (authorizations.checkNamePassword(name, password)) {
+            world.player[pid].name = name;
             world.player[pid].waitnametime = get_time() + 1.0;
         }
         else if (entered_game) {
@@ -975,7 +977,7 @@ void Server::nameChange(int id, int pid, const string& tempname, const string& p
         else {
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                tempname.c_str(), password.c_str(), addressToString(network.get_client_address(id)).c_str());
+                                name.c_str(), password.c_str(), addressToString(network.get_client_address(id)).c_str());
             network.sendNameAuthorizationRequest(pid);
             return;
         }
