@@ -333,6 +333,7 @@ public:
 
     //disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
     virtual int disconnect_client(int client_id, int timeout, NLubyte reason) { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
+        log("disconnect_client(%d, %d, %d)", client_id, timeout, reason);
 
         //call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
         // DO NOT CALL if client not connected
@@ -1189,15 +1190,12 @@ void thread_master_f(server_ci* server)
 
         // check for error
         if (amount == NL_INVALID) {
-            //DEBUG FIXME: error in nlGetError
+            server->log("Master thread: trouble reading socket: %s", getNlErrorString());
+            platSleep(100);
         }
         // process packet
-        else {
-
-            //SLEP(50); // lag
-
+        else
             server->process_incoming_datagram(buffer, amount);
-        }
     }
     logThreadExit("Leet server thread_master_f", server->log);
 }
