@@ -1366,11 +1366,8 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, G
         addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameAdvance, cb);
     }
     const int* dirp = &form.directions[0];
-    for (int ri = form.nForward; ri < pow; ++ri, ++dirp) {
-        GunDirection adjusted = dir;
-        adjusted.adjust(*dirp);
-        addRocket(rids[ri], playernum, team, px, py, x, y, power, adjusted, 0, frameAdvance, cb);
-    }
+    for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
+        addRocket(rids[ri], playernum, team, px, py, x, y, power, GunDirection(dir).adjust(*dirp), 0, frameAdvance, cb);
 }
 
 void ConstFlagIterator::findValid() {
