@@ -312,7 +312,7 @@ void Server::move_player(int f, int t) {
     world.player[f].set_color(PlayerBase::invalid_color);
 
     world.dropFlagIfAny(f, true);
-    if (world.player[f].health > 0)
+    if (!world.player[f].dead)
         world.resetPlayer(f);   // no need to tell clients because it's inferred by team_change message
 
     //copy to t
@@ -347,9 +347,9 @@ void Server::swap_players(int a, int b) {
 
     world.dropFlagIfAny(a, true);
     world.dropFlagIfAny(b, true);
-    if (world.player[a].health > 0)
+    if (!world.player[a].dead)
         world.resetPlayer(a);   // no need to tell clients because it's inferred by team_change message
-    if (world.player[b].health > 0)
+    if (!world.player[b].dead)
         world.resetPlayer(b);   // no need to tell clients because it's inferred by team_change message
 
     swap(world.player[a], world.player[b]);
@@ -1522,7 +1522,7 @@ void Server::simulate_and_broadcast_frame() {
             }
 
             // Controls
-            if (pl.health > 0) // if dead player, don't send keys
+            if (!pl.dead) // if dead player, don't send keys
                 byte = pl.controls.toNetwork(true);
             else
                 byte = ClientControls().toNetwork(true);

@@ -2191,7 +2191,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
 }
 
 void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType type) {   // inflict damage on target
-    if (player[target].health <= 0 || frame < player[target].start_take_damage_frame)
+    if (player[target].dead || frame < player[target].start_take_damage_frame)
         return;
 
     // shadow powerup: show player
@@ -2293,21 +2293,21 @@ void ServerWorld::removePlayer(int pid) {
 }
 
 void ServerWorld::suicide(int pid) {
-    if (player[pid].health > 0) {
-        const bool flag = player[pid].stats().has_flag();
-        bool wild_flag = false;
-        if (flag)
-            for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-                if (fi->carrier() == pid) {
-                    wild_flag = true;
-                    break;
-                }
-        host->score_frag(pid, -1);
-        player[pid].stats().add_suicide(static_cast<int>(get_time()));
-        teams[pid / TSIZE].add_suicide();
-        net->broadcast_suicide(player[pid], flag, wild_flag);
-        killPlayer(pid, true);
-    }
+    if (player[pid].dead)
+        return;
+    const bool flag = player[pid].stats().has_flag();
+    bool wild_flag = false;
+    if (flag)
+        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
+            if (fi->carrier() == pid) {
+                wild_flag = true;
+                break;
+            }
+    host->score_frag(pid, -1);
+    player[pid].stats().add_suicide(static_cast<int>(get_time()));
+    teams[pid / TSIZE].add_suicide();
+    net->broadcast_suicide(player[pid], flag, wild_flag);
+    killPlayer(pid, true);
 }
 
 NLubyte ServerWorld::getFreeRocket() {
@@ -2415,7 +2415,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
     teams[pid / TSIZE].add_shot_take();
 
     //if player not dead, push him
-    if (player[pid].health > 0) {
+    if (!player[pid].dead) {
         const double mul = 15. / physics.rocket_speed * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.); // divide by rocket_speed to remove its effect in rock.sx,sy
         player[pid].sx += rock[rid].sx * mul;
         player[pid].sy += rock[rid].sy * mul;
@@ -2425,7 +2425,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) {
         deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, 252);     //do not blink
     else
         deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, pid);     //blink
-    return player[pid].health <= 0;
+    return player[pid].dead;
 }
 
 PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int pid1, int pid2, double speed) {
@@ -2437,7 +2437,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     ServerPlayer& pl1 = player[pid1];
     ServerPlayer& pl2 = player[pid2];
 
-    nAssert(pl1.health > 0 && pl2.health > 0);
+    nAssert(!pl1.dead && !pl2.dead);
 
     bool toss_a = false;
     bool toss_b = false;
@@ -2561,7 +2561,7 @@ void ServerWorld::rocketOutOfBoundsCallback(int rid) {
 }
 
 bool ServerWorld::shouldApplyPhysicsToPlayerCallback(int pid) {
-    return player[pid].health > 0;
+    return !player[pid].dead;
 }
 
 void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius) { // needs plyRadius as a shortcut to bounceVec's length
@@ -3019,7 +3019,7 @@ void ServerWorld::simulateFrame() {
         // check deathbringer effect
         if (player[i].deathbringer_end > get_time()) {
             //check if still alive
-            if (player[i].health > 0) {
+            if (!player[i].dead) {
                 //has shield: do big damage to it, in order to remove the shield
                 if (player[i].item_shield)
                     damagePlayer(i, player[i].deathbringer_attacker, 12, DT_deathbringer);
@@ -3045,7 +3045,7 @@ void ServerWorld::simulateFrame() {
             // the donut radius...radius-50
             for (int v = 0; v < maxplayers; v++)
                 //enemy players only if friendly deathbringer is off
-                if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && player[v].health > 0 &&
+                if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && !player[v].dead &&
                                 player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
                                 player[v].deathbringer_end < get_time() && frame >= player[v].start_take_damage_frame) {
                     //calculate player distance to the deathbringer core
@@ -3089,7 +3089,7 @@ void ServerWorld::simulateFrame() {
     vector<ServerPlayer*> respawners[2];
     for (int i = 0; i < maxplayers; ++i) {
         ServerPlayer& pl = player[i];
-        if (!pl.used || pl.health > 0)
+        if (!pl.used || !pl.dead)
             continue;
         if (pl.frames_to_respawn)
             --pl.frames_to_respawn;
@@ -3124,11 +3124,11 @@ void ServerWorld::simulateFrame() {
     // for each player, do misc stuff
     for (int i = 0; i < maxplayers; i++) {
         ServerPlayer& pl = player[i];
-        if (!pl.used || pl.health <= 0)
+        if (!pl.used || pl.dead)
             continue;
 
         // check for player weapons fire time
-        if ((player[i].attack || player[i].attackOnce) && player[i].health > 0 && frame >= player[i].next_shoot_frame) {
+        if ((player[i].attack || player[i].attackOnce) && !player[i].dead && frame >= player[i].next_shoot_frame) {
             int numshots = 1;
             player[i].energy -= config.shooting_energy_base;
             if (player[i].energy < 0)
