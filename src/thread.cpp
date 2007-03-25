@@ -30,8 +30,8 @@
 #include "thread.h"
 #include "utility.h"
 
-MutexHolder g_randomSeedMutex;
-time_t g_randomSeed = time(0);
+static MutexHolder g_randomSeedMutex;
+static time_t g_randomSeed = time(0);
 
 void Thread::randomize() {
     MutexLock ml(g_randomSeedMutex);
