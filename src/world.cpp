@@ -39,8 +39,6 @@
 
 static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
-const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
-
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const double minimum_grab_to_capture_time = 4.0;
 

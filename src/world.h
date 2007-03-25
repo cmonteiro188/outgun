@@ -760,6 +760,10 @@ public:
 };
 
 class WorldBase {
+public:
+    static const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
+
+private:
     void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
                    bool power, GunDirection dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb);
 
