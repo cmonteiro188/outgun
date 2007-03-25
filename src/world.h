@@ -348,15 +348,15 @@ class GunDirection {
 public:
     GunDirection() : data(-1) { }
 
-    void adjust(double change) { data += change; normalize(); }
+    GunDirection& adjust(double change) { data += change; normalize(); return *this; }
 
-    void from8way(int dir) { data = dir; }
-    void fromControls(const ClientControls& c) { data = c.getDirection(); }
-    void updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; }
-    void fromRad(double r) { data = r / N_PI_4; normalize(); }
+    GunDirection& from8way(int dir) { data = dir; return *this; }
+    GunDirection& fromControls(const ClientControls& c) { data = c.getDirection(); return *this; }
+    GunDirection& updateFromControls(const ClientControls& c) { const int d = c.getDirection(); if (d != -1) data = d; return *this; }
+    GunDirection& fromRad(double r) { data = r / N_PI_4; normalize(); return *this; }
 
-    void fromNetworkShortForm(NLubyte data_) { data = data_ & 7; }
-    void fromNetworkLongForm(NLushort data_) { data = data_ / 256.; } // only 11 bits used
+    GunDirection& fromNetworkShortForm(NLubyte data_) { data = data_ & 7; return *this; }
+    GunDirection& fromNetworkLongForm(NLushort data_) { data = data_ / 256.; return *this; } // only 11 bits used
 
     NLubyte toNetworkShortForm() const { return to8way(); }
     NLushort toNetworkLongForm() const { nAssert(data >= 0 && data <= 8); return iround(data * 256.) % (256 * 8); } // only 11 bits used
