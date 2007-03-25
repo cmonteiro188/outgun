@@ -3156,7 +3156,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         NLubyte pid;
         readByte(lebuf, count, pid);
         fx.player[pid].stats().spawn(time);
-        if (!fx.player[pid].onscreen && fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
+        if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
             fx.player[pid].posUpdated = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
         fx.player[pid].dead = false;
     }
@@ -5215,10 +5215,10 @@ bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge)
 bool Client::player_on_screen(int pid) const {
     if (!fx.player[pid].used)
         return false;
-    else if (!replaying && !fx.player[pid].onscreen && (!fx.player[pid].dead || fx.player[pid].posUpdated < 0) && fx.frame > fx.player[pid].posUpdated + 20)
-        return false;
-    else
+    else if (fx.player[pid].posUpdated >= fx.frame - 20 || fx.player[pid].dead && fx.player[pid].posUpdated >= 0)
         return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, Graphics::extended_player_max_size_in_world / 2);
+    else
+        return false;
 }
 
 bool Client::player_on_screen_exact(int pid) const {
