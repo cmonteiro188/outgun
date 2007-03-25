@@ -26,9 +26,12 @@
 
 #include "leetnet/client.h"
 #include "nassert.h"
+#include "protocol.h"
 
 #include "client.h"
 
+using std::make_pair;
+using std::pair;
 using std::vector;
 
 const int SCAN_RADIUS = ROCKET_RADIUS;
@@ -37,23 +40,10 @@ const int S_W = plw;
 const int S_H = plh;
 const int FADEOUT = 50;
 
+inline GunDirection inv_dir(GunDirection dir) { return dir.adjust(4); }
 inline int inv_dir(int dir) { return dir ^ 4; }
 
 bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
-    double deg;
-
-    if (dx == 0)
-        deg = N_PI_2;
-    else
-        deg = atan(fabs(dy) / fabs(dx));
-
-    if (dx >= 0 && dy <= 0)
-        deg = 2 * N_PI - deg;
-    else if (dx <= 0 && dy >= 0)
-        deg = N_PI - deg;
-    else if (dx <= 0 && dy <= 0)
-        deg = N_PI + deg;
-
     const double tx = mex + dx;
     const double ty = mey + dy;
     const double dist = sqrt(sqr(dx) + sqr(dy));
@@ -62,8 +52,6 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     const double sx = dx / dist * 2 * SCAN_RADIUS;
     const double sy = dy / dist * 2 * SCAN_RADIUS;
 
-    nAssert(fabs(cos(deg) * 2 * SCAN_RADIUS - sx) < 1e-10);
-    nAssert(fabs(sin(deg) * 2 * SCAN_RADIUS - sy) < 1e-10);
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
     bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
 
@@ -71,7 +59,7 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
         const bool blocked = room.fall_on_wall(mex, mey, SCAN_RADIUS);
         if (blocked && !at_wall)
             return true;
-        if (!blocked && at_wall)
+        if (!blocked)
             at_wall = false;
 
         mex += sx;
@@ -86,8 +74,8 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     return false;
 }
 
-double Client::ScanDir(double mex, double mey, int dir) const {
-    const double deg =  N_PI_4 * dir;
+double Client::ScanDir(double mex, double mey, GunDirection dir) const {
+    const double deg = dir.toRad();
 
     const double sx = cos(deg) * 2 * SCAN_RADIUS;
     const double sy = sin(deg) * 2 * SCAN_RADIUS;
@@ -116,7 +104,10 @@ double Client::ScanDir(double mex, double mey, int dir) const {
 }
 
 int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+    nAssert(!fx.physics.allowFreeTurning);
+
     // XXX?
+
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
     const double tty = fx.player[i].ly + averageLag * fx.player[i].sy;
 
@@ -132,7 +123,7 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit
     dx += tm * fx.player[i].sx;
     dy += tm * fx.player[i].sy;
 
-    const int dir = GetDir(dx, dy);
+    const int dir = GetDir(dx, dy).to8way();
 
     if (myGundir != dir)
         return 0;
@@ -140,7 +131,10 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit
     if (IsBehindWall(mex, mey, dx, dy))
         return 0;
 
-    static const double treshold = 1.3 * PLAYER_RADIUS;
+    static const int rocketsPerWeaponLevel[9] = { 1, 2, 3, 2, 3, 2, 3, 2, 3 };
+    const int w = fx.player[me].weapon;
+    const int rockets = w >= 1 && w <= 9 ? rocketsPerWeaponLevel[w - 1] : 1;
+    static const double treshold = 1.3 * PLAYER_RADIUS + .7 * WorldBase::shot_deltax * (rockets - 1); // both 1.3 and .7 are semi-arbitrary
     if (dir == 0 || dir == 4) // left or right
         return fabs(dy) < treshold ? 2 : 1;
     if (dir == 2 || dir == 6) // up or down
@@ -149,85 +143,42 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit
     return fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2) ? 2 : 1;
 }
 
-int Client::GetDir(double dx, double dy) const {
-    if (dx == 0 && dy == 0)
-        return 0;
-
-    double ntg;
-    if (fabs(dx) > fabs(dy))
-        ntg = fabs(dy) / fabs(dx);
-    else
-        ntg = fabs(dx) / fabs(dy);
-
-    if (ntg < 0.41) { // h or v
-        if (dx >= 0 && fabs(dy) < fabs(dx))
-            return 0;
-        else if (dy >= 0 && fabs(dy) > fabs(dx))
-            return 2;
-        else if (dx <= 0 && fabs(dx) > fabs(dy))
-            return 4;
-        else
-            return 6;
-    }
-    else { // diagonals
-        if (dx > 0 && dy > 0)
-            return 1;
-        else if (dx < 0 && dy > 0)
-            return 3;
-        else if (dx < 0 && dy < 0)
-            return 5;
-        else
-            return 7;
-    }
+GunDirection Client::GetDir(double dx, double dy) const {
+    return GunDirection().fromRad(atan2(dy, dx));
 }
 
-int Client::GetDangerousRocket(double mex, double mey) const {
-    int mrock = -1;
-    double nearestDist = 1e10;
+int Client::GetDangerousRocket() const {
+    static const int thinkAheadFrames = 10;
+    static const double safetyRoomMul = 4., framesAfterBounce = .5;
+
+    int nearRocket = -1;
+    double firstTime = 1e99;
+
+    const ClientPlayer& player = fx.player[me];
+
+    const Room& room = fx.map.room[player.roomx][player.roomy];
+
+    const double bounceTime = fx.getTimeTillBounce(room, player, PLAYER_RADIUS, thinkAheadFrames).first;
 
     for (int i = 0; i < MAX_ROCKETS; ++i) {
         const Rocket& rocket = fx.rock[i];
-        const ClientPlayer& player = fx.player[me];
 
-        if (rocket.owner == -1 || rocket.team == player.team() ||
-            rocket.px != player.roomx || rocket.py != player.roomy)
-                continue;
-
-        const double rdx = rocket.x + averageLag * rocket.sx - mex;
-        const double rdy = rocket.y + averageLag * rocket.sy - mey;
-
-        const int d = rocket.direction.to8way();
-
-        if (IsBehindWall(mex, mey, rdx, rdy))
+        if (rocket.owner == -1 || rocket.team == player.team() && !fx.physics.friendly_fire || rocket.px != player.roomx || rocket.py != player.roomy)
             continue;
 
-        if ((d == 0 || d == 1 || d == 7) && rdx >  4 * PLAYER_RADIUS)
-            continue;
-        if ((d == 3 || d == 4 || d == 5) && rdx < -4 * PLAYER_RADIUS)
-            continue;
-        if ((d == 1 || d == 2 || d == 3) && rdy >  4 * PLAYER_RADIUS)
-            continue;
-        if ((d == 5 || d == 6 || d == 7) && rdy < -4 * PLAYER_RADIUS)
+        const double collisionTime = fx.getTimeTillCollision(player, rocket, (PLAYER_RADIUS + ROCKET_RADIUS) * safetyRoomMul);
+        if (collisionTime > bounceTime + framesAfterBounce || collisionTime >= firstTime)
             continue;
 
-        const double dist2 = (sqrt(rdx * rdx + rdy * rdy) / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        const double rocketWallTime = fx.getTimeTillWall(room, rocket, thinkAheadFrames);
+        if (collisionTime > rocketWallTime)
+            continue;
 
-        double dist1;
-        if (d == 0 || d == 4)
-            dist1 = fabs(rdy);
-        else if (d == 2 || d == 6)
-            dist1 = fabs(rdx);
-        else if (d == 1 || d == 5)
-            dist1 = fabs(rdy - rdx) / sqrt(2.);
-        else
-            dist1 = fabs(rdy + rdx) / sqrt(2.);
+        firstTime = collisionTime;
+        nearRocket = i;
+    }        
 
-        if (dist1 < 6 * PLAYER_RADIUS && dist1 + dist2 < nearestDist) { //was 4
-            mrock = i;
-            nearestDist = dist1 + dist2;
-        }
-    }
-    return mrock;
+    return nearRocket;
 }
 
 int Client::GetEasyEnemy(double mex, double mey) const {
@@ -246,23 +197,27 @@ int Client::GetEasyEnemy(double mex, double mey) const {
         const double dx = ttx - mex;
         const double dy = tty - mey;
 
-        const int d = GetDir(dx, dy);
+        const double playerDist = sqrt(dx * dx + dy * dy);
+        const double escapeDist = (playerDist / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
-        const double dist2 = (sqrt(dx * dx + dy * dy) / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        double rocketPlaneDist;
+        if (fx.physics.allowFreeTurning)
+            rocketPlaneDist = playerDist;
+        else {
+            const int d = GetDir(dx, dy).to8way();
+            if (d == 0 || d == 4)
+                rocketPlaneDist = fabs(dy);
+            else if (d == 2 || d == 6)
+                rocketPlaneDist = fabs(dx);
+            else if (d == 1 || d == 5)
+                rocketPlaneDist = fabs(dy - dx) / sqrt(2.);
+            else
+                rocketPlaneDist = fabs(dy + dx) / sqrt(2.);
+        }
 
-        double dist1;
-        if (d == 0 || d == 4)
-            dist1 = fabs(dy);
-        else if (d == 2 || d == 6)
-            dist1 = fabs(dx);
-        else if (d == 1 || d == 5)
-            dist1 = fabs(dy - dx) / sqrt(2.);
-        else
-            dist1 = fabs(dy + dx) / sqrt(2.);
-
-        if (dist1 < 2 * PLAYER_RADIUS && dist1 + dist2 < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
             target = i;
-            nearestDist = dist1 + dist2;
+            nearestDist = rocketPlaneDist + escapeDist;
         }
     }
     #ifdef BOTDEBUG
@@ -288,29 +243,41 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
         const double dx = ttx - mex;
         const double dy = tty - mey;
 
-        const int d = enemy.gundir.to8way();
-        const double rawDist = sqrt(dx * dx + dy * dy);
+        const double playerDist = sqrt(dx * dx + dy * dy);
+        const GunDirection aimTowardsMe = inv_dir(GetDir(dx, dy));
 
-        const int dd = inv_dir(GetDir(dx, dy));
+        bool aimed;
+        if (fx.physics.allowFreeTurning) {
+            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90° range are considered dangerous
+            const double diff = positiveFmod(enemy.gundir.toRad() - aimTowardsMe.toRad(), 2 * N_PI);
+            aimed = diff < tolerance || diff > 2 * N_PI - tolerance;
+        }
+        else
+            aimed = enemy.gundir.to8way() == aimTowardsMe.to8way();
 
-        if (d != dd && rawDist > 2 * PLAYER_RADIUS)
+        if (!aimed && playerDist > 2 * PLAYER_RADIUS)
             continue;
 
-        const double dist2 = (rawDist / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
+        const double escapeDist = (playerDist / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
 
-        double dist1;
-        if (d == 0 || d == 4)
-            dist1 = fabs(dy);
-        else if (d == 2 || d == 6)
-            dist1 = fabs(dx);
-        else if (d == 1 || d == 5)
-            dist1 = fabs(dy - dx) / sqrt(2.);
-        else
-            dist1 = fabs(dy + dx) / sqrt(2.);
+        double rocketPlaneDist;
+        if (fx.physics.allowFreeTurning)
+            rocketPlaneDist = playerDist;
+        else {
+            const int d = aimTowardsMe.to8way();
+            if (d == 0 || d == 4)
+                rocketPlaneDist = fabs(dy);
+            else if (d == 2 || d == 6)
+                rocketPlaneDist = fabs(dx);
+            else if (d == 1 || d == 5)
+                rocketPlaneDist = fabs(dy - dx) / sqrt(2.);
+            else
+                rocketPlaneDist = fabs(dy + dx) / sqrt(2.);
+        }
 
-        if (dist1 < 2 * PLAYER_RADIUS && dist1 + dist2 < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
             target = i;
-            nearestDist = dist1 + dist2;
+            nearestDist = rocketPlaneDist + escapeDist;
         }
     }
     #ifdef BOTDEBUG
@@ -324,12 +291,12 @@ int Client::GetNearestEnemy(double mex, double mey) const {
     int target = -1;
     double mdist = 0;
 
+    const ClientPlayer& player = fx.player[me];
+
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.roomx != player.roomx || enemy.roomy != player.roomy ||
-            enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
-                continue;
+        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+            continue;
 
         // XXX?
         const double ttx = enemy.lx + averageLag * enemy.sx;
@@ -350,18 +317,62 @@ int Client::GetNearestEnemy(double mex, double mey) const {
     return target;
 }
 
-bool Client::NeedShoot(double mex, double mey) const {
-    for (int i = 0; i < maxplayers; ++i) {  // find nearest
-        const ClientPlayer& enemy = fx.player[i];
-        const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.roomx != player.roomx || enemy.roomy != player.roomy ||
-            enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
-               continue;
+pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) const {
+    nAssert(fx.physics.allowFreeTurning);
 
-        if (IsAimed(mex, mey, i) == 2)
-            return true;
+    const double ttx = fx.player[target].lx + averageLag * fx.player[target].sx;
+    const double tty = fx.player[target].ly + averageLag * fx.player[target].sy;
+
+    double dx = ttx - mex;
+    double dy = tty - mey;
+
+    const double dist = sqrt(dx * dx + dy * dy);
+
+    if (dist < 1)
+        return make_pair(true, gunDir);
+
+    const double tm = dist / fx.physics.rocket_speed;
+    dx += tm * fx.player[target].sx;
+    dy += tm * fx.player[target].sy;
+
+    return make_pair(!IsBehindWall(mex, mey, dx, dy), GetDir(dx, dy));
+}
+
+pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDirection& defaultDir) {
+    const ClientPlayer& player = fx.player[me];
+
+    vector<int> tryOrder;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || pl.team() == player.team() || !pl.onscreen || pl.dead)
+            continue;
+
+        if (fx.physics.allowFreeTurning) {
+            if (i != last_seen)
+                tryOrder.push_back(i);
+        }
+        else {
+            if (IsAimed(mex, mey, i) == 2)
+                return make_pair(true, GunDirection()); // the direction doesn't make any difference with non-free turning
+        }
     }
-    return false;
+
+    if (!fx.physics.allowFreeTurning)
+        return make_pair(false, GunDirection());
+
+    const pair<bool, GunDirection> aimLastSeen =
+            last_seen == -1 ? make_pair(false, defaultDir) : TryAim(mex, mey, last_seen);
+    if (aimLastSeen.first)
+        return aimLastSeen;
+    random_shuffle(tryOrder.begin(), tryOrder.end());
+    for (vector<int>::const_iterator ti = tryOrder.begin(); ti != tryOrder.end(); ++ti) {
+        const pair<bool, GunDirection> aim = TryAim(mex, mey, *ti);
+        if (aim.first) {
+            last_seen = *ti;
+            return aim;
+        }
+    }
+    return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
 ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
@@ -415,6 +426,8 @@ ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
 }
 
 ClientControls Client::Aim(double mex, double mey, int i) const {
+    nAssert(!fx.physics.allowFreeTurning);
+
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
     const double tty = fx.player[i].ly + averageLag * fx.player[i].sy;
 
@@ -456,14 +469,13 @@ ClientControls Client::Aim(double mex, double mey, int i) const {
     return ctrl;
 }
 
-
 int Client::FreeDir(double mex, double mey) const {
     int mdir = 0;
     double mdist = 0;
 
     for (int i = myGundir - 1; i <= myGundir + 1; ++i) {
         const int d = (i + 8) % 8;
-        const double dist = ScanDir(mex, mey, d);
+        const double dist = ScanDir(mex, mey, GunDirection().from8way(d));
 
         if (dist > mdist || mdist == 0 || dist == mdist && i == myGundir) {
             mdist = dist;
@@ -482,14 +494,9 @@ ClientControls Client::MoveDirNoAggregate(int dir) const {
     int n = 0;
 
     for (int i = 0; i < maxplayers; ++i) {
-        if (!fx.player[i].used ||
-            fx.player[i].team() != fx.player[me].team() ||
-            fx.player[i].dead || !fx.player[i].onscreen || (i == me))
-                continue;
+        if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen || i == me)
+            continue;
 
-        if (fx.player[i].roomx != fx.player[me].roomx ||
-            fx.player[i].roomy != fx.player[me].roomy)
-                continue;
         const double dx = fx.player[i].lx - fx.player[me].lx + averageLag * (fx.player[i].sx - fx.player[me].sx);
         const double dy = fx.player[i].ly - fx.player[me].ly + averageLag * (fx.player[i].sy - fx.player[me].sy);
         if (fabs(dx) > PLAYER_RADIUS || fabs(dy) > PLAYER_RADIUS)
@@ -601,7 +608,7 @@ ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, doub
         return MoveDir(mdir);
     }
     else {
-        const int mdir = GetDir(dx, dy);
+        const int mdir = GetDir(dx, dy).to8way();
         return MoveDirNoAggregate(mdir);
     }
 }
@@ -612,16 +619,14 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) cons
     if (IsBehindWall(mex, mey, dx, dy))//walking
         mdir = FreeDir(mex, mey);
     else
-        mdir = GetDir(dx, dy);
+        mdir = GetDir(dx, dy).to8way();
     return MoveDir(mdir);
 }
 
 ClientControls Client::GetPowerup(double mex, double mey) const {
     for (int i = 0; i < MAX_PICKUPS; ++i) {
-        if (fx.item[i].kind == Powerup::pup_unused ||
-            fx.item[i].kind == Powerup::pup_respawning ||
-            fx.item[i].px != fx.player[me].roomx ||
-            fx.item[i].py != fx.player[me].roomy)
+        if (fx.item[i].kind == Powerup::pup_unused || fx.item[i].kind == Powerup::pup_respawning ||
+            fx.item[i].px != fx.player[me].roomx || fx.item[i].py != fx.player[me].roomy)
                 continue;
         return MoveTo(mex, mey, fx.item[i].x - mex, fx.item[i].y - mey);
     }
@@ -711,11 +716,9 @@ int Client::Teams(int x, int y, int& en, int& fr) const {
 }
 
 bool Client::AmILast() const {
-    const int x = fx.player[me].roomx;
-    const int y = fx.player[me].roomy;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
+        if (!pl.used || !pl.onscreen || pl.dead)
             continue;
         if (pl.team() == fx.player[me].team() && i > me)
             return false; // i am not last one
@@ -724,34 +727,30 @@ bool Client::AmILast() const {
 }
 
 ClientControls Client::Escape(double mex, double mey) const {
-    int i = 0;
+    if (!HaveFlag(me))
+        return ClientControls();
+
     const int roomx = fx.player[me].roomx;
     const int roomy = fx.player[me].roomy;
 
-    if (!HaveFlag(me))
-        return ClientControls();
     int enemies = 0;
     int friends = 0;
-
     Teams(roomx, roomy, enemies, friends);
 
     if (enemies <= friends)
         return ClientControls();
     // looking for friends
 
-    for (i = 0; i < 4; ++i) {
-        int x = roomx;
-        int y = roomy;
-        if (!fx.map.room[x][y].pass[i])
+    for (int i = 0; i < 4; ++i) {
+        if (!fx.map.room[roomx][roomy].pass[i])
             continue;
+        int x = roomx, y = roomy;
         next_room(x, y, i);
         Teams(x, y, enemies, friends);
         if (friends + 1 > enemies && friends > 0)
-            break;
+            return MoveToDoor(mex, mey, i);
     }
-    if (i == 4)
-        return ClientControls();
-    return MoveToDoor(mex, mey, i);
+    return ClientControls();
 }
 
 ClientControls Client::FollowFlag(double mex, double mey) const {
@@ -762,9 +761,8 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
     int num = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.roomx != fx.player[me].roomx || pl.roomy != fx.player[me].roomy ||
-            pl.team() != fx.player[me].team() || !pl.onscreen || pl.dead || i == me || !HaveFlag(i))
-               continue;
+        if (!pl.used || pl.team() != fx.player[me].team() || !pl.onscreen || pl.dead || i == me || !HaveFlag(i))
+            continue;
 
         dx += pl.lx;
         dy += pl.ly;
@@ -1117,7 +1115,7 @@ bool Client::IsDefender() {
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
             if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me ||
-                player.roomx < 0 || player.roomy < 0 || player.roomx >= fx.map.w || player.roomy >= fx.map.h)
+                player.roomx >= fx.map.w || player.roomy >= fx.map.h)
                     continue;
             const int label = fx.map.room[player.roomx][player.roomy].label[Table_Def];
             if (label <= m_label || HaveFlag(i))
@@ -1220,10 +1218,6 @@ bool Client::IsMassive() const {
         if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen)
             continue;
 
-        if (fx.player[i].roomx != fx.player[me].roomx ||
-            fx.player[i].roomy != fx.player[me].roomy)
-                continue; //already here
-
         dx += fabs(fx.player[i].lx - fx.player[me].lx + averageLag * (fx.player[i].sx - fx.player[me].sx));
         dy += fabs(fx.player[i].ly - fx.player[me].ly + averageLag * (fx.player[i].sy - fx.player[me].sy));
         ++n;
@@ -1289,9 +1283,8 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
     int label = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (i == me || !pl.used || pl.team() != team || pl.dead ||
-            pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
-                continue;
+        if (i == me || !pl.used || pl.team() != team || pl.dead || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
+            continue;
 
         label = fx.map.room[pl.roomx][pl.roomy].label[num];
         if (label == -1)
@@ -1414,10 +1407,8 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
 
         if (fi->carried() && !enemy) { // our flag carried, is there near our forces
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (!pl.used || pl.roomx < 0 || pl.roomy < 0 ||
-                pl.roomx >= fx.map.w || pl.roomy >= fx.map.h ||
-                fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
-                    continue; // old data
+            if (!pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h || fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
+                continue; // old data
 
             if (!pl.onscreen) {
                 if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
@@ -1447,7 +1438,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         // this flag is ok
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (!pl.used || pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
+            if (!pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
                 continue;
             nx = pl.roomx;
             ny = pl.roomy;
@@ -1595,7 +1586,7 @@ ClientControls Client::getRobotControls() {
     }
 
     if (!IsMassive()) {
-        const int dangerousRocket = GetDangerousRocket(mex, mey);
+        const int dangerousRocket = GetDangerousRocket();
         if (dangerousRocket != -1) {
             if (last_seen == -1)
                 last_seen = GetDangerousEnemy(mex, mey);
@@ -1604,7 +1595,7 @@ ClientControls Client::getRobotControls() {
     }
 
     if (last_seen == -1) {
-        ClientControls ctrl = GetFlag(mex, mey);
+        const ClientControls ctrl = GetFlag(mex, mey);
         if (!ctrl.idle()) // if any
             return ctrl;
     }
@@ -1621,24 +1612,29 @@ ClientControls Client::getRobotControls() {
     else // get someone
         last_seen = GetNearestEnemy(mex, mey);
 
-    if (last_seen != -1)
+    if (last_seen != -1 && !fx.physics.allowFreeTurning)
         return Aim(mex, mey, last_seen);
 
     // ok, free tour ;)
     ClientControls ctrl = GetPowerup(mex, mey);
     if (!ctrl.idle())
         return ctrl;
+
     ctrl = Escape(mex, mey);
     if (!ctrl.idle())
         return ctrl;
+
     ctrl = Route(mex, mey, Table_Main);
     if (!ctrl.idle())
         return ctrl;
+
     ctrl = FollowFlag(mex, mey);
     if (!ctrl.idle())
         return ctrl;
+
     ctrl = FreeWalk(mex, mey);
-    ctrl.clearRun();
+    if (last_seen == -1)
+        ctrl.clearRun();
     return ctrl;
 }
 
@@ -1646,8 +1642,7 @@ ClientControls Client::Robot() {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
-                    fx.player[me].roomx < 0 || fx.player[me].roomx >= fx.map.w ||
-                    fx.player[me].roomy < 0 || fx.player[me].roomy >= fx.map.h) {
+                    fx.player[me].roomx >= fx.map.w || fx.player[me].roomy >= fx.map.h) {
         myGundir = -1;
         if (botPrevFire) {
             char lebuf[16]; int count = 0;
@@ -1661,7 +1656,7 @@ ClientControls Client::Robot() {
     if (myGundir == -1) // was dead, or something like that
         myGundir = fx.player[me].gundir.to8way();
 
-    ClientControls ctrl = getRobotControls();
+    const ClientControls ctrl = getRobotControls();
 
     if (!ctrl.isStrafe()) {
         const int newDirection = ctrl.getDirection();
@@ -1671,7 +1666,24 @@ ClientControls Client::Robot() {
 
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
-    if (NeedShoot(mex, mey)) {
+    const pair<bool, GunDirection> shootDir = NeedShoot(mex, mey, GunDirection().from8way(myGundir)); // if there's no player to target, aim where we're going
+    bool actuallyShoot = shootDir.first;
+    if (fx.physics.allowFreeTurning) {
+        // adjust gunDir
+        static const double turnCeilingPerFrame = N_PI_2;
+        static const double displacementMul = .7;
+        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22° of target
+        const double targetDiff = positiveFmod(shootDir.second.toRad() - gunDir.toRad() + N_PI, 2 * N_PI) - N_PI;
+        double actualDiff = targetDiff;
+        if (fabs(actualDiff) > turnCeilingPerFrame)
+            actualDiff = turnCeilingPerFrame * (actualDiff > 0 ? +1. : -1.);
+        const double modifier = (rand() % 10001 - 5000) / 5000.;
+        actualDiff *= 1. + displacementMul * modifier * modifier * modifier; // actually turn by something between actualDiff * (1 +/- displacementMul), weighted so that values in the middle are more likely than extremes
+        gunDir.adjust(actualDiff);
+        if (fabs(actualDiff - targetDiff) > shootTreshold)
+            actuallyShoot = false;
+    }
+    if (actuallyShoot) {
         if (!botPrevFire) {
             char lebuf[16]; int count = 0;
             writeByte(lebuf, count, data_fire_on);
@@ -1686,6 +1698,5 @@ ClientControls Client::Robot() {
         botPrevFire = false;
     }
 
-    gunDir.from8way(myGundir);
     return ctrl;
 }

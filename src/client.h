@@ -372,12 +372,13 @@ class Client : public ClientInterface {
     int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
     bool        IsMassive() const; // am i berserker? (No rocket avoiding)
     bool        HaveFlag(int n) const; // returns if n is carrier
-    int         IsAimed(double mex, double mey, int i) const; // return 1 if in hit point, 2 and 0 - see src ;)
+    int         IsAimed(double mex, double mey, int i) const; // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+    std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const; // for free turning; returns (shoot?, direction)
     bool        IsBehindWall(double mex, double mey, double dx, double dy) const;
-    double      ScanDir(double mex, double mey, int dir) const; // return length to wall
-    bool        NeedShoot(double mex, double mey) const; // shoot or not to shoot?
-    int         GetDir(double dx, double dy) const; // 0 - 0, 2 - Pi/2, 3 - Pi...
-    int         GetDangerousRocket(double mex, double mey) const; // get danger rocket index
+    double      ScanDir(double mex, double mey, GunDirection dir) const; // return length to wall
+    std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
+    GunDirection GetDir(double dx, double dy) const; // 0 - 0, 2 - Pi/2, 3 - Pi...
+    int         GetDangerousRocket() const; // get danger rocket index
     int         GetDangerousEnemy(double mex, double mey) const; // same for enemy
     int         GetNearestEnemy(double mex, double mey) const; // get nearest enemy
     int         FreeDir(double mex, double mey) const; // maximum free space at front
