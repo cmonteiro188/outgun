@@ -2620,6 +2620,8 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     parameters["uptime"] = itoa(world.frame / 10);
     parameters["map"] = host->current_map().title;
     parameters["mapfile"] = host->getCurrentMapFile();
+    if (!settings.get_server_password().empty())
+        parameters["password"] = "1";
     if (is_relay_active())
         parameters["spectator"] = "1";
     string players;
