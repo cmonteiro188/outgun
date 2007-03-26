@@ -3196,34 +3196,33 @@ void ServerWorld::simulateFrame() {
         // ft = 0 => Touch enemy flag
         // ft = 1 => Touch wild flag
         bool touches_flag = false;
-        for (int ft = 0; ft < 2; ft++) {
-            if (pl.stats().has_flag())
-                break;
-            if (ft == 0 && lock_team_flags_in_effect())
-                continue;
-            if (ft == 1 && lock_wild_flags_in_effect())
-                break;
-            const vector<Flag>* flags;
-            int flag_team;
-            if (ft == 0) {
-                flag_team = enemyteam;
-                flags = &teams[enemyteam].flags();
-            }
-            else {
-                flag_team = 2;
-                flags = &wild_flags;
-            }
-            int f = 0;
-            for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
-                    touches_flag = true;
-                    // Has player just dropped the flag or not?
-                    if (!pl.dropped_flag && !pl.drop_key) {
-                        player_steals_flag(i, flag_team, f);
-                        break;  // only take one flag
-                    }
+        if (!pl.stats().has_flag())
+            for (int ft = 0; ft < 2; ft++) {
+                if (ft == 0 && lock_team_flags_in_effect())
+                    continue;
+                if (ft == 1 && lock_wild_flags_in_effect())
+                    break;
+                const vector<Flag>* flags;
+                int flag_team;
+                if (ft == 0) {
+                    flag_team = enemyteam;
+                    flags = &teams[enemyteam].flags();
                 }
-        }
+                else {
+                    flag_team = 2;
+                    flags = &wild_flags;
+                }
+                int f = 0;
+                for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
+                    if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
+                        touches_flag = true;
+                        // Has player just dropped the flag or not?
+                        if (!pl.dropped_flag && !pl.drop_key) {
+                            player_steals_flag(i, flag_team, f);
+                            break;  // only take one flag
+                        }
+                    }
+            }
         if (!pl.drop_key && !touches_flag)  // Player who dropped the flag has now moved outside it.
             pl.dropped_flag = false;
 
