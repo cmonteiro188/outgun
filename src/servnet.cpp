@@ -2597,6 +2597,8 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["uptime"] = itoa(world.frame / 10);
         parameters["map"] = host->current_map().title;
         parameters["link"] = host->server_website();
+        if (!settings.get_server_password().empty())
+            parameters["password"] = "1";
         if (is_relay_active())
             parameters["spectator"] = "1";
     }
