@@ -3215,8 +3215,7 @@ void ServerWorld::simulateFrame() {
             }
             int f = 0;
             for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-                if ((!fi->carried() || player[fi->carrier()].under_deathbringer_effect(get_time())) &&
-                      check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
+                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
                     touches_flag = true;
                     // Has player just dropped the flag or not?
                     if (!pl.dropped_flag && !pl.drop_key) {
