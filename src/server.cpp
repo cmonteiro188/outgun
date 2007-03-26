@@ -940,7 +940,7 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
 }
 
 void Server::nameChange(int id, int pid, string name, const string& password) {
-    if (!world.player[pid].is_bot() && name.substr(0, 4) == "BOT" && (name.length() == 3 || name[3] == ' '))
+    if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' ' || name[3] == ' '))
         name = "NOB" + name.substr(3);
     if (name == world.player[pid].name)
         return;
