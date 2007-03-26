@@ -1249,7 +1249,9 @@ void ServerNetworking::update_serverinfo() {
     nAssert(pc == player_count);
 
     ostringstream info;
-    if (settings.dedicated())
+    if (!settings.get_server_password().empty())
+        info << "P ";
+    else if (settings.dedicated())
         info << "D ";
     else
         info << "  ";
