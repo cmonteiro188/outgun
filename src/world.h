@@ -343,7 +343,7 @@ class GunDirection {
 
     GunDirection(double data_) : data(data_) { }
 
-    void normalize() { data = positiveFmod(data, 8.); nAssert(data >= 0 && data < 8); }
+    void normalize() { data = positiveFmod(data, 8.); }
 
 public:
     GunDirection() : data(-1) { }

@@ -108,7 +108,7 @@ int numberWidth(int num) {
 
 double positiveFmod(double val, double modulus) {
     nAssert(modulus > 0);
-    return val >= 0 ? fmod(val, modulus) : fmod(modulus - fmod(-val, modulus), modulus); // the outer fmod in : part is only necessary to return 0 instead of modulus
+    return val >= 0 ? fmod(val, modulus) : modulus - fmod(-val, modulus);
 }
 
 string toupper(string str) {
