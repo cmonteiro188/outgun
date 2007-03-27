@@ -3973,7 +3973,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
             else if (connected || replaying)
                 showMenu(m_serverInfo);
             stats_autoshowing = false;
-        break; case KEY_F3:
+        break; case KEY_F3: case KEY_N:
             if (withControl)
                 menu.options.graphics.showNames.set(menu.options.graphics.showNames() == Menu_graphics::N_Never ? Menu_graphics::N_SameRoom : Menu_graphics::N_Never);
             else
