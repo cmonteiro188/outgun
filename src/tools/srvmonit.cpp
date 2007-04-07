@@ -213,21 +213,18 @@ public:
                     printf("/ban mode\n");
             }
             else if (toupper(key) == 'M') {
-                if (mute == 0) {
-                    mute = 1;
-                    printf("mute mode\n");
-                }
-                else if (mute == 1) {
-                    mute = 2;
-                    printf("SILENT mute mode\n");
-                }
-                else if (mute == 2) {
-                    mute = 3;
-                    printf("unmute mode\n");
-                }
-                else {
-                    mute = 0;
-                    printf("/mute mode\n");
+                mute = (mute + 1) % 4;
+                switch (mute) {
+                /*break;*/ case 0:
+                        printf("/mute mode\n");
+                    break; case 1:
+                        printf("mute mode\n");
+                    break; case 2:
+                        printf("SILENT mute mode\n");
+                    break; case 3:
+                        printf("unmute mode\n");
+                    break; default:
+                        nAssert(0);
                 }
             }
             else if (toupper(key) == 'S') {
