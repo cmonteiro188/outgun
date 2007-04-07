@@ -851,7 +851,7 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
                      );
         }
         if (timeUnknown >= 3.)
-            print_text_border_centre(itoa(static_cast<int>(timeUnknown)), x, y, teamcol[team], colour(Colour::old_flag_time_border), -1);
+            print_text_border_centre(itoa(static_cast<int>(timeUnknown)), x, y, teamcol[team], colour(Colour::timer_border), -1);
     }
 
     solid_mode();
