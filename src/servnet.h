@@ -233,6 +233,7 @@ public:
     void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
                         DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const;
     void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const;
+    void send_waiting_time(const ServerPlayer& player) const;
     void broadcast_new_player(const ServerPlayer& player) const;
     void new_player_to_admin_shell(int pid) const;  // called when the player name is known (unlike at broadcast_new_player)
     void broadcast_player_left(const ServerPlayer& player) const;

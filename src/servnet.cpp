@@ -540,6 +540,17 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
     }
 }
 
+void ServerNetworking::send_waiting_time(const ServerPlayer& player) const {
+    nAssert(player.extra_frames_to_respawn >= 0);
+    if (player.protocolExtensionsLevel >= 0 && (player.frames_to_respawn < 100 || player.frames_to_respawn > 65535))
+        return;
+    char lebuf[64];
+    int count = 0;
+    writeByte(lebuf, count, data_waiting_time);
+    writeShort(lebuf, count, static_cast<NLushort>(player.frames_to_respawn));
+    server->send_message(player.cid, lebuf, count);
+}
+
 void ServerNetworking::record_players_present() const {
     NLulong players_present = 0;
     for (int i = 0; i < maxplayers; i++)

@@ -2160,6 +2160,7 @@ void ServerWorld::resetPlayer(int target, double time_penalty) {    // take the 
     player[target].extra_frames_to_respawn = iround_bound(max(0., respawnTime.second) * 10.);
     player[target].stats().kill(get_time(), true);
     player[target].dead = true;
+    net->send_waiting_time(player[target]);
 }
 
 void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the player in the usual way with score penalties and deathbringer effect; the clients must be informed and this function doesn't do that
