@@ -372,9 +372,9 @@ bool runMonitor(int port, bool messageBoxes) {
                 break; case STA_PLAYER_DISCONNECTED:   dualprintf("| %s disconnected\n", plyName(ival[0]));
                 break; case STA_PLAYER_NAME_UPDATE:
                     plyNames[ival[0]] = strBuf;        dualprintf("| %u changes name to \"%s\"\n", ival[0], strBuf);
-                break; case STA_PLAYER_KILLS:          dualprintf("| %s gets a kill\n", plyName(ival[0]));
-                break; case STA_PLAYER_DIES:           dualprintf("| %s dies\n", plyName(ival[0]));
-                break; case STA_PLAYER_CAPTURES:       dualprintf("| %s captures\n", plyName(ival[0]));
+                //break; case STA_PLAYER_KILLS:          dualprintf("| %s gets a kill\n", plyName(ival[0]));
+                //break; case STA_PLAYER_DIES:           dualprintf("| %s dies\n", plyName(ival[0]));
+                //break; case STA_PLAYER_CAPTURES:       dualprintf("| %s captures\n", plyName(ival[0]));
                 break; case STA_GAME_OVER:             dualprintf("| Game over\n");
                 break; case STA_PLAYER_FRAGS:          dualprintf("| %s has %u frags\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_TOTAL_TIME:     dualprintf("| %s has been playing for %u seconds\n", plyName(ival[0]), ival[1]);
