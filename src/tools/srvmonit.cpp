@@ -293,14 +293,19 @@ FILE* outfile;
 void dualprintf(const char* fmt, ...) PRINTF_FORMAT(1, 2);
 
 void dualprintf(const char* fmt, ...) {
-    va_list argptr;
-    va_start(argptr, fmt);
-    vprintf(fmt, argptr);
-    va_end(argptr);
-    va_start(argptr, fmt);
-    vfprintf(outfile, fmt, argptr);
-    va_end(argptr);
-    fflush(outfile);
+    time_t tt = time(0);
+    tm* tmb = localtime(&tt);
+
+    FILE* out = stdout;
+    for (int i = 0; i < 2; i++) {
+        va_list argptr;
+        va_start(argptr, fmt);
+        fprintf(out, "%02d%02d%02d %02d%02d%02d  ", tmb->tm_year % 100, tmb->tm_mon + 1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
+        vfprintf(out, fmt, argptr);
+        va_end(argptr);
+        fflush(out);
+        out = outfile;
+    }
 }
 
 string plyNames[32];
@@ -361,9 +366,6 @@ bool runMonitor(int port, bool messageBoxes) {
                     continue;
                 }
             }
-            time_t tt = time(0);
-            struct tm* tmb = localtime(&tt);
-            dualprintf("%02d%02d%02d %02d%02d%02d  ", tmb->tm_year % 100, tmb->tm_mon + 1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
             switch (val) {
             /*break;*/ case STA_NOOP:                  dualprintf("<no-op>\n");
                 break; case STA_PLAYER_CONNECTED:      dualprintf("| Player %u connected\n", ival[0]);
