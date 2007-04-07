@@ -263,11 +263,11 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Double    ("energy_regeneration_100_to_200", &worldConfig.energy_regeneration_100_to_200, 0.));
     cat.add(new GS_Double    ("energy_regeneration_200_to_max", &worldConfig.energy_regeneration_200_to_max, 0.));
     cat.add(new GS_Int       ("min_health_for_run_penalty",  &worldConfig.min_health_for_run_penalty, 1, 500));
-    cat.add(new GS_Double    ("run_health_degradation",      &worldConfig.run_health_degradation, 0.));
-    cat.add(new GS_Double    ("run_energy_degradation",      &worldConfig.run_energy_degradation, 0.));
-    cat.add(new GS_Double    ("shooting_energy_base",        &worldConfig.shooting_energy_base, 0., 500.));
-    cat.add(new GS_Double    ("shooting_energy_per_extra_rocket", &worldConfig.shooting_energy_per_extra_rocket, 0., 500.));
-    cat.add(new GS_Double    ("hit_stun_time",               &worldConfig.hit_stun_time, 0));
+    cat.add(new GS_Double    ("run_health_degradation",      &worldConfig.run_health_degradation));
+    cat.add(new GS_Double    ("run_energy_degradation",      &worldConfig.run_energy_degradation));
+    cat.add(new GS_Double    ("shooting_energy_base",        &worldConfig.shooting_energy_base, -500., 500.));
+    cat.add(new GS_Double    ("shooting_energy_per_extra_rocket", &worldConfig.shooting_energy_per_extra_rocket, -500., 500.));
+    cat.add(new GS_Double    ("hit_stun_time",               &worldConfig.hit_stun_time, 0.));
     cat.add(new GS_Double    ("shoot_interval",              &worldConfig.shoot_interval, .1));
     cat.add(new GS_Double    ("shoot_interval_with_energy",  &worldConfig.shoot_interval_with_energy, .1));
     categories.push_back(cat);
