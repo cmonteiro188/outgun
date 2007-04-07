@@ -95,7 +95,7 @@ private:
     void handle_keys();
 
     NLsocket listen_socket;
-    int      listen_port;
+    unsigned short listen_port;
 
     NLaddress server_address;
     NLsocket server_socket;
