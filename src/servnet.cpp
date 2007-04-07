@@ -2428,7 +2428,11 @@ void ServerNetworking::run_mastertalker_thread() {
     if (master_never_talked)
         return;
 
-    //quitting: delete my IP from master so clients won't see it
+    send_master_quit(localAddress);
+}
+
+// Quitting: Delete my IP from the master so clients won't see it.
+void ServerNetworking::send_master_quit(const string& localAddress) const {
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);

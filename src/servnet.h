@@ -175,6 +175,7 @@ private:
     void master_job_response(MasterQuery *j);
     void run_masterjob_thread(MasterQuery* job);
     void run_mastertalker_thread();
+    void send_master_quit(const std::string& localAddress) const;
 
     bool read_string_from_TCP(NLsocket sock, char *buf);
     void run_shellmaster_thread(int port);
