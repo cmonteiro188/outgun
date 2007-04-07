@@ -175,15 +175,15 @@ public:
 
 class TM_ServerSettings : public ThreadMessage {
     NLubyte caplimit, timelimit, extratime;
-    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay;
 
     void addLine(Client* cl, const string& caption, const string& value) const;
 
 public:
     TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
-                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_) :
+                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, NLushort flag_return_delay_) :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
-        pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_) { }
+        pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
     void execute(Client* cl) const;
 };
 #endif
@@ -1179,6 +1179,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     gunDir.from8way(0);
     gunDirRefreshedTime = get_time();
+    flag_return_delay = 0;
 
     me = -1;    // will be corrected from the first frame
 
@@ -3274,6 +3275,11 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readShort(lebuf, count, pupAddTime);
         readShort(lebuf, count, pupMaxTime);
         fx.physics.read(lebuf, count);
+        if (count < msglen) {
+            readShort(lebuf, count, flag_return_delay);
+        }
+        else
+            flag_return_delay = 0;
         #ifndef DEDICATED_SERVER_ONLY
         fd.physics = fx.physics;
 
@@ -3297,7 +3303,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         out << "rocket_speed " << fx.physics.rocket_speed << '\n';
         out.close();
 
-        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime));
+        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
         #endif
     }
 

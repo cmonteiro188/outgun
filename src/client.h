@@ -251,6 +251,7 @@ class Client : public ClientInterface {
 
     GunDirection gunDir; // used only with allowFreeTurning
     double gunDirRefreshedTime;
+    NLushort flag_return_delay;
     volatile bool connected;
     bool map_ready;
     int clientReadiesWaiting;
