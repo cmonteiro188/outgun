@@ -46,6 +46,8 @@ using std::vector;
 
 int main(int argc, const char* argv[]) {
     int port = 0;
+    int spectators = 32;
+
     if (argc == 2)
         port = atoi(argv[1]);
     if (port <= 0 || port > 65535) {
@@ -67,7 +69,7 @@ int main(int argc, const char* argv[]) {
     cout << "Starting relay server on port " << port << ".\n";
     platInit();
 
-    Relay* relay = new Relay(port);
+    Relay* relay = new Relay(port, spectators);
     relay->run();
     delete relay;
 
@@ -93,9 +95,10 @@ Peer& Peer::operator=(const Peer& peer) {
     return *this;
 }
 
-Relay::Relay(unsigned short port):
+Relay::Relay(unsigned short port, unsigned spectators):
     listen_port(port),
     server_socket(NL_INVALID),
+    spectator_limit(spectators),
     first_buffer(-1, string()),
     new_game_first_frame(0),
     buffer_first_frame(0),
@@ -209,9 +212,16 @@ void Relay::check_new_connections() {
             continue;
         }
         if (type == "SPECTATOR") {
-            cout << "Spectator connected.\n";
-            spectators.push_back(Spectator(pi->address, pi->socket));
-            pi = peers.erase(pi);
+            if (spectators.size() >= spectator_limit) {
+                cout << "New spectator can't join because spectator limit already reached.\n";
+                nlClose(pi->socket);
+                pi = peers.erase(pi);
+            }
+            else {
+                cout << "Spectator connected.\n";
+                spectators.push_back(Spectator(pi->address, pi->socket));
+                pi = peers.erase(pi);
+            }
         }
         else if (type == "SERVER") {
             if (server_socket != NL_INVALID) { // if already connected, skip

@@ -72,7 +72,7 @@ private:
 
 class Relay {
 public:
-    Relay(unsigned short port);
+    Relay(unsigned short port, unsigned spectators);
     ~Relay();
 
     void run();
@@ -101,6 +101,7 @@ private:
     NLsocket server_socket;
     std::string hostname;
 
+    unsigned spectator_limit;
     std::vector<Spectator> spectators;
 
     std::vector<Peer> peers;
