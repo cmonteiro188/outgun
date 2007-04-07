@@ -2456,8 +2456,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
         return;
     }
 
-    // send quit message
-    map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
+    const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
     const string data = build_http_data(parameters);
     NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
     if (result != NR_ok)

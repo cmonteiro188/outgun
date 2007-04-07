@@ -161,7 +161,7 @@ int main(int argc, const char* argv[]) {
     srand((unsigned)time(0));
 
     platInit();
-    int result = wrappedMain(argc, argv);
+    const int result = wrappedMain(argc, argv);
     platUninit();
 
     return result;
@@ -207,7 +207,7 @@ int wrappedMain(int argc, const char* argv[]) {
 
     innerMain(argc, argv, log, memoryErrorLog);
 
-    bool err = memoryErrorLog.size() != 0;
+    const bool err = memoryErrorLog.size() != 0;
     errorMessage(_("Errors"), memoryErrorLog, '\n' + _("See the 'log' directory for more information."));
     return err;
 }
@@ -469,12 +469,12 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     g_masterSettings.load(log);
 
     // get system thread priorities
-    int         pmin = sched_get_priority_min(SCHED_OTHER);
-    int         pmax = sched_get_priority_max(SCHED_OTHER);
+    const int   pmin = sched_get_priority_min(SCHED_OTHER);
+    const int   pmax = sched_get_priority_max(SCHED_OTHER);
     int         policy;
     sched_param param;
-    int         rc = pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
-    int         pdef = param.sched_priority;
+    const int   rc = pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
+    const int   pdef = param.sched_priority;
     log("Thread priorities:");
     log("   rc = %i policy = %i (%i)", rc, policy, SCHED_OTHER);
     log("   pmin %i pmax %i pdef = %i", pmin, pmax, pdef);
