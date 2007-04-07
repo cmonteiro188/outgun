@@ -26,6 +26,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <locale>
 #include <sstream>
 
 #include <cmath>
@@ -42,6 +43,7 @@
 
 using std::dec;
 using std::hex;
+using std::locale;
 using std::min;
 using std::numeric_limits;
 using std::ofstream;
@@ -79,6 +81,8 @@ string fcvt(double val) {
 
 string fcvt(double val, int precision) {
     ostringstream ss;
+    locale loc(language.locale().c_str());
+    ss.imbue(loc);
     ss << std::fixed << setprecision(precision) << val;
     return ss.str();
 }
