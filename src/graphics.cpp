@@ -1378,7 +1378,7 @@ void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
     solid_mode();
 }
 
-void Graphics::draw_player_dead(const ClientPlayer& player) {
+void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay) {
     BITMAP* sprite = dead_sprite[player.team()];
     ScaledCoordSet sc(player.roomx, player.roomy, player.lx, player.ly, this);
     while (sc.next()) {
@@ -1397,10 +1397,12 @@ void Graphics::draw_player_dead(const ClientPlayer& player) {
             ellipsefill(drawbuf, x + plrScale / 50, y + plrScale / 40, plrScale / 8, plrScale / 10, colour(Colour::blood));
             solid_mode();
         }
+        if (respawn_delay)
+            print_text_border_centre(itoa(static_cast<int>(respawn_delay)), x, y, colour(Colour::name_highlight), colour(Colour::timer_border), -1);
     }
 }
 
-void Graphics::draw_virou_sorvete(const WorldCoords& pos) {
+void Graphics::draw_virou_sorvete(const WorldCoords& pos, double respawn_delay) {
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
@@ -1416,6 +1418,8 @@ void Graphics::draw_virou_sorvete(const WorldCoords& pos) {
                 textout_centre_ex(drawbuf, font, _("SORVETE!").c_str(), x, y - pf_scale(38)     , colour(Colour::ice_cream_text), -1);
             }
         }
+        if (respawn_delay)
+            print_text_border_centre(itoa(static_cast<int>(respawn_delay)), x, y, colour(Colour::name_highlight), colour(Colour::timer_border), -1);
     }
 }
 

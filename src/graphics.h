@@ -161,7 +161,7 @@ public:
 
     void draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool power, int alpha, double time);
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false);
-    void draw_player_dead(const ClientPlayer& player);
+    void draw_player_dead(const ClientPlayer& player, double respawn_delay = 0.);
     void draw_me_highlight(const WorldCoords& pos, double size);
     void draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team);
 
@@ -177,7 +177,7 @@ public:
     void draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha);
     void draw_shield(const WorldCoords& pos, int r, bool live, int alpha = 255, int team = -1, GunDirection direction = GunDirection());
 
-    void draw_virou_sorvete(const WorldCoords& pos);
+    void draw_virou_sorvete(const WorldCoords& pos, double respawn_delay = 0.);
 
     void draw_waiting_map_message(const std::string& caption, const std::string& map);
     void draw_loading_map_message(const std::string& text);

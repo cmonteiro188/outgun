@@ -1180,6 +1180,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     gunDir.from8way(0);
     gunDirRefreshedTime = get_time();
+    next_respawn_time = 0;
     flag_return_delay = 0;
 
     me = -1;    // will be corrected from the first frame
@@ -3469,6 +3470,13 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
     }
 
+    break; case data_waiting_time: {
+        NLulong waiting_time;
+        readShort(lebuf, count, waiting_time);
+        if (waiting_time >= 10)
+            next_respawn_time = get_time() + waiting_time / 10.;
+    }
+
     break; case data_extension_advantage:
         #ifndef DEDICATED_SERVER_ONLY
         addThreadMessage(new TM_Text(msg_warning, _("Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.")));
@@ -5296,10 +5304,11 @@ void Client::draw_playfield() {
     // draw dead players
     for (int i = 0; i < maxplayers; i++)
         if (fx.player[i].dead && player_on_screen(i)) {
+            const double respawn_delay = i == me ? max(next_respawn_time - get_time(), 0.) : 0.;
             if (fx.player[i].stats().frags() % 100 == 0 && fx.player[i].stats().frags() >= 100)
-                graphics.draw_virou_sorvete(playerPos(i));
+                graphics.draw_virou_sorvete(playerPos(i), respawn_delay);
             else
-                graphics.draw_player_dead(fx.player[i]);
+                graphics.draw_player_dead(fx.player[i], respawn_delay);
         }
 
     // draw disappeared flags
