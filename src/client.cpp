@@ -2226,8 +2226,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 if (!new_flag && was_carried)
                     if (team == 2)
                         fx.wild_flags[i].set_return_time(time);
-                    else
+                    else {
+                        fx.teams[team].set_flag_drop_time(i, time);
                         fx.teams[team].set_flag_return_time(i, time);
+                    }
             }
             else {
                 //carried: get carrier
@@ -5324,7 +5326,8 @@ void Client::draw_playfield() {
         if (on_screen(pos.px, pos.py, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2)) {
             const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                time < fi->return_time() + 2 && static_cast<int>(fmod(time * 15, 3)) == 0;
-            graphics.draw_flag(fi.team(), pos, flash, 255, menu.options.graphics.emphasizeFlag(visible_rooms));
+            const double return_delay = fi.team() != 2 ? fi->drop_time() + flag_return_delay / 10 - time : 0;
+            graphics.draw_flag(fi.team(), pos, flash, 255, menu.options.graphics.emphasizeFlag(visible_rooms), return_delay);
         }
     }
 
