@@ -90,6 +90,12 @@ class SendFail { };
 class ConnectFail { };
 class UserExit { };
 
+bool utf8_mode = false;
+
+string encode(const string& str) {
+    return utf8_mode ? latin1_to_utf8(str) : str;
+}
+
 void send(NLsocket sock, const void* data, int len) {
     if (nlWrite(sock, data, len) != len)
         throw SendFail();
@@ -311,7 +317,7 @@ void dualprintf(const char* fmt, ...) {
 string plyNames[32];
 const char* plyName(int idx) {
     static char buf[50];
-    platSnprintf(buf, 50, "%s (%d)", plyNames[idx].c_str(), idx);
+    platSnprintf(buf, 50, "%s (%d)", encode(plyNames[idx]).c_str(), idx);
     return buf;
 }
 
@@ -371,7 +377,7 @@ bool runMonitor(int port, bool messageBoxes) {
                 break; case STA_PLAYER_CONNECTED:      dualprintf("| Player %u connected\n", ival[0]);
                 break; case STA_PLAYER_DISCONNECTED:   dualprintf("| %s disconnected\n", plyName(ival[0]));
                 break; case STA_PLAYER_NAME_UPDATE:
-                    plyNames[ival[0]] = strBuf;        dualprintf("| %u changes name to \"%s\"\n", ival[0], strBuf);
+                    plyNames[ival[0]] = strBuf;        dualprintf("| %u changes name to \"%s\"\n", ival[0], encode(strBuf).c_str());
                 //break; case STA_PLAYER_KILLS:          dualprintf("| %s gets a kill\n", plyName(ival[0]));
                 //break; case STA_PLAYER_DIES:           dualprintf("| %s dies\n", plyName(ival[0]));
                 //break; case STA_PLAYER_CAPTURES:       dualprintf("| %s captures\n", plyName(ival[0]));
@@ -381,14 +387,14 @@ bool runMonitor(int port, bool messageBoxes) {
                 break; case STA_PLAYER_TOTAL_KILLS:    dualprintf("| %s has %u kills\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_TOTAL_DEATHS:   dualprintf("| %s has %u deaths\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %u captures\n", plyName(ival[0]), ival[1]);
-                break; case STA_GAME_TEXT:             dualprintf("%s\n", strBuf);
+                break; case STA_GAME_TEXT:             dualprintf("%s\n", encode(strBuf).c_str());
                 break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
                 break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
                 break; case STA_ADMIN_MESSAGE: {
                     char cap[strBufLen + 100];
                     platSnprintf(cap, strBufLen + 100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
-                    dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
+                    dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), encode(strBuf).c_str());
                     if (messageBoxes)
                         messageBox(cap, strBuf, false);
                 }
@@ -420,6 +426,13 @@ bool runMonitor(int port, bool messageBoxes) {
 }
 
 int main(int argc, const char* argv[]) {
+    char* s;
+    if ((s = getenv("LC_ALL"))   && *s ||
+      (s = getenv("LC_CTYPE")) && *s ||
+      (s = getenv("LANG"))     && *s) {
+        if (strstr(s, "UTF-8"))
+            utf8_mode = true;
+    }
     initKeyboard();
     int port = 24500;
     bool messageBoxes = true;
