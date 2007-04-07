@@ -84,6 +84,9 @@ std::string tolower(std::string str);
 unsigned char latin1_toupper(unsigned char c);
 unsigned char latin1_tolower(unsigned char c);
 
+std::string latin1_to_utf8(unsigned char c);
+std::string latin1_to_utf8(const std::string& str);
+
 // Case insensitive string comparison.
 bool cmp_case_ins(const std::string& a, const std::string& b);
 

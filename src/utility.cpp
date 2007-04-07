@@ -149,6 +149,25 @@ unsigned char latin1_tolower(unsigned char c) {
     return lower[c];
 }
 
+string latin1_to_utf8(unsigned char c) {
+    string result;
+    if (c < 0x80)
+        result += c;
+    else {
+        result += 0xC0 | c >> 6;
+        result += 0x80 | c & 0x3F;
+    }
+    return result;
+}
+
+string latin1_to_utf8(const string& str) {
+    string result;
+    for (string::const_iterator s = str.begin(); s != str.end(); ++s)
+        result += latin1_to_utf8(*s);
+    return result;
+}
+
+
 bool cmp_case_ins(const string& a, const string& b) {
     return toupper(a) < toupper(b);
 }
