@@ -198,21 +198,21 @@ public:
                 }
                 send(sock, buf, idx);
             }
-            else if (key == 'K' || key == 'k') {
+            else if (toupper(key) == 'K') {
                 kick = !kick;
                 if (kick)
                     printf("KICK MODE\n");
                 else
                     printf("/kick mode\n");
             }
-            else if (key == 'B' || key == 'b') {
+            else if (toupper(key) == 'B') {
                 ban = !ban;
                 if (ban)
                     printf("BAN MODE\n");
                 else
                     printf("/ban mode\n");
             }
-            else if (key == 'M' || key == 'm') {
+            else if (toupper(key) == 'M') {
                 if (mute == 0) {
                     mute = 1;
                     printf("mute mode\n");
@@ -230,16 +230,16 @@ public:
                     printf("/mute mode\n");
                 }
             }
-            else if (key == 'S' || key == 's') {
+            else if (toupper(key) == 'S') {
                 sayIdx = 0;
                 printf("say:   ");
                 fflush(stdout);
             }
-            else if (key == 'p' || key == 'P') {
+            else if (toupper(key) == 'P') {
                 writeLong(buf, idx, ATS_GET_PINGS);
                 send(sock, buf, idx);
             }
-            else if (key == 'r' || key == 'R') {
+            else if (toupper(key) == 'R') {
                 printf("Confirm reset settings? (Y) ");
                 fflush(stdout);
                 if (getch() == 'Y') {
@@ -250,7 +250,7 @@ public:
                 else
                     printf("aborted\n");
             }
-            else if (key == 'q' || key == 'Q') {
+            else if (toupper(key) == 'Q') {
                 *messageBoxSetting = !*messageBoxSetting;
                 printf("Sayadmin message boxes %s\n", *messageBoxSetting ? "enabled" : "disabled");
             }
@@ -425,7 +425,7 @@ int main(int argc, const char* argv[]) {
     int port = 24500;
     bool messageBoxes = true;
     if (argc > 1) {
-        if (argv[1][0] == 'q' || argv[1][0] == 'Q') {
+        if (toupper(argv[1][0]) == 'Q') {
             messageBoxes = false;
             --argc;
             ++argv;
