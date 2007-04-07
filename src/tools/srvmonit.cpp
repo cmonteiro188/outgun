@@ -385,6 +385,7 @@ bool runMonitor(int port, bool messageBoxes) {
                 break; case STA_GAME_TEXT:             dualprintf("%s\n", strBuf);
                 break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
                 break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
+                break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
                 break; case STA_ADMIN_MESSAGE: {
                     char cap[strBufLen + 100];
                     platSnprintf(cap, strBufLen + 100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
@@ -392,7 +393,6 @@ bool runMonitor(int port, bool messageBoxes) {
                     if (messageBoxes)
                         messageBox(cap, strBuf, false);
                 }
-                break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
             }
         }
     } catch (UserExit) {
