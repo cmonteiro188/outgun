@@ -69,6 +69,7 @@ int main(int argc, const char* argv[]) {
     }
     nlEnable(NL_SOCKET_STATS);
     platInit();
+    g_timeCounter.setZero();
 
     cout << "Starting relay server on port " << port << ".\n";
 
@@ -103,7 +104,7 @@ Relay::Relay(unsigned short port, unsigned spectators):
     server_socket(NL_INVALID),
     bandwidth_limit(20000),
     spectator_limit(spectators),
-    first_buffer(-1, string()),
+    first_buffer(-1, string(), 0),
     new_game_first_frame(0),
     buffer_first_frame(0),
     master_talk_time(0),
@@ -134,6 +135,7 @@ void Relay::run() {
     load_master_settings();
 
     while (!quit) {
+        g_timeCounter.refresh();
         listen();
         check_new_connections();
         get_server_data();
@@ -262,7 +264,7 @@ void Relay::check_new_connections() {
             write_string(ost, hostname);
             write(ost, maxplayers);
             write_string(ost, string());    // This is because the server sent only the map name of the first game.
-            first_buffer = Frame(ost.str().length(), ost.str());
+            first_buffer = Frame(ost.str().length(), ost.str(), get_time());
             log << ost.str();
 
             server_socket = pi->socket;
@@ -314,7 +316,7 @@ void Relay::add_data(istream& in) {
     if (!data_buffer.empty() && !data_buffer.back().full()) {
         string temp;
         read(in, temp, data_buffer.back().remaining());
-        data_buffer.back().add(temp);
+        data_buffer.back().add(temp, get_time());
         log << temp;
         //cout << "Frame " << data_buffer.size() - 1 << ", " << temp.length() << " bytes.\n";
     }
@@ -331,7 +333,7 @@ void Relay::add_data(istream& in) {
         if (read(in, length)) {
             string temp;
             read(in, temp, length);
-            data_buffer.push_back(Frame(length, temp));
+            data_buffer.push_back(Frame(length, temp, get_time()));
             write(log, length);
             log << temp;
             //cout << "Frame " << data_buffer.size() - 1 << ", " << temp.length() << " bytes of " << length << ".\n";
@@ -407,6 +409,9 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
     if (frame_nr - buffer_first_frame >= data_buffer.size())
         return string();
     const Frame& frame = data_buffer[frame_nr - buffer_first_frame];
+    // Do not send too recent frames if the game is still going on.
+    if (new_game_first_frame <= frame_nr && frame.time() + 5 * 60 > get_time())
+        return string();
     ostringstream ost;
     if (pos == 0)
         write(ost, frame.length());

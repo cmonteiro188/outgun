@@ -55,19 +55,21 @@ public:
 
 class Frame {
 public:
-    Frame(int l, const std::string& str): len(l), d(str) { }
+    Frame(int l, const std::string& str, double t_): len(l), d(str), t(t_) { }
 
-    void add(const std::string& str) { d.append(str); }
+    void add(const std::string& str, double t_) { d.append(str); t = t_; }
 
     unsigned length() const { return len; }
     unsigned used() const { return d.length(); }
     unsigned remaining() const { return length() - used(); }
     bool full() const { return used() == length(); }
     const std::string& data() const { return d; }
+    double time() const { return t; }
 
 private:
     unsigned    len;
     std::string d;
+    double      t;
 };
 
 class Relay {
