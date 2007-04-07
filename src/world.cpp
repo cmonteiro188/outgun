@@ -3834,7 +3834,10 @@ double Statistics::movement() const {
 }
 
 double Statistics::speed(double time) const {
-    return movement() / lifetime(time) / PLAYER_RADIUS / 2.;
+    const double lt = lifetime(time);
+    if (lt == 0.)
+        return 0.;
+    return movement() / lt / PLAYER_RADIUS / 2.;
 }
 
 double Statistics::flag_carrying_time(double time) const {
