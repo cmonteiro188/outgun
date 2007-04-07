@@ -101,6 +101,7 @@ private:
     NLsocket server_socket;
     std::string hostname;
 
+    unsigned bandwidth_limit;   // bytes per second
     unsigned spectator_limit;
     std::vector<Spectator> spectators;
 

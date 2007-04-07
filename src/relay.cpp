@@ -46,6 +46,7 @@ using std::vector;
 
 int main(int argc, const char* argv[]) {
     int port = 0;
+    //int bandwidth_limit = 20000;
     int spectators = 32;
 
     if (argc == 2)
@@ -66,8 +67,10 @@ int main(int argc, const char* argv[]) {
         cout << "Network init failed.\n";
         return 0;
     }
-    cout << "Starting relay server on port " << port << ".\n";
+    nlEnable(NL_SOCKET_STATS);
     platInit();
+
+    cout << "Starting relay server on port " << port << ".\n";
 
     Relay* relay = new Relay(port, spectators);
     relay->run();
@@ -98,6 +101,7 @@ Peer& Peer::operator=(const Peer& peer) {
 Relay::Relay(unsigned short port, unsigned spectators):
     listen_port(port),
     server_socket(NL_INVALID),
+    bandwidth_limit(20000),
     spectator_limit(spectators),
     first_buffer(-1, string()),
     new_game_first_frame(0),
@@ -350,6 +354,9 @@ void Relay::send_data() {
             ++si;
             continue;
         }
+        const unsigned bpsout = nlGetSocketStat(si->socket, NL_AVE_BYTES_SENT);
+        if (bpsout > bandwidth_limit / spectators.size())
+            continue;
         string chunk;
         unsigned protocol_size;
         if (!si->first_buffer_sent) {
