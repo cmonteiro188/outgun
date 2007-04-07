@@ -31,7 +31,7 @@ class LogSet;
 
 class Language {
 public:
-    Language() : lang_code("en") { }
+    Language() : lang_code("en"), loc("C") { }
     ~Language() { }
 
     bool load(const std::string& lang, LogSet& log);
@@ -39,9 +39,12 @@ public:
     std::string get_text(const std::string& text) const;
     std::string code() const { return lang_code; }
 
+    std::string locale() const { return loc; }
+
 private:
     std::map<std::string, std::string> texts;
     std::string lang_code;
+    std::string loc;
 };
 
 extern Language language;
