@@ -53,7 +53,7 @@ struct termios orig_termios;
 
 void initKeyboard() {
     const int fd = STDIN_FILENO;
-    struct termios t;
+    termios t;
     nAssert(tcgetattr(fd, &t) >= 0);
     orig_termios = t;
     t.c_lflag &= ~(ICANON | ECHO);
@@ -74,7 +74,7 @@ bool kbhit() {
     FD_SET(STDIN_FILENO, &rfds);
     timeval tv;
     tv.tv_sec = tv.tv_usec = 0;
-    int v = select(STDIN_FILENO + 1, &rfds, 0, 0, &tv);
+    const int v = select(STDIN_FILENO + 1, &rfds, 0, 0, &tv);
     nAssert(v != -1);
     return v != 0;
 }
@@ -90,7 +90,7 @@ class SendFail { };
 class ConnectFail { };
 class UserExit { };
 
-void send(NLsocket sock, void* data, int len) {
+void send(NLsocket sock, const void* data, int len) {
     if (nlWrite(sock, data, len) != len)
         throw SendFail();
 }
@@ -127,7 +127,7 @@ public:
         while (kbhit()) {
             char buf[12 + sayBufLen];
             int idx = 0;
-            int key = getch();
+            const int key = getch();
             if (sayIdx > -1) {
                 if (key == 27) {
                     printf("(aborted)\n");
@@ -170,7 +170,7 @@ public:
                     printf("aborted\n");
             }
             else if (key >= '0' && key < '9') {
-                int pid = key - '0';
+                const int pid = key - '0';
                 if (mute || kick || ban) {
                     printf("Confirm: %s player %d? (Y) ", mute == 1 ? "mute" : mute == 2 ? "silently mute" : mute == 3 ? "unmute" : kick ? "kick" : "BAN", pid);
                     fflush(stdout);
@@ -317,7 +317,7 @@ bool runMonitor(int port, bool messageBoxes) {
     NLsocket sock;
 
     nlDisable(NL_BLOCKING_IO);
-    sock=nlOpen(0, NL_RELIABLE);
+    sock = nlOpen(0, NL_RELIABLE);
     nAssert(sock != NL_INVALID);
 
     try {
@@ -368,32 +368,31 @@ bool runMonitor(int port, bool messageBoxes) {
             struct tm* tmb = localtime(&tt);
             dualprintf("%02d%02d%02d %02d%02d%02d  ", tmb->tm_year % 100, tmb->tm_mon + 1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
             switch (val) {
-            /*break;*/ case STA_NOOP:                 dualprintf("<no-op>\n");
-               break; case STA_PLAYER_CONNECTED:      dualprintf("| Player %u connected\n", ival[0]);
-               break; case STA_PLAYER_DISCONNECTED:   dualprintf("| %s disconnected\n", plyName(ival[0]));
-               break; case STA_PLAYER_NAME_UPDATE:
-                   plyNames[ival[0]] = strBuf;        dualprintf("| %u changes name to \"%s\"\n", ival[0], strBuf);
-               break; case STA_PLAYER_KILLS:          dualprintf("| %s gets a kill\n", plyName(ival[0]));
-               break; case STA_PLAYER_DIES:           dualprintf("| %s dies\n", plyName(ival[0]));
-               break; case STA_PLAYER_CAPTURES:       dualprintf("| %s captures\n", plyName(ival[0]));
-               break; case STA_GAME_OVER:             dualprintf("| Game over\n");
-               break; case STA_PLAYER_FRAGS:          dualprintf("| %s has %u frags\n", plyName(ival[0]), ival[1]);
-               break; case STA_PLAYER_TOTAL_TIME:     dualprintf("| %s has been playing for %u seconds\n", plyName(ival[0]), ival[1]);
-               break; case STA_PLAYER_TOTAL_KILLS:    dualprintf("| %s has %u kills\n", plyName(ival[0]), ival[1]);
-               break; case STA_PLAYER_TOTAL_DEATHS:   dualprintf("| %s has %u deaths\n", plyName(ival[0]), ival[1]);
-               break; case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %u captures\n", plyName(ival[0]), ival[1]);
-               break; case STA_GAME_TEXT:             dualprintf("%s\n", strBuf);
-               break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
-               break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
-               break; case STA_ADMIN_MESSAGE:
-                   {
-                       char cap[strBufLen + 100];
-                       platSnprintf(cap, strBufLen + 100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
-                       dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
-                       if (messageBoxes)
-                           messageBox(cap, strBuf, false);
-                   }
-                break; case STA_PLAYER_IP: dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
+            /*break;*/ case STA_NOOP:                  dualprintf("<no-op>\n");
+                break; case STA_PLAYER_CONNECTED:      dualprintf("| Player %u connected\n", ival[0]);
+                break; case STA_PLAYER_DISCONNECTED:   dualprintf("| %s disconnected\n", plyName(ival[0]));
+                break; case STA_PLAYER_NAME_UPDATE:
+                    plyNames[ival[0]] = strBuf;        dualprintf("| %u changes name to \"%s\"\n", ival[0], strBuf);
+                break; case STA_PLAYER_KILLS:          dualprintf("| %s gets a kill\n", plyName(ival[0]));
+                break; case STA_PLAYER_DIES:           dualprintf("| %s dies\n", plyName(ival[0]));
+                break; case STA_PLAYER_CAPTURES:       dualprintf("| %s captures\n", plyName(ival[0]));
+                break; case STA_GAME_OVER:             dualprintf("| Game over\n");
+                break; case STA_PLAYER_FRAGS:          dualprintf("| %s has %u frags\n", plyName(ival[0]), ival[1]);
+                break; case STA_PLAYER_TOTAL_TIME:     dualprintf("| %s has been playing for %u seconds\n", plyName(ival[0]), ival[1]);
+                break; case STA_PLAYER_TOTAL_KILLS:    dualprintf("| %s has %u kills\n", plyName(ival[0]), ival[1]);
+                break; case STA_PLAYER_TOTAL_DEATHS:   dualprintf("| %s has %u deaths\n", plyName(ival[0]), ival[1]);
+                break; case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %u captures\n", plyName(ival[0]), ival[1]);
+                break; case STA_GAME_TEXT:             dualprintf("%s\n", strBuf);
+                break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
+                break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
+                break; case STA_ADMIN_MESSAGE: {
+                    char cap[strBufLen + 100];
+                    platSnprintf(cap, strBufLen + 100, "Sayadmin message from %s", plyNames[ival[0]].c_str());
+                    dualprintf("|!| Sayadmin message from %s: %s\n", plyName(ival[0]), strBuf);
+                    if (messageBoxes)
+                        messageBox(cap, strBuf, false);
+                }
+                break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
             }
         }
     } catch (UserExit) {
@@ -452,7 +451,7 @@ int main(int argc, const char* argv[]) {
         printf("Can't open srvmonit.log for append!\n");
         return 1;
     }
-    int r = runMonitor(port, messageBoxes) ? 0 : 1;
+    const int r = runMonitor(port, messageBoxes) ? 0 : 1;
     fclose(outfile);
     nlShutdown();
     resetKeyboard();
