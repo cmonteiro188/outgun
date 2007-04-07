@@ -255,7 +255,7 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Int       ("start_health",                &worldConfig.start_health, 1, 500));
     cat.add(new GS_Int       ("start_energy",                &worldConfig.start_energy, 0, 500));
     cat.add(new GS_Int       ("health_max",                  &worldConfig.health_max, 1, 500));
-    cat.add(new GS_Int       ("energy_max",                  &worldConfig.energy_max, 1, 500));
+    cat.add(new GS_Int       ("energy_max",                  &worldConfig.energy_max, 0, 500));
     cat.add(new GS_Double    ("health_regeneration_0_to_100",   &worldConfig.health_regeneration_0_to_100, 0.));
     cat.add(new GS_Double    ("health_regeneration_100_to_200", &worldConfig.health_regeneration_100_to_200, 0.));
     cat.add(new GS_Double    ("health_regeneration_200_to_max", &worldConfig.health_regeneration_200_to_max, 0.));
