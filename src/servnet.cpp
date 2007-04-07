@@ -2752,10 +2752,6 @@ void ServerNetworking::run_shellmaster_thread(int port) {
                 writeLong(lebuf, count, STA_PLAYER_CONNECTED);
                 writeLong(lebuf, count, world.player[i].cid);
 
-                writeLong(lebuf, count, STA_PLAYER_FRAGS);
-                writeLong(lebuf, count, world.player[i].cid);
-                writeLong(lebuf, count, world.player[i].stats().frags());
-
                 writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
                 writeLong(lebuf, count, world.player[i].cid);
                 writeStr(lebuf, count, world.player[i].name);
@@ -2765,6 +2761,10 @@ void ServerNetworking::run_shellmaster_thread(int port) {
                 NLaddress addr = get_client_address(world.player[i].cid);
                 nlSetAddrPort(&addr, 0);
                 writeStr(lebuf, count, addressToString(addr));
+
+                writeLong(lebuf, count, STA_PLAYER_FRAGS);
+                writeLong(lebuf, count, world.player[i].cid);
+                writeLong(lebuf, count, world.player[i].stats().frags());
             }
         nlWrite(newSock, lebuf, count);
 
