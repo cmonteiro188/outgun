@@ -2361,8 +2361,13 @@ void ServerNetworking::run_mastertalker_thread() {
             continue;
 
         master_talk_time = get_time() + 3 * 60.0 ;      //3 minutes
-        if (settings.privateServer())
+        if (settings.privateServer()) {
+            if (!master_never_talked) {
+                send_master_quit(localAddress);
+                master_never_talked = true;
+            }
             continue;
+        }
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
