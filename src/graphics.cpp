@@ -2125,7 +2125,7 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
                   << setw(4) << static_cast<int>(100. * st.accuracy() + 0.5) << '%'
                   << setw(5) << st.shots_taken()
                   << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
-                  << setw(7) << setprecision(2) << std::fixed << st.old_speed() << " u/s";
+                  << setw(7) << fcvt(st.old_speed(), 2) << " u/s";
         break; case 3:
             //            Average        Tournament
             //  Playtime lifetime    rank  power  score
