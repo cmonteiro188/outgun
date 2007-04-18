@@ -29,6 +29,7 @@
 #include "../incalleg.h"
 #include "../admshell.h"
 #include "../nassert.h"
+#include "../network.h"
 #include "../platform.h"
 #include "../utility.h"
 
@@ -143,7 +144,7 @@ public:
                     if (sayIdx > 0) {
                         writeLong(buf, idx, ATS_SERVER_CHAT);
                         sayBuf[sayIdx] = 0;
-                        writeString(buf, idx, sayBuf);
+                        writeStr(buf, idx, utf8_to_latin1(sayBuf));
                         send(sock, buf, idx);
                     }
                     sayIdx = -1;

@@ -54,6 +54,7 @@ using std::setprecision;
 using std::setw;
 using std::string;
 using std::vector;
+using std::wstring;
 
 int atoi(const string& str) {
     return std::atoi(str.c_str());
@@ -171,6 +172,31 @@ string latin1_to_utf8(const string& str) {
     return result;
 }
 
+string utf8_to_latin1(const string& str) {
+    // Latin 1 characters are one byte (ascii) or two bytes in UTF-8.
+    // Bits  Pattern
+    //    7  0xxxxxxx
+    //   11  110xxxxx 10xxxxxx
+    //   11  110000xx 10xxxxxx  Latin 1 characters
+    string latin1;
+    for (string::const_iterator s = str.begin(); s != str.end(); ++s)
+        if (!(*s & 0x80))
+            latin1 += *s;
+        else if ((*s & 0xFC) == 0xC0) {
+            const char c1 = *s;
+            if (++s == str.end())
+                break;
+            if ((*s & 0xC0) == 0x80) {
+                const char c2 = *s;
+                latin1 += c1 << 6 | c2 & 0x3F;
+            }
+            else
+                latin1 += '^';
+        }
+        else
+            latin1 += '^';
+    return latin1;
+}
 
 bool cmp_case_ins(const string& a, const string& b) {
     return toupper(a) < toupper(b);

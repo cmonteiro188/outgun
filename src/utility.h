@@ -87,6 +87,9 @@ unsigned char latin1_tolower(unsigned char c);
 std::string latin1_to_utf8(unsigned char c);
 std::string latin1_to_utf8(const std::string& str);
 
+int utf8_to_latin1(std::string::const_iterator& si, unsigned bytes);
+std::string utf8_to_latin1(const std::string& str);
+
 // Case insensitive string comparison.
 bool cmp_case_ins(const std::string& a, const std::string& b);
 
