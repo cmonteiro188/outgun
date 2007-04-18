@@ -160,7 +160,7 @@ public:
                             fflush(stdout);
                         }
                     }
-                    else if (sayIdx < sayBufLen && !(key < 32 || (key >= 128 && key <= 159))) {
+                    else if (sayIdx < sayBufLen && !(key < 32/* || (key >= 128 && key <= 159)*/)) {
                         printf("%c", key);
                         fflush(stdout);
                         sayBuf[sayIdx++] = key;
