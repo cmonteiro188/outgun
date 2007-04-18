@@ -155,6 +155,8 @@ public:
                         if (sayIdx > 0) {
                             sayIdx--;
                             printf("\b \b");
+                            while (utf8_mode && (sayBuf[sayIdx] & 0xC0) == 0x80)
+                                sayIdx--;
                             fflush(stdout);
                         }
                     }
