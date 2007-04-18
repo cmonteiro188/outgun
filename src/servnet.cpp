@@ -802,6 +802,8 @@ void ServerNetworking::send_server_settings(int cid) const {
     world.physics.write(lebuf, count);
     /* TODO: 1.0.4 send more settings
        - flag return delay (in frames, two bytes?)
+       - locked flags?
+       - captureable flags?
     */
     writeShort(lebuf, count, static_cast<NLushort>(10 * config.flag_return_delay));
     if (cid == pid_record)
