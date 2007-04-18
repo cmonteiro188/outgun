@@ -371,7 +371,7 @@ bool runMonitor(int port, bool messageBoxes) {
                 }
                 if (si == strBufLen) {
                     strBuf[si] = 0;
-                    printf("Too long string: %s...\n", strBuf);
+                    printf("Too long string: %s...\n", encode(strBuf).c_str());
                     continue;
                 }
             }
