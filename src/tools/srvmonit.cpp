@@ -430,12 +430,8 @@ bool runMonitor(int port, bool messageBoxes) {
 
 int main(int argc, const char* argv[]) {
     char* s;
-    if ((s = getenv("LC_ALL"))   && *s ||
-      (s = getenv("LC_CTYPE")) && *s ||
-      (s = getenv("LANG"))     && *s) {
-        if (strstr(s, "UTF-8"))
-            utf8_mode = true;
-    }
+    if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && strstr(s, "UTF-8"))
+        utf8_mode = true;
     initKeyboard();
     int port = 24500;
     bool messageBoxes = true;
