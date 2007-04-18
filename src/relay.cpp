@@ -410,7 +410,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
         return string();
     const Frame& frame = data_buffer[frame_nr - buffer_first_frame];
     // Do not send too recent frames if the game is still going on.
-    if (new_game_first_frame <= frame_nr && frame.time() + 5 * 60 > get_time())
+    if (new_game_first_frame <= frame_nr && frame.time() + 0 * 60 > get_time())
         return string();
     ostringstream ost;
     if (pos == 0)
