@@ -989,6 +989,7 @@ public:
     const PowerupSettings& getPupConfig() const { return pupConfig; }
 
     // common (virtual in base) extended functions
+    void generate_map(const std::string& mapdir, const std::string& file_name, const std::string& title, const std::string& author);
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
     void returnAllFlags();
     void returnFlag(int team, int flag);

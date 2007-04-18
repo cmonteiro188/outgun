@@ -35,6 +35,7 @@
 #include "function_utility.h"
 #include "incalleg.h"
 #include "language.h"
+#include "names.h"
 #include "nassert.h"
 #include "platform.h"
 #include "thread.h"
@@ -484,7 +485,18 @@ void Server::score_neg(int p, int amount, bool forTournament) {
 //load a map from the rotation list
 bool Server::load_rotation_map(int pos) {
     record_map.clear();
-    const bool ok = world.load_map(SERVER_MAPS_DIR, maprot[pos].file,
+    string file_name;
+    if (true) { // TODO: gamemod setting
+        const string map_title = finnish_name(10);
+        file_name = "mapgen_" + replace_all(tolower(map_title), " ", "_");
+        file_name = replace_all(file_name, "ä", "a");
+        file_name = replace_all(file_name, "ö", "o");
+        maprot[pos].file = file_name;
+        world.generate_map(SERVER_MAPS_DIR, file_name, map_title, "Outgun");
+    }
+    else
+        file_name = maprot[pos].file;
+    const bool ok = world.load_map(SERVER_MAPS_DIR, file_name,
                                    settings.get_recording() || network.is_relay_used() ? &record_map : 0);
     if (!ok)
         return false;
