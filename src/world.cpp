@@ -26,6 +26,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <sstream>
 #include <vector>
 
@@ -33,6 +34,7 @@
 
 #include "language.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
+#include "platform.h"   // for FileFinder
 #include "timer.h"
 
 #include "world.h"
@@ -860,7 +862,7 @@ void save_map(ostream& out, const vector<Simple_room>& rooms, int width, int hei
     out << "S 16 12" << '\n';
     out << "flag 0 0 0 8 6\n";
     out << "flag 1 " << width - 1 << ' ' << height - 1 << " 8 6\n";
-    out << "X basic 0 0 " << width - 1 << ' ' << height - 1 << '\n';
+    out << "X room 0 0 " << width - 1 << ' ' << height - 1 << '\n';
     for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++) {
             const Simple_room& room = rooms[y * width + x];
@@ -876,11 +878,25 @@ void save_map(ostream& out, const vector<Simple_room>& rooms, int width, int hei
             for (vector<string>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
                 out << "X " << *wi << ' ' << x << ' ' << y << '\n';
         }
-    out << ":basic\nW 0 0 5 1\nW 16 0 11 1\nW 0 1 1 4\nW 16 1 15 4\nW 0 12 5 11\nW 16 12 11 11\nW 0 11 1 8\nW 16 11 15 8\n";
-    out << ":top\nW 5 0 11 1\n";
-    out << ":bottom\nW 5 12 11 11\n";
-    out << ":left\nW 0 4 1 8\n";
-    out << ":right\nW 16 4 15 8\n";
+    vector<string> files;
+    const string dir = wheregamedir + "mapgen" + directory_separator;
+    FileFinder* finder = platMakeFileFinder(dir, "txt", false);
+    while (finder->hasNext())
+        files.push_back(finder->next());
+    delete finder;
+    if (files.empty()) {
+        out << ":room\nW 0 0 5 1\nW 16 0 11 1\nW 0 1 1 4\nW 16 1 15 4\nW 0 12 5 11\nW 16 12 11 11\nW 0 11 1 8\nW 16 11 15 8\n";
+        out << ":top\nW 5 0 11 1\n";
+        out << ":bottom\nW 5 12 11 11\n";
+        out << ":left\nW 0 4 1 8\n";
+        out << ":right\nW 16 4 15 8\n";
+    }
+    else {
+        const string& file = files[rand() % files.size()];
+        out << "; " << file << '\n';
+        ifstream in((dir + file).c_str(), ios::binary);
+        std::copy(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>(), std::ostreambuf_iterator<char>(out));
+    }
 }
 
 MapInfo::MapInfo() : votes(0), sentVotes(0), last_game(0), highlight(false) { }
