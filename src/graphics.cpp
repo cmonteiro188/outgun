@@ -1941,7 +1941,7 @@ void Graphics::team_statistics(const Team* teams) {
     for (int t = 0; t < 2; t++) {
         const Team& team = teams[t];
         line = start_line;
-        const int x = (t == 0 ? 3 * x1 + x2 : x1 + 3 * x2) / 4;
+        const int x = (t == 0 ? 4 * x1 + x2 : x1 + 4 * x2) / 5;
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.score());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.kills());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.deaths());
