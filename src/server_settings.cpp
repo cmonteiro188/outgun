@@ -157,10 +157,11 @@ void Server::SettingManager::build(bool reload) {
 
     // create and categorize settings
 
-    GamemodSetting* portSetting, * ipSetting, * privSetting;
+    GamemodSetting* portSetting, * ipSetting, * privSetting, * srvmonitSetting;
     if (reload) {
         portSetting = new GS_DisallowRunning("server_port");
         ipSetting   = new GS_DisallowRunning("server_ip");
+        srvmonitSetting = new GS_DisallowRunning("srvmonit_port");
     }
     else {
         if (extConfig.portForced)
@@ -171,6 +172,7 @@ void Server::SettingManager::build(bool reload) {
             ipSetting = new GS_Ignore   ("server_ip");
         else
             ipSetting = new GS_CheckForwardStr("server_ip",  _("IP address without :port"), checkForceIP, setForceIP, getForceIP);
+        srvmonitSetting = new GS_Int    ("srvmonit_port",    &srvmonit_port, 1, 65535);
     }
     if (reload || !extConfig.privSettingForced)
         privSetting = new GS_Boolean("private_server",       &privateserver);
@@ -195,6 +197,7 @@ void Server::SettingManager::build(bool reload) {
     cat.add(new GS_Int       ("join_start",                  &join_start, 0, 24 * 3600 - 1));
     cat.add(new GS_Int       ("join_end",                    &join_end, 0, 24 * 3600 - 1));
     cat.add(new GS_String    ("join_limit_message",          &join_limit_message));
+    cat.add(srvmonitSetting);
     cat.add(new GS_Int       ("recording",                   &recording, 0, MAX_PLAYERS));
     cat.add(new GS_ForwardStr("relay_server",                setRelayServer, getRelayServer));
     categories.push_back(cat);
@@ -321,6 +324,12 @@ void Server::SettingManager::build(bool reload) {
 }
 
 void Server::SettingManager::commit(bool reload) {
+    if (srvmonit_port == -1) {
+        srvmonit_port = port - 500;
+        if (srvmonit_port < 1)
+            srvmonit_port += 65535;
+    }
+
     const int chanceSum = pupConfig.pup_chance_shield + pupConfig.pup_chance_turbo + pupConfig.pup_chance_shadow + pupConfig.pup_chance_power
             + pupConfig.pup_chance_weapon + pupConfig.pup_chance_megahealth + pupConfig.pup_chance_deathbringer;
     if (chanceSum == 0)
@@ -410,6 +419,8 @@ void Server::SettingManager::reset() {
     worldConfig.reset();
 
     privateserver = extConfig.privateserver;
+
+    srvmonit_port = -1;
 
     game_end_delay = 5;
 

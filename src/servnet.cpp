@@ -1245,7 +1245,7 @@ bool ServerNetworking::start() {
     shellssock = NL_INVALID;    // not in use
 
     //start TCP shell master thread in the port number 500 less than server UDP port
-    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_port() - 500, settings.lowerPriority());
+    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(), settings.lowerPriority());
 
     //start TCP thread for talking with master server
     mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), settings.lowerPriority());

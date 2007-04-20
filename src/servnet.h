@@ -65,6 +65,7 @@ public:
         virtual bool privateServer() const = 0;
         virtual const std::string& ip() const = 0;
         virtual int get_port() const = 0;
+        virtual int get_srvmonit_port() const = 0;
         virtual const std::string& get_hostname() const = 0;
 
         virtual int get_join_start() const = 0;

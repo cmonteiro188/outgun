@@ -160,6 +160,7 @@ class Server {
         bool            random_maprot;
         bool            random_first_map;
         std::string     server_website_url; // the URL of the server website to be sent to master server
+        int             srvmonit_port;
         int             recording;
         int             minimap_send_limit;
 
@@ -250,6 +251,7 @@ class Server {
         bool privateServer() const { return privateserver; }
         const std::string& ip() const { return ipAddress; }
         int get_port() const { return port; }
+        int get_srvmonit_port() const { return srvmonit_port; }
 
         int minimapSendLimit() const { return minimap_send_limit; }
 
