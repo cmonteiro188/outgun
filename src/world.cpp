@@ -771,7 +771,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
 
 class Simple_room {
 public:
-    Simple_room(): top(false), bottom(false), left(false), right(false), visited(false), checked_through(false) { }
+    Simple_room(bool walls = false): top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false) { }
 
     bool top, bottom, left, right;  // walls
     bool visited;
@@ -781,18 +781,32 @@ public:
 enum Direction { up, down, left, right };
 
 vector<Simple_room> generate_map(int width, int height) {
-    vector<Simple_room> rooms(width * height);
-    for (int y = 0; y < height; y++)
+    const bool symmetric = true;
+    vector<Simple_room> rooms(width * height, true);
+    /*for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++) {
-            Simple_room& room = rooms[y * width + x];
-            room.top = y == 0 || rooms[(y - 1) * width + x].bottom;
-            room.left = x == 0 || rooms[y * width + x - 1].right;
-            room.bottom = y == height - 1 || rand() % 4;
-            room.right = x == width - 1 || rand() % 4;
-        }
+            const int room_id = y * width + x;
+            Simple_room& room = rooms[room_id];
+            if (room.top)
+                room.top = y == 0 || rand() % 4;
+            if (room.left)
+                room.left = x == 0 || rand() % 4;
+            if (y > 0)
+                rooms[(y - 1) * width + x].bottom = room.top;
+            if (x > 0)
+                rooms[y * width + x - 1].right = room.left;
+            if (symmetric) {
+                rooms[width * height - 1 - room_id].bottom = room.top;
+                rooms[width * height - 1 - room_id].right = room.left;
+            }
+        }*/
     int rx = rand() % width, ry = rand() % height;
     rooms[ry * width + rx].visited = true;
     int visited_rooms = 1;
+    if (symmetric) {
+        //rooms[width * height - 1 - (ry * width + rx)].visited = true;
+        //visited_rooms++;
+    }
     int count = 0;
     while (visited_rooms < width * height && count < 10000) {
         count++;
@@ -802,6 +816,8 @@ vector<Simple_room> generate_map(int width, int height) {
               (rx == 0 || rooms[ry * width + rx - 1].visited) &&
               (rx == width - 1 || rooms[ry * width + rx + 1].visited)) {
             current_room.checked_through = true;
+            if (symmetric)
+                ;//rooms[width * height - 1 - (ry * width + rx)].checked_through = true;
             while (1) {
                 const int x = rand() % width, y = rand() % height;
                 if (rooms[y * width + x].visited && !rooms[y * width + x].checked_through) {
@@ -815,35 +831,60 @@ vector<Simple_room> generate_map(int width, int height) {
         while (1) {
             const int dir = rand() % 4;
             bool move = false;
+            const int curr_room = ry * width + rx;
             switch (dir) {
-            /*break;*/ case up:
-                    if (ry > 0 && !rooms[(ry - 1) * width + rx].visited) {
-                        current_room.top = rooms[(ry - 1) * width + rx].bottom = false;
+            /*break;*/ case up: {
+                    const int new_room = (ry - 1) * width + rx;
+                    if (ry > 0 && !rooms[new_room].visited) {
+                        current_room.top = rooms[new_room].bottom = false;
+                        if (symmetric)
+                            rooms[width * height - 1 - curr_room].bottom = rooms[width * height - 1 - new_room].top = false;
                         ry--;
                         move = true;
                     }
-                break; case down:
-                    if (ry < height - 1 && !rooms[(ry + 1) * width + rx].visited) {
-                        current_room.bottom = rooms[(ry + 1) * width + rx].top = false;
+                }
+                break; case down: {
+                    const int new_room = (ry + 1) * width + rx;
+                    if (ry < height - 1 && !rooms[new_room].visited) {
+                        current_room.bottom = rooms[new_room].top = false;
+                        if (symmetric)
+                            rooms[width * height - 1 - curr_room].top = rooms[width * height - 1 - new_room].bottom = false;
                         ry++;
                         move = true;
                     }
-                break; case left:
-                    if (rx > 0 && !rooms[ry * width + rx - 1].visited) {
-                        current_room.left = rooms[ry * width + rx - 1].right = false;
+                }
+                break; case left: {
+                    const int new_room = ry * width + rx - 1;
+                    if (rx > 0 && !rooms[new_room].visited) {
+                        const int new_room = ry * width + rx - 1;
+                        current_room.left = rooms[new_room].right = false;
+                        if (symmetric)
+                            rooms[width * height - 1 - curr_room].right = rooms[width * height - 1 - new_room].left = false;
                         rx--;
                         move = true;
                     }
-                break; case right:
-                    if (rx < width - 1 && !rooms[ry * width + rx + 1].visited) {
-                        current_room.right = rooms[ry * width + rx + 1].left = false;
+                }
+                break; case right: {
+                    const int new_room = ry * width + rx + 1;
+                    if (rx < width - 1 && !rooms[new_room].visited) {
+                        const int new_room = ry * width + rx + 1;
+                        current_room.right = rooms[new_room].left = false;
+                        if (symmetric)
+                            rooms[width * height - 1 - curr_room].left = rooms[width * height - 1 - new_room].right = false;
                         rx++;
                         move = true;
                     }
+                }
             }
             if (move) {
-                rooms[ry * width + rx].visited = true;
+                const int room_id = ry * width + rx;
+                rooms[room_id].visited = true;
                 visited_rooms++;
+                const int mirror_room_id = width * height - 1 - room_id;
+                if (symmetric && mirror_room_id != room_id) {
+                    //rooms[mirror_room_id].visited = true;
+                    //visited_rooms++;
+                }
                 break;
             }
         }
