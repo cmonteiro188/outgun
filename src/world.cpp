@@ -1833,8 +1833,8 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 }
 
 void ServerWorld::generate_map(const string& mapdir, const string& file_name, const string& title, const string& author) {
-    const int width = rand() % 4 + 2;   // TODO: gamemod settings
-    const int height = rand() % 4 + 2;
+    const int width = rand() % 5 + 2;   // TODO: gamemod settings
+    const int height = rand() % 5 + 2;
     const vector<Simple_room> rooms = ::generate_map(width, height);
     ofstream out((mapdir + directory_separator + file_name + ".txt").c_str());
     save_map(out, rooms, width, height, title, author);
