@@ -488,9 +488,7 @@ bool Server::load_rotation_map(int pos) {
     string file_name;
     if (true) { // TODO: gamemod setting
         const string map_title = finnish_name(10);
-        file_name = "mapgen_" + replace_all(tolower(map_title), " ", "_");
-        file_name = replace_all(file_name, "ä", "a");
-        file_name = replace_all(file_name, "ö", "o");
+        file_name = "mapgen";
         maprot[pos].file = file_name;
         world.generate_map(SERVER_MAPS_DIR, file_name, map_title, "Outgun");
     }
