@@ -1950,10 +1950,10 @@ void Graphics::team_statistics(const Team* teams) {
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_dropped());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.flags_returned());
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
-        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f%%", 100. * team.accuracy());
+        textout_centre_ex(drawbuf, stfont, _("$1%", fcvt(100. * team.accuracy(), 0)), x, y1 + line++ * line_height, teamlcol[t], -1);
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
-        textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.0f u", team.movement() / (2 * PLAYER_RADIUS));
-        //textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%.2f", team.power());
+        textout_centre_ex(drawbuf, stfont, fcvt(team.movement() / (2 * PLAYER_RADIUS), 0), x, y1 + line++ * line_height, teamlcol[t], -1);
+        //textout_centre_ex(drawbuf, stfont, fcvt(team.power(), 2), x, y1 + line++ * line_height, teamlcol[t], -1);
     }
 
     line++;
@@ -2051,8 +2051,8 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
                        caption2 = _("taken dropped returned   killed    time");
                        //           |  00      00      00       00     00:00 |
         break; case 2: caption1 = _("   Accuracy");
-                       caption2 = _("Shots   | Taken  Movement     Speed");
-                       //           |00000 100% 0000  000000 u  00.00 u/s    |
+                       caption2 = _("Shots   |  Taken  Movement     Speed");
+                       //           |00000 100%  0000  000000 u  00.00 u/s   |
         break; case 3: caption1 = _("          Average        Tournament");
                        caption2 = _("Playtime lifetime    rank  power  score");
                        //           |00000 min   00:00    0000  00.00 -00000 |
@@ -2119,10 +2119,10 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
                   << setw(2) << setfill('0') << static_cast<int>(st.flag_carrying_time(time)) % 60 << setfill(' ');
         break; case 2:
             //     Accuracy
-            //  Shots   | Taken  Movement     Speed
-            // |00000 100% 0000  000000 u  00.00 u/s    |
+            //  Shots   |  Taken  Movement     Speed
+            // |00000 100%  0000  000000 u  00.00 u/s   |
             stats << setw(5) << st.shots()
-                  << setw(4) << static_cast<int>(100. * st.accuracy() + 0.5) << '%'
+                  << setw(6) << _("$1%", fcvt(100. * st.accuracy(), 0))
                   << setw(5) << st.shots_taken()
                   << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
                   << setw(7) << fcvt(st.old_speed(), 2) << " u/s";
