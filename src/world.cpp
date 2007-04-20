@@ -1836,7 +1836,7 @@ void ServerWorld::generate_map(const string& mapdir, const string& file_name, co
     const int width = rand() % 5 + 2;   // TODO: gamemod settings
     const int height = rand() % 5 + 2;
     const vector<Simple_room> rooms = ::generate_map(width, height);
-    ofstream out((mapdir + directory_separator + file_name + ".txt").c_str());
+    ofstream out((mapdir + directory_separator + file_name + ".txt").c_str(), ios::binary);
     save_map(out, rooms, width, height, title, author);
 }
 
