@@ -55,9 +55,12 @@ inline std::ostream& write_string(std::ostream& out, const char* str, int size) 
 template<typename T>
 std::ostream& write(std::ostream& out, const T& val) {
     const char* mem = reinterpret_cast<const char*>(&val);
-    //return out.write(mem, sizeof(T));
+    #ifdef NL_BIG_ENDIAN
+    return out.write(mem, sizeof(T));
+    #else
     for (int i = sizeof(T) - 1; i >= 0; --i)
         out.put(mem[i]);
+    #endif
     return out;
 }
 
@@ -75,9 +78,12 @@ inline std::istream& read(std::istream& in, std::string& target, std::string::si
 template<typename T>
 std::istream& read(std::istream& in, T& val) {
     char* mem = reinterpret_cast<char*>(&val);
-    //return in.read(mem, sizeof(T));
+    #ifdef NL_BIG_ENDIAN
+    return in.read(mem, sizeof(T));
+    #else
     for (int i = sizeof(T) - 1; i >= 0; --i)
         in.get(mem[i]);
+    #endif
     return in;
 }
 
