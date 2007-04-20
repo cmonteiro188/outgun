@@ -77,4 +77,16 @@ inline void get_clip_rect(BITMAP* bitmap, int* x1, int* y1, int* x2, int* y2) {
 // simple "extensions": implemented in utility.cpp
 void set_trans_mode(int alpha);
 
+inline void textout_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) {
+    textout_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
+inline void textout_centre_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) {
+    textout_centre_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
+inline void textout_right_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) {
+    textout_right_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
 #endif  // INCALLEG_H_INC
