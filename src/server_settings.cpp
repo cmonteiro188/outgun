@@ -220,6 +220,7 @@ void Server::SettingManager::build(bool reload) {
 
     cat = Category("maps"    , "Map rotation");
     cat.add(new GS_Map       ("map",                         &server.maprot)); //#fix?
+    cat.add(new GS_RandomMap ("random_map",                  &server.maprot));
     cat.add(new GS_ForwardInt("random_maprot",               setRandomMaprot, getRandomMaprot, 0, 2));
     cat.add(new GS_Int       ("vote_block_time",             &vote_block_time, 0, GS_Int::lim::max(), 60 * 10)); // convert minutes to frames
     cat.add(new GS_Boolean   ("require_specific_map_vote",   &require_specific_map_vote));

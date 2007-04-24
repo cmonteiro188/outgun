@@ -221,8 +221,14 @@ public:
     GS_Map(const std::string& name, std::vector<MapInfo>* pVar) : GamemodSetting(name), var(pVar) { }
     bool set(LogSet& log, const std::string& value);
 
-private:
+protected:
     std::vector<MapInfo>* var;
+};
+
+class GS_RandomMap : public GS_Map {
+public:
+    GS_RandomMap(const std::string& name, std::vector<MapInfo>* pVar) : GS_Map(name, pVar) { }
+    bool set(LogSet& log, const std::string& value);
 };
 
 class GS_PowerupNum : public GamemodSetting {

@@ -84,6 +84,24 @@ bool GS_Map::set(LogSet& log, const string& value) {
     }
 }
 
+bool GS_RandomMap::set(LogSet& log, const string& value) {
+    istringstream ist(value);
+    MapInfo mi;
+    ist >> mi.width >> mi.height;
+    if (ist && mi.width > 1 && mi.height > 1) {
+        mi.author = "Outgun";
+        mi.title = "Random";
+        mi.random = true;
+        var->push_back(mi);
+        log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
+        return true;
+    }
+    else {
+        log.error(_("Can't set random_map to '$1'.", value));
+        return false;
+    }
+}
+
 bool GS_PowerupNum::set(LogSet& log, const string& value) {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));
