@@ -18,8 +18,8 @@ class MapGenerator {
 
     class Node {
     public:
-        Node(): cost(INT_MAX), estimate(INT_MAX), score(INT_MAX) { }
-        int cost, estimate, score;
+        Node(): cost(INT_MAX), score(INT_MAX) { }
+        int cost, score;
     };
 
     struct Dist { std::pair<int, int> coords; int dist; };

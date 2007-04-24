@@ -180,8 +180,7 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) {
 
     vector<vector<Node> > node(width(), height());
     node[sx][sy].cost = 0;
-    node[sx][sy].estimate = abs(gx - sx) + abs(gy - sy);
-    node[sx][sy].score = node[sx][sy].cost + node[sx][sy].estimate;
+    node[sx][sy].score = node[sx][sy].cost + abs(gx - sx) + abs(gy - sy);
 
     const pair<int, int> target = pair<int, int>(gx, gy);
     vector<pair<int, int> > open;
@@ -219,8 +218,9 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) {
             if (cost >= neighbour.cost)     // worse route
                 continue;
             neighbour.cost = cost;
-            neighbour.estimate = abs(gx - nx) + abs(gy - ny);
-            neighbour.score = neighbour.cost + neighbour.estimate;
+            int min_dx = abs(gx - nx);
+            int min_dy = abs(gy - ny);
+            neighbour.score = neighbour.cost + min_dx + min_dy;
             if (find(open.begin(), open.end(), pair<int, int>(nx, ny)) == open.end());
                 open.push_back(pair<int, int>(nx, ny));
         }
