@@ -4114,9 +4114,14 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                         client->send_message(lebuf, count);
                     }
                 }
-                break; case KEY_SPACE:
+                break; case KEY_SPACE: case KEY_RIGHT:
                     do {
                         mapListSortKey = static_cast<MapListSortKey>((mapListSortKey + 1) % MLSK_COUNT);
+                    } while (mapListSortKey == MLSK_Favorite && fav_maps.empty());
+                    mapListChangedAfterSort = true;
+                break; case KEY_LEFT:
+                    do {
+                        mapListSortKey = static_cast<MapListSortKey>((mapListSortKey + MLSK_COUNT - 1) % MLSK_COUNT);
                     } while (mapListSortKey == MLSK_Favorite && fav_maps.empty());
                     mapListChangedAfterSort = true;
                 break; default:
