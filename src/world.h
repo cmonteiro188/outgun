@@ -217,6 +217,7 @@ public:
     std::string title, author, file;
     int width, height;
     bool random;
+    float over_edge;
     int votes, sentVotes;
     NLulong last_game;  // last game in the map (frame #)
     bool highlight;     // for the map list in the client
@@ -990,7 +991,7 @@ public:
     const PowerupSettings& getPupConfig() const { return pupConfig; }
 
     // common (virtual in base) extended functions
-    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, const std::string& title, const std::string& author);
+    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, const std::string& title, const std::string& author);
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
     void returnAllFlags();
     void returnFlag(int team, int flag);

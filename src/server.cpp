@@ -491,7 +491,7 @@ bool Server::load_rotation_map(int pos) {
         file_name = "mapgen_" + itoa(rand());
         maprot[pos].file = file_name;
         maprot[pos].title = map_title;
-        world.generate_map(SERVER_MAPS_DIR, file_name, maprot[pos].width, maprot[pos].height, map_title, "Outgun");
+        world.generate_map(SERVER_MAPS_DIR, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].title, "Outgun");
     }
     else
         file_name = maprot[pos].file;

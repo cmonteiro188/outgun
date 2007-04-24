@@ -38,10 +38,10 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
     int visited_rooms = 1;
     while (visited_rooms < width() * height()) {
         SimpleRoom& current_room = room[rx][ry];
-        if (  (ry == 0 || room[rx][ry - 1].visited) &&
-              (ry == height() - 1 || room[rx][ry + 1].visited) &&
-              (rx == 0 || room[rx - 1][ry].visited) &&
-              (rx == width() - 1 || room[rx + 1][ry].visited)) {
+        if (  (!over_edge && ry == 0 || room[rx][(ry + height() - 1) % height()].visited) &&
+              (!over_edge && ry == height() - 1 || room[rx][(ry + 1) % height()].visited) &&
+              (!over_edge && rx == 0 || room[(rx + width() - 1) % width()][ry].visited) &&
+              (!over_edge && rx == width() - 1 || room[(rx + 1) % width()][ry].visited)) {
             current_room.checked_through = true;
             while (1) {
                 rx = rand() % width();
@@ -61,7 +61,7 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
                 break; case right: dx = +1;
             }
             if (remove_wall(rx, ry, dx, dy)) {
-                room[rx + dx][ry + dy].visited = true;
+                room[(rx + dx + width()) % width()][(ry + dy + height()) % height()].visited = true;
                 visited_rooms++;
                 //break;
             }
@@ -82,7 +82,7 @@ bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, bool mirror) {
     const int nx = rx + dx, ny = ry + dy;
     if (!over_edge && (nx < 0 || nx >= width() || ny < 0 || ny >= height()))
         return false;
-    SimpleRoom& next = room[nx % width()][ny % height()];
+    SimpleRoom& next = room[(nx + width()) % width()][(ny + height()) % height()];
     if (!mirror && next.visited)
         return false;
     SimpleRoom& current = room[rx][ry];
@@ -124,8 +124,11 @@ void MapGenerator::draw(ostream& out) const {
             for (int x = 0; x < width(); x++) {
                 const SimpleRoom& current = room[x][y];
                 if (i == 1) {
-                    if (x == 0 && current.left)
-                        out << '|';
+                    if (x == 0)
+                        if (current.left)
+                            out << '|';
+                        else
+                            out << ' ';
                     //out << (current.visited ? current.checked_through ? " x " : " o " : "   ");
                     if (current.flag)
                         out << " P ";
@@ -212,14 +215,20 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) {
                         continue;
                     dx = +1;
             }
-            const int nx = rx + dx;
-            const int ny = ry + dy;
+            const int nx = (rx + width() + dx) % width();
+            const int ny = (ry + height() + dy) % height();
             Node& neighbour = node[nx][ny];
             if (cost >= neighbour.cost)     // worse route
                 continue;
             neighbour.cost = cost;
             int min_dx = abs(gx - nx);
             int min_dy = abs(gy - ny);
+            if (over_edge) {
+                if (min_dx > width() / 2)
+                    min_dx = width() - min_dx;
+                if (min_dy > height() / 2)
+                    min_dy = height() - min_dy;
+            }
             neighbour.score = neighbour.cost + min_dx + min_dy;
             if (find(open.begin(), open.end(), pair<int, int>(nx, ny)) == open.end());
                 open.push_back(pair<int, int>(nx, ny));

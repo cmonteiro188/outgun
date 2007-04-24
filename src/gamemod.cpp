@@ -88,10 +88,14 @@ bool GS_RandomMap::set(LogSet& log, const string& value) {
     istringstream ist(value);
     MapInfo mi;
     ist >> mi.width >> mi.height;
-    if (ist && mi.width > 1 && mi.height > 1) {
+    const bool ok = ist;
+    float over_edge = 0.2;
+    ist >> over_edge;
+    if (ok && mi.width > 1 && mi.height > 1 && over_edge >= 0 && over_edge <= 1) {
         mi.author = "Outgun";
         mi.title = "Random";
         mi.random = true;
+        mi.over_edge = over_edge;
         var->push_back(mi);
         log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
         return true;

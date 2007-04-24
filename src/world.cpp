@@ -770,7 +770,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-MapInfo::MapInfo() : random(false), votes(0), sentVotes(0), last_game(0), highlight(false) { }
+MapInfo::MapInfo() : random(false), over_edge(false), votes(0), sentVotes(0), last_game(0), highlight(false) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) {
     Map map;
@@ -783,6 +783,7 @@ bool MapInfo::load(LogSet& log, const string& mapName) {
     width = map.w;
     height = map.h;
     random = false;
+    over_edge = false;
     votes = sentVotes = 0;
     return true;
 }
@@ -1663,9 +1664,9 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
     printer(map_time.str());
 }
 
-void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, const string& title, const string& author) {
+void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, float over_edge, const string& title, const string& author) {
     MapGenerator generator;
-    generator.generate(width, height);
+    generator.generate(width, height, rand() % 1000 < 1000 * over_edge);
     ofstream out((mapdir + directory_separator + file_name + ".txt").c_str(), ios::binary);
     generator.save_map(out, title, author);
 }
