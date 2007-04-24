@@ -700,6 +700,8 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) const {
     writeByte(lebuf, count, static_cast<NLchar>(map.width));
     writeByte(lebuf, count, static_cast<NLchar>(map.height));
     writeByte(lebuf, count, static_cast<NLchar>(map.votes));
+    if (map.random)
+        writeByte(lebuf, count, static_cast<NLchar>(map.random));
     server->send_message(player.cid, lebuf, count);
 }
 

@@ -2741,15 +2741,18 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
     break; case data_map_list: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte width, height, votes;
+        NLubyte width, height, votes, random = 0;
         MapInfo mapinfo;
         readStr(lebuf, count, mapinfo.title);
         readStr(lebuf, count, mapinfo.author);
         readByte(lebuf, count, width);
         readByte(lebuf, count, height);
         readByte(lebuf, count, votes);
+        if (count < msglen)
+            readByte(lebuf, count, random);
         mapinfo.width = width;
         mapinfo.height = height;
+        mapinfo.random = random;
         mapinfo.votes = votes;
         mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
         MutexLock ml(mapInfoMutex);
