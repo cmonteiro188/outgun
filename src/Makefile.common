@@ -36,7 +36,7 @@ ifdef LINUX
  PLATFORM_CPP = platform_unix.cpp
  PLATFORM_OBJ_NAMES = platform_unix.o
  MON_LFLAGS = -pthread
- RELAY_LFLAGS = 
+ RELAY_LFLAGS =
  RELAY_LIBS = -lNL
 
 else
@@ -82,7 +82,7 @@ RELAY_OBJS = $(patsubst %,obj/text/%,$(RELAY_OBJ_NAMES))
 MAKEDEP_OBJS = $(patsubst %,obj/text/%,$(MAKEDEP_OBJ_NAMES))
 MON_OBJS = $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
 
-MAKEDEP_LIBS = 
+MAKEDEP_LIBS =
 MON_LIBS = $(COMMON_LIBS)
 
 TEXT_CFLAGS = $(CFLAGS) -DDEDICATED_SERVER_ONLY
