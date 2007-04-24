@@ -63,7 +63,7 @@ else
 
 endif
 
-OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o $(PLATFORM_OBJ_NAMES)
+OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o mapgen.o $(PLATFORM_OBJ_NAMES)
 OUTGUN_CLIENT_OBJ_NAMES = $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o sounds.o menu.o mappic.o
 ifdef WITH_PNG
  OUTGUN_CLIENT_OBJ_NAMES += loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o

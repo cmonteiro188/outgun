@@ -33,6 +33,7 @@
 #include <cmath>
 
 #include "language.h"
+#include "mapgen.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
 #include "platform.h"   // for FileFinder
 #include "timer.h"
@@ -767,177 +768,6 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         return false;
     }
     return true;
-}
-
-class Simple_room {
-public:
-    Simple_room(bool walls = false): top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false) { }
-
-    bool top, bottom, left, right;  // walls
-    bool visited;
-    bool checked_through;
-};
-
-enum Direction { up, down, left, right };
-
-vector<Simple_room> generate_map(int width, int height) {
-    const bool symmetric = true;
-    vector<Simple_room> rooms(width * height, true);
-    /*for (int y = 0; y < height; y++)
-        for (int x = 0; x < width; x++) {
-            const int room_id = y * width + x;
-            Simple_room& room = rooms[room_id];
-            if (room.top)
-                room.top = y == 0 || rand() % 4;
-            if (room.left)
-                room.left = x == 0 || rand() % 4;
-            if (y > 0)
-                rooms[(y - 1) * width + x].bottom = room.top;
-            if (x > 0)
-                rooms[y * width + x - 1].right = room.left;
-            if (symmetric) {
-                rooms[width * height - 1 - room_id].bottom = room.top;
-                rooms[width * height - 1 - room_id].right = room.left;
-            }
-        }*/
-    int rx = rand() % width, ry = rand() % height;
-    rooms[ry * width + rx].visited = true;
-    int visited_rooms = 1;
-    if (symmetric) {
-        //rooms[width * height - 1 - (ry * width + rx)].visited = true;
-        //visited_rooms++;
-    }
-    int count = 0;
-    while (visited_rooms < width * height && count < 10000) {
-        count++;
-        Simple_room& current_room = rooms[ry * width + rx];
-        if ((ry == 0 || rooms[(ry - 1) * width + rx].visited) &&
-              (ry == height - 1 || rooms[(ry + 1) * width + rx].visited) &&
-              (rx == 0 || rooms[ry * width + rx - 1].visited) &&
-              (rx == width - 1 || rooms[ry * width + rx + 1].visited)) {
-            current_room.checked_through = true;
-            if (symmetric)
-                ;//rooms[width * height - 1 - (ry * width + rx)].checked_through = true;
-            while (1) {
-                const int x = rand() % width, y = rand() % height;
-                if (rooms[y * width + x].visited && !rooms[y * width + x].checked_through) {
-                    rx = x;
-                    ry = y;
-                    break;
-                }
-            }
-            continue;
-        }
-        while (1) {
-            const int dir = rand() % 4;
-            bool move = false;
-            const int curr_room = ry * width + rx;
-            switch (dir) {
-            /*break;*/ case up: {
-                    const int new_room = (ry - 1) * width + rx;
-                    if (ry > 0 && !rooms[new_room].visited) {
-                        current_room.top = rooms[new_room].bottom = false;
-                        if (symmetric)
-                            rooms[width * height - 1 - curr_room].bottom = rooms[width * height - 1 - new_room].top = false;
-                        ry--;
-                        move = true;
-                    }
-                }
-                break; case down: {
-                    const int new_room = (ry + 1) * width + rx;
-                    if (ry < height - 1 && !rooms[new_room].visited) {
-                        current_room.bottom = rooms[new_room].top = false;
-                        if (symmetric)
-                            rooms[width * height - 1 - curr_room].top = rooms[width * height - 1 - new_room].bottom = false;
-                        ry++;
-                        move = true;
-                    }
-                }
-                break; case left: {
-                    const int new_room = ry * width + rx - 1;
-                    if (rx > 0 && !rooms[new_room].visited) {
-                        const int new_room = ry * width + rx - 1;
-                        current_room.left = rooms[new_room].right = false;
-                        if (symmetric)
-                            rooms[width * height - 1 - curr_room].right = rooms[width * height - 1 - new_room].left = false;
-                        rx--;
-                        move = true;
-                    }
-                }
-                break; case right: {
-                    const int new_room = ry * width + rx + 1;
-                    if (rx < width - 1 && !rooms[new_room].visited) {
-                        const int new_room = ry * width + rx + 1;
-                        current_room.right = rooms[new_room].left = false;
-                        if (symmetric)
-                            rooms[width * height - 1 - curr_room].left = rooms[width * height - 1 - new_room].right = false;
-                        rx++;
-                        move = true;
-                    }
-                }
-            }
-            if (move) {
-                const int room_id = ry * width + rx;
-                rooms[room_id].visited = true;
-                visited_rooms++;
-                const int mirror_room_id = width * height - 1 - room_id;
-                if (symmetric && mirror_room_id != room_id) {
-                    //rooms[mirror_room_id].visited = true;
-                    //visited_rooms++;
-                }
-                break;
-            }
-        }
-    }
-    return rooms;
-}
-
-void save_map(ostream& out, const vector<Simple_room>& rooms, int width, int height, const string& title, const string& author) {
-    //out << "; This map is generated by Outgun " << GAME_VERSION << ".\n";
-    out << "; This map is generated by Outgun.\n";
-    out << "; " << date_and_time() << '\n';
-    out << "P width " << width << '\n';
-    out << "P height " << height << '\n';
-    out << "P title " << title << '\n';
-    out << "P author " << author << '\n';
-    out << "S 16 12" << '\n';
-    out << "flag 0 0 0 8 6\n";
-    out << "flag 1 " << width - 1 << ' ' << height - 1 << " 8 6\n";
-    out << "X room 0 0 " << width - 1 << ' ' << height - 1 << '\n';
-    for (int y = 0; y < height; y++)
-        for (int x = 0; x < width; x++) {
-            const Simple_room& room = rooms[y * width + x];
-            vector<string> walls;
-            if (room.top)
-                walls.push_back("top");
-            if (room.bottom)
-                walls.push_back("bottom");
-            if (room.left)
-                walls.push_back("left");
-            if (room.right)
-                walls.push_back("right");
-            for (vector<string>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
-                out << "X " << *wi << ' ' << x << ' ' << y << '\n';
-        }
-    vector<string> files;
-    const string dir = wheregamedir + "mapgen" + directory_separator;
-    FileFinder* finder = platMakeFileFinder(dir, "txt", false);
-    while (finder->hasNext())
-        files.push_back(finder->next());
-    delete finder;
-    if (files.empty()) {
-        out << ":room\nW 0 0 5 1\nW 16 0 11 1\nW 0 1 1 4\nW 16 1 15 4\nW 0 12 5 11\nW 16 12 11 11\nW 0 11 1 8\nW 16 11 15 8\n";
-        out << ":top\nW 5 0 11 1\n";
-        out << ":bottom\nW 5 12 11 11\n";
-        out << ":left\nW 0 4 1 8\n";
-        out << ":right\nW 16 4 15 8\n";
-    }
-    else {
-        const string& file = files[rand() % files.size()];
-        out << "; " << file << '\n';
-        ifstream in((dir + file).c_str(), ios::binary);
-        std::copy(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>(), std::ostreambuf_iterator<char>(out));
-    }
 }
 
 MapInfo::MapInfo() : votes(0), sentVotes(0), last_game(0), highlight(false) { }
@@ -1835,9 +1665,10 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) {
 void ServerWorld::generate_map(const string& mapdir, const string& file_name, const string& title, const string& author) {
     const int width = rand() % 5 + 2;   // TODO: gamemod settings
     const int height = rand() % 5 + 2;
-    const vector<Simple_room> rooms = ::generate_map(width, height);
+    MapGenerator generator;
+    generator.generate(width, height);
     ofstream out((mapdir + directory_separator + file_name + ".txt").c_str(), ios::binary);
-    save_map(out, rooms, width, height, title, author);
+    generator.save_map(out, title, author);
 }
 
 bool ServerWorld::load_map(const string& mapdir, const string& mapname, string* buffer) {
