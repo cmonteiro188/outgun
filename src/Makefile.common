@@ -8,41 +8,39 @@ ifdef XAUTHORITY
  endif
 endif
 
-ifndef CFLAGS
- CFLAGS = -W -Wall -O3 -march=pentium -ffast-math
-endif
+CFLAGS ?= -W -Wall -O3 -march=pentium -ffast-math
+CXXFLAGS ?= $(CFLAGS)
 
-ifndef C_CFLAGS
- C_CFLAGS = $(CFLAGS)
-endif
-
-GCC = g++
+CC ?= gcc
+CXX ?= g++
 
 ifdef LINUX
 
- RM = rm -f
+ RM ?= rm -f
  EXE_SUFFIX =
 
+ ALLEGRO_CONFIG ?= allegro-config
  ifdef DEBUGLIBS
   COMMON_LIBS = -lNL_debug
-  ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs debug`
+  ALLEG_LIBS = `$(ALLEGRO_CONFIG) --libs debug`
+  ALLEG_CFLAGS = `$(ALLEGRO_CONFIG) --cflags debug`
  else
   COMMON_LIBS = -lNL
-  ALLEG_LIBS = `$(ALLEGRO_CONFIG_PREFIX)allegro-config --libs`
+  ALLEG_LIBS = `$(ALLEGRO_CONFIG) --libs`
+  ALLEG_CFLAGS = `$(ALLEGRO_CONFIG) --cflags`
  endif
- ALLEG_CFLAGS =
  PNG_LIBS = -lz -lpng
  PNG_CFLAGS = -DWITH_PNG
- PLATFORM_CPP = platform_unix.cpp
  PLATFORM_OBJ_NAMES = platform_unix.o
- MON_LFLAGS = -pthread
- RELAY_LFLAGS =
- RELAY_LIBS = -lNL
+ OUTGUN_LDFLAGS = -pthread
+ MAKEDE_LDFLAGS =
+ MON_LDFLAGS = -pthread
+ RELAY_LDFLAGS = -pthread
 
 else
 
- WINDRES = windres
- RM = del
+ WINDRES ?= windres
+ RM ?= del
  EXE_SUFFIX = .exe
 
  COMMON_LIBS = -lNL -lpthreadGC1 -lwinmm
@@ -50,13 +48,12 @@ else
  PNG_CFLAGS = -DWITH_PNG
  ALLEG_LIBS = -lalleg
  ALLEG_CFLAGS =
- PLATFORM_CPP = platform_win.cpp
  PLATFORM_OBJ_NAMES = platform_win.o
  OUTGUN_COMMON_OBJ_NAMES += icon.res
- OUTGUN_LFLAGS += -mwindows
- MON_LFLAGS = -mconsole
- RELAY_LFLAGS = -mconsole
- RELAY_LIBS = -lNL -lwinmm
+ OUTGUN_LDFLAGS = -mwindows
+ MAKEDEP_LDFLAGS = -mconsole
+ MON_LDFLAGS = -mconsole
+ RELAY_LDFLAGS = -mconsole
 
  obj/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
@@ -84,21 +81,30 @@ MON_OBJS = $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
 
 MAKEDEP_LIBS =
 MON_LIBS = $(COMMON_LIBS)
+RELAY_LIBS = $(COMMON_LIBS)
 
-TEXT_CFLAGS = $(CFLAGS) -DDEDICATED_SERVER_ONLY
-TEXT_C_CFLAGS = $(C_CFLAGS) -DDEDICATED_SERVER_ONLY
+TEXT_CXXFLAGS = $(CXXFLAGS) -DDEDICATED_SERVER_ONLY
 
+GUI_CXXFLAGS = $(CXXFLAGS) $(ALLEG_CFLAGS)
 GUI_CFLAGS = $(CFLAGS) $(ALLEG_CFLAGS)
-GUI_C_CFLAGS = $(C_CFLAGS) $(ALLEG_CFLAGS)
 
 OUTGUN_DEDSERV_LIBS = $(COMMON_LIBS)
 OUTGUN_CLIENT_LIBS = $(COMMON_LIBS) $(ALLEG_LIBS)
 ifdef WITH_PNG
- GUI_CFLAGS += $(PNG_CFLAGS)
+ GUI_CXXFLAGS += $(PNG_CFLAGS)
  OUTGUN_CLIENT_LIBS += $(PNG_LIBS)
 endif
 
-all: outgun makedep srvmonit relay
+SRC_PREFIXES = * leetnet/* loadpng/* tools/*
+SRC_SUFFIXES = .h .cpp .c
+SRC_FILE_PATTERNS = $(foreach PREFIX,$(SRC_PREFIXES),$(addprefix $(PREFIX),$(SRC_SUFFIXES)))
+SRC_FILES = $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
+DEPENDENCY_FILES = $(patsubst %,dep/%.d,$(SRC_FILES))
+
+# shorthand target names
+
+standard: outgun srvmonit relay
+all: outgun outgun-ded makedep srvmonit relay
 
 outgun: ../outgun$(EXE_SUFFIX)
 outgun-ded: ../outgun-ded$(EXE_SUFFIX)
@@ -106,36 +112,62 @@ makedep: tools/makedep$(EXE_SUFFIX)
 srvmonit: ../srvmonit$(EXE_SUFFIX)
 relay: ../relay$(EXE_SUFFIX)
 
-../outgun$(EXE_SUFFIX): $(OUTGUN_CLIENT_OBJS)
-	$(GCC) $(OUTGUN_LFLAGS) -o $@ $(OUTGUN_CLIENT_OBJS) $(OUTGUN_CLIENT_LIBS)
-	$(COPY_OUTGUN_EXE)
-
-../outgun-ded$(EXE_SUFFIX): $(OUTGUN_DEDSERV_OBJS)
-	$(GCC) $(OUTGUN_LFLAGS) -o $@ $(OUTGUN_DEDSERV_OBJS) $(OUTGUN_DEDSERV_LIBS)
-
-tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
-	$(GCC) $(LFLAGS) -o $@ $(MAKEDEP_OBJS) $(MAKEDEP_LIBS)
-
-../srvmonit$(EXE_SUFFIX) : $(MON_OBJS)
-	$(GCC) $(MON_LFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
-
-../relay$(EXE_SUFFIX) : $(RELAY_OBJS)
-	$(GCC) $(RELAY_LFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
-
-obj/text/nassert_simple.o : obj/text/nassert.o
-	$(GCC) $(TEXT_CFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
-
-OBJCOMPILE_TEXT = $(GCC) $(TEXT_CFLAGS) -c -o $@ $<
-OBJCOMPILE_GUI  = $(GCC) $(GUI_CFLAGS) -c -o $@ $<
-COBJCOMPILE_GUI = $(GCC) $(GUI_C_CFLAGS) -c -o $@ $<
-LEETNETCOMPILE = $(OBJCOMPILE_TEXT)
-
-include Makefile.dependencies
-
-TAGS: *.h *.cpp
-	etags $^
-
 clean:
-	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(MON_OBJS) $(RELAY_OBJS) TAGS
+	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) TAGS
 
 .PHONY: all outgun outgun-ded makedep srvmonit relay clean
+
+TAGS: $(SRC_FILES)
+	etags $^
+
+# file dependency lists
+
+MAKEDEP ?= tools/makedep$(EXE_SUFFIX)
+
+dep/leetnet/%.d: leetnet/% $(MAKEDEP)
+	@$(MAKEDEP) -O obj/leetnet $< > $@
+
+dep/loadpng/%.d: loadpng/% $(MAKEDEP)
+	@$(MAKEDEP) -O obj/gui/loadpng $< > $@
+
+dep/tools/%.d: tools/% $(MAKEDEP)
+	@$(MAKEDEP) -O obj/text/tools $< > $@
+
+dep/%.d: % $(MAKEDEP)
+	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
+
+-include $(DEPENDENCY_FILES)
+
+# object files
+
+obj/gui/%.o: %.cpp
+	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
+
+obj/gui/loadpng/%.o: loadpng/%.c
+	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
+
+obj/text/%.o: %.cpp
+	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
+
+obj/text/nassert_simple.o: obj/text/nassert.o
+	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
+
+obj/leetnet/%.o: leetnet/%.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
+
+# binaries
+
+../outgun$(EXE_SUFFIX): $(OUTGUN_CLIENT_OBJS)
+	$(CXX) $(OUTGUN_LDFLAGS) -o $@ $(OUTGUN_CLIENT_OBJS) $(OUTGUN_CLIENT_LIBS)
+
+../outgun-ded$(EXE_SUFFIX): $(OUTGUN_DEDSERV_OBJS)
+	$(CXX) $(OUTGUN_LDFLAGS) -o $@ $(OUTGUN_DEDSERV_OBJS) $(OUTGUN_DEDSERV_LIBS)
+
+tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
+	$(CXX) $(MAKEDEP_LDFLAGS) -o $@ $(MAKEDEP_OBJS) $(MAKEDEP_LIBS)
+
+../srvmonit$(EXE_SUFFIX): $(MON_OBJS)
+	$(CXX) $(MON_LDFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)
+
+../relay$(EXE_SUFFIX): $(RELAY_OBJS)
+	$(CXX) $(RELAY_LDFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
