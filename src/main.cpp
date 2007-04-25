@@ -167,6 +167,8 @@ END_OF_MAIN()
 int wrappedMain(int argc, const char* argv[]) {
     g_timeCounter.setZero();
 
+    check_utf8_mode();
+
     #ifndef DEDICATED_SERVER_ONLY
 
     // Set the text encoding format for Allegro as 8 bit Ascii
