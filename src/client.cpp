@@ -1182,8 +1182,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     }
     for (int i = 0; i < MAX_PLAYERS; i++)
         fx.player[i].clear(false, i, "", i / TSIZE);
-    for (int i = 0; i < MAX_PICKUPS; ++i)
-        fx.item[i].kind = Powerup::pup_unused;
+    fx.reset();
 
     fx.frame = -1;
     fx.skipped = true;
@@ -1196,6 +1195,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 
     #ifndef DEDICATED_SERVER_ONLY
 
+    fd.reset();
     fd.frame = -1;
     fd.skipped = true;
     fd.physics = fx.physics;
@@ -2529,10 +2529,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             pi->stats().finish_stats(time);
-        for (int iid = 0; iid < MAX_PICKUPS; ++iid)
-            fx.item[iid].kind = Powerup::pup_unused;
-        for (int i = 0; i < MAX_ROCKETS; ++i)
-            fx.rock[i].owner = -1;
+        fx.reset();
+        fd.reset();
 
     break; case data_gameover_show: {
         NLubyte plaque;
@@ -4669,8 +4667,8 @@ bool Client::start_replay(istream& replay) {
         fx.player[i].clear(false, i, "", i / TSIZE);
     players_sb.clear();
 
-    for (int i = 0; i < MAX_PICKUPS; ++i)
-        fx.item[i].kind = Powerup::pup_unused;
+    fx.reset();
+    fd.reset();
 
     framecount = 0;
     frameCountStartTime = get_time();

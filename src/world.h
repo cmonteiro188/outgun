@@ -809,6 +809,8 @@ protected:
     WorldBase(): player(MAX_PLAYERS) { }
 
 public:
+    virtual void reset();
+
     void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction);
     void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback);
 
@@ -1021,6 +1023,7 @@ public:
     const PowerupSettings& getPupConfig() const { return pupConfig; }
 
     // common (virtual in base) extended functions
+    void reset();
     void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, const std::string& title, const std::string& author);
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer);
     void returnAllFlags();
@@ -1034,7 +1037,6 @@ public:
     double get_frame() const { return frame; }
 
     // server specific functions
-    void reset();
     void reset_time() { map_start_time = frame; }
     void respawnPlayer(int pid, bool dontInformClients = false);
     void printTimeStatus(LineReceiver& printer);

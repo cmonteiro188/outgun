@@ -1608,13 +1608,7 @@ void ServerWorld::reset() {
     teams[0].clear_stats();
     teams[1].clear_stats();
 
-    // remove powerups
-    for (int i = 0; i < MAX_PICKUPS; i++)
-        item[i].kind = Powerup::pup_unused;
-
-    // remove rockets
-    for (int i = 0; i < MAX_ROCKETS; i++)
-        rock[i].owner = -1;
+    WorldBase::reset();
 
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used) {
@@ -2938,6 +2932,14 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
                     callback.rocketOutOfBounds(i);
             }
         }
+}
+
+void WorldBase::reset() {
+    for (int i = 0; i < MAX_PICKUPS; ++i)
+        item[i].kind = Powerup::pup_unused;
+    for (int i = 0; i < MAX_ROCKETS; ++i)
+        rock[i].owner = -1;
+    dbExplosions.clear();
 }
 
 static bool doRegenerate(double& var, double limit, double speed, double& timeLeft) {
