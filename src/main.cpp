@@ -140,7 +140,7 @@ void statusOutputWindow(const string& str) {
 
 void statusOutputText(const string& str) {
     #ifndef ALLEGRO_WINDOWS
-    std::cout << str << '\n';
+    std::cout << (utf8_mode ? latin1_to_utf8(str) : str) << '\n';
     #else
     statusOutputWindow(str);
     #endif
