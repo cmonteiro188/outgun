@@ -802,12 +802,11 @@ void ServerNetworking::send_server_settings(int cid) const {
     writeShort(lebuf, count, pupConfig.pup_add_time);
     writeShort(lebuf, count, pupConfig.pup_max_time);
     world.physics.write(lebuf, count);
+    writeShort(lebuf, count, static_cast<NLushort>(10 * config.flag_return_delay));
     /* TODO: 1.0.4 send more settings
-       - flag return delay (in frames, two bytes?)
        - locked flags?
        - captureable flags?
     */
-    writeShort(lebuf, count, static_cast<NLushort>(10 * config.flag_return_delay));
     if (cid == pid_record)
         record_message(lebuf, count);
     else

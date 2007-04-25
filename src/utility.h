@@ -50,7 +50,7 @@ int iround(double value);
 int iround_bound(double value); // if value is out of int range, nearest value is used
 int numberWidth(int num);   // how many characters num takes when printed
 
-inline double sqr(double value) {  // the square of the given value (just to keep the code readable)
+inline double sqr(double value) { // the square of the given value (just to keep the code readable)
     return value * value;
 }
 
@@ -80,7 +80,7 @@ std::string date_and_time();
 // Get a verbal approximation of the given time interval
 std::string approxTime(int seconds);
 
-// UTF-8 mode for the dedicated server
+// UTF-8 mode for Linux
 extern bool utf8_mode;
 void check_utf8_mode();
 
