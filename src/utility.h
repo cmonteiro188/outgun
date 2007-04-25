@@ -76,6 +76,10 @@ std::string date_and_time();
 // Get a verbal approximation of the given time interval
 std::string approxTime(int seconds);
 
+// UTF-8 mode for the dedicated server
+extern bool utf8_mode;
+void check_utf8_mode();
+
 // Convert string to upper/lower case.
 std::string toupper(std::string str);
 std::string tolower(std::string str);

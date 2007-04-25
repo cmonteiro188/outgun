@@ -116,6 +116,14 @@ double positiveFmod(double val, double modulus) {
     return val >= 0 ? fmod(val, modulus) : modulus - fmod(-val, modulus);
 }
 
+bool utf8_mode = false;
+
+void check_utf8_mode() {
+    char* s;
+    if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && strstr(s, "UTF-8"))
+        utf8_mode = true;
+}
+
 string toupper(string str) {
     for (string::iterator s = str.begin(); s != str.end(); ++s)
         *s = latin1_toupper(*s);

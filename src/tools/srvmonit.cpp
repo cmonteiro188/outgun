@@ -91,8 +91,6 @@ class SendFail { };
 class ConnectFail { };
 class UserExit { };
 
-bool utf8_mode = false;
-
 string encode(const string& str) {
     return utf8_mode ? latin1_to_utf8(str) : str;
 }
@@ -429,9 +427,7 @@ bool runMonitor(int port, bool messageBoxes) {
 }
 
 int main(int argc, const char* argv[]) {
-    char* s;
-    if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && strstr(s, "UTF-8"))
-        utf8_mode = true;
+    check_utf8_mode();
     initKeyboard();
     int port = 24500;
     bool messageBoxes = true;
