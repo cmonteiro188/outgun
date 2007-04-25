@@ -368,6 +368,7 @@ private:
 
     int scale(double value) const;
     int pf_scale(double value) const { return roomLayout.pf_scale(value); }
+    double pf_scaled(double value) const { return roomLayout.pf_scaled(value); }
 
     class RoomLayoutManager {
         Graphics& g;
@@ -400,6 +401,7 @@ private:
         double visibleRoomsY() const { return visible_rooms_y; }
 
         int pf_scale(double value) const;
+        double pf_scaled(double value) const;
 
         std::vector<int> scale_x(const WorldCoords& pos) const { return scale_x(pos.px, pos.x); }
         std::vector<int> scale_y(const WorldCoords& pos) const { return scale_y(pos.py, pos.y); }

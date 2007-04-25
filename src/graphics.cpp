@@ -3215,6 +3215,10 @@ int Graphics::RoomLayoutManager::pf_scale(double value) const {
     return iround(playfield_scale * value);
 }
 
+double Graphics::RoomLayoutManager::pf_scaled(double value) const {
+    return playfield_scale * value;
+}
+
 vector<int> Graphics::RoomLayoutManager::scale_x(int roomx, double lx) const {
     vector<int> pos = room_offset_x(roomx);
     const int delta = pf_scale(lx);
