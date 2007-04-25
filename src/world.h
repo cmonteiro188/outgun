@@ -439,8 +439,6 @@ public:
     double item_turbo_time;
     double item_shadow_time;
 
-    NLulong item_deathbringer_frame; // explosion of this players deathbringer (only valid if dead and item_deathbringer set)
-    int deathbringer_team;  // valid if own deathbringer has exploded (this is needed for when changing teams)
     double deathbringer_end;    // end of effect of another players deathbringer
     int deathbringer_attacker;  // whose deathbringer it is
 
@@ -704,6 +702,29 @@ public:
     Powerup(): kind(pup_unused) { }
 };
 
+class DeathbringerExplosion {
+    double frame0;
+    WorldCoords pos;
+    int ownerPid;
+    int ownerTeam; // team != world.player[owner].team() exactly if owner changed team after the explosion
+
+public:
+    DeathbringerExplosion(double explosionFrame, const PlayerBase& owner)
+            : frame0(explosionFrame), pos(owner.roomx, owner.roomy, owner.lx, owner.ly), ownerPid(owner.id), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
+    DeathbringerExplosion(double explosionFrame, const WorldCoords& position, int team)
+            : frame0(explosionFrame), pos(position), ownerPid(-1), ownerTeam(team), playersOutsideMask(~0u) { }
+
+    void pidChange(int newPid) { nAssert(newPid >= 0); ownerPid = newPid; }
+
+    bool expired(double frame) const { return frame > frame0 + 18.; } // so that radius(frame)² > plw² + plh²
+    const WorldCoords& position() const { return pos; }
+    double radius(double frame) const;
+    int team() const { return ownerTeam; }
+    int player() const { nAssert(ownerPid != -1); return ownerPid; } // can only be used if initialized with the player
+
+    NLulong playersOutsideMask; // bit set for every player that was on the previous frame in the same room but outside the db ring, kind of waiting to be hit (only those can be hit on this frame); additionally, every player when the deathbringer is new (even if they happen to be in another room, it doesn't matter in the calculations)
+};
+
 template<class Type> class PointerContainer {   // doesn't delete the objects!
     Type* ptr;
 
@@ -796,6 +817,8 @@ public:
     void remove_team_flags(int t);
     void add_random_flag(int t);
 
+    virtual double get_frame() const = 0;
+
     Map map;
 
     int maxplayers; // actual
@@ -822,6 +845,13 @@ public:
     virtual void stealFlag(int team, int flag, int carrier);
 
     void save_stats(const std::string& dir, const std::string& map_name) const;
+
+    void addDeathbringerExplosion(const DeathbringerExplosion& db) { dbExplosions.push_back(db); }
+    void cleanOldDeathbringerExplosions();
+    const std::list<DeathbringerExplosion>& deathbringerExplosions() const { return dbExplosions; }
+
+protected:
+    std::list<DeathbringerExplosion> dbExplosions;
 };
 
 class ConstFlagIterator {
@@ -1001,6 +1031,7 @@ public:
     bool isTimeLimit() const { return config.getTimeLimit() > 0; }
     int getTimeLeft() const { return config.getTimeLimit() - getMapTime(); }
     int getExtraTimeLeft() const { return config.getTimeLimit() + config.getExtraTime() - getMapTime(); }
+    double get_frame() const { return frame; }
 
     // server specific functions
     void reset();
@@ -1047,6 +1078,7 @@ public:
         for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
     }
+    double get_frame() const { return frame; }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
                      ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter);

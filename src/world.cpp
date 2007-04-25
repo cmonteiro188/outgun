@@ -838,8 +838,6 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     lastClientFrame = 0;
     frameOffset = 0;
     awaiting_client_readies = 0;
-    item_deathbringer_frame = 0;
-    deathbringer_team = 0;  // need not be valid yet
     deathbringer_end = 0;
     deathbringer_attacker = 0;
     item_power_time = item_turbo_time = item_shadow_time = 0;
@@ -1382,6 +1380,16 @@ void ConstFlagIterator::findValid() {
         setFlags();
         iFlag = 0;
     }
+}
+
+double DeathbringerExplosion::radius(double frame) const {
+    nAssert(frame >= frame0);
+    // change expired() if this calculation changes
+    const double delta = (frame - frame0) * 0.1;
+    if (delta < 1.)
+        return delta * 100.;
+    else
+        return 100. + sqr(delta - 1.) * 800.;
 }
 
 PhysicalSettings::PhysicalSettings() :
@@ -2181,9 +2189,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
         host->score_neg(target, 1); // score neg points because of losing the flag
 
     if (player[target].item_deathbringer) {
-        //record time to simulate the deathbringer explosion
-        player[target].item_deathbringer_frame = frame;
-        player[target].deathbringer_team = player[target].team();
+        addDeathbringerExplosion(DeathbringerExplosion(frame, player[target]));
         net->sendDeathbringer(target, player[target]);
     }
 
@@ -2229,54 +2235,56 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     if (player[target].health > 0)
         return;
 
-    const int tateam = target / TSIZE;
-    const int atteam = attacker / TSIZE;
-    const bool same_team = (tateam == atteam);
-    if (!same_team)
-        host->score_frag(attacker, 1);      // frag to attacker for the kill
-    else
-        host->score_frag(attacker, -2);     // take two frags for killing own player
-
-    bool carrier_defended = false, flag_defended = false;
-    if (!same_team) {
-        // Check if an enemy flag or a wild flag is carried in the target's screen by a teammate.
-        for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
-            if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
-                carrier_defended = true;
-                host->score_frag(attacker, 1);
-                break;  // only one frag even for defending multiple carriers
-            }
-        // Check if an own or enemy flag is lying on the ground in the target's screen.
-        if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
-            for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
-                if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-                    flag_defended = true;
-                    if (!carrier_defended)
-                        host->score_frag(attacker, 1);
-                    break;  // only one frag even for defending multiple flags
-                }
-            if (!carrier_defended && !flag_defended)
-                for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-                    if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
-                        host->score_frag(attacker, 1);
-                        break;  // only one frag even for attacking multiple flags
-                    }
-        }
-    }
     const bool flag = player[target].stats().has_flag();
     const bool wild_flag = player[target].stats().has_wild_flag();
-    if (flag) {
-        if (!same_team) {
-            player[attacker].stats().add_carrier_kill();
-            host->score_frag(attacker, 1);  // extra frag for fragging a carrier
-        }
+    bool carrier_defended = false, flag_defended = false;
+    const int tateam = target / TSIZE;
+    if (attacker < maxplayers) { // the reverse happens with deathbringers whose owner has left the server
+        const int atteam = attacker / TSIZE;
+        const bool same_team = (tateam == atteam);
+        if (!same_team)
+            host->score_frag(attacker, 1);      // frag to attacker for the kill
         else
-            host->score_frag(attacker, -1); // extra penalty for fragging own carrier
-    }
+            host->score_frag(attacker, -2);     // take two frags for killing own player
 
-    if (!same_team) {
-        player[attacker].stats().add_kill(type == DT_deathbringer);
-        teams[atteam].add_kill();
+        if (!same_team) {
+            // Check if an enemy flag or a wild flag is carried in the target's screen by a teammate.
+            for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
+                if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
+                    carrier_defended = true;
+                    host->score_frag(attacker, 1);
+                    break;  // only one frag even for defending multiple carriers
+                }
+            // Check if an own or enemy flag is lying on the ground in the target's screen.
+            if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
+                for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
+                    if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                        flag_defended = true;
+                        if (!carrier_defended)
+                            host->score_frag(attacker, 1);
+                        break;  // only one frag even for defending multiple flags
+                    }
+                if (!carrier_defended && !flag_defended)
+                    for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
+                        if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                            host->score_frag(attacker, 1);
+                            break;  // only one frag even for attacking multiple flags
+                        }
+            }
+        }
+        if (flag) {
+            if (!same_team) {
+                player[attacker].stats().add_carrier_kill();
+                host->score_frag(attacker, 1);  // extra frag for fragging a carrier
+            }
+            else
+                host->score_frag(attacker, -1); // extra penalty for fragging own carrier
+        }
+
+        if (!same_team) {
+            player[attacker].stats().add_kill(type == DT_deathbringer);
+            teams[atteam].add_kill();
+        }
     }
     player[target].stats().add_death(type == DT_deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
@@ -3030,56 +3038,55 @@ void ServerWorld::simulateFrame() {
                     damagePlayer(i, player[i].deathbringer_attacker, 3, DT_deathbringer); // 30 / s, 150 / 5 s
             }
         }
+    }
 
-        // check for a player's deathbringer to bring death
-        if (player[i].dead && player[i].item_deathbringer) {
-            // note: if any of this calculation is changed, also update the time constant 18 in the call to respawnPlayer
-            const bool dbTeam = player[i].deathbringer_team;
-            //delta time since shoot
-            const double delta = (frame - player[i].item_deathbringer_frame) * 0.1;
-            //figure out new radius
-            int rad;
-            if (delta < 1.0)
-                rad = (int)(delta * 100);
-            else
-                rad = 100 + (int)((delta - 1.0) * (delta - 1.0) * 800);
+    cleanOldDeathbringerExplosions();
 
-            //check players onscreen that are not hit by it yet and are inside
-            // the donut radius...radius-50
-            for (int v = 0; v < maxplayers; v++)
-                if ((v/TSIZE != dbTeam || physics.friendly_db > 0.) && player[v].used && !player[v].dead &&
-                                player[v].roomx == player[i].roomx && player[v].roomy == player[i].roomy &&
-                                player[v].deathbringer_end < get_time() && frame >= player[v].start_take_damage_frame) {
-                    //calculate player distance to the deathbringer core
-                    const double ex = player[i].lx;
-                    const double ey = player[i].ly;
-                    const double rx = player[v].lx;
-                    const double ry = player[v].ly;
-                    const double dt = sqrt(sqr(ex - rx) + sqr(ey - ry));
+    // check for deathbringer explosion hits
+    for (list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin(); dbi != dbExplosions.end(); ++dbi) {
+        DeathbringerExplosion& db = *dbi;
+        const WorldCoords& pos = db.position();
+        const double radius = db.radius(frame);
 
-                    // hit distance: if dt == rad, hit, if rad
-                    if (rad <= dt + 20 && rad >= dt - 60) {
-                        net->broadcast_screen_sample(v, SAMPLE_HITDEATHBRINGER);
-                        player[v].deathbringer_attacker = i;
+        NLulong newOutsideMask = 0;
+        for (int ti = 0; ti < maxplayers; ++ti) {
+            ServerPlayer& target = player[ti];
+            if (!target.used || target.dead || target.roomx != pos.px || target.roomy != pos.py)
+                continue;
+            const bool sameTeam = target.team() == db.team();
+            if (sameTeam && !physics.friendly_db)
+                continue;
 
-                        // time of effect ; also freeze his gun for this same amount of time
-                        const double time = pupConfig.pup_deathbringer_time * (v / TSIZE == dbTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
-                        player[v].deathbringer_end = get_time() + time;
-                        player[v].next_shoot_frame = frame + iround(time * 10.);
+            const double dx = target.lx - pos.x;
+            const double dy = target.ly - pos.y;
 
-                        // calc recoil:
-                        const double tx = player[v].lx - player[i].lx;
-                        const double ty = player[v].ly - player[i].ly;
+            const double dist = sqrt(sqr(dx) + sqr(dy));
+            if (dist > radius + 60) {
+                newOutsideMask |= 1u << ti; // player is now in the same room but outside the db
+                continue;
+            }
+            if (dist < radius - 10 && !(db.playersOutsideMask & (1u << ti))) // player is now inside the db and previously either in another room (thus avoiding the deathbringer) or already inside
+                continue;
 
-                        const double div = sqrt(tx * tx + ty * ty);
-                        if (div != 0) {
-                            const double mul = 40. / div;   // set speed to 40
-                            player[v].sx = tx * mul;
-                            player[v].sy = ty * mul;
-                        }
-                    }
-                }
+            if (target.deathbringer_end >= get_time() || frame < target.start_take_damage_frame)
+                continue;
+
+            net->broadcast_screen_sample(target.id, SAMPLE_HITDEATHBRINGER);
+            target.deathbringer_attacker = db.player();
+
+            // time of effect ; also freeze his gun for this same amount of time
+            const double time = pupConfig.pup_deathbringer_time * (sameTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
+            target.deathbringer_end = get_time() + time;
+            target.next_shoot_frame = frame + iround(time * 10.);
+
+            // push player away from db center
+            if (dist != 0) {
+                const double mul = 40. / dist; // set speed to 40
+                target.sx = dx * mul;
+                target.sy = dy * mul;
+            }
         }
+        db.playersOutsideMask = newOutsideMask;
     }
 
     ServerPhysicsCallbacks cb(*this);
@@ -3119,8 +3126,7 @@ void ServerWorld::simulateFrame() {
             p0->extra_frames_to_respawn = 0;
         }
         if (p0->extra_frames_to_respawn == 0 && p0->frames_to_respawn == 0)
-            if (!p0->item_deathbringer || frame > p0->item_deathbringer_frame + 18) // the time required for a deathbringer explosion to reach the other end of the screen
-                respawnPlayer(p0->id);
+            respawnPlayer(p0->id);
     }
 
     // for each player, do misc stuff
@@ -3589,6 +3595,13 @@ void WorldBase::print_team_stats_row(ostream& out, const string& header, int amo
     out << "<TD ALIGN=\"center\">" << amount1 << postfix;
     out << "<TD ALIGN=\"center\">" << amount2 << postfix;
     out << '\n';
+}
+
+void WorldBase::cleanOldDeathbringerExplosions() {
+    // only erase from the front of the list since new ones are added to the back and the lifetime is constant
+    for (std::list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin();
+         dbi != dbExplosions.end() && dbi->expired(get_frame());
+         dbi = dbExplosions.erase(dbi));
 }
 
 // Team

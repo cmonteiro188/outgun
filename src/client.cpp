@@ -163,16 +163,6 @@ public:
     void execute(Client* cl) const { cl->graphics.create_gunexplo(pos, team, time); }
 };
 
-class TM_Deathbringer : public ThreadMessage {
-    int team;
-    WorldCoords pos;
-    double time;
-
-public:
-    TM_Deathbringer(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const { cl->graphics.create_deathbringer(pos, team, time); }
-};
-
 class TM_ServerSettings : public ThreadMessage {
     NLubyte caplimit, timelimit, extratime;
     NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay;
@@ -2604,15 +2594,15 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         NLubyte team;
         NLulong frameno;
         NLubyte roomx, roomy;
+        NLushort lx, ly;
         readByte(lebuf, count, team);
         readLong(lebuf, count, frameno);    // creation frame
         readByte(lebuf, count, roomx);
         readByte(lebuf, count, roomy);
-        NLushort lx, ly;
         readShort(lebuf, count, lx);
         readShort(lebuf, count, ly);
+        fx.addDeathbringerExplosion(DeathbringerExplosion(frameno, WorldCoords(roomx, roomy, lx, ly), team));
         #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Deathbringer(team, time + (frameno - fx.frame) * 0.1, WorldCoords(roomx, roomy, lx, ly)));
         addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
         #endif
     }
@@ -4836,6 +4826,8 @@ void Client::bot_loop() {
         BuildMap();
     }
 
+    fx.cleanOldDeathbringerExplosions();
+
     ClientControls controls = Robot();
     controls.clearModifiersIfIdle();
     bot_send_frame(controls);
@@ -5403,6 +5395,10 @@ void Client::draw_playfield() {
             graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
 
     graphics.draw_effects(time);
+
+    fx.cleanOldDeathbringerExplosions();
+    for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi)
+        graphics.draw_deathbringer(*dbi, fd.frame);
 
     if (menu.options.graphics.showNeighborMarkers(replaying, visible_rooms)) {
         // neighbor markers: disappeared flags first

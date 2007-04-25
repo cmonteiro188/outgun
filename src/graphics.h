@@ -168,7 +168,7 @@ public:
     void draw_rocket(const Rocket& rocket, bool shadow, double time);
     void draw_gun_explosion(const WorldCoords& pos, int rad, int team);
     void draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha);
-    void draw_deathbringer(const WorldCoords& pos, int team, double time);
+    void draw_deathbringer(const DeathbringerExplosion& db, double frame);
 
     void draw_player_health(int value);
     void draw_player_energy(int value);
@@ -226,7 +226,6 @@ public:
     void create_powerwallexplo(const WorldCoords& pos, int team, double time);
     void create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item = false);
     void create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time);
-    void create_deathbringer(const WorldCoords& pos, int team, double start_time);
     void create_gunexplo(const WorldCoords& pos, int team, double time);
 
     bool save_map_picture(const std::string& filename, const Map& map);

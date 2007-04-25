@@ -186,7 +186,6 @@ class Client : public ClientInterface {
     #ifndef DEDICATED_SERVER_ONLY
     friend class TM_NameAuthorizationRequest;
     friend class TM_GunexploEffect;
-    friend class TM_Deathbringer;
     friend class TM_ServerSettings;
     #endif
     friend class TM_ConnectionUpdate;

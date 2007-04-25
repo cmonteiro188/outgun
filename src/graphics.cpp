@@ -1455,12 +1455,9 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
     solid_mode();
 }
 
-void Graphics::draw_deathbringer(const WorldCoords& pos, int team, double time) {
-    int radius;
-    if (time < 1.0)
-        radius = pf_scale(time * 100);
-    else
-        radius = pf_scale(100 + (time - 1.0) * (time - 1.0) * 800);
+void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) {
+    const int radius = pf_scale(db.radius(frame));
+    const WorldCoords& pos = db.position();
     RoomPosSet r(pos.px, pos.py, this);
     while (r.next()) {
         const int sx1 = r.x(), sy1 = r.y();
@@ -1477,7 +1474,7 @@ void Graphics::draw_deathbringer(const WorldCoords& pos, int team, double time) 
         //brightening ring
         for (int e = 0; e < pf_scale(30); e++, rad++) {
             int co;
-            if (team == 0)
+            if (db.team() == 0)
                 co = makecol(14 + static_cast<int>(8 * e / scr_mul), 0, 0);
             else
                 co = makecol(0, 0, 14 + static_cast<int>(8 * e / scr_mul));
@@ -1486,7 +1483,7 @@ void Graphics::draw_deathbringer(const WorldCoords& pos, int team, double time) 
         //darkening ring
         for (int e = 0; e < pf_scale(10); e++, rad++) {
             int co;
-            if (team == 0)
+            if (db.team() == 0)
                 co = makecol(255 - static_cast<int>(14 * e / scr_mul), 0, 0);
             else
                 co = makecol(0, 0, 255 - static_cast<int>(14 * e / scr_mul));
@@ -2625,11 +2622,6 @@ void Graphics::create_turbofx(const WorldCoords& pos, int col1, int col2, GunDir
     cfx.push_back(GraphicsEffect(FX_TURBO, pos, time, -1 /* team not used */, alpha / 255., col1, col2, gundir));
 }
 
-//create deathbringer explosion fx
-void Graphics::create_deathbringer(const WorldCoords& pos, int team, double start_time) {
-    cfx.push_back(GraphicsEffect(FX_DEATHBRINGER_EXPLOSION, pos, start_time, team));
-}
-
 //create explosion fx
 void Graphics::create_gunexplo(const WorldCoords& pos, int team, double time) {
     cfx.push_back(GraphicsEffect(FX_GUN_EXPLOSION, pos, time, team));
@@ -2673,13 +2665,6 @@ void Graphics::draw_effects(double time) {
                         const int rad = 4 + e + static_cast<int>(delta * 60);
                         draw_gun_explosion(fx->pos, rad, fx->team);
                     }
-                    ++fx;
-                }
-            break; case FX_DEATHBRINGER_EXPLOSION:
-                if (delta > 3.0)
-                    fx = cfx.erase(fx);
-                else {
-                    draw_deathbringer(fx->pos, fx->team, delta);
                     ++fx;
                 }
             break; case FX_DEATHCARRIER_SMOKE:
