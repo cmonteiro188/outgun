@@ -54,6 +54,10 @@ inline double sqr(double value) {  // the square of the given value (just to kee
     return value * value;
 }
 
+inline int sqr(int value) {
+    return value * value;
+}
+
 template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) {
     nAssert(modulus > 0);
     return val >= 0 ? val % modulus : modulus - (-val % modulus);
