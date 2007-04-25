@@ -31,6 +31,7 @@
 #include "client.h"
 
 using std::make_pair;
+using std::min;
 using std::pair;
 using std::vector;
 
@@ -338,6 +339,43 @@ pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) cons
     return make_pair(!IsBehindWall(mex, mey, dx, dy), GetDir(dx, dy));
 }
 
+double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const {
+    const ClientPlayer& target = fx.player[iTarget];
+
+    if (!target.onscreen || target.dead)
+        return 1e100;
+
+    const double ttx = target.lx + averageLag * target.sx;
+    const double tty = target.ly + averageLag * target.sy;
+
+    double dx = ttx - mex;
+    double dy = tty - mey;
+
+    const double initialDist = sqrt(sqr(dx) + sqr(dy));
+
+    if (initialDist <= PLAYER_RADIUS)
+        return 0;
+
+    const double rsx = cos(dir.toRad()) * fx.physics.rocket_speed;
+    const double rsy = sin(dir.toRad()) * fx.physics.rocket_speed;
+
+    const double hitTime = initialDist / fx.physics.rocket_speed;
+    dx += hitTime * (target.sx - rsx);
+    dy += hitTime * (target.sy - rsy);
+
+    return sqrt(sqr(dx) + sqr(dy)) < 3 * PLAYER_RADIUS ? hitTime : 1e100;
+}
+
+double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const {
+    double hitTime = 1e100;
+    if (fx.physics.friendly_fire == 0)
+        return hitTime;
+    for (int i = 0; i < maxplayers; ++i)
+        if (fx.player[i].used && fx.player[i].team() == fx.player[me].team() && i != me)
+            hitTime = min(hitTime, GetHitTime(mex, mey, dir, i));
+    return hitTime;
+}
+
 pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDirection& defaultDir) {
     const ClientPlayer& player = fx.player[me];
 
@@ -352,7 +390,7 @@ pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDire
                 tryOrder.push_back(i);
         }
         else {
-            if (IsAimed(mex, mey, i) == 2)
+            if (IsAimed(mex, mey, i) == 2 && GetHitTime(mex, mey, defaultDir, i) <= GetHitTeammateTime(mex, mey, defaultDir))
                 return make_pair(true, GunDirection()); // the direction doesn't make any difference with non-free turning
         }
     }
@@ -360,14 +398,16 @@ pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDire
     if (!fx.physics.allowFreeTurning)
         return make_pair(false, GunDirection());
 
-    const pair<bool, GunDirection> aimLastSeen =
-            last_seen == -1 ? make_pair(false, defaultDir) : TryAim(mex, mey, last_seen);
-    if (aimLastSeen.first)
-        return aimLastSeen;
+    pair<bool, GunDirection> aimLastSeen = last_seen == -1 ? make_pair(false, defaultDir) : TryAim(mex, mey, last_seen);
+    if (aimLastSeen.first) {
+        if (GetHitTime(mex, mey, aimLastSeen.second, last_seen) <= GetHitTeammateTime(mex, mey, aimLastSeen.second))
+            return aimLastSeen;
+        aimLastSeen.first = false;
+    }
     random_shuffle(tryOrder.begin(), tryOrder.end());
     for (vector<int>::const_iterator ti = tryOrder.begin(); ti != tryOrder.end(); ++ti) {
         const pair<bool, GunDirection> aim = TryAim(mex, mey, *ti);
-        if (aim.first) {
+        if (aim.first && GetHitTime(mex, mey, aim.second, *ti) <= GetHitTeammateTime(mex, mey, aim.second)) {
             last_seen = *ti;
             return aim;
         }

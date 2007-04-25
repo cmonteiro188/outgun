@@ -375,6 +375,9 @@ class Client : public ClientInterface {
     bool        HaveFlag(int n) const; // returns if n is carrier
     int         IsAimed(double mex, double mey, int i) const; // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const; // for free turning; returns (shoot?, direction)
+    double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const; // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
+    double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const; // approximate time until a rocket shoot towards dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
+
     bool        IsBehindWall(double mex, double mey, double dx, double dy) const;
     double      ScanDir(double mex, double mey, GunDirection dir) const; // return length to wall
     std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
