@@ -331,7 +331,7 @@ const NLushort DEFAULT_UDP_PORT = 25000;
 // system directory separator
 extern char directory_separator;
 
-//root path (game executable path)
+// root path (game executable path)
 extern std::string wheregamedir;
 
 // number-of-players
