@@ -39,15 +39,15 @@
 
 #include "graphics.h"
 
-const bool TEST_FALL_ON_WALL = false;
+static const bool TEST_FALL_ON_WALL = false;
 
 // these shouldn't be changed - rather change allegro.cfg
-const int  WINMODE = GFX_AUTODETECT_WINDOWED;
-const int FULLMODE = GFX_AUTODETECT;
+static const int  WINMODE = GFX_AUTODETECT_WINDOWED;
+static const int FULLMODE = GFX_AUTODETECT;
 
-const bool SWITCH_PAUSE_CLIENT = false;
+static const bool SWITCH_PAUSE_CLIENT = false;
 
-const int GUNPOINT_RADIUS = 28;
+static const int GUNPOINT_RADIUS = 28;
 
 using std::ifstream;
 using std::istringstream;
