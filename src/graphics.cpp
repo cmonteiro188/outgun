@@ -41,6 +41,8 @@
 
 static const bool TEST_FALL_ON_WALL = false;
 
+static const bool DISABLE_ROOM_CACHE = false;
+
 // these shouldn't be changed - rather change allegro.cfg
 static const int  WINMODE = GFX_AUTODETECT_WINDOWED;
 static const int FULLMODE = GFX_AUTODETECT;
@@ -3470,7 +3472,7 @@ void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, con
     const int yRooms = static_cast<int>(ceil(g.roomLayout.visibleRoomsY() + topLeft.y / plh - .0001));
     const unsigned needLockedRooms = min(map.w, xRooms) * min(map.h, yRooms);
 
-    if (continuousTextures != previousContinuousTextures || mapInfoMode != previousMapInfoMode || needLockedRooms > roomCache.size()) {
+    if (continuousTextures != previousContinuousTextures || mapInfoMode != previousMapInfoMode || needLockedRooms > roomCache.size() || DISABLE_ROOM_CACHE) {
         invalidateRoomCache();
         previousContinuousTextures = continuousTextures;
         previousMapInfoMode = mapInfoMode;
