@@ -4116,7 +4116,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                     mapListChangedAfterSort = true;
                 break; case KEY_LEFT:
                     do {
-                        mapListSortKey = static_cast<MapListSortKey>((mapListSortKey + MLSK_COUNT - 1) % MLSK_COUNT);
+                        mapListSortKey = static_cast<MapListSortKey>((mapListSortKey - 1 + MLSK_COUNT) % MLSK_COUNT);
                     } while (mapListSortKey == MLSK_Favorite && fav_maps.empty());
                     mapListChangedAfterSort = true;
                 break; default:
