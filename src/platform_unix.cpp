@@ -200,8 +200,8 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
     char* capBuf = new char[caption.length() + 1];
     char* msgBuf = new char[    msg.length() + 1];
 
-    const char* captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
-    const char*     msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+    const char* captionConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
+    const char*     msgConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
 
     static const int nFuncs = 2;
     static const char* func[nFuncs] = { "kdialog", "xmessage" };
