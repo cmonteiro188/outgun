@@ -195,7 +195,7 @@ void platUninit() {
 void platMessageBox(const string& caption, const string& msg, bool blocking) {
     // The dialog tools may bug totally when given characters in wrong encoding.
     // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message. (some versions of it did that with normal input like '&' too, so it's no longer used at all)
-    // We have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
+    // When UTF-8 is not detected, we have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
 
     char* capBuf = new char[caption.length() + 1];
     char* msgBuf = new char[    msg.length() + 1];
