@@ -30,6 +30,7 @@
 #include <cstdarg>
 #include <stdio.h>
 #include <string>
+#include <vector>
 
 #ifndef __GNUC__
 #define __attribute__(a)
@@ -145,24 +146,36 @@ void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
      }
 }
 
-void handleFile(std::string name, FILE* dst, const std::string& objPath, const std::string& compileCommand) {
+void handleFile(std::string name, FILE* dst, const std::vector<std::string>& objPaths) {
     replaceChars(name, '\\', '/');  // for DOS users getting '\'s in their paths
+
     std::string id = name;
+    bool header;
     if (id.length() > 2 && id.substr(id.length() - 2) == ".h") {
-        replaceSlashes(id);
         id.erase(id.length() - 2);
-        fprintf(dst, "%s_inc =\t%s", id.c_str(), name.c_str());
+        header = true;
     }
     else if (id.length() > 2 && id.substr(id.length() - 2) == ".c") {
         id.erase(id.length() - 2);
-        fprintf(dst, "%s%s.o:\t%s", objPath.c_str(), id.c_str(), name.c_str());
+        header = false;
     }
     else if (id.length() > 4 && id.substr(id.length() - 4) == ".cpp") {
         id.erase(id.length() - 4);
-        fprintf(dst, "%s%s.o:\t%s", objPath.c_str(), id.c_str(), name.c_str());
+        header = false;
     }
     else
         throw StrError("'%s' - only .h, .c and .cpp files are handled", name.c_str());
+
+    if (header) {
+        replaceSlashes(id);
+        fprintf(dst, "%s_inc =\t%s", id.c_str(), name.c_str());
+    }
+    else {
+        for (std::vector<std::string>::const_iterator opi = objPaths.begin(); opi != objPaths.end(); ++opi)
+            fprintf(dst, "%s%s.o ", opi->c_str(), id.c_str());
+        fprintf(dst, ":\t%s", name.c_str());
+    }
+
     FILE* src = fopen(name.c_str(), "rb");
     if (!src)
         throw StrError("'%s' - can't open for reading", name.c_str());
@@ -176,22 +189,26 @@ void handleFile(std::string name, FILE* dst, const std::string& objPath, const s
         fclose(src);
         throw;
     }
-    if (!compileCommand.empty())
-        fprintf(dst, "\t%s\n", compileCommand.c_str());
 }
 
 int main(int argc, const char* argv[]) {
-    if (argc < 4) {
-        fprintf(stderr, "syntax: %s obj-file-path compile-command .h-or-.c-or-.cpp-files\n", argv[0]);
+    if (argc < 2) {
+        fprintf(stderr, "syntax: %s [[-O obj-path] -O obj-path ...] .h-or-.c-or-.cpp-files\n", argv[0]);
         return 1;
     }
-    std::string objPath = argv[1];
-    replaceChars(objPath, '\\', '/');
-    if (!objPath.empty() && *objPath.rbegin() != '/')
-        objPath += '/';
     try {
-        for (int i = 3; i < argc; ++i)
-            handleFile(argv[i], stdout, objPath, argv[2]);
+        std::vector<std::string> objPaths;
+        for (int i = 1; i < argc; ++i) {
+            if (!strcmp(argv[i], "-O") && i + 1 < argc) {
+                std::string objPath = argv[++i];
+                replaceChars(objPath, '\\', '/');
+                if (!objPath.empty() && *objPath.rbegin() != '/')
+                    objPath += '/';
+                objPaths.push_back(objPath);
+            }
+            else
+                handleFile(argv[i], stdout, objPaths);
+        }
     } catch (const StrError& e) {
         e.print();
         return 1;
