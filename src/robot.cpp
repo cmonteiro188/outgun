@@ -177,7 +177,7 @@ int Client::GetDangerousRocket() const {
 
         firstTime = collisionTime;
         nearRocket = i;
-    }        
+    }
 
     return nearRocket;
 }
