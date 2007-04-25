@@ -248,7 +248,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
 
         bool aimed;
         if (fx.physics.allowFreeTurning) {
-            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90Â° range are considered dangerous
+            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90° range are considered dangerous
             const double diff = positiveFmod(enemy.gundir.toRad() - aimTowardsMe.toRad(), 2 * N_PI);
             aimed = diff < tolerance || diff > 2 * N_PI - tolerance;
         }
@@ -1672,7 +1672,7 @@ ClientControls Client::Robot() {
         // adjust gunDir
         static const double turnCeilingPerFrame = N_PI_2;
         static const double displacementMul = .7;
-        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22Â° of target
+        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22° of target
         const double targetDiff = positiveFmod(shootDir.second.toRad() - gunDir.toRad() + N_PI, 2 * N_PI) - N_PI;
         double actualDiff = targetDiff;
         if (fabs(actualDiff) > turnCeilingPerFrame)
