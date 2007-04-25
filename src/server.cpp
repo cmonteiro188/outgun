@@ -951,10 +951,14 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) {
 }
 
 void Server::nameChange(int id, int pid, string name, const string& password) {
-    if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' ' || name[3] == ' '))
+    replace_all_in_place(name, '\xA0', ' '); // 'normalize' any no-break space
+
+    if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' '))
         name = "NOB" + name.substr(3);
+
     if (name == world.player[pid].name)
         return;
+
     //name change flooding protection
     if (get_time() < world.player[pid].waitnametime)
         return;
