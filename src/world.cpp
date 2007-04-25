@@ -2711,13 +2711,24 @@ void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius
         const double plTime = min(bounceTime - .001, mt);
         if (plTime > subFrame) {
             pl.move(plTime - subFrame);
-            bool rch = false;
-            double tb = 0; // time to take back: used if room changed; initialized to please GCC
-            if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
-            else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
-            if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
-            else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
-            if (rch) {
+            int rdx = 0, rdy = 0; // room change in either direction (-1 or +1 if changed)
+            double tbx = -1, tby = -1; // time to take back; used if room changed in the respective direction
+            if      (pl.lx <   0) { rdx = -1; nAssert(pl.sx < 0); tbx =  pl.lx        / pl.sx; }
+            else if (pl.lx > plw) { rdx = +1; nAssert(pl.sx > 0); tbx = (pl.lx - plw) / pl.sx; }
+            if      (pl.ly <   0) { rdy = -1; nAssert(pl.sy < 0); tby =  pl.ly        / pl.sy; }
+            else if (pl.ly > plh) { rdy = +1; nAssert(pl.sy > 0); tby = (pl.ly - plh) / pl.sy; }
+            if (rdx || rdy) {
+                double tb;
+                if (tbx > tby) {
+                    tb = tbx;
+                    pl.roomx = positiveModulo(pl.roomx + rdx, map.w);
+                    pl.lx -= rdx * plw;
+                }
+                else {
+                    tb = tby;
+                    pl.roomy = positiveModulo(pl.roomy + rdy, map.h);
+                    pl.ly -= rdy * plh;
+                }
                 // take back the time by which the player went over the edge and reapply in the new room
                 pl.move(-tb);
                 #ifdef EXTRA_DEBUG
@@ -2844,15 +2855,26 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             pl.move(plTime - subFrame);
             if (callback.gatherMovementDistance())
                 callback.addMovementDistance(rply[pi], (plTime - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
-            bool rch = false;
-            double tb = 0; // time to take back: used if room changed; initialized to please GCC
+            int rdx = 0, rdy = 0; // room change in either direction (-1 or +1 if changed)
+            double tbx = -1, tby = -1; // time to take back; used if room changed in the respective direction
             if (callback.allowRoomChange()) {
-                if      (pl.lx <   0) { rch = true; pl.roomx = (pl.roomx - 1 + map.w) % map.w; nAssert(pl.sx < 0); tb = pl.lx / pl.sx; pl.lx += plw; }
-                else if (pl.lx > plw) { rch = true; pl.roomx = (pl.roomx + 1        ) % map.w; nAssert(pl.sx > 0); pl.lx -= plw; tb = pl.lx / pl.sx; }
-                if      (pl.ly <   0) { rch = true; pl.roomy = (pl.roomy - 1 + map.h) % map.h; nAssert(pl.sy < 0); tb = max(tb, pl.ly / pl.sy); pl.ly += plh; }
-                else if (pl.ly > plh) { rch = true; pl.roomy = (pl.roomy + 1        ) % map.h; nAssert(pl.sy > 0); pl.ly -= plh; tb = max(tb, pl.ly / pl.sy); }
+                if      (pl.lx <   0) { rdx = -1; nAssert(pl.sx < 0); tbx =  pl.lx        / pl.sx; }
+                else if (pl.lx > plw) { rdx = +1; nAssert(pl.sx > 0); tbx = (pl.lx - plw) / pl.sx; }
+                if      (pl.ly <   0) { rdy = -1; nAssert(pl.sy < 0); tby =  pl.ly        / pl.sy; }
+                else if (pl.ly > plh) { rdy = +1; nAssert(pl.sy > 0); tby = (pl.ly - plh) / pl.sy; }
             }
-            if (rch) {
+            if (rdx || rdy) {
+                double tb;
+                if (tbx > tby) {
+                    tb = tbx;
+                    pl.roomx = positiveModulo(pl.roomx + rdx, map.w);
+                    pl.lx -= rdx * plw;
+                }
+                else {
+                    tb = tby;
+                    pl.roomy = positiveModulo(pl.roomy + rdy, map.h);
+                    pl.ly -= rdy * plh;
+                }
                 // take back the time by which the player went over the edge and reapply in the new room
                 pl.move(-tb);
                 #ifdef EXTRA_DEBUG
