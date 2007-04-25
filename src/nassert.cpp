@@ -41,9 +41,9 @@
 
 #include "nassert.h"
 
-#ifndef DISABLE_ENHANCED_NASSERT
 uint32_t* stackGuardHackPtr;
 
+#ifndef DISABLE_ENHANCED_NASSERT
 void stackDump(FILE* dst) { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
     uint32_t unused;
     for (uint32_t* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
