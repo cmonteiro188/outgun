@@ -51,7 +51,7 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
             }
             continue;
         }
-        //while (1) {
+        while (1) {
             const int dir = rand() % 4;
             int dx = 0, dy = 0;
             switch (dir) {
@@ -60,12 +60,9 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
                 break; case left:  dx = -1;
                 break; case right: dx = +1;
             }
-            if (remove_wall(rx, ry, dx, dy)) {
-                room[(rx + dx + width()) % width()][(ry + dy + height()) % height()].visited = true;
-                visited_rooms++;
-                //break;
-            }
-        //}
+            if (remove_wall(rx, ry, dx, dy, visited_rooms))
+                break;
+        }
     }
 
     const pair<int, int> base = max_distance();
@@ -76,42 +73,34 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
     room[x2][y2].flag = true;
 }
 
-bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, bool mirror) {
+bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) {
     if (dx == dy)
         return false;
     const int nx = rx + dx, ny = ry + dy;
     if (!over_edge && (nx < 0 || nx >= width() || ny < 0 || ny >= height()))
         return false;
     SimpleRoom& next = room[(nx + width()) % width()][(ny + height()) % height()];
+    SimpleRoom& current = room[rx][ry];
     if (!mirror && next.visited)
         return false;
-    SimpleRoom& current = room[rx][ry];
-    if (dy < 0) {
-        if (!mirror && current.top && rand() % 5)
-            return false;
+    if (!mirror && !next.visited) {
+        visited_rooms++;
+        next.visited = true;
+    }
+    if (dy < 0)
         current.top = next.bottom = false;
-    }
-    else if (dy > 0) {
-        if (!mirror && current.bottom && rand() % 5)
-            return false;
+    else if (dy > 0)
         current.bottom = next.top = false;
-    }
-    else if (dx < 0) {
-        if (!mirror && current.left && rand() % 5)
-            return false;
+    else if (dx < 0)
         current.left = next.right = false;
-    }
-    else if (dx > 0) {
-        if (!mirror && current.right && rand() % 5)
-            return false;
+    else if (dx > 0)
         current.right = next.left = false;
-    }
     if (symmetry != asymmetric && !mirror) {
         const int mx1 = symmetry == vertical   ? rx : width()  - 1 - rx;
         const int my1 = symmetry == horizontal ? ry : height() - 1 - ry;
         const int mx2 = mx1 + (symmetry == vertical   ? +dx : -dx);
         const int my2 = my1 + (symmetry == horizontal ? +dy : -dy);
-        remove_wall(mx1, my1, mx2 - mx1, my2 - my1, true);
+        remove_wall(mx1, my1, mx2 - mx1, my2 - my1, visited_rooms, true);
     }
     return true;
 }

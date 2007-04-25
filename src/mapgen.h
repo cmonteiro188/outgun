@@ -8,12 +8,13 @@ class MapGenerator {
 
     class SimpleRoom {
     public:
-        SimpleRoom(bool walls = false): top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false) { }
+        SimpleRoom(bool walls = false): top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), mirror(false) { }
 
         bool top, bottom, left, right;  // walls
         bool visited;
         bool checked_through;
         bool flag;
+        bool mirror;
     };
 
     class Node {
@@ -30,7 +31,7 @@ public:
     void save_map(std::ostream& out, const std::string& title, const std::string& author) const;
 
 private:
-    bool remove_wall(int rx, int ry, int dx, int dy, bool mirror = false);
+    bool remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror = false);
 
     std::pair<int, int> max_distance();
     int distance(int sx, int sy, int gx, int gy);
