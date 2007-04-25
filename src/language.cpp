@@ -63,14 +63,13 @@ bool Language::load(const string& lang, LogSet& log) {
         log.error("Language file for '" + lang + "' (" + translname + ") not found. Continuing without translation.");
         return false;
     }
-    string temp_loc;
     for (;;) {
         string key, value;
         getline_skip_comments(def, key);
         getline_skip_comments(transl, value);
         if (def && transl) {
             if (key == "locale")
-                temp_loc = value;
+                loc = value;
             else
                 texts[key] = value;
         }
@@ -84,8 +83,6 @@ bool Language::load(const string& lang, LogSet& log) {
         return false;
     }
     lang_code = lang;
-    if (!temp_loc.empty())
-        loc = temp_loc;
     log("Language '%s' loaded", lang.c_str());
     return true;
 }
