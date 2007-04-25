@@ -187,7 +187,7 @@ string utf8_to_latin1(const string& str) {
     //   11  110000xx 10xxxxxx  Latin 1 characters
     string latin1;
     const char invalid_character = '^';
-    for (string::const_iterator s = str.begin(); s != str.end(); ++s)
+    for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
         if (!(*s & 0x80))
             latin1 += *s;
         else if ((*s & 0xFC) == 0xC0) {
@@ -203,6 +203,7 @@ string utf8_to_latin1(const string& str) {
         }
         else
             latin1 += invalid_character;
+    }
     return latin1;
 }
 
