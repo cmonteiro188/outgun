@@ -103,6 +103,8 @@ std::string trim(std::string str);
 // Replace all occurences of s1 with s2 in text.
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
 
+std::string& replace_all_in_place(std::string& text, char c1, char c2);
+
 // Replace characters &<>"' with HTML entities or character references.
 std::string escape_for_html(std::string text);
 

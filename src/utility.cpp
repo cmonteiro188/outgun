@@ -229,6 +229,13 @@ string replace_all(string text, const string& s1, const string& s2) {
     return text;
 }
 
+string& replace_all_in_place(string& text, char c1, char c2) {
+    for (string::size_type pos = 0; pos < text.length(); ++pos)
+        if (text[pos] == c1)
+            text[pos] = c2;
+    return text;
+}
+
 string escape_for_html(string text) {
     text = replace_all(text, "&", "&amp;"); // this must be first because entities contain '&'
     text = replace_all(text, "<", "&lt;");
