@@ -5116,9 +5116,9 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // Time left if time limit is on and the game is running.
     if (map_time_limit && gameover_plaque == NEXTMAP_NONE && players_sb.size() > 1)
         if (map_end_time > time)
-            graphics.map_time(map_end_time - static_cast<int>(time));
+            graphics.draw_map_time(map_end_time - static_cast<int>(time));
         else
-            graphics.map_time(0);
+            graphics.draw_map_time(0);
 
     if (replaying)
         graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);

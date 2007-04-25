@@ -2307,7 +2307,7 @@ void Graphics::draw_player_weapon(int level) {
     print_text_border_check_bg(_("Weapon $1", itoa(level)), weapon_x, indicators_y, colour(Colour::weapon), colour(Colour::text_border), -1);
 }
 
-void Graphics::map_time(int seconds) {
+void Graphics::draw_map_time(int seconds) {
     ostringstream ost;
     ost << seconds / 60 << ':' << setw(2) << setfill('0') << seconds % 60;
     print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y, colour(Colour::map_time), colour(Colour::text_border), -1);
