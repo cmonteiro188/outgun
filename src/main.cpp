@@ -136,6 +136,8 @@ void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
 }
 
+#endif // !DEDICATED_SERVER_ONLY
+
 void statusOutputText(const string& str) {
     #ifndef ALLEGRO_WINDOWS
     std::cout << str << '\n';
@@ -143,14 +145,6 @@ void statusOutputText(const string& str) {
     statusOutputWindow(str);
     #endif
 }
-
-#else // !DEDICATED_SERVER_ONLY
-
-void statusOutputText(const string& str) {
-    std::cout << str << '\n';
-}
-
-#endif // !DEDICATED_SERVER_ONLY
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
 
