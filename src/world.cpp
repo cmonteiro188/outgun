@@ -2139,8 +2139,8 @@ void ServerWorld::game_player_screen_change(int p) {
     }
     // check for rockets visible to the new room
     for (int i = 0; i < MAX_ROCKETS; ++i)
-        if (rock[i].owner != -1 && !(rock[i].vislist & (1 << p)) && doesPlayerSeeRocket(player[p], rock[i].px, rock[i].py)) {
-            rock[i].vislist |= (1 << p);
+        if (rock[i].owner != -1 && !(rock[i].vislist & (1u << p)) && doesPlayerSeeRocket(player[p], rock[i].px, rock[i].py)) {
+            rock[i].vislist |= (1u << p);
             net->sendOldRocketVisible(p, i, rock[i]);
         }
 }
@@ -2368,7 +2368,7 @@ void ServerWorld::shootRockets(int pid, int shots) {
     NLulong vislist = 0;
     for (int p = 0; p < maxplayers; p++)
         if (player[p].used && doesPlayerSeeRocket(player[p], px, py))
-            vislist |= (1 << p);
+            vislist |= (1u << p);
 
     //mark all created rockets with the vislist
     for (int k = 0; k < shots; k++)
