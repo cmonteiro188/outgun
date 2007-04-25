@@ -75,6 +75,7 @@ using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
 //#define ROOM_CHANGE_BENCHMARK
+//#define DEATHBRINGER_SPEED_TEST
 
 const int PASSBUFFER = 32;  //size of password file
 
@@ -5397,8 +5398,14 @@ void Client::draw_playfield() {
     graphics.draw_effects(time);
 
     fx.cleanOldDeathbringerExplosions();
+    #ifdef DEATHBRINGER_SPEED_TEST
+    DeathbringerExplosion dbe(0, WorldCoords(0, 0, 0, 0), 0);
+    for (int i = 0; i < 50; ++i)
+        graphics.draw_deathbringer(dbe, 14);
+    #else
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi)
         graphics.draw_deathbringer(*dbi, fd.frame);
+    #endif
 
     if (menu.options.graphics.showNeighborMarkers(replaying, visible_rooms)) {
         // neighbor markers: disappeared flags first
