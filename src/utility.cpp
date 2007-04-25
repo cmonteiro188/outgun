@@ -54,7 +54,6 @@ using std::setprecision;
 using std::setw;
 using std::string;
 using std::vector;
-using std::wstring;
 
 int atoi(const string& str) {
     return std::atoi(str.c_str());
