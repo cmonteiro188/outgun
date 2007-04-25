@@ -2288,9 +2288,20 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
 }
 
 void ServerWorld::removePlayer(int pid) {
-    for (int r = 0; r < MAX_ROCKETS; r++)   // remove all shots from this player
+    for (int r = 0; r < MAX_ROCKETS; r++) { // remove rockets, and player from their vislists
         if (rock[r].owner == pid)
             deleteRocket(r, 0, 0, 255);
+        else
+            rock[r].vislist &= ~(1u << pid);
+    }
+    if (maxplayers < MAX_PLAYERS) { // disown deathbringers if there is a convenient pseudo-pid to assign; otherwise just hope that no one gets the same pid soon (data_kill needs some player id for killer)
+        for (list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin(); dbi != dbExplosions.end(); ++dbi)
+            if (dbi->player() == pid)
+                dbi->pidChange(MAX_PLAYERS - 1);
+        for (int i = 0; i < maxplayers; ++i)
+            if (player[i].deathbringer_attacker == pid)
+                player[i].deathbringer_attacker = MAX_PLAYERS - 1;
+    }
 
     dropFlagIfAny(pid, true);
 
@@ -2372,18 +2383,41 @@ void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) {
     r.owner = -1;
 }
 
-void ServerWorld::changeRocketsOwner(int source, int target) {
-    for (int i = 0; i < MAX_ROCKETS; i++)
+void ServerWorld::changeEmbeddedPids(int source, int target) {
+    for (int i = 0; i < MAX_ROCKETS; i++) {
         if (rock[i].owner == source)
             rock[i].owner = target;
+        if (rock[i].vislist & (1u << source))
+            rock[i].vislist = rock[i].vislist & ~(1u << source) | (1u << target);
+    }
+    for (list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin(); dbi != dbExplosions.end(); ++dbi)
+        if (dbi->player() == source)
+            dbi->pidChange(target);
+    for (int i = 0; i < MAX_PLAYERS; ++i)
+        if (player[i].deathbringer_attacker == source)
+            player[i].deathbringer_attacker = target;
 }
 
-void ServerWorld::swapRocketOwners(int a, int b) {
+void ServerWorld::swapEmbeddedPids(int a, int b) {
     for (int i = 0; i < MAX_ROCKETS; i++) {
         if (rock[i].owner == a)
             rock[i].owner = b;
         else if (rock[i].owner == b)
             rock[i].owner = a;
+        if (((rock[i].vislist & (1u << a)) != 0) != ((rock[i].vislist & (1u << b)) != 0))
+            rock[i].vislist ^= (1u << a) | (1u << b);
+    }
+    for (list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin(); dbi != dbExplosions.end(); ++dbi) {
+        if (dbi->player() == a)
+            dbi->pidChange(b);
+        else if (dbi->player() == b)
+            dbi->pidChange(a);
+    }
+    for (int i = 0; i < MAX_PLAYERS; ++i) {
+        if (player[i].deathbringer_attacker == a)
+            player[i].deathbringer_attacker = b;
+        else if (player[i].deathbringer_attacker == b)
+            player[i].deathbringer_attacker = a;
     }
 }
 

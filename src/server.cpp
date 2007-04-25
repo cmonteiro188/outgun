@@ -320,7 +320,7 @@ void Server::move_player(int f, int t) {
     world.player[t] = world.player[f];
 
     //change rockets owner from f to t
-    world.changeRocketsOwner(f, t);
+    world.changeEmbeddedPids(f, t);
 
     //remove f
     game_remove_player(f, false);
@@ -354,7 +354,7 @@ void Server::swap_players(int a, int b) {
         world.resetPlayer(b);   // no need to tell clients because it's inferred by team_change message
 
     swap(world.player[a], world.player[b]);
-    world.swapRocketOwners(a, b);
+    world.swapEmbeddedPids(a, b);
 
     world.player[a].id = a;
     world.player[b].id = b;

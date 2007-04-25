@@ -1055,8 +1055,8 @@ public:
     bool dropFlagIfAny(int pid, bool purpose = false);
     void shootRockets(int pid, int numshots);
     void deleteRocket(int r, NLshort hitx, NLshort hity, int targ);
-    void changeRocketsOwner(int source, int target);
-    void swapRocketOwners(int a, int b);
+    void changeEmbeddedPids(int source, int target);
+    void swapEmbeddedPids(int a, int b);
 
     void simulateFrame();
 
