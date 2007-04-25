@@ -100,10 +100,8 @@ bool GS_RandomMap::set(LogSet& log, const string& value) {
         log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
         return true;
     }
-    else {
-        log.error(_("Can't set random_map to '$1'.", value));
-        return false;
-    }
+    else
+        return basicErrorMessage(log, value, _("two positive integers and optionally a real number between 0 and 1, separated by spaces"));
 }
 
 bool GS_PowerupNum::set(LogSet& log, const string& value) {
