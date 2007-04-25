@@ -2898,6 +2898,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         }
         fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
         fx.player[target].dead = true;
+        if (target == me)
+            deadAfterHighlighted = true;
         fx.teams[target_team].add_death();
         if (flag) {
             if (!same_team && known_attacker)
@@ -3007,6 +3009,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
         fx.player[pid].dead = true;
+        if (pid == me)
+            deadAfterHighlighted = true;
         fx.teams[team].add_suicide();
         if (flag) {
             fx.player[pid].stats().add_flag_drop(time);
@@ -3145,6 +3149,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             fx.player[from].stats().kill(static_cast<int>(time), true);
             fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
         }
+        if (from == me || to == me)
+            deadAfterHighlighted = true;
     }
 
     break; case data_spawn: {
