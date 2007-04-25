@@ -303,15 +303,14 @@ void dualprintf(const char* fmt, ...) {
     time_t tt = time(0);
     tm* tmb = localtime(&tt);
 
-    FILE* out = stdout;
     for (int i = 0; i < 2; i++) {
+        FILE* const out = i ? outfile : stdout;
         va_list argptr;
         va_start(argptr, fmt);
         fprintf(out, "%02d%02d%02d %02d%02d%02d  ", tmb->tm_year % 100, tmb->tm_mon + 1, tmb->tm_mday, tmb->tm_hour, tmb->tm_min, tmb->tm_sec);
         vfprintf(out, fmt, argptr);
         va_end(argptr);
         fflush(out);
-        out = outfile;
     }
 }
 
