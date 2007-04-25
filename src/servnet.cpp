@@ -542,7 +542,7 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
 
 void ServerNetworking::send_waiting_time(const ServerPlayer& player) const {
     nAssert(player.extra_frames_to_respawn >= 0);
-    if (player.protocolExtensionsLevel < 0 || player.frames_to_respawn < 100 || player.frames_to_respawn > 65535)
+    if (player.protocolExtensionsLevel < 0 || player.frames_to_respawn < 100 || player.frames_to_respawn > 65535 || player.extra_frames_to_respawn)
         return;
     char lebuf[64];
     int count = 0;
