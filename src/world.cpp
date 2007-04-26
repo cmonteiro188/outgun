@@ -3539,7 +3539,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const {
     if (print_html_begin) {
         out << "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01//EN\">\n";
         out << "<TITLE>Outgun statistics " << date << "</TITLE>\n";
-        out << "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=ISO-8851-1\">\n";
+        out << "<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=ISO-8859-1\">\n";
         out << "<LINK REL=\"stylesheet\" HREF=\"stats.css\" TYPE=\"text/css\" TITLE=\"Outgun statistics style\">\n\n";
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
