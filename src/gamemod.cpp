@@ -91,7 +91,7 @@ bool GS_RandomMap::set(LogSet& log, const string& value) {
     const bool ok = ist;
     float over_edge = 0.2;
     ist >> over_edge;
-    if (ok && mi.width > 1 && mi.height > 1 && over_edge >= 0 && over_edge <= 1) {
+    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1) {
         mi.author = "Outgun";
         mi.title = "<Random>";
         mi.random = true;

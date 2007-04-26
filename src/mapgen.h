@@ -43,4 +43,5 @@ private:
     std::vector<std::vector<SimpleRoom> > room; // accessible by room[x][y]
     Symmetry symmetry;
     bool over_edge;
+    int flags;
 };

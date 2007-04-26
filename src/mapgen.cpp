@@ -67,10 +67,14 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) {
 
     const pair<int, int> base = max_distance();
     const int x1 = base.first, y1 = base.second;
-    room[x1][y1].flag = true;
     const int x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
     const int y2 = symmetry == horizontal ? y1 : height() - 1 - y1;
+    room[x1][y1].flag = true;
     room[x2][y2].flag = true;
+    if (x1 == x2 && y1 == y2)
+        flags = 1;
+    else
+        flags = 2;
 }
 
 bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) {
@@ -253,7 +257,7 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
         for (int x = 0; x < width(); x++) {
             const SimpleRoom& current = room[x][y];
             if (current.flag) {
-                out << "flag " << flag_team << ' ' << x << ' ' << y << " 8 6\n";
+                out << "flag " << (flags == 1 ? 2 : flag_team) << ' ' << x << ' ' << y << " 8 6\n";
                 flag_team = 1 - flag_team;
             }
             vector<string> walls;
