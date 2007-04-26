@@ -95,6 +95,10 @@ string encode(const string& str) {
     return utf8_mode ? latin1_to_utf8(str) : str;
 }
 
+string decode(const string& str) {
+    return utf8_mode ? utf8_to_latin1(str) : str;
+}
+
 void send(NLsocket sock, const void* data, int len) {
     if (nlWrite(sock, data, len) != len)
         throw SendFail();
@@ -142,7 +146,7 @@ public:
                     if (sayIdx > 0) {
                         writeLong(buf, idx, ATS_SERVER_CHAT);
                         sayBuf[sayIdx] = 0;
-                        writeStr(buf, idx, utf8_to_latin1(sayBuf));
+                        writeStr(buf, idx, decode(sayBuf));
                         send(sock, buf, idx);
                     }
                     sayIdx = -1;
