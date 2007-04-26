@@ -166,13 +166,14 @@ public:
 
 class TM_ServerSettings : public ThreadMessage {
     NLubyte caplimit, timelimit, extratime;
-    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay;
+    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+    int flag_return_delay;
 
     void addLine(Client* cl, const string& caption, const string& value) const;
 
 public:
     TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
-                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, NLushort flag_return_delay_) :
+                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, int flag_return_delay_) :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
     void execute(Client* cl) const;
@@ -506,7 +507,8 @@ void TM_ServerSettings::execute(Client* cl) const {
     addLine(cl, _("Time limit"          ), (timelimit == 0) ? _("none") : _("$1 min", itoa(timelimit)));
     if (timelimit != 0)
         addLine(cl, _("Extra-time"      ), (extratime == 0) ? _("none") : _("$1 min", itoa(extratime)));
-    addLine(cl, _("Flag return delay"   ), _("$1 s", fcvt(flag_return_delay / 10., 1)));
+    if (flag_return_delay != -1)
+        addLine(cl, _("Flag return delay"   ), _("$1 s", fcvt(flag_return_delay / 10., 1)));
     addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions == PhysicalSettings::PC_none ? _("off") :
                                             cl->fx.physics.player_collisions == PhysicalSettings::PC_normal ? _("on") : _("special"));
     addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : (itoa(iround(100. * cl->fx.physics.friendly_fire)) + '%'));
@@ -1172,7 +1174,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     gunDir.from8way(0);
     gunDirRefreshedTime = get_time();
     next_respawn_time = 0;
-    flag_return_delay = 0;
+    flag_return_delay = -1;
 
     me = -1;    // will be corrected from the first frame
 
@@ -3278,10 +3280,12 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readShort(lebuf, count, pupMaxTime);
         fx.physics.read(lebuf, count);
         if (count < msglen) {
-            readShort(lebuf, count, flag_return_delay);
+            NLushort delay;
+            readShort(lebuf, count, delay);
+            flag_return_delay = delay;
         }
         else
-            flag_return_delay = 0;
+            flag_return_delay = -1;
         #ifndef DEDICATED_SERVER_ONLY
         fd.physics = fx.physics;
 
