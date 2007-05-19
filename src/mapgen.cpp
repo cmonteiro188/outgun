@@ -275,10 +275,14 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
     vector<string> files;
     const string dir = wheregamedir + "mapgen" + directory_separator;
     FileFinder* finder = platMakeFileFinder(dir, "txt", false);
-    while (finder->hasNext())
-        files.push_back(finder->next());
+    string filename;
+    for (int files = 1; finder->hasNext(); files++)
+        if (rand() % files == 0)
+            filename = finder->next();
+        else
+            finder->next();
     delete finder;
-    if (files.empty()) {
+    if (filename.empty()) {
         out << ":room\nW 0 0 5 1\nW 16 0 11 1\nW 0 1 1 4\nW 16 1 15 4\nW 0 12 5 11\nW 16 12 11 11\nW 0 11 1 8\nW 16 11 15 8\n";
         out << ":top\nW 5 0 11 1\n";
         out << ":bottom\nW 5 12 11 11\n";
@@ -286,8 +290,7 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
         out << ":right\nW 16 4 15 8\n";
     }
     else {
-        const string& file = files[rand() % files.size()];
-        ifstream in((dir + file).c_str(), ios::binary);
+        ifstream in((dir + filename).c_str(), ios::binary);
         std::copy(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>(), std::ostreambuf_iterator<char>(out));
     }
 }
