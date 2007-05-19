@@ -2534,7 +2534,9 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             pi->stats().finish_stats(time);
         fx.reset();
+        #ifndef DEDICATED_SERVER_ONLY
         fd.reset();
+        #endif
 
     break; case data_gameover_show: {
         NLubyte plaque;
