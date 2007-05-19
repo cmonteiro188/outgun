@@ -2827,8 +2827,10 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         readByte(lebuf, count, attacker);
         readByte(lebuf, count, target);
         const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-        //const bool carrier_defended = attacker & 0x40;
-        //const bool flag_defended = attacker & 0x20;
+        #ifdef DEFENDING_MESSAGES
+        const bool carrier_defended = attacker & 0x40;
+        const bool flag_defended = attacker & 0x20;
+        #endif
         const bool flag = target & 0x80;
         #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = target & 0x40;
@@ -2874,7 +2876,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         }
         if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
-        /*if (carrier_defended && known_attacker) {
+        #ifdef DEFENDING_MESSAGES
+        if (carrier_defended && known_attacker) {
             if (attacker_team == 0)
                 msg = _("$1 defends the red carrier.", fx.player[attacker].name);
             else
@@ -2887,7 +2890,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             else
                 msg = _("$1 defends the blue flag.", fx.player[attacker].name);
             addThreadMessage(new TM_Text(msg_info, msg));
-        }*/
+        }
+        #endif // DEFENDING_MESSAGES
         if (fx.player[target].stats().current_cons_kills() >= 10) {
             if (!known_attacker)
                 msg = _("$1's killing spree was ended.", fx.player[target].name);
