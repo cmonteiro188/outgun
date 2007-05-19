@@ -180,11 +180,12 @@ string latin1_to_utf8(const string& str) {
 }
 
 string utf8_to_latin1(const string& str) {
-    // Latin 1 characters are one byte (ascii) or two bytes in UTF-8.
-    // Bits  Pattern
-    //    7  0xxxxxxx
-    //   11  110xxxxx 10xxxxxx
-    //   11  110000xx 10xxxxxx  Latin 1 characters
+    // U-00000000 - U-0000007F:     0xxxxxxx
+    // U-00000080 - U-000007FF:     110xxxxx 10xxxxxx
+    // U-00000800 - U-0000FFFF:     1110xxxx 10xxxxxx 10xxxxxx
+    // U-00010000 - U-001FFFFF:     11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+    // U-00200000 - U-03FFFFFF:     111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+    // U-04000000 - U-7FFFFFFF:     1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
     string latin1;
     const char invalid_character = '^';
     for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
