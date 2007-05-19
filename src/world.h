@@ -155,7 +155,9 @@ private:
 //entity locale
 struct WorldCoords {
     WorldCoords(int px_, int py_, double x_, double y_): px(px_), py(py_), x(x_), y(y_) { }
-    WorldCoords() { }
+    WorldCoords(): px(-1), py(-1) { }
+
+    bool unknown() const { return px == -1 && py == -1; }
 
     bool operator==(const WorldCoords& op) const { return px == op.px && py == op.py && x == op.x && y == op.y; }
     bool operator!=(const WorldCoords& op) const { return !(*this == op); }

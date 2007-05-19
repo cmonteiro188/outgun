@@ -2232,11 +2232,13 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 if (!new_flag) {
                     if (!fx.player[carrier].onscreen && !replaying) {
                         const WorldCoords& flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
-                        fx.player[carrier].roomx = flagPos.px;
-                        fx.player[carrier].roomy = flagPos.py;
-                        fx.player[carrier].lx = flagPos.x;
-                        fx.player[carrier].ly = flagPos.y;
-                        fx.player[carrier].posUpdated = fx.frame;
+                        if (!flagPos.unknown()) {
+                            fx.player[carrier].roomx = flagPos.px;
+                            fx.player[carrier].roomy = flagPos.py;
+                            fx.player[carrier].lx = flagPos.x;
+                            fx.player[carrier].ly = flagPos.y;
+                            fx.player[carrier].posUpdated = fx.frame;
+                        }
                     }
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
                 }
