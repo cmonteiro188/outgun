@@ -33,7 +33,7 @@ ifdef LINUX
  PNG_CFLAGS = -DWITH_PNG
  PLATFORM_OBJ_NAMES = platform_unix.o
  OUTGUN_LDFLAGS = -pthread
- MAKEDE_LDFLAGS =
+ MAKEDEP_LDFLAGS =
  MON_LDFLAGS = -pthread
  RELAY_LDFLAGS = -pthread
 
