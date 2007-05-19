@@ -189,21 +189,32 @@ string utf8_to_latin1(const string& str) {
     string latin1;
     const char invalid_character = '^';
     for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
+        int latin1_char = invalid_character;
         if (!(*s & 0x80))
-            latin1 += *s;
-        else if ((*s & 0xFC) == 0xC0) {
+            latin1_char = *s;
+        else if ((*s & 0xE0) == 0xC0) {
             const char c1 = *s;
             if (++s == str.end())
                 break;
             if ((*s & 0xC0) == 0x80) {
                 const char c2 = *s;
-                latin1 += c1 << 6 | c2 & 0x3F;
+                latin1_char = (c1 & 0x1F) << 6 | c2 & 0x3F;
             }
-            else
-                latin1 += invalid_character;
         }
-        else
-            latin1 += invalid_character;
+        else {  // not a Latin 1 character
+            if ((*s & 0xF0) == 0xE0)
+                s += 2;
+            else if ((*s & 0xF8) == 0xF0)
+                s += 3;
+            else if ((*s & 0xFC) == 0xF8)
+                s += 4;
+            else if ((*s & 0xFE) == 0xFC)
+                s += 5;
+        }
+        //std::cout << '<' << latin1_char << '>';
+        if (latin1_char & 0xFFFFFF00)
+            latin1_char = invalid_character;
+        latin1 += latin1_char;
     }
     return latin1;
 }
