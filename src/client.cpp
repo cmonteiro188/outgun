@@ -4217,6 +4217,8 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             else {
                 if (withControl)
                     graphics.reset_playground_colors();
+                else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty())
+                    talkbuffer_cursor = 0;
                 else
                     graphics.random_playground_colors();
             }
@@ -4277,6 +4279,8 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
                 writeByte(lebuf, count, want_change_teams ? data_change_team_on : data_change_team_off);
                 client->send_message(lebuf, count);
             }
+            else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty())
+                talkbuffer_cursor = talkbuffer.size();
         }
         break; case KEY_TAB:    // Prevent annoying Control+Tab character.
         break; default:
