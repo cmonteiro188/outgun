@@ -1,10 +1,13 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004, 2005, 2006 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2006 Alessandro Ferrentino "Lo Scassatore"
+; Original copyright © 2004, 2005, 2006, 2007 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2006, 2007 Alessandro Ferrentino "Lo Scassatore"
 
 
 ; Language of the translation, in the target language.
 italiano
+
+; Locale to decide the correct decimal separator (e.g. fi_FI or pt_BR).
+it_IT
 
 
 ; You should not modify en.txt, it is the English reference file. Outgun uses
@@ -28,14 +31,16 @@ Outgun client
 
 ; Used in the window title bar, like: Connected to Server name (127.0.0.1)
 Connesso a $1 ($2)
+Replay on $1
+Spectating on $1
 
 ; Used in the window title bar when server is running, like:
-; ERRORS:2  1/16p 1.4k/s v1.0.0 port:25000 ESC:quit
+; ERRORS:2  1/16p 1.4k/s v1.0.0 port:25000 Esc:quit
 ; Values are $1/$2: number of players, $3: amount of traffic, $4: Outgun
 ; version. First and/or last part are added conditionally.
 ERRORORI:$1
 $1/$2p $3k/s v$4 porta:$5
-ESC:esci
+Esc:esci
 
 ; Time units. These should be formed so that "duration: # <unit>" makes sense.
 ; Lengths up to 25 characters are ok, but short is preferred.
@@ -57,13 +62,20 @@ anni
 $1 s
 $1 min
 
+; Expressing percentages. Most likely you might want to add a space depending
+; on the language conventions. Two characters maximum in addition to the $1,
+; since this is used in the tightly packed player statistics screen.
+$1%
+
 ; Generic terms. Currently, 'unknown' is used in the graphics menu for a
 ; refresh rate and in the local server menu for IP address; 'private' and
 ; 'invalid' are also for IP address; 'default' is used in font selection;
 ; 'none' (meaning "not set"), 'on', and 'off' in the server settings dialog
 ; (F5), as well as 'special' which is used for the player collisions setting.
 ; 'Disabled', 'minimal', and 'complete' are currently values of the automatic
-; bug reporting policy setting. OK and Cancel are used in the menus, in their
+; bug reporting policy setting. 'Never', 'always', 'in same room',
+; 'single-roomed' and 'multi-roomed' are currently used in multiple settings
+; in the graphics menu. OK and Cancel are used in the menus, in their
 ; usual UI meaning. All may be used elsewhere in a similar context in the
 ; future.
 ; Lengths up to 25 characters are ok, but short is preferred.
@@ -80,6 +92,11 @@ speciale
 disabilitato
 minimo
 completo
+never
+always
+in same room
+single-roomed
+multi-roomed
 
 
 ; - - - - - - - - - - - - - - - - menu texts  - - - - - - - - - - - - - - - -
@@ -126,6 +143,7 @@ Indirizzo IP          Ping D Giocatori Vers. Nome Host
 Nomi e password
 Nome
 Nome casuale
+Colori preferiti
 Password per tornei
 Stato registrazione
 Prendi parte al torneo
@@ -133,7 +151,6 @@ Rimuovi le password del giocatore per il server
 
 Opzioni gioco
 Mostra nomi giocatori
-Colori preferiti
 Predizione lag
 Quantità predizione lag
 Salva messaggi di gioco
@@ -151,6 +168,10 @@ Controlli
 Layout tastiera
 Usa keypad per movimento
 Tasti freccia per le statistiche
+Use arrow keys to edit message input
+Preferrably aim with
+With mouse aim move relative to
+Keyboard turning speed
 Attiva joystick per il controllo
 Muovi stick
 Bottoni joystick (0 = disabilitato)
@@ -161,7 +182,12 @@ Spara
 Corri  
 Scivola
 
+Mouse control (buttons: 0 = disabled)
+Sensitivity
+
 Controlli attivi
+Active joystick buttons
+Active mouse buttons
 
 Modalità schermo
 Colori
@@ -180,11 +206,23 @@ Tema
 Tema sfondo
 Tema principale sullo sfondo
 Carattere
+Show player names
+Rooms on screen in each direction in game
+Rooms on screen in each direction in replay
+Scrolling
 Antialiasing
 Effetto trasparenza
 Texture continua tra le stanze
 Giocatori non visibili sulla minimappa
 Evidenzia bandiere recuperate e pers
+Make flags extra-visible
+Show flag disappearance positions
+Highlight self after spawn
+Markers for nearby players and flags in game
+Markers for nearby players and flags in replay
+Box visible area on map in game
+Let view follow over map border
+Allow parts of map to repeat on screen
 Stato alpha screen
 Limite FPS
 Modalità informazione mappa
@@ -208,6 +246,9 @@ Lancia server
 Gioca sul server
 Ferma server
 
+Replays
+Date - Server - Map
+
 ; Used in name and passwords menu as registration status.
 Nessuna password immessa
 Inizializzazione...
@@ -229,6 +270,7 @@ Errore: il server non ha accettato
 Limite catture
 Tempo limite
 Tempo extra
+Flag return delay
 Collisioni tra giocatori
 Fuoco da amico
 Equilibra squadre
@@ -312,6 +354,15 @@ squadre
 cambia visualizzazione statistiche
 sposta giocatore
 
+; Used as values for 'preferrably aim with' in the controls menu.
+keyboard (8-directional)
+keyboard (smooth turning)
+mouse
+
+; Used as values for 'with mouse aim move relative to' in the controls menu.
+room (up = up)
+aim (up = forward)
+
 ; Used in the controls menu 'active controls' display.
 su
 giu
@@ -326,6 +377,10 @@ svanire
 sparisce subito
 sparisce tardi
 
+; Used as values for 'Let view follow over map border" in the graphics menu,
+; along with 'never' and 'always'.
+when all rooms aren't shown
+if the border has doorways
 
 ; Used in the error collection dialogs. The last two are only used in the main
 ; program error dialog which is shown for example when invalid command line
@@ -464,6 +519,7 @@ Parli troppo. Stai un po' zitto...
 Ti disconnetti tra $1...
 Questa mappa ha un errore, c'è una bandiera incatturabile. Evitala.
 L'aggiornamento dei punteggi del torneo è fallito!
+Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.
 
 Screenshot salvato come $1.
 Lo screenshot salvato come $1 potrebbe non essere stato salvato.
@@ -517,7 +573,6 @@ Caricamento mappa: $1 byte
 ; lines are, when reading the translation file.
 SEI
 GELATATO!
-
 
 ; The shorter the better, but if one is long, it doesn't help if the other is
 ; shorter.
@@ -609,6 +664,20 @@ Lista mappe del server
  Nr Voti Titolo             Dimensioni       Autore
 ;00 00 * <--------20--------> 00×00 <-----------26----------->|
 
+; Used in the map list dialog (F2), replacing map name. Maximum length 20
+; characters.
+<Random>
+
+; Used in the map list dialog (F2). Can be quite long but needs to fit with any
+; of the given replacements for $1.
+Sort order (space to cycle): $1
+Map number
+Votes
+Title
+Size
+Author
+Favorites
+
 ; Used as a prompt in the map list dialog (F2). Can be quite long.
 Vota la mappa N°
 
@@ -661,8 +730,11 @@ Immagini mappe salvate in directory 'mappic'.
 -mappic non può essere combinato con altri comandi.
 -maxp deve essere seguito da uno spazio e il limite giocatori.
 -maxp X: X deve essere compreso tra 2 e $1.
+-play must be followed by an IP address and optionally port.
 -port deve essere seguito da uno spazio e un numero porta.
 -port X: X deve essere compreso tra 1 e 65535.
+-replay must be followed by a filename.
+-spectate must be followed by an IP address and port.
 -sport deve essere seguito da uno spazio e minporta:maxporta.
 -sport X:Y: X e Y devono essere compresi tra 1 e 65535.
 -sport X:Y: Y deve essere maggiore di X.
@@ -676,6 +748,7 @@ Impossibile iniziare ad ascoltare i server.
 Impossibile lanciare il client.
 Impossibile lanciara il server.
 Le immagini potrebbero non essere salvate in 'mappic'.
+Could not start spectating.
 
 ; Graphic mode errors.
 Impossibilie inizializzare risoluzione $1×$2×$3 in nessun modo.
@@ -689,6 +762,7 @@ A finestre
 ; Missing files.
 Impossibile aprire il mod file '$1'.
 Impossibile leggere '$1'.
+Could not open replay file $1.
 
 ; Gamemod format errors.
 Opzioni gameod '$1' non comprensibili.
@@ -711,6 +785,8 @@ un decimale, at massimo $1
 un decimale, tra $1 e $2, incluso
 un decimale o 'x %' con x 0 o maggiore
 indirizzo IP senza porta
+non-empty string
+two positive integers and optionally a real number between 0 and 1, separated by spaces
 
 ; Added to some of the above, where outside the normal range, 0 is allowed.
 , o 0
@@ -727,6 +803,7 @@ Ridefinire larghezza.
 Linea della stanza non permessa: $1
 Squadra $1, bandiera $2 sul muro.
 Squadra $1, punto spawn $2 sul muro.
+Team $1, respawn area $2 does not have enough free space.
 Due label con nome uguale non sono ammessi: $1
 Linea non riconosciuta: $1
 
@@ -737,12 +814,19 @@ Questa mappa non è valida, è possibile catturare una bandiera in un istante.
 '$1', dato in master.txt non è un valido indirizzo IP.
 Casella admin: Carattere non stampabile, messaggio ingorato.
 Alpha bitmaps deve essere 8-bit immagine grayscale; $1 è $2-bit.
+Class command without class name in auth.txt.
+Format error in replay file.
+Invalid authorization class entry in auth.txt: "$1"
 Invalido comando di ban (indirizzo IP) in auth.txt: "$1"
 Invalida linea (nessun nome) in auth.txt: "$1"
 Invalida sintassi in client.cfg ("$1").
 Invalido comando (nessuna password) in auth.txt: "$1"
 Salvatore immagini mappa: Mappa '$1' non è un valido file mappa.
+Replay $1 can't be read.
+Replay $1 is a newer version ($2).
 Errore di sintassi in gfxmodes.txt, linea '$1'.
+This is a newer replay version ($1).
+This is not an Outgun replay.
 Traduzione $1 illeggibile.
 dati sconosciuti in client.cfg ("$1").
 Comando incompreso "$1" in auth.txt
@@ -773,6 +857,11 @@ Impossibile aprire il socket.
 Impossibile aprire il socket per aggiornare il server. $1
 Impossibile aprire il socket per connettersi al master. $1
 Impossibile lanciare la rete server sulla porta $1.
+Connection to the server closed.
+Connection to the server closed: $1
+Could not send init data to the relay: $1
+Could not set address to spectate socket.
+Format error in data received from the server.
 Master: Aprire il socket per connettersi al master.
 Master: (Uscita) Impossibile connettersi al master.
 Master: (Uscita) Impossibile aprire il socket per connettersi al master.
@@ -807,6 +896,7 @@ La directory '$1' non esiste e non può essere creata.
 ; the server is shutting down. In rare cases they take longer to disappear.
 Shutdown: ABORTING $1 tournament updates
 Shutdown: admin shell threads
+Shutdown: bot thread
 Shutdown: main thread
 Shutdown: master talker thread
 Shutdown: net server
