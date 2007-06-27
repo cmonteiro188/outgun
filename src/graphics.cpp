@@ -2119,7 +2119,7 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
         break; case 2:
             //     Accuracy
             //  Shots   |  Taken  Movement     Speed
-            // |00000 100%  0000  000000 u  00.00 u/s   |
+            // |00000  100% 0000  000000 u  00.00 u/s   |
             stats << setw(5) << st.shots()
                   << setw(6) << _("$1%", fcvt(100. * st.accuracy(), 0))
                   << setw(5) << st.shots_taken()
