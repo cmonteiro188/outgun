@@ -410,6 +410,10 @@ bool TextfieldBase::handleKey(char scan, unsigned char chr) {
         if (cursor_pos < static_cast<int>(value.length()))
             cursor_pos++;
     }
+    else if (scan == KEY_HOME && !key[KEY_LCONTROL] && !key[KEY_RCONTROL])
+        cursor_pos = 0;
+    else if (scan == KEY_END && !key[KEY_LCONTROL] && !key[KEY_RCONTROL])
+        cursor_pos = value.length();
     else if (!is_nonprintable_char(chr) && (charset.empty() || charset.find(chr) != string::npos)) {
         if ((int)value.length() < maxlen) {
             value.insert(cursor_pos, 1, chr);
