@@ -453,11 +453,10 @@ void Relay::send_master_server() {
     // build and send data
     map<string, string> parameters;
     parameters["port"] = itoa(listen_port);
-    parameters["servers"] = itoa(1);
-    parameters["server[]"] = hostname;
+    parameters["server"] = hostname;
     const string data = build_http_data(parameters);
     cout << master_name << ": " << data << '\n';
-    NetworkResult result = post_http_data(msock, &quit, 500, master_name, "/outgun/servers/submit.php", data);
+    NetworkResult result = post_http_data(msock, &quit, 500, master_name, master_submit, data);
     if (result != NR_ok)
         cout << "Master talker: Error sending info: " << (result == NR_timeout ? "Timeout" : getNlErrorString()) << '\n';
     else
