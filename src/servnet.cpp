@@ -2625,6 +2625,12 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         parameters["link"] = host->server_website();
         if (!settings.get_server_password().empty())
             parameters["password"] = "1";
+        if (world.physics.allowFreeTurning)
+            parameters["free_turning"] = "1";
+        if (world.physics.friendly_fire > 0)
+            parameters["friendly_fire"] = "1";
+        if (world.getPupConfig().pups_min > 0)
+            parameters["powerups"] = "1";
         if (is_relay_active())
             parameters["spectator"] = "1";
     }
@@ -2648,6 +2654,12 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     parameters["mapfile"] = host->getCurrentMapFile();
     if (!settings.get_server_password().empty())
         parameters["password"] = "1";
+    if (world.physics.allowFreeTurning)
+        parameters["free_turning"] = "1";
+    if (world.physics.friendly_fire > 0)
+        parameters["friendly_fire"] = "1";
+    if (world.getPupConfig().pups_min > 0)
+        parameters["powerups"] = "1";
     if (is_relay_active())
         parameters["spectator"] = "1";
     string players;
