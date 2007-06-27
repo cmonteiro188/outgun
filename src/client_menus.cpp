@@ -279,7 +279,7 @@ Menu_controls::Menu_controls() :
     keyboardLayout      (_("Keyboard layout")),
     keypadMoving        (_("Use keypad for moving"), true),
     arrowKeysInStats    (_("Arrow keys in statistics")),
-    arrowKeysInTextInput(_("Use arrow keys to edit text input"), false),
+    arrowKeysInTextInput(_("Use arrow keys to edit message input"), false),
 
     aimMode             (_("Preferrably aim with")),
     moveRelativity      (_("With mouse aim move relative to")),
