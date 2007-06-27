@@ -511,7 +511,7 @@ void TM_ServerSettings::execute(Client* cl) const {
         addLine(cl, _("Flag return delay"   ), _("$1 s", fcvt(flag_return_delay / 10., 1)));
     addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions == PhysicalSettings::PC_none ? _("off") :
                                             cl->fx.physics.player_collisions == PhysicalSettings::PC_normal ? _("on") : _("special"));
-    addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : (itoa(iround(100. * cl->fx.physics.friendly_fire)) + '%'));
+    addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : _("$1%", (itoa(iround(100. * cl->fx.physics.friendly_fire)))));
 
     const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer"), _("One hit shield") };
     int i;
