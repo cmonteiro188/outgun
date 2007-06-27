@@ -6168,8 +6168,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     if (scan == KEY_ENTER) {    // connect to the address
         serverIP = spy.address();
         m_serverPassword.password.set("");
-        //connect_command(true);
-        start_spectating(serverIP);
+        connect_command(true);
     }
     else if (scan == KEY_INSERT) {  // add the server to the list shown below
         if (menu.connect.favorites())
