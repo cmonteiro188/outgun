@@ -230,8 +230,8 @@ public:
 
     bool save_map_picture(const std::string& filename, const Map& map);
 
-    void search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg) const;
-    void select_theme(const std::string& name, const std::string& bg_dir, bool use_theme_bg);
+    void search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg, LineReceiver& dst_colours) const;
+    void select_theme(const std::string& name, const std::string& bg_dir, bool use_theme_bg, const std::string& colour_dir, bool use_theme_colours);
 
     void search_fonts(LineReceiver& dst_font) const;
     void select_font(const std::string& file);
@@ -580,6 +580,8 @@ private:
 
     std::string theme_path;
     std::string bg_path;
+    std::string colour_file;
+    std::string default_colour_file;
 
     bool antialiasing;
 

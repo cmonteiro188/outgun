@@ -73,10 +73,10 @@ void drawKeySymbol(BITMAP* buffer, int x, int y, const string& text) {
 
 int Component::captionColor(bool active, const Colour_manager& col) const {
     if (!isEnabled())
-        return col(Colour::menu_disabled);
+        return col[Colour::menu_disabled];
     if (active)
-        return col(Colour::menu_active);
-    return col(Colour::menu_component_caption);
+        return col[Colour::menu_active];
+    return col[Colour::menu_component_caption];
 }
 
 void Menu::home() {
@@ -135,15 +135,15 @@ void Menu::setSelection(int selection) {
 void Menu::draw(BITMAP* buffer, const Colour_manager& col) {
     //#fix: handle colors and other drawing details with a separate class connected with Graphics
     // colors are initialized in every draw because they must be initialized after every color depth change
-    const int col_background       = col(Colour::menu_background);
-    const int col_borderShadow     = col(Colour::menu_border_shadow);
-    const int col_borderHighlight  = col(Colour::menu_border_highlight);
-    const int col_menuCaption      = col(Colour::menu_caption);
-    const int col_menuCaptionBg    = col(Colour::menu_caption_bg);
-    const int col_scrollbar        = col(Colour::scrollbar);
-    const int col_scrollbarBg      = col(Colour::scrollbar_bg);
-    const int col_shortcutDisabled = col(Colour::menu_shortcut_disabled);
-    const int col_shortcutEnabled  = col(Colour::menu_shortcut_enabled);
+    const int col_background       = col[Colour::menu_background];
+    const int col_borderShadow     = col[Colour::menu_border_shadow];
+    const int col_borderHighlight  = col[Colour::menu_border_highlight];
+    const int col_menuCaption      = col[Colour::menu_caption];
+    const int col_menuCaptionBg    = col[Colour::menu_caption_bg];
+    const int col_scrollbar        = col[Colour::scrollbar];
+    const int col_scrollbarBg      = col[Colour::scrollbar_bg];
+    const int col_shortcutDisabled = col[Colour::menu_shortcut_disabled];
+    const int col_shortcutEnabled  = col[Colour::menu_shortcut_enabled];
 
     drawHook.call(*this);
 
@@ -369,12 +369,12 @@ void TextfieldBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const
     textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
     x += text_length(font, ":") + char_w();
     const string text = maskChar ? string(value.length(), maskChar) : value;
-    textout_ex(buffer, font, text.c_str(), x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, text.c_str(), x, y, col[Colour::menu_value], -1);
     if (active)
         if (int(2 * (get_time() - blinkTime)) % 2 == 0)
-            vline(buffer, x + text_length(font, text.substr(0, cursor_pos)), y - 1, y + text_height(font) + 2, col(Colour::menu_value));
+            vline(buffer, x + text_length(font, text.substr(0, cursor_pos)), y - 1, y + text_height(font) + 2, col[Colour::menu_value]);
     x += text_length(font, text);
-    textout_ex(buffer, font, tail.c_str(), x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, tail.c_str(), x, y, col[Colour::menu_value], -1);
 }
 
 int TextfieldBase::width() const {
@@ -478,7 +478,7 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const Co
         drawKeySymbol(buffer, x, y, "<");
     x += text_length(font, "<") + char_w();
     const int list_x = x - char_w();
-    textout_ex(buffer, font, options[selected].c_str(), x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, options[selected].c_str(), x, y, col[Colour::menu_value], -1);
     x += text_length(font, options[selected]) + char_w();
     if (active && selected + 1 < static_cast<int>(options.size()))
         drawKeySymbol(buffer, x, y, ">");
@@ -514,13 +514,13 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const Co
     else
         list_y = y + h;
     const int sb_space = visible_items != static_cast<int>(options.size()) ? 9 : 0;
-    rect(buffer, list_x, list_y, list_x + list_w + 1 + sb_space, list_y + list_h + 1, col(Colour::menu_border_highlight));
-    rectfill(buffer, list_x + 1, list_y + 1, list_x + list_w + sb_space, list_y + list_h, col(Colour::menu_background));
+    rect(buffer, list_x, list_y, list_x + list_w + 1 + sb_space, list_y + list_h + 1, col[Colour::menu_border_highlight]);
+    rectfill(buffer, list_x + 1, list_y + 1, list_x + list_w + sb_space, list_y + list_h, col[Colour::menu_background]);
     x = list_x + char_w();
     y = list_y + line_height / 2;
     for (int i = pendingStart; i < static_cast<int>(options.size()) && i < pendingStart + visible_items; ++i) {
         const string& option = options[i];
-        const int c = (pendingSelection == i ? col(Colour::menu_active) : col(Colour::menu_value));
+        const int c = (pendingSelection == i ? col[Colour::menu_active] : col[Colour::menu_value]);
         textout_ex(buffer, font, option.c_str(), x, y, c, -1);
         y += line_height;
     }
@@ -532,7 +532,7 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const Co
         const int height = list_h;
         const int bar_y = static_cast<int>(static_cast<double>(height * pendingStart) / options.size() + 0.5);
         const int bar_h = static_cast<int>(static_cast<double>(height * visible_items) / options.size() + 0.5);
-        scrollbar(buffer, x, y, height, bar_y, bar_h, col(Colour::scrollbar), col(Colour::scrollbar_bg));
+        scrollbar(buffer, x, y, height, bar_y, bar_h, col[Colour::scrollbar], col[Colour::scrollbar_bg]);
     }
 }
 
@@ -678,12 +678,12 @@ bool Colorselect::handleKey(char scan, unsigned char chr) {
 void Checkbox::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const {
     if (h < minHeight())
         return;
-    textout_ex(buffer, font, "[", x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, "[", x, y, col[Colour::menu_value], -1);
     x += text_length(font, "[");
     if (checked)
-        textout_ex(buffer, font, "×", x, y, col(Colour::menu_value), -1);
+        textout_ex(buffer, font, "×", x, y, col[Colour::menu_value], -1);
     x += text_length(font, "×");
-    textout_ex(buffer, font, "]", x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, "]", x, y, col[Colour::menu_value], -1);
     x += text_length(font, "]") + char_w();
     textout_ex(buffer, font, caption.c_str(), x, y, captionColor(active, col), -1);
 }
@@ -758,11 +758,11 @@ void Slider::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour
         const int yb = y - 4;
         rect(buffer, x0, yb, x + width() - 1, yb + height() - 1, captionColor(active, col));
         if (barLength)
-            rectfill(buffer, x0 + 1, yb + 1, x0 + barLength, yb + height() - 2, col(Colour::menu_value));
-        textprintf_centre_ex(buffer, font, (x0 + x + width() - 1) / 2, y, col(Colour::menu_disabled), -1, "%.0f%%", 100 * static_cast<double>(val - vmin) / (vmax - vmin));
+            rectfill(buffer, x0 + 1, yb + 1, x0 + barLength, yb + height() - 2, col[Colour::menu_value]);
+        textprintf_centre_ex(buffer, font, (x0 + x + width() - 1) / 2, y, col[Colour::menu_disabled], -1, "%.0f%%", 100 * static_cast<double>(val - vmin) / (vmax - vmin));
     }
     else
-        textprintf_ex(buffer, font, x0, y, col(Colour::menu_value), -1, "%d", val);
+        textprintf_ex(buffer, font, x0, y, col[Colour::menu_value], -1, "%d", val);
 }
 
 bool Slider::handleKey(char scan, unsigned char chr) {
@@ -822,9 +822,9 @@ void NumberEntry::draw(BITMAP* buffer, int x, int y, int h, bool active, const C
     textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
     x += text_length(font, ":") + char_w();
     if (entry != val)
-        textprintf_ex(buffer, font, x, y, col(Colour::menu_value), -1, "%d%s (%d)", entry, active ? "_" : "", val);
+        textprintf_ex(buffer, font, x, y, col[Colour::menu_value], -1, "%d%s (%d)", entry, active ? "_" : "", val);
     else
-        textprintf_ex(buffer, font, x, y, col(Colour::menu_value), -1, "%d%s", val, active ? "_" : "");
+        textprintf_ex(buffer, font, x, y, col[Colour::menu_value], -1, "%d%s", val, active ? "_" : "");
 }
 
 bool NumberEntry::handleKey(char scan, unsigned char chr) {
@@ -906,7 +906,7 @@ void StaticText::draw(BITMAP* buffer, int x, int y, int h, bool active, const Co
         textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
         x += text_length(font, ":") + char_w();
     }
-    textout_ex(buffer, font, text.c_str(), x, y, col(Colour::menu_value), -1);
+    textout_ex(buffer, font, text.c_str(), x, y, col[Colour::menu_value], -1);
 }
 
 
@@ -959,7 +959,7 @@ void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active, const C
     for (int i = start, y = y0; i < static_cast<int>(splitted.size()); ++i) {
         if (y + objLineHeight() > y0 + h)
             break;
-        textout_ex(buffer, font, splitted[i].c_str(), x, y, col(Colour::menu_value), -1);
+        textout_ex(buffer, font, splitted[i].c_str(), x, y, col[Colour::menu_value], -1);
         ++visible_lines;
         y += objLineHeight();
     }
@@ -969,7 +969,7 @@ void Textobject::draw(BITMAP* buffer, int x, int y0, int h, bool active, const C
         const int sbx = min(x + width() + char_w(), buffer->w - 12);
         const int bar_y = static_cast<int>(static_cast<double>(h * start) / splitted.size() + 0.5);
         const int bar_h = static_cast<int>(static_cast<double>(h * visible_lines) / splitted.size() + 0.5);
-        scrollbar(buffer, sbx, y0, h, bar_y, bar_h, col(Colour::scrollbar), col(Colour::scrollbar_bg));
+        scrollbar(buffer, sbx, y0, h, bar_y, bar_h, col[Colour::scrollbar], col[Colour::scrollbar_bg]);
     }
 }
 

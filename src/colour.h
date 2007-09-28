@@ -36,9 +36,29 @@ public:
 
     void update() { col_value = makecol(r, g, b); }
 
+    int red  () const { return r; }
+    int green() const { return g; }
+    int blue () const { return b; }
+
     operator int() const { return col_value; }
 
     enum Col_id {
+        screen_background,
+        menu_background,
+        menu_border_shadow,
+        menu_border_highlight,
+        menu_caption,
+        menu_caption_bg,
+        menu_component_caption,
+        menu_active,
+        menu_disabled,
+        menu_value,
+        menu_shortcut_disabled,
+        menu_shortcut_enabled,
+
+        scrollbar,
+        scrollbar_bg,
+
         team_red_basic,
         team_red_light,
         team_red_dark,
@@ -47,20 +67,20 @@ public:
         team_blue_light,
         team_blue_dark,
         team_blue_flash,
-
         wild_flag,
         wild_flag_flash,
-
-        screen_background,
         flag_pole,
+
         name,
         name_highlight,
         self_highlight,
         timer_border,
+
         ground,
         wall,
         room_border,
         playfield_fog,
+
         map_ground,
         map_wall,
         map_room_border,
@@ -114,13 +134,13 @@ public:
         power_rocket,
         player_power_team,
         player_power_personal,
-        blood,
         rocket_shadow,
         aim_line_red,
         aim_line_blue,
         aim_dot_red,
         aim_dot_blue,
 
+        blood,
         ice_cream_crisp,
         ice_cream_ball_1,
         ice_cream_ball_2,
@@ -138,6 +158,7 @@ public:
         sb_blue_line,
         sb_caption,
 
+        stats_bg,
         stats_caption_bg,
         stats_text,
         stats_selected,
@@ -153,26 +174,11 @@ public:
         message_highlight,
         message_input,
 
-        scrollbar,
-        scrollbar_bg,
-
         replay_text,
         replay_text_border,
         replay_symbol,
         replay_bar,
         replay_bar_bg,
-
-        menu_background,
-        menu_border_shadow,
-        menu_border_highlight,
-        menu_caption,
-        menu_caption_bg,
-        menu_component_caption,
-        menu_active,
-        menu_disabled,
-        menu_value,
-        menu_shortcut_disabled,
-        menu_shortcut_enabled,
 
         colours_total
     };
@@ -184,13 +190,26 @@ private:
 
 class Colour_manager {
 public:
-    void init(const std::string& file);
+    // Load colours from the file. If some colour is not specified there,
+    // the default colour is used.
+    void init(const std::string& file) {
+        init(file, false);
+    }
+
+    // Create a colour file with default colours.
+    void create_default_file(const std::string& file) {
+        init(file, true);
+    }
+
+    // Recalculate the colour values. Use when the graphics mode changes.
     void update();
 
-    const Colour& operator()(Colour::Col_id key) const;
+    const Colour& operator[](Colour::Col_id key) const;
 
 private:
-    std::vector<Colour> colours;
+    void init(const std::string& file, bool create_default_only);
+
+    std::vector<Colour> colour_set;
 };
 
 #endif // COLOUR_H_INC
