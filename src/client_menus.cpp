@@ -437,21 +437,58 @@ bool Menu_screenMode::newMode() {
 }
 
 
-void Menu_graphics::reloadChoices(const Graphics& gfx) {
+void Menu_theme::reloadChoices(const Graphics& gfx) {
     theme.clearOptions();
     background.clearOptions();
+    colours.clearOptions();
     font.clearOptions();
-    StringSelectInserter insTheme(theme), insBg(background), insFont(font);
-    gfx.search_themes(insTheme, insBg);
+    StringSelectInserter insTheme(theme), insBg(background), insCol(colours), insFont(font);
+    gfx.search_themes(insTheme, insBg, insCol);
     gfx.search_fonts(insFont);
 }
 
-Menu_graphics::Menu_graphics() :
+Menu_theme::Menu_theme() :
     theme                (_("Theme")),
     background           (_("Background theme")),
     useThemeBackground   (_("Prefer main theme background"), true),
+    colours              (_("Colour theme")),
+    useThemeColours      (_("Prefer main theme colours"), true),
     font                 (_("Font")),
 
+    menu                 (_("Theme and font"), true)
+{ }
+
+void Menu_theme::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) {
+    menu.setHook(opener);
+    DualComponentAdder add(menu, collector);
+    add(&theme,                  CCS_GFXTheme);
+    add(&background,             CCS_Background);
+    add(&useThemeBackground,     CCS_UseThemeBackground);
+    add.space();
+    add(&colours,                CCS_Colours);
+    add(&useThemeColours,        CCS_UseThemeColours);
+    add.space();
+    add(&font,                   CCS_Font);
+}
+
+void Menu_theme::init(const Graphics& gfx) { // call just once, before calling update
+    reloadChoices(gfx);
+}
+
+void Menu_theme::update(const Graphics& gfx) { // tries to keep the selected choices
+    const string oldtheme = theme();
+    const string oldbg = background();
+    const string oldcol = colours();
+    const string oldfont = font();
+    reloadChoices(gfx);
+    // These all may fail; ignore.
+    theme.set(oldtheme);
+    background.set(oldbg);
+    colours.set(oldcol);
+    font.set(oldfont);
+}
+
+Menu_graphics::Menu_graphics() :
     showNames            (_("Show player names")),
     visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 1),
     visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
@@ -502,11 +539,6 @@ Menu_graphics::Menu_graphics() :
 void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) {
     menu.setHook(opener);
     DualComponentAdder add(menu, collector);
-    add(&theme,                  CCS_GFXTheme);
-    add(&background,             CCS_Background);
-    add(&useThemeBackground,     CCS_UseThemeBackground);
-    add(&font,                   CCS_Font);
-    add.space();
     add(&showNames,              CCS_ShowNames);
     add(&visibleRoomsPlay,       CCS_VisibleRoomsPlay);
     add(&visibleRoomsReplay,     CCS_VisibleRoomsReplay);
@@ -529,21 +561,6 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add.space();
     add(&fpsLimit,               CCS_FPSLimit);
     add(&mapInfoMode);
-}
-
-void Menu_graphics::init(const Graphics& gfx) { // call just once, before calling update
-    reloadChoices(gfx);
-}
-
-void Menu_graphics::update(const Graphics& gfx) {   // tries to keep the selected theme
-    const string oldtheme = theme();
-    const string oldbg = background();
-    const string oldfont = font();
-    reloadChoices(gfx);
-    // These all may fail; ignore.
-    theme.set(oldtheme);
-    background.set(oldbg);
-    font.set(oldfont);
 }
 
 bool Menu_graphics::showNeighborMarkers(bool replaying, double visible_rooms) const {
@@ -641,6 +658,7 @@ Menu_options::Menu_options() :
     game      (),
     controls  (),
     screenMode(),
+    theme     (),
     graphics  (),
     sounds    (),
     language  (),
@@ -655,6 +673,7 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     game      .initialize(opener->clone(), collector);
     controls  .initialize(opener->clone(), collector);
     screenMode.initialize(opener->clone(), collector);
+    theme     .initialize(opener->clone(), collector);
     graphics  .initialize(opener->clone(), collector);
     sounds    .initialize(opener->clone(), collector);
     language  .initialize(opener->clone(), collector);
@@ -665,7 +684,9 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     add(&controls.menu);
     add.space();
     add(&screenMode.menu);
+    add(&theme.menu);
     add(&graphics.menu);
+    add.space();
     add(&sounds.menu);
     add.space();
     add(&language.menu);

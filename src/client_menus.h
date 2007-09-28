@@ -98,6 +98,8 @@ enum ClientCfgSetting {
     CCS_VisibleRoomsPlay,
     CCS_VisibleRoomsReplay,
     CCS_OldFlagPositions,
+    CCS_Colours,
+    CCS_UseThemeColours,
     CCS_EndOfCommands
 };
 
@@ -257,14 +259,32 @@ public:
     Menu_screenMode();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
 
-    void init(const Graphics& gfx); // call just once, before calling update
-    void update(const Graphics& gfx);   // tries to keep the selected resolution
+    void init(const Graphics& gfx);   // call just once, before calling update
+    void update(const Graphics& gfx); // tries to keep the selected resolution
     bool newMode(); // returns true if the current selection differs from the one at last call
 };
 
-class Menu_graphics {
+class Menu_theme {
     void reloadChoices(const Graphics& gfx);
 
+public:
+    Select<std::string> theme;
+    Select<std::string> background;
+    Checkbox            useThemeBackground;
+    Select<std::string> colours;
+    Checkbox            useThemeColours;
+    Select<std::string> font;
+
+    Menu menu;
+
+    Menu_theme();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+
+    void init(const Graphics& gfx); // call just once, before calling update
+    void update(const Graphics& gfx);   // tries to keep the selected choices
+};
+
+class Menu_graphics {
 public:
     enum NameMode { N_Never, N_SameRoom, N_Always, N_COUNT };
     enum MinimapPlayerMode { MP_Fade, MP_EarlyCut, MP_LateCut, MP_COUNT };
@@ -272,10 +292,6 @@ public:
     enum NeighborMarkerMode { NM_Never, NM_OneRoom, NM_Always, NM_COUNT };
     enum ViewOverBorderMode { VOB_Never, VOB_MapDoesntFit, VOB_MapWraps, VOB_Always, VOB_COUNT };
 
-    Select<std::string> theme;
-    Select<std::string> background;
-    Checkbox            useThemeBackground;
-    Select<std::string> font;
     Select<NameMode>    showNames;
     Slider              visibleRoomsPlay;
     Slider              visibleRoomsReplay;
@@ -301,9 +317,6 @@ public:
 
     Menu_graphics();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
-
-    void init(const Graphics& gfx); // call just once, before calling update
-    void update(const Graphics& gfx);   // tries to keep the selected theme
 
     bool showName(bool sameRoom) const { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
     bool emphasizeFlag(double visible_rooms) const { return emphasizeFlags() != FE_Never && (visible_rooms >= 2. || emphasizeFlags() == FE_Always); }
@@ -358,6 +371,7 @@ public:
     Menu_game            game;
     Menu_controls        controls;
     Menu_screenMode      screenMode;
+    Menu_theme           theme;
     Menu_graphics        graphics;
     Menu_sounds          sounds;
     Menu_language        language;

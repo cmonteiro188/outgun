@@ -526,7 +526,7 @@ class Client : public ClientInterface {
     void MCF_statsBgChange();
     void MCF_prepareScrModeMenu();
     void MCF_prepareDrawScrModeMenu();
-    void MCF_prepareGfxMenu();
+    void MCF_prepareGfxThemeMenu();
     void MCF_sndEnableChange();
     void MCF_sndVolumeChange();
     void MCF_sndThemeChange();

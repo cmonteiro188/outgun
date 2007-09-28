@@ -866,21 +866,21 @@ bool Client::start() {
         menu.options.screenMode.flipping.set(extConfig.trypageflip);
     if (extConfig.targetfps != -1)
         menu.options.graphics.fpsLimit.set(extConfig.targetfps);
-    graphics.set_antialiasing(menu.options.graphics.antialiasing());
+    MCF_antialiasChange();
     visible_rooms = menu.options.graphics.visibleRoomsPlay();
-    graphics.set_min_transp(menu.options.graphics.minTransp());
+    MCF_transpChange();
     MCF_statsBgChange();
     if (!screenModeChange())
         return false;
-    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
-    graphics.select_font(menu.options.graphics.font());
+    MCF_gfxThemeChange();
+    MCF_fontChange();
 
     // sounds
     if (extConfig.nosound)
         menu.options.sounds.enabled.set(false);
     MCF_sndEnableChange();
     client_sounds.setVolume(menu.options.sounds.volume());
-    client_sounds.select_theme(menu.options.sounds.theme());
+    MCF_sndThemeChange();
 
     // local server
     if (serverExtConfig.privSettingForced)
@@ -5664,11 +5664,13 @@ void Client::initMenus() {
     menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
     menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
 
-    menu.options.graphics.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxMenu          >(this));
-    menu.options.graphics.theme             .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.graphics.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
-    menu.options.graphics.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.graphics.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
+    menu.options.theme.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxThemeMenu     >(this));
+    menu.options.theme.theme             .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
+
     menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));
     menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsReplayChange>(this));
     menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange         >(this));
@@ -5713,7 +5715,7 @@ void Client::initMenus() {
     loadSplashScreen();
 
     menu.options.screenMode.init(graphics);
-    menu.options.graphics.init(graphics);
+    menu.options.theme.init(graphics);
     menu.options.sounds.init(client_sounds);
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
@@ -5849,16 +5851,18 @@ void Client::MCF_prepareDrawScrModeMenu() {
     menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
 }
 
-void Client::MCF_prepareGfxMenu() {
-    menu.options.graphics.update(graphics);
+void Client::MCF_prepareGfxThemeMenu() {
+    menu.options.theme.update(graphics);
 }
 
 void Client::MCF_gfxThemeChange() {
-    graphics.select_theme(menu.options.graphics.theme(), menu.options.graphics.background(), menu.options.graphics.useThemeBackground());
+    graphics.select_theme(menu.options.theme.theme(),
+                          menu.options.theme.background(), menu.options.theme.useThemeBackground(),
+                          menu.options.theme.colours(), menu.options.theme.useThemeColours());
 }
 
 void Client::MCF_fontChange() {
-    graphics.select_font(menu.options.graphics.font());
+    graphics.select_font(menu.options.theme.font());
 }
 
 void Client::MCF_screenDepthChange() {
