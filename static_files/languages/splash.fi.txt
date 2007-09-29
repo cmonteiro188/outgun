@@ -1,7 +1,0 @@
-Outgun 1.0.3, copyright © 2002 - 2006 tekijät.
- 
-Outgun on GNU GPL:n alla levitettävä vapaa ohjelma ja sen levitys on suotavaa muutamien vaatimusten puitteissa. KAIKKI VASTUU ON KÄYTTÄJÄLLÄ. Katso tarkemmat tiedot mukana tulevasta tiedostosta COPYING.
- 
-Auttaaksesi meitä poistamaan jäljellä olevat bugit voit antaa Outgunin automaattisesti lähettää meille tiedon odottamattoman virheen sattuessa. Valintasi mukaan lähetetään minimaaliset tiedot, täydet tiedot tai ei mitään. Minimaaliset tiedot käsittävät Outgunin versionumeron lisäksi ainoastaan assertion sijainnin: tiedoston nimen ja rivinumeron. Täydet tiedot sisältävät lisäksi vedoksen ohjelman pinosta. Tietoja tullaan käyttämään ainoastaan virheen syyn selvittämiseen. Emme pysty ottamaan yhteyttä lisätietojen saamiseksi, joten on suositeltavaa myös lähettää sähköpostia virheen sattuessa.
- 
-Valitse haluamasi tietojen määrä alla käyttäen vasenta ja oikeaa nuolinäppäintä, ja sulje valikko painamalla Enter tai Esc. Ensimmäisen käynnistyskerran jälkeen tämä ruutu löytyy asetusvalikosta.

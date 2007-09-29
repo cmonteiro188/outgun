@@ -8,11 +8,31 @@
 *.o
 *~
 *.exe
-
-Makefile.dependencies
+*.kdevelop*
 
 /outgun
 /outgun-ded
+/relay
 /srvmonit
+/watchserver
 
+/src/bin/
+/src/dep/
+/src/generated/
 /src/Makefile
+/src/makestatus
+/src/obj/
+/src/TAGS
+/src/robot2.cpp
+/src/robot2.h
+
+/devtools/buglistener
+/devtools/leetdatalogrd
+/devtools/mastertxt_crc
+/devtools/stackdump2text
+/devtools/threadlogrd
+/devtools/translationdb
+/devtools/watsonrd
+
+/languages/*.txt
+!/languages/en.txt
