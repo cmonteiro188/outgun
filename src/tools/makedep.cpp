@@ -118,32 +118,32 @@ void replaceSlashes(std::string& str) { replaceChars(str, '/', '_'); }
  * @param dirbase The relative (to dir of Makefile) directory of the source file, empty if it is the same directory; no slash at the end in any case.
  */
 void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
-     for (;;) {
-         try {
-             skipToInclude(src);
-         } catch (EOF_Hit) {
-             fprintf(dst, "\n");
-             return;
-         }
-         std::string fileName = readIncludeFileName(src);
-         std::string path = dirbase;
-         int nameReadPos = 0;
-         while (fileName.substr(nameReadPos, 3) == "../") {
-             nameReadPos += 3;
-             std::string::size_type pathsep = path.find_last_of('/');
-             if (pathsep == std::string::npos) {
-                 if (path.empty())
-                     throw StrError("'#include \"%s\"' - invalid parent reference past base directory", fileName.c_str());
-                 pathsep = 0;
-             }
-             path.erase(pathsep);
-         }
-         if (!path.empty())
-             path += '/';
-         path += fileName.substr(nameReadPos);
-         replaceSlashes(path);
-         fprintf(dst, "\t$(%s_inc)", path.c_str());
-     }
+    for (;;) {
+        try {
+            skipToInclude(src);
+        } catch (EOF_Hit) {
+            fprintf(dst, "\n");
+            return;
+        }
+        std::string fileName = readIncludeFileName(src);
+        std::string path = dirbase;
+        int nameReadPos = 0;
+        while (fileName.substr(nameReadPos, 3) == "../") {
+            nameReadPos += 3;
+            std::string::size_type pathsep = path.find_last_of('/');
+            if (pathsep == std::string::npos) {
+                if (path.empty())
+                    throw StrError("'#include \"%s\"' - invalid parent reference past base directory", fileName.c_str());
+                pathsep = 0;
+            }
+            path.erase(pathsep);
+        }
+        if (!path.empty())
+            path += '/';
+        path += fileName.substr(nameReadPos);
+        replaceSlashes(path);
+        fprintf(dst, "\t$(%s_inc)", path.c_str());
+    }
 }
 
 void handleFile(std::string name, FILE* dst, const std::vector<std::string>& objPaths) {
