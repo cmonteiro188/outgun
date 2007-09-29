@@ -592,7 +592,7 @@ private:
     int teamlcol[2];     // light colours
     int teamdcol[2];     // dark colours
 
-    int col[MAX_PLAYERS / 2 + 1]; // player colours
+    int col[MAX_PLAYERS / 2 + 1]; // player colours, one extra used for unknown colour
     Colour groundCol, wallCol;
 
     static const int fogOfWarMaxAlpha = 0x38, playfieldFogOfWarAlpha = 0x38;

@@ -86,12 +86,12 @@ Graphics::Graphics(LogSet logs):
     team_captures_start (0),
     default_colour_file (wheregamedir + "config" + directory_separator + "colours.txt"),
     antialiasing        (true),
+    colour              (logs),
     mapNeedsRedraw      (true),
     log                 (logs)
 {
     if (!platIsFile(default_colour_file))
         colour.create_default_file(default_colour_file);
-    log(default_colour_file);
     file_extensions.push_back(".pcx");
     #ifdef WITH_PNG
     file_extensions.push_back(".png");
@@ -300,28 +300,28 @@ void Graphics::setColors() {
 
     reset_playground_colors();
 
-    // player colours, these are not customisable
+    // player colours
     int i = 0;
-    col[i++] = makecol(0x00, 0xFF, 0x00);
-    col[i++] = makecol(0xFF, 0xFF, 0x00);
-    col[i++] = makecol(0xFF, 0xFF, 0xFF);
-    col[i++] = makecol(0xFF, 0x08, 0xFF); // can't use pure magenta, it will end up transparent in the themes
-    col[i++] = makecol(0x00, 0xFF, 0xFF);
-    col[i++] = makecol(0xFF, 0xA0, 0x00);
-    col[i++] = makecol(0xFF, 0x55, 0x44);
-    col[i++] = makecol(0x44, 0x55, 0xFF);
-    col[i++] = makecol(0x00, 0x80, 0x00);
-    col[i++] = makecol(0xA0, 0xA0, 0xA0);
-    col[i++] = makecol(0x00, 0xA0, 0xA0);
-    col[i++] = makecol(0x80, 0x00, 0x80);
-    col[i++] = makecol(0xA0, 0x60, 0x00);
-    col[i++] = makecol(0x00, 0x00, 0x80);
-    col[i++] = makecol(0x80, 0x00, 0x00);
-    col[i++] = makecol(0x66, 0x66, 0x66);
-    col[i++] = makecol(0xFF, 0x00, 0x00); // used only when server doesn't send a player color, which it always should do
+    col[i++] = colour[Colour::player01];
+    col[i++] = colour[Colour::player02];
+    col[i++] = colour[Colour::player03];
+    col[i++] = colour[Colour::player04];
+    col[i++] = colour[Colour::player05];
+    col[i++] = colour[Colour::player06];
+    col[i++] = colour[Colour::player07];
+    col[i++] = colour[Colour::player08];
+    col[i++] = colour[Colour::player09];
+    col[i++] = colour[Colour::player10];
+    col[i++] = colour[Colour::player11];
+    col[i++] = colour[Colour::player12];
+    col[i++] = colour[Colour::player13];
+    col[i++] = colour[Colour::player14];
+    col[i++] = colour[Colour::player15];
+    col[i++] = colour[Colour::player16];
+    col[i++] = colour[Colour::player_unknown];
     nAssert(i == 17 && MAX_PLAYERS == 32);
 
-    // team colours
+    // team colours for players, flags, etc.
     teamcol[0] = colour[Colour::team_red_basic];
     teamcol[1] = colour[Colour::team_blue_basic];
     teamflashcol[0] = colour[Colour::team_red_flash];
@@ -335,7 +335,7 @@ void Graphics::setColors() {
     teamlcol[0] = colour[Colour::team_red_light];
     teamlcol[1] = colour[Colour::team_blue_light];
 
-    // dark colours for team text bg
+    // dark colours for bases on map and team text background
     teamdcol[0] = colour[Colour::team_red_dark];
     teamdcol[1] = colour[Colour::team_blue_dark];
 
@@ -954,7 +954,7 @@ void Graphics::highlight_minimap_rooms() {
     const int x2 = size_x > map_w ? xm : x0 + static_cast<int>(xPos / map_w * minimap_w) - 1;
     const int y2 = size_y > map_h ? ym : y0 + static_cast<int>(yPos / map_h * minimap_h) - 1;
 
-    const int col = colour[Colour::room_highlight];
+    const int col = colour[Colour::map_room_highlight];
     // horizontal borders
     if (size_y <= map_h) {
         if (x2 <= x1) {
@@ -1030,7 +1030,7 @@ void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*
             else if (diff > 2)
                 putpixel(buffer, x, y, teamColor[1]);
             else
-                putpixel(buffer, x, y, 0);  // don't paint about equally distant pixels
+                putpixel(buffer, x, y, color);  // don't paint about equally distant pixels
         }
     }
 }
@@ -1075,7 +1075,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     scene.setScaling(startx, starty, scale);
 
     // add floors
-    scene.addRectangle(0, 0, maxx, maxy, 0);
+    scene.addRectangle(0, 0, maxx, maxy, colour[Colour::map_ground]);
 
     // add room boundaries
     const double halfPixw = .49999 / scale;
@@ -1127,7 +1127,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                     if (flag.px == rx && flag.py == ry) {
                         teamFlags[t].push_back(&flag);
                         const pair<int, int> coords = helper.flagCoords(flag);
-                        if (getpixel(buffer, coords.first, coords.second) != 0)
+                        if (getpixel(buffer, coords.first, coords.second) != colour[Colour::map_ground])
                             onWall = true;
                     }
                 }
@@ -1136,7 +1136,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
             if (onWall) {
                 // The normal area-connected-to-the-flag paint algorithm can't be used for any flags in this case.
                 // Instead, paint every floor pixel in the room with the nearest flag's color.
-                helper.paintByFlags(rx, ry, teamFlags, teamdcol, 0);
+                helper.paintByFlags(rx, ry, teamFlags, teamdcol, colour[Colour::map_ground]);
                 continue;
             }
             // Spread paint from each flag pos to all reachable space in the room (by floodfill).
@@ -1146,13 +1146,13 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                 for (vector<const WorldCoords*>::const_iterator fi = teamFlags[t].begin(); fi != teamFlags[t].end(); ++fi) {
                     const WorldCoords& flag = **fi;
                     const pair<int, int> coords = helper.flagCoords(flag);
-                    if (getpixel(buffer, coords.first, coords.second) != 0) // this only happens when the flag has already been fully taken care of
+                    if (getpixel(buffer, coords.first, coords.second) != colour[Colour::map_ground]) // this only happens when the flag has already been fully taken care of
                         continue;
                     if (!bothFlags) {
                         floodfill(buffer, coords.first, coords.second, teamdcol[t]);
                         continue;
                     }
-                    const int tempColor = makecol(0, 255, 255); // this is an opportunity for bugs if someone decides to use bright cyan as a regular map color
+                    const int tempColor = colour[Colour::map_temporary];
                     floodfill(buffer, coords.first, coords.second, tempColor);
                     // check all opposing team's flags for being in the same area
                     const int ot = 1 - t;
@@ -1255,11 +1255,14 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDir
 
     int pc1 = teamcol[team];
     int pc2 = col[colorId];
-    //blink player when hit
+    // blink player when hit
     const double deltafx = hitfx - time;
     if (deltafx > 0) {
-        const int rgb = static_cast<int>(70.0 + deltafx * 600.0);  // var 180
-        pc1 = pc2 = makecol(rgb, rgb, rgb);
+        const int add = static_cast<int>(deltafx * 600.0);
+        const int r = colour[Colour::player_hit].red() + add;
+        const int g = colour[Colour::player_hit].green() + add;
+        const int b = colour[Colour::player_hit].blue() + add;
+        pc1 = pc2 = makecol(r, g, b);
     }
     else if (item_power && static_cast<int>(fmod(time * 10, 2))) {
         pc1 = colour[Colour::player_power_team];
@@ -1430,9 +1433,12 @@ void Graphics::draw_virou_sorvete(const WorldCoords& pos, double respawn_delay) 
 }
 
 void Graphics::draw_gun_explosion(const WorldCoords& pos, int rad, int team) {
-    const int c = makecol(team == 0 ? rand() % 128 + 128 : rand() % 256,
-                          rand() % 256,
-                          team == 1 ? rand() % 128 + 128 : rand() % 256);
+    const int r = getr(teamcol[team]);
+    const int g = getg(teamcol[team]);
+    const int b = getb(teamcol[team]);
+    const int c = makecol(rand() % (256 - r / 2) + r / 2,
+                          rand() % (256 - g / 2) + g / 2,
+                          rand() % (256 - b / 2) + b / 2);
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         circle(drawbuf, sc.x(), sc.y(), pf_scale(rad), c);
@@ -1479,20 +1485,20 @@ void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) 
         int rad = radius;
         //brightening ring
         for (int e = 0; e < pf_scale(30); e++, rad++) {
-            int co;
-            if (db.team() == 0)
-                co = makecol(14 + static_cast<int>(8 * e / scr_mul), 0, 0);
-            else
-                co = makecol(0, 0, 14 + static_cast<int>(8 * e / scr_mul));
+            const int mul = 14 + static_cast<int>(8 * e / scr_mul);
+            const int r = mul * getr(teamcol[db.team()]) / 255;
+            const int g = mul * getg(teamcol[db.team()]) / 255;
+            const int b = mul * getb(teamcol[db.team()]) / 255;
+            const int co = makecol(r, g, b);
             circle(drawbuf, x, y, rad, co);
         }
         //darkening ring
         for (int e = 0; e < pf_scale(10); e++, rad++) {
-            int co;
-            if (db.team() == 0)
-                co = makecol(255 - static_cast<int>(14 * e / scr_mul), 0, 0);
-            else
-                co = makecol(0, 0, 255 - static_cast<int>(14 * e / scr_mul));
+            const int mul = 255 - static_cast<int>(14 * e / scr_mul);
+            const int r = mul * getr(teamcol[db.team()]) / 255;
+            const int g = mul * getg(teamcol[db.team()]) / 255;
+            const int b = mul * getb(teamcol[db.team()]) / 255;
+            const int co = makecol(r, g, b);
             circle(drawbuf, x    , y    , rad, co);
             circle(drawbuf, x + 1, y    , rad, co);
             circle(drawbuf, x    , y + 1, rad, co);
@@ -1509,7 +1515,7 @@ void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int 
         for (int i = 0; i < 5; i++)
             circlefill(drawbuf, x + pf_scale(rand() % 40 - 20), y + pf_scale(rand() % 40 - 20), pf_scale(15), teamcol[team]);
         for (int i = 0; i < 5; i++)
-            circlefill(drawbuf, x + pf_scale(rand() % 40 - 20), y + pf_scale(rand() % 40 - 20), pf_scale(15), 0);
+            circlefill(drawbuf, x + pf_scale(rand() % 40 - 20), y + pf_scale(rand() % 40 - 20), pf_scale(15), colour[Colour::deathbringer_affected]);
     }
 
     solid_mode();
@@ -1574,12 +1580,13 @@ void Graphics::draw_shield(const WorldCoords& pos, int r, bool live, int alpha, 
         }
         else {
             set_trans_mode(alpha);
-            if (team == 0)
-                for (int i = 0, c = rand() % 256; i < 3; i++)
-                    ellipse(drawbuf, x, y, r + rx[i], r + ry[i], makecol(255, c, c));
-            else if (team == 1)
-                for (int i = 0, c = rand() % 256; i < 3; i++)
-                    ellipse(drawbuf, x, y, r + rx[i], r + ry[i], makecol(c, c, 255));
+            if (team == 0 || team == 1)
+                for (int i = 0; i < 3; i++) {
+                    const int red = getr(teamcol[team]) + rand() % (256 - getr(teamcol[team]));
+                    const int green = getg(teamcol[team]) + rand() % (256 - getg(teamcol[team]));
+                    const int blue = getb(teamcol[team]) + rand() % (256 - getb(teamcol[team]));
+                    ellipse(drawbuf, x, y, r + rx[i], r + ry[i], makecol(red, green, blue));
+                }
             else    // powerup lying on the ground
                 for (int i = 0; i < 3; i++)
                     ellipse(drawbuf, x, y, r + rx[i], r + ry[i], makecol(rand() % 256, rand() % 256, rand() % 256));
@@ -2036,7 +2043,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
 
     if (stats_alpha > 0) {
         set_trans_mode(stats_alpha);
-        rectfill(drawbuf, x1, y1, x2, y2, 0);
+        rectfill(drawbuf, x1, y1, x2, y2, colour[Colour::stats_bg]);
         // caption backgrounds
         rectfill(drawbuf, x1, team1y - 4, x2, team1y + 2 * line_h - 1, teamdcol[0]);
         rectfill(drawbuf, x1, team2y - 4, x2, team2y + 2 * line_h - 1, teamdcol[1]);
@@ -2217,7 +2224,7 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
 
     if (stats_alpha > 0) {
         set_trans_mode(stats_alpha);
-        rectfill(drawbuf, x1, y1, x2, y2, 0);
+        rectfill(drawbuf, x1, y1, x2, y2, colour[Colour::stats_bg]);
         // caption background
         rectfill(drawbuf, x1, y1 + line_height - 4, x2, y1 + 2 * line_height, colour[Colour::stats_caption_bg]);
         solid_mode();
