@@ -14,6 +14,8 @@ CXXFLAGS ?= $(CFLAGS)
 CC ?= gcc
 CXX ?= g++
 
+.DELETE_ON_ERROR:
+
 ifdef LINUX
 
  RM ?= rm -f
