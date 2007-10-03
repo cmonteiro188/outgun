@@ -84,14 +84,11 @@ Graphics::Graphics(LogSet logs):
     map_list_size       (20),
     map_list_start      (0),
     team_captures_start (0),
-    default_colour_file (wheregamedir + "config" + directory_separator + "colours.txt"),
     antialiasing        (true),
     colour              (logs),
     mapNeedsRedraw      (true),
     log                 (logs)
 {
-    if (!platIsFile(default_colour_file))
-        colour.create_default_file(default_colour_file);
     file_extensions.push_back(".pcx");
     #ifdef WITH_PNG
     file_extensions.push_back(".png");
@@ -1070,7 +1067,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
     // add background (noticeable in case maxy < minimap_h)
     scene.setScaling(0, 0, 1.);
-    scene.addRectangle(.005, .005, minimap_w - .005, minimap_h - .005, colour[Colour::screen_background]);
+    scene.addRectangle(.005, .005, minimap_w - .005, minimap_h - .005, 0);
 
     scene.setScaling(startx, starty, scale);
 
@@ -1321,7 +1318,7 @@ void Graphics::draw_me_highlight(const WorldCoords& pos, double size) {
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         if (sc.x() >= roomLayout.x0() && sc.x() <= roomLayout.xMax() && sc.y() >= roomLayout.y0() && sc.y() <= roomLayout.yMax())
-            circle(drawbuf, sc.x(), sc.y(), scale((8 * size + 1) * PLAYER_RADIUS), colour[Colour::self_highlight]);
+            circle(drawbuf, sc.x(), sc.y(), scale((8 * size + 1) * PLAYER_RADIUS), colour[Colour::spawn_highlight]);
 }
 
 void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) {
@@ -1339,12 +1336,12 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
         line(drawbuf,
              x0 + static_cast<int>(gdx * minDist), y0 + static_cast<int>(gdy * minDist),
              x0 + static_cast<int>(gdx * maxDist), y0 + static_cast<int>(gdy * maxDist),
-             colour[team == 0 ? Colour::aim_line_red : Colour::aim_line_blue]);
+             colour[team == 0 ? Colour::aim_line_redteam : Colour::aim_line_blueteam]);
         circlefill(drawbuf,
                    x0 + static_cast<int>(gdx * maxDist),
                    y0 + static_cast<int>(gdy * maxDist),
                    pf_scale(ROCKET_RADIUS * .5),
-                   colour[team == 0 ? Colour::aim_dot_red : Colour::aim_dot_blue]);
+                   colour[team == 0 ? Colour::aim_dot_redteam : Colour::aim_dot_blueteam]);
     }
 }
 
@@ -1399,11 +1396,12 @@ void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay
             rotate_alpha_sprite(drawbuf, sprite, x, y, gundir.toFixed());
         }
         else {
+            const int c = colour[player.team() == 0 ? Colour::blood_redteam : Colour::blood_blueteam];
             set_trans_mode(90);
             const int plrScale = pf_scale(PLAYER_RADIUS * 10);
-            ellipsefill(drawbuf, x - plrScale / 25, y + plrScale / 20, plrScale / 9, plrScale / 10, colour[Colour::blood]);
-            ellipsefill(drawbuf, x                , y - plrScale / 30, plrScale / 8, plrScale / 10, colour[Colour::blood]);
-            ellipsefill(drawbuf, x + plrScale / 50, y + plrScale / 40, plrScale / 8, plrScale / 10, colour[Colour::blood]);
+            ellipsefill(drawbuf, x - plrScale / 25, y + plrScale / 20, plrScale / 9, plrScale / 10, c);
+            ellipsefill(drawbuf, x                , y - plrScale / 30, plrScale / 8, plrScale / 10, c);
+            ellipsefill(drawbuf, x + plrScale / 50, y + plrScale / 40, plrScale / 8, plrScale / 10, c);
             solid_mode();
         }
         if (respawn_delay)
@@ -1824,8 +1822,8 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     const int caption_width = characters;
 
     // background
-    const int teambg [2] = { colour[Colour::sb_red_bg], colour[Colour::sb_blue_bg] };
-    const int linecol[2] = { colour[Colour::sb_red_line], colour[Colour::sb_blue_line] };
+    const int teambg [2] = { colour[Colour::scoreboard_bg_redteam], colour[Colour::scoreboard_bg_blueteam] };
+    const int linecol[2] = { colour[Colour::scoreboard_line_redteam], colour[Colour::scoreboard_line_blueteam] };
     int hpadding = 6;
     if (sbx - scoreboard_x1 < hpadding)
         hpadding = max(1, sbx - scoreboard_x1 - 2);
@@ -1848,6 +1846,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     }
 
     // captions
+    const int textcol[2] = { colour[Colour::scoreboard_caption_redteam], colour[Colour::scoreboard_caption_blueteam] };
     const string teamName[2] = { _("Red Team"), _("Blue Team") };
     for (int team = 0; team < 2; ++team) {
         ostringstream os;
@@ -1856,7 +1855,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
             os << setw(caption_width - teamName[team].length()) << _("pings");
         else
             os << setw(caption_width - teamName[team].length()) << _("$1 capt", itoa_w(teams[team].score(), 3));
-        textout_ex(drawbuf, sbfont, os.str().c_str(), sbx, teamy[team], colour[Colour::sb_caption], -1);
+        textout_ex(drawbuf, sbfont, os.str().c_str(), sbx, teamy[team], textcol[team], -1);
     }
 
     int line[2] = { 1, 1 };
@@ -2180,19 +2179,19 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
             axis_info << '(' << axis->first << ' ' << axis->second << ')';
         axis_info << ']';
     }
-    textout_ex(drawbuf, font, axis_info.str().c_str(), margin, line++ * line_h, colour[Colour::message_normal], -1);
+    textout_ex(drawbuf, font, axis_info.str().c_str(), margin, line++ * line_h, colour[Colour::normal_message_unknown], -1);
 
     line++;
     ostringstream button_info;
     button_info << _("Joystick buttons") << ':';
     for (vector<int>::const_iterator but = buttons.begin(); but != buttons.end(); ++but)
         button_info << ' ' << *but;
-    textout_ex(drawbuf, font, button_info.str().c_str(), margin, line++ * line_h, colour[Colour::message_normal], -1);
+    textout_ex(drawbuf, font, button_info.str().c_str(), margin, line++ * line_h, colour[Colour::normal_message_unknown], -1);
 
     line++;
     const int bpstraffic = bpsin + bpsout;
-    textout_ex(drawbuf, font, _("Traffic: $1 B/s"      , itoa_w(bpstraffic, 4)              ).c_str(), margin, line++ * line_h, colour[Colour::message_normal], -1);
-    textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, colour[Colour::message_normal], -1);
+    textout_ex(drawbuf, font, _("Traffic: $1 B/s"      , itoa_w(bpstraffic, 4)              ).c_str(), margin, line++ * line_h, colour[Colour::normal_message_unknown], -1);
+    textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, colour[Colour::normal_message_unknown], -1);
 }
 
 void Graphics::draw_fps(double fps) {
@@ -2453,7 +2452,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     for (; msg != end; ++msg, ++line) {
         if (msg->text().empty())
             continue;
-        print_chat_message(msg->type(), msg->text(), margin, margin + line * line_height, msg->highlighted());
+        print_chat_message(msg->type(), msg->text(), msg->team(), margin, margin + line * line_height, msg->highlighted());
     }
     if (!talkbuffer.empty()) {
         ostringstream message;
@@ -2486,15 +2485,15 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
 }
 
-void Graphics::print_chat_message(Message_type type, const string& message, int x, int y, bool highlight) {
+void Graphics::print_chat_message(Message_type type, const string& message, int team, int x, int y, bool highlight) {
     int c;
     switch (type) {
         /*break;*/ case msg_warning: c = colour[Colour::message_warning];
-            break; case msg_team:    c = colour[Colour::message_team];
+            break; case msg_team:    c = colour[team == 0 ? Colour::team_message_redteam : team == 1 ? Colour::team_message_blueteam : Colour::team_message_unknown];
             break; case msg_info:    c = colour[Colour::message_info];
             break; case msg_header:  c = colour[Colour::message_header];
             break; case msg_server:  c = colour[Colour::message_server];
-            break; case msg_normal: default: c = colour[Colour::message_normal];
+            break; case msg_normal: default: c = colour[team == 0 ? Colour::normal_message_redteam : team == 1 ? Colour::normal_message_blueteam : Colour::normal_message_unknown];
 
     }
     if (highlight && type != msg_team)
@@ -2814,7 +2813,7 @@ void Graphics::select_theme(const string& theme_dir, const string& bg_dir, bool 
     }
     // Use default colours
     if (!colours_found)
-        colour_file = default_colour_file;
+        colour_file.clear();
 
     setColors();
 

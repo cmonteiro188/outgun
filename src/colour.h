@@ -75,9 +75,9 @@ public:
 
     /** Load colours from the file. If some colour is not specified there,
      *  the default colour is used.
-     *  @param file filename
+     *  @param file filename; if empty, use default colours
      */
-    void init(const std::string& file) {
+    void init(const std::string& file = "") {
         init(file, false);
     }
 

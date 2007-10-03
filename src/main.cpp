@@ -46,6 +46,7 @@
    static inline void register_png_file_type() { }
 # endif
 # include "client_interface.h"
+# include "colour.h"
 # include "mappic.h"
 #endif
 
@@ -393,9 +394,10 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-mappic")) {
             register_png_file_type();
-            check_dir("mappic", log);
             if (argc != 2)
                 log.error(_("-mappic can't be combined with other command line options."));
+            if (!check_dir("mappic", log))
+                return;
 
             if (memoryErrorLog.size() != acceptedErrorCount)    // no point in continuing if there were errors
                 return;
@@ -409,6 +411,17 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             } catch (const Mappic::Save_error& s) {
                 log.error(_("Could not save map pictures to the directory 'mappic'."));
             }
+            return;
+        }
+        else if (!strcmp(argv[i], "-colour-file")) {
+            if (argc != 2)
+                log.error(_("-colour-file can't be combined with other command line options."));
+            if (!check_dir("graphics", log))
+                return;
+            Colour_manager col(log);
+            const string filename = wheregamedir + "graphics" + directory_separator + "colours.txt";
+            col.create_default_file(filename);
+            std::cout << _("Default colours generated to $1", filename) << '\n';
             return;
         }
         else if (!strcmp(argv[i], "-play")) {

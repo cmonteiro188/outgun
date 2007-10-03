@@ -113,12 +113,13 @@ public:
 class TM_Text : public ThreadMessage {
     Message_type type;
     string text;
+    int team;   // -1 for non-team messages
 
 public:
-    TM_Text(Message_type type_, const string& text_) : type(type_), text(text_) { }
+    TM_Text(Message_type type_, const string& text_, int team_ = -1) : type(type_), text(text_), team(team_) { }
     void execute(Client* cl) const {
         #ifndef DEDICATED_SERVER_ONLY
-        cl->print_message(type, text);
+        cl->print_message(type, text, team);
         #else
         (void)cl;
         #endif
@@ -2109,6 +2110,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             addThreadMessage(new TM_DoDisconnect());
             break;
         }
+        char sender_team = -1;
         // This is a kludge because of compatibility.
         // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
         if (type == msg_server) {
@@ -2127,7 +2129,13 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 chatmsg = _("$1 decided it's time for a restart.", name);
             }
         }
-        addThreadMessage(new TM_Text(type, chatmsg));
+        if (protocolExtensionsS2C >= 0) {
+            if (type == msg_team || type == msg_normal)
+                readByte(lebuf, count, sender_team);
+        }
+        else if (type == msg_team)
+            sender_team = team();
+        addThreadMessage(new TM_Text(type, chatmsg, sender_team));
         if (type == msg_team || type == msg_normal)
             addThreadMessage(new TM_Sound(SAMPLE_TALK));
         #endif
@@ -3560,7 +3568,7 @@ void Client::send_chat(const string& msg) {
 }
 
 //print message to "console"
-void Client::print_message(Message_type type, const string& msg) {
+void Client::print_message(Message_type type, const string& msg, int sender_team) {
     if (botmode)
         return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
@@ -3581,7 +3589,7 @@ void Client::print_message(Message_type type, const string& msg) {
     while (chatbuffer.size() > graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
     for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
-        Message message(type, *li, static_cast<int>(fx.frame / 10));
+        Message message(type, *li, static_cast<int>(fx.frame / 10), sender_team);
         if (highlight)
             message.highlight();
         chatbuffer.push_back(message);

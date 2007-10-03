@@ -856,10 +856,15 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
     writeByte(lebuf, count, data_text_message);
     writeByte(lebuf, count, msg_team);
     writeStr(lebuf, count, text);
+    writeByte(lebuf, count, static_cast<NLbyte>(team));
 
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && i / TSIZE == team)  // only to teammates
-            server->send_message(world.player[i].cid, lebuf, count);
+            if (world.player[i].used)
+                if (world.player[i].protocolExtensionsLevel >= 0)
+                    server->send_message(world.player[i].cid, lebuf, count);
+                else
+                    server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
 
     record_message(lebuf, count);
 
@@ -918,6 +923,8 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
         writeByte(lebuf, count, data_text_message);
         writeByte(lebuf, count, type);
         writeStr(lebuf, count, text);
+        if (type == msg_normal || type == msg_team) // It should really never be a team message in this method.
+            writeByte(lebuf, count, static_cast<NLbyte>(pid / TSIZE));
         if (pid == pid_record)
             record_message(lebuf, count);
         else if (pid == shell_pid) {
@@ -930,37 +937,23 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
             }
         }
         else if (pid == pid_all) {
-            broadcast_message(lebuf, count);
+            for (int i = 0; i < maxplayers; ++i)
+                if (world.player[i].used)
+                    if (world.player[i].protocolExtensionsLevel >= 0)
+                        server->send_message(world.player[i].cid, lebuf, count);
+                    else
+                        server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
             record_message(lebuf, count);
         }
-        else
+        else if (world.player[pid].protocolExtensionsLevel >= 0)
             server->send_message(world.player[pid].cid, lebuf, count);
+        else
+            server->send_message(world.player[pid].cid, lebuf, count - 1);
     }
     else {
         vector<string> lines = split_to_lines(text, 79, 4); // this makes more sense than splitting to max_chat_message_length and letting it get split again on the client end
-        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
-            int count = 0;
-            writeByte(lebuf, count, data_text_message);
-            writeByte(lebuf, count, type);
-            writeStr(lebuf, count, *li);
-            if (pid == pid_record)
-                record_message(lebuf, count);
-            else if (pid == shell_pid) {
-                //send to the admin shell
-                if (shellssock != NL_INVALID) {
-                    count = 0;
-                    writeLong(lebuf, count, STA_GAME_TEXT);
-                    writeStr(lebuf, count, *li);
-                    nlWrite(shellssock, lebuf, count);
-                }
-            }
-            else if (pid == pid_all) {
-                broadcast_message(lebuf, count);
-                record_message(lebuf, count);
-            }
-            else
-                server->send_message(world.player[pid].cid, lebuf, count);
-        }
+        for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li)
+            player_message(pid, type, *li);
     }
 }
 

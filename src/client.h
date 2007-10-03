@@ -643,7 +643,7 @@ class Client : public ClientInterface {
 
     // GUI
     void erase_first_message();
-    void print_message(Message_type type, const std::string& msg);
+    void print_message(Message_type type, const std::string& msg, int sender_team = -1);
 
     void save_screenshot();
     void toggle_help();
