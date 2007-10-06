@@ -134,12 +134,16 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
             return string();
         }
 
-        const string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
+        string fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + fname + ".txt";
 
         FILE* fmap = fopen(fileName.c_str(), "rb");
-        if (!fmap) {
-            log("Nonexisting map download attempt: map \"%s\"", fname.c_str());
-            return string();
+        if (!fmap) { // check from generated maps
+            fileName = wheregamedir + SERVER_MAPS_DIR + directory_separator + "generated" + directory_separator + fname + ".txt";
+            fmap = fopen(fileName.c_str(), "rb");
+            if (!fmap) {
+                log("Nonexisting map download attempt: map \"%s\"", fname.c_str());
+                return string();
+            }
         }
         string data;
         while (!feof(fmap)) {
@@ -1173,7 +1177,7 @@ void ServerNetworking::send_relay_data(const string& data) {
         return;
     //log("Sending relay data.");
     ostringstream ost;
-    write(ost, static_cast<char>(relay_new_game ? 1 : 0));
+    write(ost, static_cast<unsigned char>(relay_new_game ? relay_data_game_start : relay_data_frames));
     ost << data;
     relay_new_game = false;
 

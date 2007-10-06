@@ -550,6 +550,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
     #endif
 
     check_dir(SERVER_MAPS_DIR, log);    // the client might run a server, so check these in any case
+    check_dir(string() + SERVER_MAPS_DIR + directory_separator + "generated", log);
     check_dir("server_stats" , log);
     check_dir("replay"       , log);
 

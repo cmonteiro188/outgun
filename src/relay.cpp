@@ -28,6 +28,7 @@
 #include "commont.h"
 #include "network.h"
 #include "platform.h"
+#include "protocol.h"
 #include "timer.h"
 
 #include "relay.h"
@@ -45,6 +46,7 @@ using std::stringstream;
 using std::vector;
 
 int main(int argc, const char* argv[]) {
+    cout << "Outgun relay " << GAME_VERSION << '\n';
     int port = 0;
     //int bandwidth_limit = 20000;
     int spectators = 32;
@@ -204,7 +206,7 @@ void Relay::check_new_connections() {
         string game;
         read_string(ist, game);
         if (game != GAME_STRING) {
-            cout << "Different game.\n";
+            cout << "Different game string in a connection attempt.\n";
             nlClose(pi->socket);
             pi = peers.erase(pi);
             continue;
@@ -219,15 +221,37 @@ void Relay::check_new_connections() {
         }
         if (type == "SPECTATOR") {
             if (spectators.size() >= spectator_limit) {
-                cout << "New spectator can't join because spectator limit already reached.\n";
+                cout << "New spectator couldn't join because spectator limit already reached.\n";
                 nlClose(pi->socket);
                 pi = peers.erase(pi);
+                continue;
             }
-            else {
-                cout << "Spectator connected.\n";
-                spectators.push_back(Spectator(pi->address, pi->socket));
+            unsigned replay_version;
+            string username, password;
+            read(ist, replay_version);
+            read_string(ist, username);
+            read_string(ist, password);
+
+            if (!ist) {     // Not all data received yet.
+                ist.clear();
+                ist.seekg(0);
+                ++pi;
+                continue;
+            }
+
+            // TODO: Check username and password.
+            #if 0
+            if (!check_user()) {
+                cout << "New spectator couldn't join because of invalid username or password.\n";
+                nlClose(pi->socket);
                 pi = peers.erase(pi);
+                continue;
             }
+            #endif
+
+            spectators.push_back(Spectator(pi->address, pi->socket));
+            cout << "Spectator connected.\n";
+            pi = peers.erase(pi);
         }
         else if (type == "SERVER") {
             if (server_socket != NL_INVALID) { // if already connected, skip
@@ -273,7 +297,7 @@ void Relay::check_new_connections() {
             pi = peers.erase(pi);
         }
         else if (type == "RELAY") {
-            cout << "Subrelay connected.\n";
+            cout << "Subrelay connected. Just dropped it as there is no support for subrelays.\n";
             nlClose(pi->socket);
             pi = peers.erase(pi);
         }
@@ -317,12 +341,12 @@ void Relay::add_data(istream& in) {
         string temp;
         read(in, temp, data_buffer.back().remaining());
         data_buffer.back().add(temp, get_time());
-        log << temp;
+        //log << temp;
         //cout << "Frame " << data_buffer.size() - 1 << ", " << temp.length() << " bytes.\n";
     }
     else {
-        char game_start;
-        if (read(in, game_start) && game_start == 1) {
+        unsigned char data_code;
+        if (read(in, data_code) && data_code == relay_data_game_start) {
             const unsigned old_buffer_first_frame = buffer_first_frame;
             buffer_first_frame = new_game_first_frame;
             new_game_first_frame = data_buffer.size() + old_buffer_first_frame;
@@ -434,7 +458,7 @@ void Relay::send_master_server() {
 
     NLaddress master_address;
     if (!nlGetAddrFromName(master_name.c_str(), &master_address)) {
-        cout << "Can't resolve master address.\n";
+        cout << "Can't resolve master address for " << master_name << ".\n";
         nlClose(msock);
         return;
     }

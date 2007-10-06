@@ -1026,8 +1026,9 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
 
     servermap = mapname;
 
-    // Try to load the map first from "cmaps" and, if not found there, from "maps".
-    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc)) {
+    // Try to load the map from "cmaps", "maps" or even from "maps/generated" if necessary.
+    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc) ||
+          load_map(string() + SERVER_MAPS_DIR + directory_separator + "generated", mapname, server_crc)) {
         log("Map '%s' loaded successfully.", mapname.c_str());
         remove_useless_flags();
         mapChanged = true;
@@ -1036,8 +1037,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
         return;
     }
 
-    if (botmode)
-        nAssert(0); // ### FIX: Disconnect bot or something.
+    nAssert(!botmode); // ### FIX: Disconnect bot or something.
 
     #ifndef DEDICATED_SERVER_ONLY
     // start download
@@ -4787,6 +4787,8 @@ void Client::start_spectating(const NLaddress& address) {
     write_string(ost, GAME_STRING);
     write_string(ost, "SPECTATOR");
     write(ost, REPLAY_VERSION);
+    write_string(ost, ""); // username
+    write_string(ost, ""); // password
 
     const NetworkResult result = writeToUnblockingTCP(spectate_socket, ost.str().data(), ost.str().length(), 0, 500, 5);
     if (result != NR_ok) {

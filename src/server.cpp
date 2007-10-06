@@ -486,16 +486,20 @@ void Server::score_neg(int p, int amount, bool forTournament) {
 bool Server::load_rotation_map(int pos) {
     record_map.clear();
     string file_name;
+    string dir;
     if (maprot[pos].random) {
         //const string map_title = finnish_name(10);
         //maprot[pos].title = map_title;
+        dir = string() + SERVER_MAPS_DIR + directory_separator + "generated";
         file_name = "mapgen_" + itoa(rand());
         maprot[pos].file = file_name;
-        world.generate_map(SERVER_MAPS_DIR, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].title, "Outgun");
+        world.generate_map(dir, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].title, "Outgun");
     }
-    else
+    else {
+        dir = SERVER_MAPS_DIR;
         file_name = maprot[pos].file;
-    const bool ok = world.load_map(SERVER_MAPS_DIR, file_name,
+    }
+    const bool ok = world.load_map(dir, file_name,
                                    settings.get_recording() || network.is_relay_used() ? &record_map : 0);
     if (!ok)
         return false;

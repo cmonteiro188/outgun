@@ -134,4 +134,9 @@ enum Connect_rejection_reason {
     reject_last = reject_wrong_server_password
 };
 
+enum Relay_data_code {
+    relay_data_frames,
+    relay_data_game_start
+};
+
 #endif
