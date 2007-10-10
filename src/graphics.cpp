@@ -2765,16 +2765,26 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg, Line
     delete themeDirs;
     sort(themes.begin(), themes.end(), cmp_case_ins);
     for (vector<string>::const_iterator ti = themes.begin(); ti != themes.end(); ++ti) {
-        dst_theme(*ti);
+        const string dir = wheregamedir + "graphics" + directory_separator + *ti + directory_separator;
+        // Put only themes with images on the graphics theme list
+        for (vector<string>::const_iterator ei = file_extensions.begin(); ei != file_extensions.end(); ++ei) {
+            FileFinder* finder = platMakeFileFinder(dir, *ei, false);
+            const bool has_images = finder->hasNext();
+            delete finder;
+            if (has_images) {
+                dst_theme(*ti);
+                break;
+            }
+        }
         // Check if the theme has a background image
-        const string bg = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "background";
+        const string bg = dir + "background";
         for (vector<string>::const_iterator ei = file_extensions.begin(); ei != file_extensions.end(); ++ei)
             if (platIsFile(bg + *ei)) {
                 dst_bg(*ti);
                 break;
             }
         // Check if the theme has custom colours
-        const string col = wheregamedir + "graphics" + directory_separator + *ti + directory_separator + "colours.txt";
+        const string col = dir + "colours.txt";
         if (platIsFile(col))
             dst_colours(*ti);
     }
