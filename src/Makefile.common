@@ -98,7 +98,7 @@ ifdef WITH_PNG
 endif
 
 SRC_PREFIXES = * leetnet/* loadpng/* tools/*
-SRC_SUFFIXES = .h .cpp .c
+SRC_SUFFIXES = .h .inc .cpp .c
 SRC_FILE_PATTERNS = $(foreach PREFIX,$(SRC_PREFIXES),$(addprefix $(PREFIX),$(SRC_SUFFIXES)))
 SRC_FILES = $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
 DEPENDENCY_FILES = $(patsubst %,dep/%.d,$(SRC_FILES))

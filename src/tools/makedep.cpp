@@ -22,8 +22,6 @@
 /* "features":
  * - doesn't notice <> type includes at all, and doesn't know about system
  *   headers (works well when <> is used for system headers, "" for own ones)
- * - doesn't recognize include lines with extra spaces
- * - doesn't recognize the first include if it's the first line in the file
  * - leaves all "recursive" work for make (can be considered good or bad)
  */
 
@@ -32,6 +30,8 @@
 #include <string>
 #include <vector>
 
+using std::string;
+
 #ifndef __GNUC__
 #define __attribute__(a)
 #endif
@@ -39,13 +39,12 @@
 class EOF_Hit { };
 
 class StrError {
-    std::string str;
+    string str;
 
 public:
+    StrError(const string& s) : str(s) { }
     StrError(const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));
-    void print() const {
-        fprintf(stderr, "Error: %s\n", str.c_str());
-    }
+    const string& description() const { return str; }
 };
 
 StrError::StrError(const char* fmt, ...) {
@@ -65,20 +64,54 @@ inline char getChar(FILE* src) {
     return ch;
 }
 
-/** Skip through source file until '\n#include "' is found.
+/** Replace all 'from' characters by 'to'.
+ */
+void replaceChars(string& str, char from, char to) {
+    for (string::size_type i = 0; i < str.size(); ++i)
+        if (str[i] == from)
+            str[i] = to;
+}
+
+string makeId(string filename) {
+    replaceChars(filename, '/', '_');
+    replaceChars(filename, '.', '_');
+    return filename;
+}
+
+/** Skip through source file until /^ *#include +"/ is found.
  * @throws EOF_Hit End of file before encountering an #include.
  */
 void skipToInclude(FILE* src) {
-    static const char matchStr[] = "\n#include \"";
-    static const int matchLen = 11;
+    static const char matchStr[] = "#include ";
+    static const int matchLen = 9;
     // note: the first match character isn't repeated in the match string
-    //       that means we don't have to rewind at any point
+    //       that means we don't have to rewind at any point when only searching for this
     for (;;) {
         if (getChar(src) != matchStr[0])
             continue;
         for (int match = 1;; ++match) {
-            if (match == matchLen)
-                return; // found
+            if (match == matchLen) { // '#include ' found; verify that the whole regexp is matched
+                long pos0 = ftell(src) - matchLen;
+                char ch;
+                do {
+                    ch = getChar(src);
+                } while (ch == ' ');
+                if (ch != '"')
+                    break; // no match
+                const long endPos = ftell(src);
+                do {
+                    if (pos0 == 0)
+                        ch = '\n';
+                    else {
+                        fseek(src, --pos0, SEEK_SET);
+                        ch = getChar(src);
+                    }
+                } while (ch == ' ' || ch == '\t');
+                fseek(src, endPos, SEEK_SET);
+                if (ch != '\n')
+                    break; // no match
+                return;
+            }
             const char ch = getChar(src);
             if (ch == matchStr[match])
                 continue;
@@ -90,34 +123,23 @@ void skipToInclude(FILE* src) {
     }
 }
 
-std::string readIncludeFileName(FILE* src) {
-    std::string name;
+string readIncludeFileName(FILE* src) {
+    string name;
     for (;;) {
         char ch = getChar(src);
         if (ch == '"')
             break;
         name += ch;
     }
-    if (name.length() < 3 || name.substr(name.length() - 2) != ".h")
-        throw StrError("'#include \"%s\"' - should be \"something.h\"", name.c_str());
-    name.erase(name.length() - 2);
+    if (name.empty())
+        throw StrError("'#include \"\"' not allowed");
     return name;
 }
-
-/** Replace all 'from' characters by 'to'.
- */
-void replaceChars(std::string& str, char from, char to) {
-    for (std::string::size_type i = 0; i < str.size(); ++i)
-        if (str[i] == from)
-            str[i] = to;
-}
-
-void replaceSlashes(std::string& str) { replaceChars(str, '/', '_'); }
 
 /** Translate the source file's #include directives into makefile format. Skip other lines.
  * @param dirbase The relative (to dir of Makefile) directory of the source file, empty if it is the same directory; no slash at the end in any case.
  */
-void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
+void handleFile(FILE* src, FILE* dst, const string& dirbase) {
     for (;;) {
         try {
             skipToInclude(src);
@@ -125,13 +147,13 @@ void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
             fprintf(dst, "\n");
             return;
         }
-        std::string fileName = readIncludeFileName(src);
-        std::string path = dirbase;
+        string fileName = readIncludeFileName(src);
+        string path = dirbase;
         int nameReadPos = 0;
         while (fileName.substr(nameReadPos, 3) == "../") {
             nameReadPos += 3;
-            std::string::size_type pathsep = path.find_last_of('/');
-            if (pathsep == std::string::npos) {
+            string::size_type pathsep = path.find_last_of('/');
+            if (pathsep == string::npos) {
                 if (path.empty())
                     throw StrError("'#include \"%s\"' - invalid parent reference past base directory", fileName.c_str());
                 pathsep = 0;
@@ -140,51 +162,40 @@ void handleFile(FILE* src, FILE* dst, const std::string& dirbase) {
         }
         if (!path.empty())
             path += '/';
-        path += fileName.substr(nameReadPos);
-        replaceSlashes(path);
-        fprintf(dst, "\t$(%s_inc)", path.c_str());
+        fprintf(dst, "\t$(%s_inc)", makeId(path + fileName.substr(nameReadPos)).c_str());
     }
 }
 
-void handleFile(std::string name, FILE* dst, const std::vector<std::string>& objPaths) {
+void handleFile(string name, FILE* dst, const std::vector<string>& objPaths) {
     replaceChars(name, '\\', '/');  // for DOS users getting '\'s in their paths
 
-    std::string id = name;
-    bool header;
-    if (id.length() > 2 && id.substr(id.length() - 2) == ".h") {
-        id.erase(id.length() - 2);
-        header = true;
-    }
-    else if (id.length() > 2 && id.substr(id.length() - 2) == ".c") {
-        id.erase(id.length() - 2);
-        header = false;
-    }
-    else if (id.length() > 4 && id.substr(id.length() - 4) == ".cpp") {
-        id.erase(id.length() - 4);
-        header = false;
-    }
-    else
-        throw StrError("'%s' - only .h, .c and .cpp files are handled", name.c_str());
+    const string::size_type extsep = name.find_last_of('.');
+    if (extsep == string::npos || extsep == 0 || extsep == name.length() - 1)
+        throw StrError("'%s' - expecting filename.ext", name.c_str());
+    const string basename = name.substr(0, extsep);
+    const string ext = name.substr(extsep + 1);
 
-    if (header) {
-        replaceSlashes(id);
-        fprintf(dst, "%s_inc =\t%s", id.c_str(), name.c_str());
-    }
-    else {
-        for (std::vector<std::string>::const_iterator opi = objPaths.begin(); opi != objPaths.end(); ++opi)
-            fprintf(dst, "%s%s.o ", opi->c_str(), id.c_str());
+    if (ext == "c" || ext == "cpp") {
+        for (std::vector<string>::const_iterator opi = objPaths.begin(); opi != objPaths.end(); ++opi)
+            fprintf(dst, "%s%s.o ", opi->c_str(), basename.c_str());
         fprintf(dst, ":\t%s", name.c_str());
     }
+    else
+        fprintf(dst, "%s_inc =\t%s", makeId(name).c_str(), name.c_str());
 
     FILE* src = fopen(name.c_str(), "rb");
     if (!src)
         throw StrError("'%s' - can't open for reading", name.c_str());
-    std::string path;
-    std::string::size_type pathsep = name.find_last_of('/');
-    if (pathsep != std::string::npos)
-        path = name.substr(0, pathsep);
     try {
-        handleFile(src, dst, path);
+        string path;
+        string::size_type pathsep = name.find_last_of('/');
+        if (pathsep != string::npos)
+            path = name.substr(0, pathsep);
+        try {
+            handleFile(src, dst, path);
+        } catch (const StrError& e) {
+            throw StrError("(reading " + name + ") " + e.description());
+        }
     } catch (...) {
         fclose(src);
         throw;
@@ -193,14 +204,14 @@ void handleFile(std::string name, FILE* dst, const std::vector<std::string>& obj
 
 int main(int argc, const char* argv[]) {
     if (argc < 2) {
-        fprintf(stderr, "syntax: %s [[-O obj-path] -O obj-path ...] .h-or-.c-or-.cpp-files\n", argv[0]);
+        fprintf(stderr, "syntax: %s [-O obj-path [-O obj-path ...]] sourcefile ...\n", argv[0]);
         return 1;
     }
     try {
-        std::vector<std::string> objPaths;
+        std::vector<string> objPaths;
         for (int i = 1; i < argc; ++i) {
             if (!strcmp(argv[i], "-O") && i + 1 < argc) {
-                std::string objPath = argv[++i];
+                string objPath = argv[++i];
                 replaceChars(objPath, '\\', '/');
                 if (!objPath.empty() && *objPath.rbegin() != '/')
                     objPath += '/';
@@ -210,7 +221,7 @@ int main(int argc, const char* argv[]) {
                 handleFile(argv[i], stdout, objPaths);
         }
     } catch (const StrError& e) {
-        e.print();
+        fprintf(stderr, "%s error: %s\n", argv[0], e.description().c_str());
         return 1;
     }
     return 0;
