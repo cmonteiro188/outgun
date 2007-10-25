@@ -944,12 +944,8 @@ void Graphics::highlight_minimap_rooms() {
     const int y1 = size_y > map_h ? y0 : y0 + static_cast<int>(yPos / map_h * minimap_h);
     xPos = positiveFmod(xPos + size_x, map_w);
     yPos = positiveFmod(yPos + size_y, map_h);
-    if (xPos == 0)
-        xPos = map_w;
-    if (yPos == 0)
-        yPos = map_h;
-    const int x2 = size_x > map_w ? xm : x0 + static_cast<int>(xPos / map_w * minimap_w) - 1;
-    const int y2 = size_y > map_h ? ym : y0 + static_cast<int>(yPos / map_h * minimap_h) - 1;
+    const int x2 = size_x > map_w ? xm : x0 + positiveModulo(static_cast<int>(xPos / map_w * minimap_w) - 1, minimap_w);
+    const int y2 = size_y > map_h ? ym : y0 + positiveModulo(static_cast<int>(yPos / map_h * minimap_h) - 1, minimap_h);
 
     const int col = colour[Colour::map_room_highlight];
     // horizontal borders
