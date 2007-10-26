@@ -360,7 +360,6 @@ public:
     void check_team_changes();
     void check_player_change_teams(int pid);
     void move_player(int f, int t);
-    void move_player_inside_team(int source, int target);
     void swap_players(int a, int b);
     void game_remove_player(int pid, bool removeClient);
     void check_fav_colors(int pid);
