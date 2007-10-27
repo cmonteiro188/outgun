@@ -337,6 +337,7 @@ void Graphics::setColors() {
     teamdcol[1] = colour[Colour::team_blue_dark];
 
     roomGraphicsChanged();
+    mapNeedsRedraw = true;
 }
 
 void Graphics::reset_playground_colors() {
@@ -2057,7 +2058,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
                        //           |  00      00      00       00     00:00 |
         break; case 2: caption1 = _("   Accuracy");
                        caption2 = _("Shots   |  Taken  Movement     Speed");
-                       //           |00000 100%  0000  000000 u  00.00 u/s   |
+                       //           |00000  100% 0000  000000 u  00.00 u/s   |
         break; case 3: caption1 = _("          Average        Tournament");
                        caption2 = _("Playtime lifetime    rank  power  score");
                        //           |00000 min   00:00    0000  00.00 -00000 |

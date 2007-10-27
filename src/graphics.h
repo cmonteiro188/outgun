@@ -109,7 +109,7 @@ private:
     Message_type msg_type;
     std::string msg_text;
     int msg_time;
-    int sender_team; // -1 for non-team messages
+    int sender_team; // -1 for non-team messages or unknown team
     bool is_highlighted;
 };
 

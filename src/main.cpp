@@ -421,7 +421,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             Colour_manager col(log);
             const string filename = wheregamedir + "graphics" + directory_separator + "colours.txt";
             col.create_default_file(filename);
-            std::cout << _("Default colours generated to $1", filename) << '\n';
+            messageBox("Outgun", _("Default colours generated to $1", filename));
             return;
         }
         else if (!strcmp(argv[i], "-play")) {

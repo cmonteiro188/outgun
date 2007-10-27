@@ -2110,7 +2110,6 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             addThreadMessage(new TM_DoDisconnect());
             break;
         }
-        char sender_team = -1;
         // This is a kludge because of compatibility.
         // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
         if (type == msg_server) {
@@ -2129,6 +2128,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 chatmsg = _("$1 decided it's time for a restart.", name);
             }
         }
+        char sender_team = -1;
         if (protocolExtensionsS2C >= 0) {
             if (type == msg_team || type == msg_normal)
                 readByte(lebuf, count, sender_team);

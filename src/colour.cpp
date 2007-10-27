@@ -98,13 +98,11 @@ void Colour_manager::init(const string& file, bool create_default_only) {
     colours.resize(Colour::colours_total);
 
     string::size_type longest_key_length = 0; // This is for nice alignment of the default colour file if that needs to be created.
-    for (unsigned si = 0, ci = 0; &*settings[si] && ci < colours.size(); si++) {
+    for (unsigned si = 0; &*settings[si]; si++)
         if (Colour_setting* s = dynamic_cast<Colour_setting*>(&*settings[si])) {
-            colours[ci] = s->col;
+            colours[s->key] = s->col;
             longest_key_length = max(longest_key_length, s->name.length());
-            ci++;
         }
-    }
 
     if (file.empty()) {
         nAssert(!create_default_only);
@@ -157,15 +155,13 @@ void Colour_manager::init(const string& file, bool create_default_only) {
                     triplet[i] *= 0x11;
             }
             bool key_found = false;
-            for (unsigned si = 0, ci = 0; &*settings[si] && ci < colours.size(); si++)
-                if (Colour_setting* s = dynamic_cast<Colour_setting*>(&*settings[si])) {
+            for (unsigned si = 0; &*settings[si]; si++)
+                if (Colour_setting* s = dynamic_cast<Colour_setting*>(&*settings[si]))
                     if (s->name == key) {
-                        colours[ci] = Colour(triplet[0], triplet[1], triplet[2]);
+                        colours[s->key] = Colour(triplet[0], triplet[1], triplet[2]);
                         key_found = true;
                         break;
                     }
-                    ci++;
-                }
             if (!key_found)
                 log("Unknown key in colours.txt: %s", key.c_str());
         }

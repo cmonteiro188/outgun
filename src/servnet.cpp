@@ -864,11 +864,10 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
 
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && i / TSIZE == team)  // only to teammates
-            if (world.player[i].used)
-                if (world.player[i].protocolExtensionsLevel >= 0)
-                    server->send_message(world.player[i].cid, lebuf, count);
-                else
-                    server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
+            if (world.player[i].protocolExtensionsLevel >= 0)
+                server->send_message(world.player[i].cid, lebuf, count);
+            else
+                server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
 
     record_message(lebuf, count);
 
