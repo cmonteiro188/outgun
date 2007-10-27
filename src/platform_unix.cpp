@@ -203,6 +203,9 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
     const char* captionConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
     const char*     msgConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
 
+    // print to console, it's more reliable than the dialog tools
+    fprintf(stderr, "%s: %s\n", captionConv, msgConv);
+
     static const int nFuncs = 2;
     static const char* func[nFuncs] = { "kdialog", "xmessage" };
     static const int iXmessage = 1;
@@ -251,8 +254,6 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
         ++lFunci;
         funci = lFunci;
     }
-    // execution of any dialog failed -> print to console
-    fprintf(stderr, "%s: %s\n", captionConv, msgConv);
     delete[] capBuf;
     delete[] msgBuf;
 }
