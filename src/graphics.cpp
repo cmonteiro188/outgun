@@ -992,7 +992,7 @@ public:
     MinimapHelper(BITMAP* buffer_, double x0_, double y0_, double plw_, double plh_, double scale_)
         : buffer(buffer_), x0(x0_), y0(y0_), plw(plw_), plh(plh_), scale(scale_) { }
 
-    void paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int color);
+    void paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint);
     pair<int, int> flagCoords(const WorldCoords& coords) const;
 
 private:
@@ -1000,8 +1000,8 @@ private:
     double x0, y0, plw, plh, scale;
 };
 
-// Paint within room (rx,ry) every pixel already of the given color with a team color or black according to which color flag or neither is nearest to it.
-void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int color) {
+// Paint within room (rx,ry) every pixel already of the given colorToPaint with a team or background color according to which color flag or neither is nearest to it.
+void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint) {
     const int xmin = static_cast<int>(x0 + plw * scale *  rx         );
     const int xmax = static_cast<int>(x0 + plw * scale * (rx + 1) - 1);
     const int ymin = static_cast<int>(y0 + plh * scale *  ry         );
@@ -1010,7 +1010,7 @@ void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*
     for (int y = ymin; y <= ymax; ++y) {
         const double roomy = (y + 1 - ymin) / scale;
         for (int x = xmin; x <= xmax; ++x) {
-            if (getpixel(buffer, x, y) != color)
+            if (getpixel(buffer, x, y) != colorToPaint)
                 continue;
             const double roomx = (x + 1 - xmin) / scale;
             double dist2[2] = { INT_MAX, INT_MAX };
@@ -1023,7 +1023,7 @@ void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*
             else if (diff > 2)
                 putpixel(buffer, x, y, teamColor[1]);
             else
-                putpixel(buffer, x, y, color);  // don't paint about equally distant pixels
+                putpixel(buffer, x, y, backgroundColor);  // don't paint about equally distant pixels
         }
     }
 }
@@ -1129,7 +1129,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
             if (onWall) {
                 // The normal area-connected-to-the-flag paint algorithm can't be used for any flags in this case.
                 // Instead, paint every floor pixel in the room with the nearest flag's color.
-                helper.paintByFlags(rx, ry, teamFlags, teamdcol, colour[Colour::map_ground]);
+                helper.paintByFlags(rx, ry, teamFlags, teamdcol, colour[Colour::map_ground], colour[Colour::map_ground]);
                 continue;
             }
             // Spread paint from each flag pos to all reachable space in the room (by floodfill).
@@ -1161,7 +1161,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
                             if (getpixel(buffer, coords.first, coords.second) == tempColor)
                                 problemFlags[t].push_back(*fj);
                         }
-                        helper.paintByFlags(rx, ry, problemFlags, teamdcol, tempColor);
+                        helper.paintByFlags(rx, ry, problemFlags, teamdcol, colour[Colour::map_ground], tempColor);
                     }
                     else    // just repaint the questionable area with the final color
                         floodfill(buffer, coords.first, coords.second, teamdcol[t]);
