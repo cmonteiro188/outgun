@@ -522,4 +522,8 @@ void set_trans_mode(int alpha) {
         solid_mode();
 }
 
+int makecolBounded(int r, int g, int b) {
+    return makecol(bound(r, 0, 255), bound(g, 0, 255), bound(b, 0, 255));
+}
+
 #endif // !DEDICATED_SERVER_ONLY

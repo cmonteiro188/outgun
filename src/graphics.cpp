@@ -1255,7 +1255,7 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDir
         const int r = colour[Colour::player_hit].red() + add;
         const int g = colour[Colour::player_hit].green() + add;
         const int b = colour[Colour::player_hit].blue() + add;
-        pc1 = pc2 = makecol(r, g, b);
+        pc1 = pc2 = makecolBounded(r, g, b);
     }
     else if (item_power && static_cast<int>(fmod(time * 10, 2))) {
         pc1 = colour[Colour::player_power_team];

@@ -89,4 +89,6 @@ inline void textout_right_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& t
     textout_right_ex(bmp, f, text.c_str(), x, y, color, bg);
 }
 
+int makecolBounded(int r, int g, int b);
+
 #endif  // INCALLEG_H_INC
