@@ -627,6 +627,20 @@ public:
         }
         // ==== nao eh de client conhecido: aceita soh alguns special packets ====
 
+        #ifdef LEETNET_DATA_LOG
+        if (datalog) {
+            MutexLock ml(datalogMutex);
+            static const char readModeMarker = 'R';
+            fwrite(&readModeMarker, sizeof(char), 1, datalog);
+            double currTime = get_time();
+            fwrite(&currTime, sizeof(double), 1, datalog);
+            const int clid = -1;
+            fwrite(&clid, sizeof(int), 1, datalog);    // which client
+            fwrite(&length, sizeof(int), 1, datalog);
+            fwrite(packet, 1, length, datalog);
+        }
+        #endif
+
         //se nao for special packet, nao aceita
         if (packid != 0) {  //special packet
             log(" NOT SPECIAL PACKET");
