@@ -48,6 +48,7 @@ string Language::get_text(const string& text) const {
 bool Language::load(const string& lang, LogSet& log) {
     texts.clear();
     lang_code = "en";
+    loc = "C";
     if (lang == lang_code)  // English - no need to load the same phrases as in the code.
         return true;
     const string dir = wheregamedir + "languages" + directory_separator;
@@ -67,14 +68,14 @@ bool Language::load(const string& lang, LogSet& log) {
         string key, value;
         getline_skip_comments(def, key);
         getline_skip_comments(transl, value);
-        if (def && transl) {
-            if (key == "locale")
-                loc = value;
-            else
-                texts[key] = value;
-        }
-        else
+        if (!def || !transl)
             break;
+        if (!value.compare(0, 9, "@MISSING@"))
+            continue;
+        if (key == "locale")
+            loc = value;
+        else
+            texts[key] = value;
     }
     if (def || transl) {
         log.error("Language file for '" + lang + "' is invalid, maybe for another version of Outgun. " +

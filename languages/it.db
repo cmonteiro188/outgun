@@ -1,0 +1,488 @@
+; Original copyright © 2004, 2005, 2006, 2007 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2006, 2007 Alessandro Ferrentino "Lo Scassatore"
+
+          Average        Tournament##                       Torneo
+         Flags          Carriers  Carry##         Bandiere         Carrier  Possesso
+     Frags    total/in-row/most##     Frags    totali/in-row/magg.
+   Accuracy##   Accuratezza
+ Nr Vote Title                Size  Author## Nr Voti Titolo             Dimensioni       Autore
+$1 CAPTURED THE BLUE FLAG!##$1 CATTURA LA BANDIERA BLU!
+$1 CAPTURED THE RED FLAG!##$1 CATTURA LA BANDIERA ROSSA!
+$1 CAPTURED THE WILD FLAG!##$1 CATTURA LA BANDIERA SELVAGGIA!
+$1 DROPPED THE BLUE FLAG!##$1 LASCIA LA BANDIERA BLU!
+$1 DROPPED THE RED FLAG!##$1 LASCIA LA BANDIERA ROSSA!
+$1 DROPPED THE WILD FLAG!##$1 LASCIA LA BANDIERA SELVAGGIA!
+$1 GOT THE BLUE FLAG!##$1 HA LA BANDIERA BLU!
+$1 GOT THE RED FLAG!##$1 HA LA BANDIERA ROSSA!
+$1 GOT THE WILD FLAG!##$1 HA LA BANDIERA SELVAGGIA!
+$1 Hz##$1 Hz
+$1 LOST THE BLUE FLAG!##$1 PERDE LA BANDIARA BLU!
+$1 LOST THE RED FLAG!##$1 PERDE LA BANDIERA ROSSA!
+$1 LOST THE WILD FLAG!##$1 PERDE LA BANDIERA SELVAGGIA!
+$1 RETURNED THE BLUE FLAG!##$1 RICONQUISTA LA BANDIERA ROSSA!
+$1 RETURNED THE RED FLAG!##$1 RICONQUISTA LA BANDIERA BLU!
+$1 and $2 swapped teams.##$1 e $2 si scambiano di squadra.
+$1 capt##$1 catt.
+$1 changed name to $2.##$1 cambia il nome a $2.
+$1 decided it's time for a map change.##$1 ha deciso che è ora di cambiare mappa.
+$1 decided it's time for a restart.##$1 ha deciso che è ora di re-iniziare.
+$1 defends the blue carrier.##$1 difende il portabandiera blu.
+$1 defends the blue flag.##$1 difende la bardiera blu.
+$1 defends the red carrier.##$1 difende il portabandiera rosso.
+$1 defends the red flag.##$1 difende la bandiera rossa.
+$1 entered the game.##$1 entra nel gioco.
+$1 has BANNED you from this server for $2!##$1 ti ha BANNATO da questo server per $2!
+$1 has banned $2 (disconnect in 10 seconds).##$1 ha bannato $2 (si disconnetterà tra 10 secondi).
+$1 has kicked $2 (disconnect in 10 seconds).##$1 ha cacciato $2 (si disconnetterà tra 10 secondi).
+$1 has muted $2.##$1 ha concesso di parlare a $2.
+$1 has unmuted $2.##$1 ha zittito $2.
+$1 is on a killing spree!##$1 sta facendo una strage!
+$1 left the game with $2 frags.##$1 esce dal gioco con $2 frags.
+$1 min##$1 min
+$1 moved to blue team.##$1 va nella squadra blu.
+$1 moved to red team.##$1 va nella squadra rossa.
+$1 or $2##$1 o $2
+$1 passwords removed.##$1 password rimosse.
+$1 players in the tournament.##$1 giocatori nel torneo.
+$1 received a mortal blow from $2.##$1 ha ricevuto un corpo mortale da $2.
+$1 received a mortal blow from teammate $2.##$1 ha ricevuto un corpo mortale da un compagno $2.
+$1 received a mortal blow.##$1 ha ricevuto un corpo mortale.
+$1 s##$1 s
+$1 was choked by $2.##$1 è stato bruciato da $2.
+$1 was choked by teammate $2.##$1 è stato bruciato da un compagno $2.
+$1 was choked.##$1 si è bruciato.
+$1 was nailed by $2.##$1 è stato ucciso da $2.
+$1 was nailed by teammate $2.##$1 è stato ucciso da un compagno $2.
+$1 was nailed.##$1 è stato ucciso.
+$1% of rooms##$1% di stanza
+$1's killing spree was ended by $2.##la strage di $1 e stata fermata da $2.
+$1's killing spree was ended.##la strage di $1 e stata fermata.
+$1-bit##$1-bit
+$1/$2p $3k/s v$4 port:$5##$1/$2p $3k/s v$4 porta:$5
+'$1', given in master.txt is not a valid IP address.##'$1', dato in master.txt non è un valido indirizzo IP.
+(All players needed for $1 more seconds.)##(Tutti i giocatori hanno bisogno di altri $1 secondi.)
+(unnamed theme)##(tema non ammesso)
+* Maximum: $1##* Massima: $1
+* Minimum: $1##* Minima: $1
+*** $1/$2 votes for mapchange.##*** $1/$2 voti per cambio mappa.
+*** 30 seconds remaining##*** 30 secondi rimasti
+*** Extra-time out - CTF game over##*** Tempo extra - CTF gioco finito
+*** Five minutes remaining##*** Cinque minuti rimasti
+*** Idle kick: move or be kicked in $1 seconds.##*** Idle kick: muoviti o verrai cacciato in $1 secondi.
+*** Normal time out - extra-time started##*** Tempo scatuto - inizia tempo extra 
+*** One minute remaining##*** un minuto rimasto
+*** Time out - CTF game over##*** Tempo scaduto - CTF gioco finito
++ $1 more##+ $1 più
+, or 0##, o 0
+-cport X or -cport X:Y: X and Y must be in the range of 1 to 65535.##-cport X o -cport X:Y: X e Y devono essere comresi tra 1 e 65535 .
+-cport X:Y: Y must be greater than X.##-cport X:Y: Y deve essere maggiore di X.
+-cport must be followed by a space and either a port number or minport:maxport.##-cport deve essere seguito da uno spazio e il numero porta o minporta:maxporta.
+-debug X: X must be in the range of 0 to 2.##-debug X: X deve essere compreso tra 0 e 2.
+-debug must be followed by a space and a number.##-debug deve essere seguito da uno spazio e un numero.
+-fps X: X must be in the range of 1 to 1000.##-fps X: X deve essere compreso tra 0 e 1000.
+-fps must be followed by a space and a number.##-fps deve essere seguito da uno spazio e un numero.
+-ip X: X must be a valid IP address without :port.##-ip X: X deve essere un IP valido senza porta.
+-ip must be followed by a space and an IP address.##-ip deve essere seguito da uno spazio e un indirizzo IP.
+-mappic can't be combined with other command line options.##-mappic non può essere combinato con altri comandi.
+-maxp X: X must be an even number in the range of 2 to $1.##-maxp X: X deve essere compreso tra 2 e $1.
+-maxp must be followed by a space and a player count.##-maxp deve essere seguito da uno spazio e il limite giocatori.
+-port X: X must be in the range of 1 to 65535.##-port X: X deve essere compreso tra 1 e 65535.
+-port must be followed by a space and a port number.##-port deve essere seguito da uno spazio e un numero porta.
+-sport X:Y: X and Y must be in the range of 1 to 65535.##-sport X:Y: X e Y devono essere compresi tra 1 e 65535.
+-sport X:Y: Y must be greater than X.##-sport X:Y: Y deve essere maggiore di X.
+-sport must be followed by a space and minport:maxport.##-sport deve essere seguito da uno spazio e minporta:maxporta.
+0 or 1##0 o 1
+1 password removed.##1 password rimossa.
+<no background>##<Nessuno sfondo>
+<no theme>##<Nessun tema>
+<no themes found>##<Nessun tema trovato>
+Active controls##Controlli attivi
+Add server##Aggiungi server
+Add to favorite list##Aggiungi a preferiti
+Add to public serverlist##Aggiungi alla lista dei server pubblici
+Admin shell: Can't accept connection.##Casella admin: Impossibile accettare connessione.
+Admin shell: Can't open socket on port $1.##Casella admin: Impossibile aprire il socket alla porta $1.
+Admin shell: Can't set socket to listen mode.##Casella admin: Impossibile mettere il socket nella config per l'ascolto.
+Admin shell: read failed. Reason: $1##Casella admin: Lettura fallita. Motivo: $1
+Admin shell: sending response failed. Reason: $1##Casella admin: Invio risposta fallito. Motivo: $1
+Admin shell: unprintable characters, message ignored.##Casella admin: Carattere non stampabile, messaggio ingorato.
+Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alpha bitmaps deve essere 8-bit immagine grayscale; $1 è $2-bit.
+Alternative page flipping method##Metodo alternativo page flipping
+Apply changes##Applica cambiamenti
+Arrow keys in statistics##Tasti freccia per le statistiche
+Autodetect IP##Cerca IP automaticamente
+Automatic bug reporting##Segnalazione di errori automatica
+BLUE TEAM WINS##LA SQUADRA BLU VINCE
+Background theme##Tema sfondo
+Balance teams##Equilibra squadre
+Belgium##Belgio
+Blue Team##Blu
+Brazil##Brasile
+Bug report policy##Segnalazione di errori
+CAPTURE $1 FLAGS TO WIN THE GAME.##CATTURA $1 BANDIERE PER VINCERE.
+CHANGE##CAMBIA
+CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2##CTF GIOCO FINITO - PUNTEGGIO FINALE: ROSSI $1 - BLU $2
+Can't add '$1' to map rotation.##Impossibile aggiungere '$1' alla rotazione della mappa.
+Can't change max_players while players are connected.##Impossibile cambiare il numero massimo di giocatori finchè sono connessi.
+Can't connect to master server. $1##Impossibile connetersi al master. $1
+Can't create new thread. Insufficient system resources.##Impossibile creare nuovo thread. Insufficienti risorse di sistema.
+Can't init HawkNL. $1##Impossibile inizializzare HawkNL. $1
+Can't load: error in map '$1'.##Impossibile caricare: errore nella mappa '$1'.
+Can't open $1 for writing.##Impossibile aprire $1 per scrittura.
+Can't open game mod file '$1'.##Impossibile aprire il mod file '$1'.
+Can't open socket for refreshing servers. $1##Impossibile aprire il socket per aggiornare il server. $1
+Can't open socket to connect to master server. $1##Impossibile aprire il socket per connettersi al master. $1
+Can't open socket.##Impossibile aprire il socket.
+Can't read '$1'.##Impossibile leggere '$1'.
+Can't save player password to '$1'!##Impossibile salvare la password giocatore come '$1'!
+Can't set $1 to '$2' - expecting $3.##Impossibile mettere $1 a '$2' - specificare $3.
+Can't set server to run in the background.##Impossibile setteare il server sullo sfondo.
+Can't start listen server.##Impossibile iniziare ad ascoltare i server.
+Can't start network server on port $1.##Impossibile lanciare la rete server sulla porta $1.
+Can't start the client.##Impossibile lanciare il client.
+Can't start the server.##Impossibile lanciara il server.
+Can't write '$1'.##Impossibile scrivere '$1'.
+Canada (French)##Canada (Francese)
+Cancel##Cancella
+Capture limit##Limite catture
+Captures##Catture
+Change language##Cambia lingua
+Color depth##Colori
+Command##Comando
+Connected to $1 ($2)##Connesso a $1 ($2)
+Connection refused.##Connessione rifiutata.
+Connection timed out.##Connessione in timeout.
+Contacting the servers...##Sto contanttando dei server...
+Continuous textures between rooms##Texture continua tra le stanze
+Controls##Controlli
+Could not save map pictures to the directory 'mappic'.##Le immagini potrebbero non essere salvate in 'mappic'.
+Could not save screenshot to $1.##Lo screenshot salvato come $1 potrebbe non essere stato salvato.
+Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.##Impossibilie inizializzare risoluzione $1×$2×$3 in $4 modo; convertito a $5.
+Couldn't initialize resolution $1×$2×$3 in any mode.##Impossibilie inizializzare risoluzione $1×$2×$3 in nessun modo.
+Critical error##Errore critico
+Current refresh rate##Aggiornamento rate corrente
+Czech Republic##Repubblica Ceca
+Deaths##Morti
+Denmark##Danimarca
+Disappeared players on minimap##Evidenzia bandiere recuperate e pers
+Disconnect##Disconnetti
+Disconnecting in $1...##Ti disconnetti tra $1...
+Downloading map "$1" (CRC $2)...##Scaricamento della mappa "$1" (CRC $2)...
+Drop power-ups##Lascia potenziamenti
+Dvorak##Dvorak 
+ERRORS:$1##ERRORORI:$1
+ESC:quit##ESC:esci
+EXIT##ESCI
+Enable joystick control##Attiva joystick per il controllo
+Energy##Energia
+English##italiano
+Error sending##Errore di invio
+Error writing to '$1'.##Errore nello scrivere '$1'.
+Error: server rejected##Errore: il server non ha accettato
+Errors##Errori
+Exit Outgun##Esci da Outgun
+Extra-time##Tempo extra
+FPS limit##Limite FPS
+FPS:$1##FPS:$1
+Failed##Fallito
+Favorite colors##Colori preferiti
+File download: Can't open '$1' for writing.##File download: Impossibile aprire '$1' per scrittura.
+Finland##Finlandia
+Flags dropped##Bandiere lasciate
+Flags returned##Bandiere riprese
+Flags taken##Bandiere prese
+Font##Carattere
+France##Francia
+Friendly fire##Fuoco da amico
+GAME TIED##LA PARTITA E PARI
+Game options##Opzioni gioco
+Germany##Germania
+Get random name##Nome casuale
+Get server list at startup##Mostra lista server all'inizio
+Getting server list: connecting...##Recupero lista server: in connessione...
+Getting server list: receiving...##Recupero lista server: in ricezione...
+Graphic options##Opzioni grafiche
+Health##Salute
+Help##Aiuto
+Highlight returned and dropped flags##Giocatori non visibili sulla minimappa
+Hit accuracy##Mira
+IP address##Indirizzo IP
+IP address            Ping D Players Vers. Host name##Indirizzo IP          Ping D Giocatori Vers. Nome Host
+IP address without :port##indirizzo IP senza porta
+IP addresses:##Indirizzo IP:
+Inactive##Inattivo
+Incorrect data received from master server.##Dati incorretti ricevuti dal master.
+Information##Informazione
+Initializing...##Inizializzazione...
+Internal error##Errore interno
+Internal error (client misbehaved).##Errore interno (client "incasinato").
+Invalid IP address.##Indirizzo IP non valido.
+Invalid ban command (IP address) in auth.txt: "$1"##Invalido comando di ban (indirizzo IP) in auth.txt: "$1"
+Invalid line (no name) in auth.txt: "$1"##Invalida linea (nessun nome) in auth.txt: "$1"
+Invalid map line: $1##Linea mappa $1 non valida
+Invalid response received##Risposta non valida
+Invalid syntax in client.cfg ("$1").##Invalida sintassi in client.cfg ("$1").
+Invalid user command (no password) in auth.txt: "$1"##Invalido comando (nessuna password) in auth.txt: "$1"
+Invisible shadow##Ombra invisibile
+Italy##Italia
+Joystick axes##Assi joystick
+Joystick buttons##Bottoni joystick
+Joystick buttons (0 = disabled)##Bottoni joystick (0 = disabilitato)
+Keyboard layout##Layout tastiera
+Kills##Uccisi
+Label '$1' not found: $2##Label '$1' non trovato: $2
+Label line not allowed in label block: $1##Linea label non permaessa : $1
+Lag prediction##Predizione lag
+Lag prediction amount##Quantità predizione lag
+Language##Lingua
+Less transparency effects##Effetto trasparenza
+Loading map: $1 bytes##Caricamento mappa: $1 byte
+Local server##Server locale
+Local server (running)##Server locale (attivo)
+Logged in##Loggato
+Logged in; sent to server##Loggato; spedito al server
+Logged in; server accepted##Loggato; il server ha accettato
+Login failed: check password##Login fallito: controllare password
+MAP##MAPPA
+Manually enter IP##Inserimento manuale di IP
+Map info mode##Modalità informazione mappa
+Map is missing a width, height or title.##Alla mappa manca altezza, larghezza o titolo.
+Map picture saver: Can't save map picture to '$1'.##Map picture saver: Impodssibile salvare l'immagine mappa come '$1'.
+Map picture saver: Map '$1' is not a valid map file.##Salvatore immagini mappa: Mappa '$1' non è un valido file mappa.
+Master server unavailable##Server master non disponibile
+Master talker: (Quit) Can't connect to master server.##Master: (Uscita) Impossibile connettersi al master.
+Master talker: (Quit) Can't open socket to connect to master server.##Master: (Uscita) Impossibile aprire il socket per connettersi al master.
+Master talker: (Quit) Error sending info: $1##Master: (Uscita) Errore nell'invio info: $1
+Master talker: (Quit) Error while waiting for a response: $1##Master: (Uscita) Errore in attesa di risposta: $1
+Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log.##Master: (Uscita) Errore inaspettato nell'invio di informazioni alla lista master. Vedi log/master.log.
+Master talker: Can't open socket to connect to master server.##Master: Aprire il socket per connettersi al master.
+Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument.##Master: Errore inaspettato nell'invio di informazioni alla lista master. Vedi log/master.log. Per risolvere il probleme rendere il server privato.
+Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update.##Master: Hai una versione di outgun decrepata. Il server non l'accetta. Per favore aggiornala.
+Maximum powerups##Massimo potenziamento
+Maximum weapon level##Massimo livello di arma
+May be heavy packet loss,##Forse è stato perso qualche pacchetto,
+Minimum powerups##Minimo potenziamento
+Movement##Movimenti
+Moving stick##Muovi stick
+Name##Nome
+Name and passwords##Nomi e password
+New version: $1##Nuova versione: $1
+No IP network.##Nessuna rete IP.
+No help found. It should be in $1##Nessun aiuto trovato. Potrebbe trovarsi in $1
+No maps for rotation.##Nessuna mappa per rotazione.
+No password set##Nessuna password immessa
+No passwords found.##Nessuna password trovata.
+No reason given.##Nessuna ragione data.
+No response##Nessuna risposta
+No response from server.##Il server non risponde.
+Norway##Norvegia
+OK##OK
+One hit shield##Un urto 
+Options##Opzioni
+Outgun - Saving map pictures##Outgun - Salvataggio immagini mappe
+Ping     Capt Kills      Deaths Suicides##Ping     Catt Uccisi    Morti     Suicidi
+Play on the server##Gioca sul server
+Player collisions##Collisioni tra giocatori
+Player password for $1##Password giocatore per $1
+Playtime lifetime    rank  power  score##TempoGioc. Tempovita  pos potenza punteggio
+Please close and restart Outgun to complete the change of language.##Chiudere e riavviare Outgun per poter visualizzare il cambiamento di lingua.
+Poland##Polonia
+Portugal##Portogallo
+Possible thread priorities (-prio <val>):##Possibile priorità thread (-prio <val>):
+Power##Potenza
+Powerup add time##Aggiungi tempo al potenziamento
+Powerup max time##Massimo tempo di potenziamento
+Powerup time##Tempo potenziamento
+Powerups##Potenziamenti
+Prefer main theme background##Tema principale sullo sfondo
+Protocol mismatch. Server: $1, client: $2.##Protocollo invalido. Server: $1, client: $2.
+RED TEAM WINS##LA SQUADRA ROSSA VINCE
+Red Team##Rossa
+Redefined map author.##Ridefinire l'autore.
+Redefined map height.##Ridefinire altezza.
+Redefined map title.##Ridefinire titolo.
+Redefined map width.##Ridefinire larghezza.
+Refresh servers##Aggiorna server
+Refresh status##Aggiorna status
+Registration status##Stato registrazione
+Remove server-specific player passwords##Rimuovi le password del giocatore per il server
+Room line not allowed in label block: $1##Linea della stanza non permessa: $1
+Run   ##Corri  
+Running##Attivo
+Russia##Russia
+SCORE $1 - $2##PUNTEGGIO $1 - $2
+SORVETE!##GELATATO!
+Save game messages##Salva messaggi di gioco
+Save game statistics##Salva le stratistiche di gioco
+Save password##Salva password
+Saved map pictures to the directory 'mappic'.##Immagini mappe salvate in directory 'mappic'.
+Saved screenshot to $1.##Screenshot salvato come $1.
+Say##Dici
+Say team##Dici a squadra
+Screen mode##Modalità schermo
+Screen size##Dimensioni schermo
+See the 'log' directory for more information.##Garda la cartella 'log' per maggiori informazioni.
+Sending login...##Invio login...
+Server list##Lista server
+Server map list##Lista mappe del server
+Server not responding##Il server non risponde
+Server password##Password server
+Server port##Porta del server
+Server was shut down.##Il server è stato spento.
+Shadow##Ombra
+Shoot ##Spara  
+Shots##Spari
+Shots   | Taken  Movement     Speed##Spari   | Presi  Movimento  Velocità
+Shots taken##Colpi a segno
+Show favorite servers##Mostra server preferiti
+Show flag messages##Mostra messaggi bandiera
+Show killing messages##Mostra messaggi uccisione
+Show player names##Mostra nomi giocatori
+Show server info when connected##Mostra le informazioni del server se connesso
+Show stats after the round##Mostra le statistiche dopo il round
+Slovakia##Slovacchia
+Socket error##Errore nel Socket
+Sound options##Opzioni suono
+Sounds enabled##Suono attivo
+Spain##Spagna
+Start server##Lancia server
+Stats screen alpha##Stato alpha screen
+Status##Stato
+Stay dead when in a menu at round start##Rimani morto se sei in un menu all'inizio del gioco
+Stop server##Ferma server
+Strafe##Scivola
+Suicides##Suicidi
+Sweden##Svezia
+Switch deathbringer##Cambia esplosivo
+Switzerland##Svizzera
+Syntax error in gfxmodes.txt, line '$1'.##Errore di sintassi in gfxmodes.txt, linea '$1'.
+TEAMS##SQUADRA
+TIME LIMIT IS $1 MINUTES.##IL TEMPO LIMITE E' $1 MINUTI.
+Take part in the tournament##Prendi parte al torneo
+Team $1, flag $2 on the wall.##Squadra $1, bandiera $2 sul muro.
+Team $1, spawn point $2 on the wall.##Squadra $1, punto spawn $2 sul muro.
+Team power##Potenza squadra
+Team stats##Statistiche squadra
+The admin##Amministratore
+The directory '$1' was not found and could not be created.##La directory '$1' non esiste e non può essere creata.
+The given priority $1 isn't within system limits. Run with -info for more information.##Le date priorità $1 sono senza limiti di sistema. Lanciare con -info per maggiori informazioni
+The server is full.##Il server è pieno.
+Theme##Tema
+This map is $1 ($2 of $3).##Questa mappa è $1 ($2 di $3).
+This map is broken. There is an instantly capturable flag. Avoid it.##Questa mappa ha un errore, c'è una bandiera incatturabile. Evitala.
+This map is invalid: instant flag capture is possible.##Questa mappa non è valida, è possibile catturare una bandiera in un istante.
+This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Questo risulta essere un bug di Outgun. Per aiutarci a risolverlo, per favore spedisci assert.log e stackdump.bin dalla cartella 'log' e descrivi ciò che stavi facendo ad outgun@mbnet.fi
+Time limit##Tempo limite
+Too much talk. Chill...##Parli troppo. Stai un po' zitto...
+Tournament password##Password per tornei
+Traffic: $1 B/s##Traffico: $1 B/s
+Translation $1 can't be read.##Traduzione $1 illeggibile.
+Trying to connect...##Connessione in corso...
+Turbo##Turbo
+Two identical label names not allowed: $1##Due label con nome uguale non sono ammessi: $1
+Underline master-authenticated players##Sottolinea i giocatori autenticati master
+Underline server-authenticated players##Sottolinea i giocatori autenticati da un server
+United Kingdom##Regno Unito
+United States##Stati Uniti
+Unknown command-line argument '$1'.##Sconosciuta linea di comando '$1'.
+Unknown data in client.cfg ("$1").##dati sconosciuti in client.cfg ("$1").
+Unknown reason code ($1).##Codice ragione sconosciuto ($1).
+Unrecognized command "$1" in auth.txt##Comando incompreso "$1" in auth.txt
+Unrecognized gamemod setting: '$1'.##Opzioni gameod '$1' non comprensibili.
+Unrecognized map line: $1##Linea non riconosciuta: $1
+Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Modo inusuale in gfxmodes.txt: $1×$2×$3 (dovrebbe essere minimo 320×200 con bit 16, 24 o 32).
+Update server list##Aggiorna lista server
+Updating your tournament score failed!##L'aggiornamento dei punteggi del torneo è fallito!
+Use keypad for moving##Usa keypad per movimento
+Use page flipping##Usa page flipping
+VIROU##SEI
+Vote map number##Vota la mappa N°
+Waiting for response...##Attesa di risposta...
+Waiting game start - next map is##Prepararsi ad iniziare - la prossima mappa è
+Weapon $1##Arma $1
+Website thread: (Quit) Can't connect to server website.##Website thread: (Uscita) Impossibile connettersi al website.
+Website thread: (Quit) Can't open socket to connect to server website.##Website thread: (Uscita) Impossibile aprire il socket per connettersi al website.
+Website thread: Can't open socket to connect to server website.##Website thread: Impossibile aprire il socket per connettersi al website.
+Width and height of textures must be powers of 2; floor texture $1 is $2×$3.##Larghezza e altezza delle texture deve essere potenza di 2; texture pavimento $1 è $2×$3.
+Width and height of textures must be powers of 2; wall texture $1 is $2×$3.##Larghezza e altezza delle texture deve essere potenza di 2; texture muro $1 è $2×$3.
+Windowed mode##Modalità a finestre...
+Wrong player password.##Password giocatore errata.
+Wrong server password.##Password server errata.
+You are banned from this server.##Sei stato bannato dal server.
+You are being kicked from this server by $1!##Sei stato cacciato dal server da $1!
+You are muted. You can't send messages.##Sei stato zittito. Non puoi mandare messaggi.
+You have been disconnected.##Sei stato disconnesso.
+You have been muted by $1 (you can't send messages).##Sei stato zittito da $1 (non puoi mandare messaggi).
+You have been unmuted (you can send messages again).##Ti concedono di parlare (puoi mandare messaggi ora).
+You were kicked for being idle.##Sei stato cacciato per inattività.
+You were kicked.##Sei stato cacciato.
+Your vote has no effect until you vote for a specific map.##Il tuo voto non avrà effetto finche non voti una mappa specifica.
+a real number##un decimale
+a real number or 'x %' with x 0 or greater##un decimale o 'x %' con x 0 o maggiore
+a real number, at least $1##un decimale, al minimo $1
+a real number, at most $1##un decimale, at massimo $1
+a real number, between $1 and $2, inclusive##un decimale, tra $1 e $2, incluso
+administrator##amministratore
+all messages##tutti i messaggi
+an even integer between 2 and $1##un intero tra 2 e $1
+an integer##un intero
+an integer between 0 and $1, or 'n %' with n 0 or greater##un intero tra 0 e $1, o 'n %' con n 0 o maggiore
+an integer, at least $1##un intero, al minimo $1
+an integer, at most $1##un intero, at massimo $1
+an integer, between $1 and $2, inclusive##un intero, tra $1 e $2, incluso
+backbuffered fullscreen##Schermo intero mod. "backbuffered"
+change stats view##cambia visualizzazione statistiche
+chat only##solo messaggi di chat
+complete##completo
+config/language.txt can't be written.##config/language.txt non può essere letto.
+day##giorno
+days##giorni
+default##predefinito
+disabled##disabilitato
+down##giu
+fade out##svanire
+flipped fullscreen##Schermo intero mod. "flipped"
+hide early##sparisce subito
+hide late##sparisce tardi
+hour##ora
+hours##ore
+in $1 B/s, out $2 B/s##dentro $1 B/s, fuori $2 B/s
+invalid##invalido
+left##sinistra
+locally authorized##autorizzato in locale
+master auth pending##in attesa di autorizzazione master
+master authorized##master autorizzato
+minimal##minimo
+minute##minuto
+minutes##minuti
+move player##sposta giocatore
+no response##Nessuna risposta
+no tournament login##nessun login per torneo
+none##niente
+not recording##non registrando
+one of no, balance, and shuffle##uno of no, bilanciato, e sbilanciato
+one of no, normal, and special##uno of no, normale, e speciale
+or the server disconnected.##o il server è disconnesso.
+pings##pings
+players##giocatori
+private##privato
+recording##registrando
+right##destra
+run##corri
+second##secondo
+seconds##secondi
+shoot##spara
+special##speciale
+strafe##scivola 
+taken dropped returned   killed    time##prese lasciate  riprese   Uccisi    tempo
+teams##squadre
+unknown##sconosciuto
+unknown ($1)##sconosciuto ($1)
+up##su
+week##settimana
+weeks##settimane
+will not record##non sarà registrato
+will record##sarà registrato
+windowed##A finestre
+year##anno
+years##anni
