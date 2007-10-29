@@ -832,7 +832,7 @@ public:
     std::vector<Flag> wild_flags;   // both teams can capture these (team ID is 2)
 
     Rocket rock[MAX_ROCKETS];
-    Powerup item[MAX_PICKUPS];
+    Powerup item[MAX_POWERUPS];
 
     PhysicalSettings physics;
 
@@ -991,7 +991,7 @@ class ServerWorld : public WorldBase {
 
     NLubyte getFreeRocket();    // may give an existing rocket to overwrite if the table is full
     bool doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const;
-    void drop_pickup(const ServerPlayer& player);
+    void drop_powerup(const ServerPlayer& player);
     void drop_worst_powerup(ServerPlayer& player);
 
     void regenerateHealthOrEnergy(ServerPlayer& pl);
@@ -1039,6 +1039,7 @@ public:
     double get_frame() const { return frame; }
 
     // server specific functions
+    void start_game();
     void reset_time() { map_start_time = frame; }
     void respawnPlayer(int pid, bool dontInformClients = false);
     void printTimeStatus(LineReceiver& printer);
@@ -1048,9 +1049,9 @@ public:
     void damagePlayer(int target, int attacker, int damage, DamageType type);
     void removePlayer(int pid);
     void suicide(int pid);
-    void respawn_pickup(int p);
-    void check_pickup_creation(bool instant);
-    void game_touch_pickup(int p, int pk);
+    void respawn_powerup(int p);
+    void check_powerup_creation(bool instant);
+    void game_touch_powerup(int p, int pk);
     bool check_flag_touch(const Flag& flag, int px, int py, double x, double y);
     void game_player_screen_change(int p);
 

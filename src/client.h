@@ -290,6 +290,7 @@ class Client : public ClientInterface {
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
+    bool extra_time_running;
     #endif
     NLbyte remove_flags;
 

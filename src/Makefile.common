@@ -69,7 +69,7 @@ ifdef WITH_PNG
 endif
 LEETNET_OBJ_NAMES = ConditionVariable.o Mutex.o rudp.o client.o server.o Time.o Timer.o dlog.o
 
-RELAY_OBJ_NAMES = globals.o relay.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
+RELAY_OBJ_NAMES = tools/relay.o globals.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
 MAKEDEP_OBJ_NAMES = tools/makedep.o
 MON_OBJ_NAMES = tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o $(PLATFORM_OBJ_NAMES)
 

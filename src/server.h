@@ -326,7 +326,7 @@ class Server {
 
     void start_recording();
     void stop_recording();
-    void clear_recording();
+    void delete_recording();
     void record_init_data();
 
 public:
@@ -340,6 +340,7 @@ public:
     void ctf_game_restart();
     void simulate_and_broadcast_frame();
     void server_think_after_broadcast();
+    bool game_running() const { return !gameover; }
 
     int get_player_count() const { return network.get_player_count(); }
     void mutePlayer(int pid, int mode, int admin);

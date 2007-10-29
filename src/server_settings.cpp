@@ -342,7 +342,7 @@ void Server::SettingManager::commit(bool reload) {
 
     world.setConfig(worldConfig, pupConfig);
     if (reload)
-        world.check_pickup_creation(true);
+        world.check_powerup_creation(true);
 
     server.check_bots = true;
     for (int i = 0; i < server.maxplayers; i++)

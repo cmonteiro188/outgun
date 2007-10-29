@@ -135,7 +135,7 @@ enum Connect_rejection_reason {
 };
 
 enum Relay_data_code {
-    relay_data_frames,
+    relay_data_frame,
     relay_data_game_start
 };
 

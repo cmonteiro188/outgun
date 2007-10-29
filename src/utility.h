@@ -74,58 +74,73 @@ template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits
 
 template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) { rotateRight(val, -bits); }
 
-// Returns the current time in the standard format.
+/// Returns the current time in the standard format.
 std::string date_and_time();
 
-// Get a verbal approximation of the given time interval
+/// Get a verbal approximation of the given time interval
 std::string approxTime(int seconds);
 
-// UTF-8 mode for Linux
+/// UTF-8 mode for Linux
 extern bool utf8_mode;
+
+/// Check if the command line is UTF-8
 void check_utf8_mode();
 
-// Convert string to upper/lower case.
+/// Convert string to uppercase.
 std::string toupper(std::string str);
+
+/// Convert string to lowercase.
 std::string tolower(std::string str);
 
-// Convert Latin 1 character to upper/lower case.
+/// Convert Latin 1 character to upper case.
 unsigned char latin1_toupper(unsigned char c);
+
+/// Convert Latin 1 character to lower case.
 unsigned char latin1_tolower(unsigned char c);
 
+/// Convert character from Latin 1 encoding to UTF-8 encoding
 std::string latin1_to_utf8(unsigned char c);
+
+/// Convert string from Latin 1 encoding to UTF-8 encoding
 std::string latin1_to_utf8(const std::string& str);
 
+/// Convert string from UTF-8 encoding to Latin 1 encoding
 std::string utf8_to_latin1(const std::string& str);
 
-// Case insensitive string comparison.
+/// Case insensitive Latin 1 encoded string comparison.
 bool cmp_case_ins(const std::string& a, const std::string& b);
 
-// Strip beginning and trailing whitespaces.
+/// Strip beginning and trailing whitespaces.
 std::string trim(std::string str);
 
-// Replace all occurences of s1 with s2 in text.
+/// Replace all occurences of s1 with s2 in text.
 std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
 
+/// Replace all occurences of c1 with c2 in text.
 std::string& replace_all_in_place(std::string& text, char c1, char c2);
 
-// Replace characters &<>"' with HTML entities or character references.
+/// Replace characters &<>"' with HTML entities or character references.
 std::string escape_for_html(std::string text);
 
-// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
+/// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
 std::string pad_to_size_left (std::string text, int size, char pad = ' ');
+
+/// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
 std::string pad_to_size_right(std::string text, int size, char pad = ' ');
 
 bool find_nonprintable_char(const std::string& str);
 bool is_nonprintable_char(unsigned char c);
 
-// Replace control characters with their C escape sequences (note: for readability, it doesn't convert \ to \\ so the result might be ambiguous)
+/// Replace control characters with their C escape sequences (note: for readability, it doesn't convert \ to \\ so the result might be ambiguous)
 std::string formatForLogging(const std::string& str);
 
-// Split string to lines, but only at whitespaces.
+/// Split string to lines, but only at whitespaces.
 std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false);
 
-// strspnp: (Watcom definition) find from str the first char not in charset
+/// strspnp: (Watcom definition) find from str the first char not in charset
 char* strspnp(char* str, const char* charset);
+
+/// strspnp: (Watcom definition) find from str the first char not in charset
 const char* strspnp(const char* str, const char* charset);
 
 class LineReceiver {

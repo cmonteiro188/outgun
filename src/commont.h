@@ -339,7 +339,7 @@ static const int MAX_PLAYERS = 32;  // the MAXIMUM MAXIMUM number of players EVE
 #define TSIZE (maxplayers/2)    // macro for CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessible, the variable in question will vary by place of use
 
 static const int MAX_ROCKETS = 256; // maximum number of rockets (must be <= 256 while IDs are transmitted as bytes)
-static const int MAX_PICKUPS = 32; // the MAXIMUM MAXIMUM number of pickups laying on the ground at one time in the game
+static const int MAX_POWERUPS = 32; // the MAXIMUM MAXIMUM number of powerups laying on the ground at one time in the game
 
 static const double N_PI   = 3.14159265358979323846;
 static const double N_PI_2 = 1.57079632679489661923;
@@ -379,7 +379,7 @@ enum {
     SAMPLE_HITDEATHBRINGER,
     SAMPLE_DIEDEATHBRINGER,
 
-    SAMPLE_SHIELD_PICKUP,
+    SAMPLE_SHIELD_POWERUP,
     SAMPLE_SHIELD_DAMAGE,
     SAMPLE_SHIELD_LOST,
 

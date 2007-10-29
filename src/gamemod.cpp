@@ -110,7 +110,7 @@ bool GS_PowerupNum::set(LogSet& log, const string& value) {
     int val;
     rd >> val;
     if (rd && rd.peek() == eof_ch) {
-        if (val >= 0 && val <= MAX_PICKUPS) {
+        if (val >= 0 && val <= MAX_POWERUPS) {
             *var = val;
             *percentFlag = false;
             return true;
@@ -125,7 +125,7 @@ bool GS_PowerupNum::set(LogSet& log, const string& value) {
             return true;
         }
     }
-    return basicErrorMessage(log, value, _("an integer between 0 and $1, or 'n %' with n 0 or greater", itoa(MAX_PICKUPS)));
+    return basicErrorMessage(log, value, _("an integer between 0 and $1, or 'n %' with n 0 or greater", itoa(MAX_POWERUPS)));
 }
 
 string GS_PowerupNum::get() {

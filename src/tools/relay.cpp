@@ -25,11 +25,11 @@
 #include <map>
 #include <string>
 
-#include "commont.h"
-#include "network.h"
-#include "platform.h"
-#include "protocol.h"
-#include "timer.h"
+#include "../commont.h"
+#include "../network.h"
+#include "../platform.h"
+#include "../protocol.h"
+#include "../timer.h"
 
 #include "relay.h"
 
@@ -71,6 +71,7 @@ int main(int argc, const char* argv[]) {
     }
     nlEnable(NL_SOCKET_STATS);
     platInit();
+    platInitAfterAllegro();
     g_timeCounter.setZero();
 
     cout << "Starting relay server on port " << port << ".\n";
@@ -107,15 +108,16 @@ Relay::Relay(unsigned short port, unsigned spectators):
     bandwidth_limit(20000),
     spectator_limit(spectators),
     first_buffer(-1, string(), 0),
-    new_game_first_frame(0),
     buffer_first_frame(0),
-    master_talk_time(0),
-    quit(false)
+    master_talk_time(0)
 { }
 
 Relay::~Relay() {
+    cout << "Closing sockets\n";
     nlClose(listen_socket);
     nlClose(server_socket);
+    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end(); ++pi)
+        nlClose(pi->socket);
     for (vector<Spectator>::const_iterator si = spectators.begin(); si != spectators.end(); ++si)
         nlClose(si->socket);
 }
@@ -124,28 +126,29 @@ void Relay::run() {
     nlDisable(NL_BLOCKING_IO);
     listen_socket = nlOpen(listen_port, NL_RELIABLE);
 
-    if (listen_socket == NL_INVALID)
-        cout << "Invalid socket.\n";
-    if (!nlListen(listen_socket)) {
-        cout << "Could not set socket to listen mode.\n";
+    if (listen_socket == NL_INVALID) {
+        cout << "Invalid socket: " << getNlErrorString() << '\n';
+        return;
+    }
+    else if (!nlListen(listen_socket)) {
+        cout << "Could not set socket to listen mode: " << getNlErrorString() << '\n';
         return;
     }
 
-    log.clear();
-    log.open("replay/relay.replay", ios::binary);
-
     load_master_settings();
 
-    while (!quit) {
+    while (!g_exitFlag) {
         g_timeCounter.refresh();
         listen();
         check_new_connections();
         get_server_data();
         send_data();
-        send_master_server();
-        handle_keys();
+        //send_master_server();
+        remove_old_games();
         platSleep(5);
     }
+
+    cout << "Shutdown\n";
 }
 
 // FIX: getline_skip_comments
@@ -287,9 +290,8 @@ void Relay::check_new_connections() {
             write(ost, replay_length);
             write_string(ost, hostname);
             write(ost, maxplayers);
-            write_string(ost, string());    // This is because the server sent only the map name of the first game.
+            write_string(ost, string());    // Store empty map name because the server sent only the map name of the first game.
             first_buffer = Frame(ost.str().length(), ost.str(), get_time());
-            log << ost.str();
 
             server_socket = pi->socket;
             cout << "Server connected: " << hostname << '\n';
@@ -317,7 +319,7 @@ void Relay::get_server_data() {
         const int result = nlRead(server_socket, buffer, max_buffer_size);
 
         if (result == NL_INVALID) {
-            cout << "Server socket read error. " << getNlErrorString() << '\n';
+            cout << "Server disconnected: " << getNlErrorString() << '\n';
             nlClose(server_socket);
             server_socket = NL_INVALID;
             return;
@@ -337,30 +339,29 @@ void Relay::get_server_data() {
 }
 
 void Relay::add_data(istream& in) {
-    if (!data_buffer.empty() && !data_buffer.back().full()) {
+    if (games.empty())
+        games.push_back(Game());
+    vector<Frame>* data_buffer = &games.back().buffer();
+    if (!data_buffer->empty() && !data_buffer->back().full()) {
         string temp;
-        read(in, temp, data_buffer.back().remaining());
-        data_buffer.back().add(temp, get_time());
-        //log << temp;
-        //cout << "Frame " << data_buffer.size() - 1 << ", " << temp.length() << " bytes.\n";
+        read(in, temp, data_buffer->back().remaining());
+        data_buffer->back().add(temp, get_time());
+        //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes.\n";
     }
     else {
         unsigned char data_code;
-        if (read(in, data_code) && data_code == relay_data_game_start) {
-            const unsigned old_buffer_first_frame = buffer_first_frame;
-            buffer_first_frame = new_game_first_frame;
-            new_game_first_frame = data_buffer.size() + old_buffer_first_frame;
-            data_buffer.erase(data_buffer.begin(), data_buffer.begin() + (buffer_first_frame - old_buffer_first_frame));
+        if (read(in, data_code) && data_code == relay_data_game_start) { // New game started
+            games.back().finish();
+            games.push_back(Game());
+            data_buffer = &games.back().buffer();
             cout << "New game started.\n";
         }
         unsigned length;
         if (read(in, length)) {
             string temp;
             read(in, temp, length);
-            data_buffer.push_back(Frame(length, temp, get_time()));
-            write(log, length);
-            log << temp;
-            //cout << "Frame " << data_buffer.size() - 1 << ", " << temp.length() << " bytes of " << length << ".\n";
+            data_buffer->push_back(Frame(length, temp, get_time()));
+            //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes of " << length << ".\n";
         }
     }
 }
@@ -380,9 +381,11 @@ void Relay::send_data() {
             ++si;
             continue;
         }
-        const unsigned bpsout = nlGetSocketStat(si->socket, NL_AVE_BYTES_SENT);
-        if (bpsout > bandwidth_limit / spectators.size())
-            continue;
+        if (!si->local) {
+            const unsigned bpsout = nlGetSocketStat(si->socket, NL_AVE_BYTES_SENT);
+            if (bpsout > bandwidth_limit / spectators.size())
+                continue;
+        }
         string chunk;
         unsigned protocol_size;
         if (!si->first_buffer_sent) {
@@ -405,13 +408,17 @@ void Relay::send_data() {
             continue;
         }
         si->bytes_sent += result;
-        const Frame& frame = si->first_buffer_sent ? data_buffer[si->next_frame - buffer_first_frame] : first_buffer;
+        const Frame& frame = si->first_buffer_sent ? *get_frame(si->next_frame) : first_buffer;
         nAssert(si->bytes_sent <= frame.length() + protocol_size);
         if (si->bytes_sent == frame.length() + protocol_size) {
             si->bytes_sent = 0;
             if (!si->first_buffer_sent) {
                 cout << "Init data sent to a client.\n";
-                si->next_frame = new_game_first_frame;
+                unsigned game_start_buffer = buffer_first_frame;
+                for (vector<Game>::iterator gi = games.begin(); gi != games.end(); gi++)
+                    if (gi->finished())
+                        game_start_buffer += gi->size();
+                si->next_frame = game_start_buffer;
                 si->first_buffer_sent = true;
             }
             else
@@ -429,17 +436,59 @@ int Relay::send_data(NLsocket& socket, const string& data) const {
     return nlWrite(socket, data.data(), data.length());
 }
 
+void Relay::remove_old_games() {
+    unsigned game_start_frame = buffer_first_frame;
+    for (vector<Game>::iterator gi = games.begin(); gi != games.end(); game_start_frame += gi->size(), gi++) {
+        if (!gi->finished()) // Only the last game can be still going on
+            break;
+        bool transmissions_needed = false;
+        for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); si++)
+            if (si->next_frame <= game_start_frame + gi->size()) {
+                transmissions_needed = true;
+                break;
+            }
+        if (!transmissions_needed) {
+            buffer_first_frame += gi->size();
+            gi = games.erase(gi);
+            break;
+        }
+    }
+}
+
+const Frame* Relay::get_frame(unsigned frame_nr) const {
+    const Frame* frame = 0;
+    unsigned game_start_buffer = buffer_first_frame;
+    for (vector<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
+        if (game_start_buffer + gi->size() > frame_nr) {
+            frame = &gi->frame(frame_nr - game_start_buffer);
+            break;
+        }
+        game_start_buffer += gi->size();
+    }
+    return frame;
+}
+
 string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
-    if (frame_nr - buffer_first_frame >= data_buffer.size())
+    const Frame* frame = 0;
+    unsigned game_start_buffer = buffer_first_frame;
+    bool current_game_finished = false;
+    for (vector<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
+        if (game_start_buffer + gi->size() > frame_nr) {
+            frame = &gi->frame(frame_nr - game_start_buffer);
+            current_game_finished = gi->finished();
+            break;
+        }
+        game_start_buffer += gi->size();
+    }
+    if (!frame)
         return string();
-    const Frame& frame = data_buffer[frame_nr - buffer_first_frame];
     // Do not send too recent frames if the game is still going on.
-    if (new_game_first_frame <= frame_nr && frame.time() + 0 * 60 > get_time())
+    if (!current_game_finished && frame->time() + 0 * 60 > get_time())
         return string();
     ostringstream ost;
     if (pos == 0)
-        write(ost, frame.length());
-    ost << frame.data().substr(pos);
+        write(ost, frame->length());
+    ost << frame->data().substr(pos);
     return ost.str();
 }
 
@@ -480,13 +529,10 @@ void Relay::send_master_server() {
     parameters["server"] = hostname;
     const string data = build_http_data(parameters);
     cout << master_name << ": " << data << '\n';
-    NetworkResult result = post_http_data(msock, &quit, 500, master_name, master_submit, data);
+    NetworkResult result = post_http_data(msock, &g_exitFlag, 1000, master_name, master_submit, data);
     if (result != NR_ok)
         cout << "Master talker: Error sending info: " << (result == NR_timeout ? "Timeout" : getNlErrorString()) << '\n';
     else
-        save_http_response(msock, cout, &quit, 1000);
+        save_http_response(msock, cout, &g_exitFlag, 1000);
     nlClose(msock);
-}
-
-void Relay::handle_keys() {
 }

@@ -44,10 +44,18 @@ public:
 
 class Spectator {
 public:
-    Spectator(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock), next_frame(0), bytes_sent(0), first_buffer_sent(false) { }
+    Spectator(const NLaddress& addr, const NLsocket& sock):
+        address(addr),
+        socket(sock),
+        local(isLocalIP(addr)),
+        next_frame(0),
+        bytes_sent(0),
+        first_buffer_sent(false)
+    { }
 
     NLaddress address;
     NLsocket  socket;
+    bool local;
     unsigned  next_frame;
     unsigned  bytes_sent;
     bool first_buffer_sent;
@@ -55,21 +63,40 @@ public:
 
 class Frame {
 public:
-    Frame(int l, const std::string& str, double t_): len(l), d(str), t(t_) { }
+    Frame(int l, const std::string& d, double t): len(l), data_(d), time_(t) { }
 
-    void add(const std::string& str, double t_) { d.append(str); t = t_; }
+    void add(const std::string& d, double t) { data_.append(d); time_ = t; }
 
     unsigned length() const { return len; }
-    unsigned used() const { return d.length(); }
+    unsigned used() const { return data_.length(); }
     unsigned remaining() const { return length() - used(); }
     bool full() const { return used() == length(); }
-    const std::string& data() const { return d; }
-    double time() const { return t; }
+    const std::string& data() const { return data_; }
+    double time() const { return time_; }
 
 private:
     unsigned    len;
-    std::string d;
-    double      t;
+    std::string data_;
+    double      time_;
+};
+
+class Game {
+public:
+    Game(): finished_(false) { }
+
+    void add(const Frame& f) { frames.push_back(f); }
+    void finish() { finished_ = true; }
+
+    unsigned size() const { return frames.size(); }
+
+    const Frame& frame(unsigned i) const { return frames[i]; }
+    std::vector<Frame>& buffer() { return frames; }
+
+    bool finished() const { return finished_; }
+
+private:
+    std::vector<Frame> frames;
+    bool finished_;
 };
 
 class Relay {
@@ -80,49 +107,54 @@ public:
     void run();
 
 private:
+    /// Listen for new connections
     void listen();
+
+    /// Handle connections just opened
     void check_new_connections();
 
+    /// Read game data from the Outgun server
     void get_server_data();
+
+    /// Add game data to buffer
     void add_data(std::istream& in);
 
+    /// Send data to every spectator
     void send_data();
+
+    /// Send data to the socket
     int send_data(NLsocket& socket, const std::string& data) const;
 
+    /// Remove games that are not needed anymore
+    void remove_old_games();
+
+    const Frame* get_frame(unsigned frame_nr) const;
     std::string frame_data(unsigned frame_nr, unsigned pos) const;
 
     void load_master_settings();
     void send_master_server();
 
-    void handle_keys();
+    NLsocket listen_socket;     /// Socket for all incoming connections
+    unsigned short listen_port; /// Port for all incoming connections
 
-    NLsocket listen_socket;
-    unsigned short listen_port;
-
-    NLaddress server_address;
-    NLsocket server_socket;
+    NLaddress server_address;   /// Game server address
+    NLsocket server_socket;     /// Game server socket
     std::string hostname;
 
-    unsigned bandwidth_limit;   // bytes per second
-    unsigned spectator_limit;
+    unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
+    unsigned spectator_limit;   /// Maximum number of spectators for this relay
+
     std::vector<Spectator> spectators;
+    std::vector<Peer> peers;    /// Just connected "things"
+    std::vector<Game> games;    /// Game data
 
-    std::vector<Peer> peers;
-
-    std::stringstream incoming_buffer;
-    std::vector<Frame> data_buffer;
-    Frame first_buffer;
-    unsigned new_game_first_frame;  // frame number of the first frame of the new game
-    unsigned buffer_first_frame;    // frame number of data_buffer.front()
+    Frame first_buffer;         /// Initial buffer that basically has the same data as in the start of the replay
+    unsigned buffer_first_frame; /// Frame number of the start frame of the first game in list
 
     std::string master_name;
     std::string master_submit;
     NLaddress master_socket;
     double master_talk_time;
-
-    std::ofstream log;
-
-    bool quit;
 };
 
 #endif // RELAY_H_INC

@@ -40,7 +40,7 @@
 
 #include "world.h"
 
-static const int PICKUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
+static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
 //minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
 const double minimum_grab_to_capture_time = 4.0;
@@ -497,7 +497,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             ist >> alpha;
         else
             alpha = 255;
-        if (!ist || !ist.eof() || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -523,7 +523,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             ist >> alpha;
         else
             alpha = 255;
-        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -561,7 +561,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             a1 += 360;
         if (a2 < 0)
             a2 += 360;
-        if (!ist || !ist.eof() || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid > 7) {
+        if (!ist || !ist.eof() || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -1522,8 +1522,8 @@ int PowerupSettings::pups_by_percent(int percentage, const Map& map) const {
     const int result = (map.w * map.h * percentage + 50) / 100; // +50 to round properly
     if (result == 0 && percentage > 0)
         return 1;
-    if (result > MAX_PICKUPS)
-        return MAX_PICKUPS;
+    if (result > MAX_POWERUPS)
+        return MAX_POWERUPS;
     return result;
 }
 
@@ -1620,9 +1620,6 @@ void ServerWorld::reset() {
             player[i].respawn_to_base = true;   // always spawn in the base at the beginning of a map
             // don't actually spawn until the client has loaded the map and is in the game
         }
-
-    // regenerate powerups
-    check_pickup_creation(true);
 }
 
 void ServerWorld::printTimeStatus(LineReceiver& printer) {
@@ -1740,6 +1737,15 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) {
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
     return true;
+}
+
+void ServerWorld::start_game() {
+    net->ctf_net_flag_status(pid_record, 0);
+    net->ctf_net_flag_status(pid_record, 1);
+    net->ctf_net_flag_status(pid_record, 2);
+    reset_time();
+    // Regenerate powerups
+    check_powerup_creation(true);
 }
 
 void ServerWorld::respawnPlayer(int pid, bool dontInformClients) {
@@ -1867,7 +1873,7 @@ bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, d
 }
 
 // drop shield, turbo, shadow, power or weapon power-up if player has some of them
-void ServerWorld::drop_pickup(const ServerPlayer& player) {
+void ServerWorld::drop_powerup(const ServerPlayer& player) {
     vector<Powerup::Pup_type> player_items;
     if (player.item_shield)         // only at suicides
         player_items.push_back(Powerup::pup_shield);
@@ -1883,7 +1889,7 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
     if (player_items.empty())       // nothing to drop
         return;
 
-    for (int p = 0; p < MAX_PICKUPS; p++)
+    for (int p = 0; p < MAX_POWERUPS; p++)
         if (item[p].kind == Powerup::pup_unused) {
             item[p].kind = player_items[rand() % player_items.size()];
             item[p].px = player.roomx;
@@ -1893,14 +1899,14 @@ void ServerWorld::drop_pickup(const ServerPlayer& player) {
             // inform players
             for (int i = 0; i < maxplayers; i++)
                 if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
-                    net->sendPickupVisible(i, p, item[p]);
+                    net->sendPowerupVisible(i, p, item[p]);
             if (host->recording_active())
-                net->sendPickupVisible(pid_record, p, item[p]);
+                net->sendPowerupVisible(pid_record, p, item[p]);
             break;
         }
 }
 
-void ServerWorld::respawn_pickup(int p) {
+void ServerWorld::respawn_powerup(int p) {
     item[p].kind = Powerup::pup_unused;
 
     //find a screen with no players and no other powerups
@@ -1926,7 +1932,7 @@ void ServerWorld::respawn_pickup(int p) {
 
         //check items if no players found
         if (runaway > 100)
-            for (int i = 0; i < MAX_PICKUPS; i++)
+            for (int i = 0; i < MAX_POWERUPS; i++)
                 if (item[i].kind != Powerup::pup_unused && item[i].px == px && item[i].py == py) {
                     hit = true;
                     break;
@@ -1937,11 +1943,11 @@ void ServerWorld::respawn_pickup(int p) {
         //find a suitable coordinate -- middle square
         //itemx = plw / 8 + rand() % (3 * plw / 4);
         //itemy = plh / 8 + rand() % (3 * plh / 4);
-        itemx = PICKUP_RADIUS + rand() % (plw - 2 * PICKUP_RADIUS);
-        itemy = PICKUP_RADIUS + rand() % (plh - 2 * PICKUP_RADIUS);
+        itemx = POWERUP_RADIUS + rand() % (plw - 2 * POWERUP_RADIUS);
+        itemy = POWERUP_RADIUS + rand() % (plh - 2 * POWERUP_RADIUS);
 
         //do a check for walls, maybe retrying another screen if hits a wall
-        hit = map.fall_on_wall(px, py, itemx, itemy, PICKUP_RADIUS);
+        hit = map.fall_on_wall(px, py, itemx, itemy, POWERUP_RADIUS);
         if (!hit)
             break;
         if (--runaway < 0)
@@ -1954,16 +1960,16 @@ void ServerWorld::respawn_pickup(int p) {
     item[p].y = itemy;
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used && player[i].roomx == px && player[i].roomy == py)
-            net->sendPickupVisible(i, p, item[p]);
+            net->sendPowerupVisible(i, p, item[p]);
 
     if (host->recording_active())
-        net->sendPickupVisible(pid_record, p, item[p]);
+        net->sendPowerupVisible(pid_record, p, item[p]);
 }
 
-void ServerWorld::check_pickup_creation(bool instant) {
+void ServerWorld::check_powerup_creation(bool instant) {
     //count number of items
     int ic = 0;
-    for (int i = 0; i < MAX_PICKUPS; i++)
+    for (int i = 0; i < MAX_POWERUPS; i++)
         if (item[i].kind != Powerup::pup_unused)
             ic++;
     const int pc = host->get_player_count();
@@ -1976,12 +1982,12 @@ void ServerWorld::check_pickup_creation(bool instant) {
         real_min = real_max;
     if (ic >= real_min)
         return;
-    //while number of players > number of pickups: create a pickup and ic++
-    for (int i = 0; i < MAX_PICKUPS;  i++)
+    //while number of players > number of powerups: create a powerup and ic++
+    for (int i = 0; i < MAX_POWERUPS;  i++)
         if (item[i].kind == Powerup::pup_unused) {
             item[i].kind = Powerup::pup_respawning;
             if (instant)
-                respawn_pickup(i);
+                respawn_powerup(i);
             else
                 item[i].respawn_time = get_time() + pupConfig.getRespawnTime();
             if (++ic >= real_min)
@@ -1989,11 +1995,11 @@ void ServerWorld::check_pickup_creation(bool instant) {
         }
 }
 
-void ServerWorld::game_touch_pickup(int pid, int pk) {
+void ServerWorld::game_touch_powerup(int pid, int pk) {
     Powerup& it = item[pk];
     ServerPlayer& pl = player[pid];
 
-    net->broadcastPickupPicked(it.px, it.py, pk);
+    net->broadcastPowerupPicked(it.px, it.py, pk);
 
     // Check which powerups player has.
     bool pups[Powerup::pup_last_real + 1];
@@ -2024,7 +2030,7 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
                     pl.energy = 200;
             }
 
-            net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_PICKUP);
+            net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_POWERUP);
         }
         break; case Powerup::pup_turbo: {
             double itemTime = pl.item_turbo_time - get_time();
@@ -2092,8 +2098,8 @@ void ServerWorld::game_touch_pickup(int pid, int pk) {
     // unused item
     it.kind = Powerup::pup_unused;
 
-    // check pickup creation
-    check_pickup_creation(false);
+    // check powerup creation
+    check_powerup_creation(false);
 }
 
 void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
@@ -2130,12 +2136,12 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) {
 
 void ServerWorld::game_player_screen_change(int p) {
     player[p].record_position = true;
-    //check for new pickups visible
-    for (int i = 0; i < MAX_PICKUPS; i++) {
+    //check for new powerups visible
+    for (int i = 0; i < MAX_POWERUPS; i++) {
         const Powerup& it = item[i];
         if (it.kind != Powerup::pup_unused && it.kind != Powerup::pup_respawning &&
             it.px == player[p].roomx && it.py == player[p].roomy)
-                net->sendPickupVisible(p, i, item[i]);
+                net->sendPowerupVisible(p, i, item[i]);
     }
     // check for rockets visible to the new room
     for (int i = 0; i < MAX_ROCKETS; ++i)
@@ -2188,7 +2194,7 @@ void ServerWorld::killPlayer(int target, bool time_penalty) {   // kill the play
     }
 
     if (pupConfig.pups_drop_at_death)
-        drop_pickup(player[target]);
+        drop_powerup(player[target]);
 
     resetPlayer(target, (player[target].item_deathbringer || time_penalty) ? config.getDeathbringerWaitingTime() : 0);  // clients must be informed by the caller
 }
@@ -2991,7 +2997,7 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) {
 }
 
 void WorldBase::reset() {
-    for (int i = 0; i < MAX_PICKUPS; ++i)
+    for (int i = 0; i < MAX_POWERUPS; ++i)
         item[i].kind = Powerup::pup_unused;
     for (int i = 0; i < MAX_ROCKETS; ++i)
         rock[i].owner = -1;
@@ -3044,9 +3050,9 @@ static bool sortByExtraFramesToRespawn(ServerPlayer* p1, ServerPlayer* p2) {
 
 void ServerWorld::simulateFrame() {
     // (-1) check powerup respawn
-    for (int i = 0; i < MAX_PICKUPS; i++)
+    for (int i = 0; i < MAX_POWERUPS; i++)
         if (item[i].kind == Powerup::pup_respawning && get_time() > item[i].respawn_time)
-            respawn_pickup(i);
+            respawn_powerup(i);
 
     // (0) do stuff for every player
     for (int i = 0; i < maxplayers; i++) {
@@ -3249,18 +3255,18 @@ void ServerWorld::simulateFrame() {
         const int myteam = i / TSIZE;
         const int enemyteam = 1 - myteam;
 
-        // --> ITEM PICKUP
-        const int touchRadius = PICKUP_RADIUS + PLAYER_RADIUS;
+        // --> ITEM POWERUP
+        const int touchRadius = POWERUP_RADIUS + PLAYER_RADIUS;
 
-        for (int k = 0; k < MAX_PICKUPS; k++)
+        for (int k = 0; k < MAX_POWERUPS; k++)
             if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
                 const double dx = item[k].x - pl.lx;
                 const double dy = item[k].y - pl.ly;
                 if (dx * dx + dy * dy < touchRadius * touchRadius)
-                    game_touch_pickup(i, k);
+                    game_touch_powerup(i, k);
             }
 
-        // limit health and energy (after pickups because they might have an effect)
+        // limit health and energy (after powerups because they might have an effect)
         nAssert(pl.health > 0);
         if (pl.health > config.health_max)
             pl.health = config.health_max;

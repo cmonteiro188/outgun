@@ -59,6 +59,7 @@ using std::ofstream;
 using std::ostream;
 using std::ostringstream;
 using std::pair;
+using std::queue;
 using std::setfill;
 using std::setw;
 using std::string;
@@ -377,8 +378,9 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) const {
             writeShort(lebuf, count, static_cast<NLshort>(fi->position().y));
         }
 
-    if (cid == pid_all) {
-        broadcast_message(lebuf, count);
+    if (cid == pid_all || cid == pid_record) {
+        if (cid == pid_all)
+            broadcast_message(lebuf, count);
         record_message(lebuf, count);
     }
     else
@@ -926,8 +928,9 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
         writeByte(lebuf, count, data_text_message);
         writeByte(lebuf, count, type);
         writeStr(lebuf, count, text);
+        int extended_length = count;
         if (type == msg_normal || type == msg_team) // It should really never be a team message in this method.
-            writeByte(lebuf, count, static_cast<NLbyte>(pid / TSIZE));
+            writeByte(lebuf, extended_length, static_cast<NLbyte>(pid / TSIZE));
         if (pid == pid_record)
             record_message(lebuf, count);
         else if (pid == shell_pid) {
@@ -943,15 +946,15 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
             for (int i = 0; i < maxplayers; ++i)
                 if (world.player[i].used)
                     if (world.player[i].protocolExtensionsLevel >= 0)
-                        server->send_message(world.player[i].cid, lebuf, count);
+                        server->send_message(world.player[i].cid, lebuf, extended_length);
                     else
-                        server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
+                        server->send_message(world.player[i].cid, lebuf, count); // don't send the possible team info
             record_message(lebuf, count);
         }
         else if (world.player[pid].protocolExtensionsLevel >= 0)
-            server->send_message(world.player[pid].cid, lebuf, count);
+            server->send_message(world.player[pid].cid, lebuf, extended_length);
         else
-            server->send_message(world.player[pid].cid, lebuf, count - 1);
+            server->send_message(world.player[pid].cid, lebuf, count);
     }
     else {
         vector<string> lines = split_to_lines(text, 79, 4); // this makes more sense than splitting to max_chat_message_length and letting it get split again on the client end
@@ -1012,14 +1015,15 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     remove_flags |= (world.map.wild_flags    .empty() ? 0x04 : 0);
     writeByte(lebuf, count, remove_flags);
 
-    if (pid == pid_all || pid == pid_record) {
+    if (pid == pid_record) {
         ostringstream ost;
         ost.write(lebuf, count);
         write(ost, static_cast<unsigned>(host->record_map_data().length()));
         ost << host->record_map_data();
         record_message(ost.str());
-        if (pid == pid_record)
-            return;
+        return;
+    }
+    else if (pid == pid_all) {
         broadcast_message(lebuf, count);
         if (shellssock != NL_INVALID) {
             char lebuf[256]; int count = 0;
@@ -1143,8 +1147,11 @@ void ServerNetworking::send_first_relay_data(const string& data) {
     relay_new_game = true;
     if (is_relay_active()) // already sent
         return;
+    relay_frame = queue<string>();
+    nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
     relay_socket = nlOpen(0, NL_RELIABLE);
+    nlOpenMutex.unlock();
     if (relay_socket == NL_INVALID) {
         log("Could not open relay socket.");
         return;
@@ -1161,25 +1168,42 @@ void ServerNetworking::send_first_relay_data(const string& data) {
     write(ost, static_cast<unsigned>(data.length()));
     ost << data;
 
-    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
+    /*const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
     if (result != NR_ok) {
         log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
     }
     else
-        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
+        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));*/
+
+    relay_mutex.lock();
+    relay_frame.push(ost.str());
+    relay_mutex.unlock();
 }
 
 void ServerNetworking::send_relay_data(const string& data) {
     if (!is_relay_active())  // Try again in the next game.
         return;
-    //log("Sending relay data.");
     ostringstream ost;
-    write(ost, static_cast<unsigned char>(relay_new_game ? relay_data_game_start : relay_data_frames));
+    write(ost, static_cast<unsigned char>(relay_new_game ? relay_data_game_start : relay_data_frame));
     ost << data;
     relay_new_game = false;
+    relay_mutex.lock();
+    relay_frame.push(ost.str());
+    relay_mutex.unlock();
+}
 
+void ServerNetworking::send_next_relay_frame() {
+    if (relay_frame.empty())
+        return;
+
+    relay_mutex.lock();
+    const string frame = relay_frame.front();
+    relay_frame.pop();
+    relay_mutex.unlock();
+
+    // Test the connection
     const unsigned max_buffer_size = 100;
     NLbyte buffer[max_buffer_size];
     const int receive = nlRead(relay_socket, buffer, max_buffer_size);
@@ -1189,14 +1213,12 @@ void ServerNetworking::send_relay_data(const string& data) {
         relay_socket = NL_INVALID;
         return;
     }
-    const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 50, 1);
+    const NetworkResult result = writeToUnblockingTCP(relay_socket, frame.data(), frame.length(), &file_threads_quit, 500, 1);
     if (result != NR_ok) {
         log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         nlClose(relay_socket);
         relay_socket = NL_INVALID;
     }
-    //else
-        //log("Spectator data sent to the relay (%lu bytes).", static_cast<long unsigned>(data.length()));
 }
 
 bool ServerNetworking::start() {
@@ -1249,6 +1271,9 @@ bool ServerNetworking::start() {
 
     //start website thread
     webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), settings.lowerPriority());
+
+    //start relay thread
+    relay_thread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_relay_thread), settings.lowerPriority());
 
     return true;
 }
@@ -1439,7 +1464,7 @@ int ServerNetworking::client_connected(int id) {
 
     host->check_team_changes();
     update_serverinfo();
-    world.check_pickup_creation(false);             // check pickup creation
+    world.check_powerup_creation(false);
     host->set_check_bots();
 
     return myself;
@@ -1804,7 +1829,7 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) {
         }
         pid = ctop[id]; // the message might have affected the pid
     }
-    if (!world.player[pid].attackOnce) // if the player did started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
+    if (!world.player[pid].attackOnce) // if the player started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
         world.player[pid].attackGunDir = world.player[pid].gundir;
 }
 
@@ -2947,6 +2972,18 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
     logThreadExit("run_shellslave_thread", log);
 }
 
+void ServerNetworking::run_relay_thread() {
+    logThreadStart("run_relay_thread", log);
+
+    while (!file_threads_quit) {
+        if (is_relay_active())
+            platSleep(50);
+        else
+            platSleep(5000);
+        send_next_relay_frame();
+    }
+}
+
 void ServerNetworking::stop() {
     //submit all pending player reports
     for (int i = 0; i < maxplayers; i++)
@@ -2992,6 +3029,9 @@ void ServerNetworking::stop() {
 
     settings.statusOutput()(_("Shutdown: website thread"));
     webthread.join();
+
+    settings.statusOutput()(_("Shutdown: relay thread"));
+    relay_thread.join();
 
     settings.statusOutput()(_("Shutdown: main thread"));
 }
@@ -3095,7 +3135,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
     record_message(lebuf, count);
 }
 
-void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it) const {
+void ServerNetworking::sendPowerupVisible(int pid, int pup_id, const Powerup& it) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_visible);
     writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
@@ -3110,7 +3150,7 @@ void ServerNetworking::sendPickupVisible(int pid, int pup_id, const Powerup& it)
         server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-void ServerNetworking::broadcastPickupPicked(int roomx, int roomy, int pup_id) const {
+void ServerNetworking::broadcastPowerupPicked(int roomx, int roomy, int pup_id) const {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_pup_picked);
     writeByte(lebuf, count, static_cast<NLubyte>(pup_id));

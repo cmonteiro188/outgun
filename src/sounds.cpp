@@ -150,7 +150,7 @@ void Sounds::load_samples(const string& path) {
 
     load_outgun_sample(path, "weaponup", SAMPLE_WEAPON_UP);
     load_outgun_sample(path, "megaheal", SAMPLE_MEGAHEALTH);
-    load_outgun_sample(path, "shieldp", SAMPLE_SHIELD_PICKUP);
+    load_outgun_sample(path, "shieldp", SAMPLE_SHIELD_POWERUP);
     load_outgun_sample(path, "shieldd", SAMPLE_SHIELD_DAMAGE);
     load_outgun_sample(path, "shieldl", SAMPLE_SHIELD_LOST);
     load_outgun_sample(path, "speedon", SAMPLE_TURBO_ON);

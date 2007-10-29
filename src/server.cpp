@@ -165,11 +165,6 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() {
-    if (!recording_started) {
-        start_recording();
-        network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
-    }
-
     //submit all pending reports and update tournament participation flags
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
@@ -550,8 +545,6 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) {
     }
     network.broadcast_stats_ready();
 
-    stop_recording();
-
     vector<int> winners;
     int maxVotes = 0;
     NLulong longest_time = world.frame;
@@ -596,7 +589,6 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) {
         return reset_settings(true);    // re-initialize map-list (and other settings as a side-effect); it calls back this function so the end-part has already executed
 
     // notify all players
-    start_recording();
     network.broadcast_map_change_message(reason, maprot[currmap].file.c_str());
 
     // Server is showing gameover plaque. Nobody should move or receive world frames.
@@ -617,6 +609,7 @@ void Server::start_recording() {
         return;
 
     record_start_frame = world.frame;
+    record_frame.str("");
 
     ostringstream ost;
     ost << REPLAY_IDENTIFICATION;
@@ -641,7 +634,6 @@ void Server::start_recording() {
             log("Could not create record file %s.", record_filename.c_str());
 
         record << ost.str();
-        record_frame.str("");
     }
 
     record_init_data();
@@ -659,11 +651,11 @@ void Server::stop_recording() {
         record.close();
         record.clear();
         if (network.get_human_count() < settings.get_recording())
-            clear_recording();
+            delete_recording();
     }
 }
 
-void Server::clear_recording() {
+void Server::delete_recording() {
     record.close();
     if (remove(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
@@ -672,11 +664,12 @@ void Server::clear_recording() {
 }
 
 void Server::record_init_data() {
-    network.send_server_settings(pid_record);
-
     // Welcome message
     for (vector<string>::const_iterator line = settings.get_welcome_message().begin(); line != settings.get_welcome_message().end(); ++line)
         network.player_message(pid_record, msg_server, *line);
+
+    network.send_server_settings(pid_record);
+    network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
 
     // Player data
     network.record_players_present();
@@ -1433,7 +1426,9 @@ void Server::simulate_and_broadcast_frame() {
     if (gameover)
         if (gameover_time < get_time()) {
             gameover = false;
-            world.reset_time();
+            stop_recording();
+            start_recording();
+            world.start_game();
             network.sendStartGame();
         }
     if (!gameover)

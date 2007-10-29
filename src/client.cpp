@@ -1242,6 +1242,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     map_time_limit = false;
     map_start_time = 0;
     map_end_time = 0;
+    extra_time_running = false;
     map_vote = -1;
 
     // send registration token (if any)
@@ -1827,7 +1828,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
     fx.player[me].roomy = scr;
 
     if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
-        for (int j = 0; j < MAX_PICKUPS; j++)
+        for (int j = 0; j < MAX_POWERUPS; j++)
             fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
 
         fx.player[me].oldx = fx.player[me].roomx;
@@ -2128,7 +2129,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
                 chatmsg = _("$1 decided it's time for a restart.", name);
             }
         }
-        char sender_team = -1;
+        NLbyte sender_team = -1;
         if (protocolExtensionsS2C >= 0) {
             if (type == msg_team || type == msg_normal)
                 readByte(lebuf, count, sender_team);
@@ -2506,8 +2507,17 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             readByte(lebuf, count, remove_flags);
         else
             remove_flags = 0;
-        if (replaying) {
+        #ifndef DEDICATED_SERVER_ONLY
+        string msg;
+        #endif
+        if (!replaying) {
+            addThreadMessage(new TM_MapChange(mapname, crc));
             #ifndef DEDICATED_SERVER_ONLY
+            msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
+            #endif
+        }
+        #ifndef DEDICATED_SERVER_ONLY
+        else { // The map is saved with the message
             NLulong map_length;
             readLong(lebuf, count, map_length);
             stringstream stream;
@@ -2522,14 +2532,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             remove_useless_flags();
             mapChanged = true;
             map_ready = true;
-            if (!spectating)
-                break;
-            #endif
+            msg = _("This map is $1.", maptitle);
         }
-        else
-            addThreadMessage(new TM_MapChange(mapname, crc));
-        #ifndef DEDICATED_SERVER_ONLY
-        const string msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
         addThreadMessage(new TM_Text(msg_info, msg));
         #endif
     }
@@ -2547,6 +2551,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
 
     break; case data_gameover_show: {
+        extra_time_running = false;
         NLubyte plaque;
         readByte(lebuf, count, plaque);
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -2564,16 +2569,18 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
             addThreadMessage(new TM_Text(msg_info, msg));
             addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
-            msg.clear();
-            if (caplimit > 0)
-                msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
-            if (timelimit > 0) {
+            if (!replay) {
+                msg.clear();
+                if (caplimit > 0)
+                    msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
+                if (timelimit > 0) {
+                    if (!msg.empty())
+                        msg += ' ';
+                    msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
+                }
                 if (!msg.empty())
-                    msg += ' ';
-                msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
+                    addThreadMessage(new TM_Text(msg_info, msg));
             }
-            if (!msg.empty())
-                addThreadMessage(new TM_Text(msg_info, msg));
             #endif
             for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                 pi->stats().finish_stats(time);
@@ -3359,6 +3366,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
 
     break; case data_normal_time_out: {
+        extra_time_running = true;
         #ifndef DEDICATED_SERVER_ONLY
         NLubyte sudden_death;
         readByte(lebuf, count, sudden_death);
@@ -4290,7 +4298,18 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty())
                 talkbuffer_cursor = talkbuffer.size();
         }
-        break; case KEY_TAB:    // Prevent annoying Control+Tab character.
+        break; case KEY_TAB:    // This also prevents annoying Control+Tab character from chat input.
+            if (replaying) {
+                const int dir = key[KEY_LSHIFT] || key[KEY_RSHIFT] ? -1 : 1;
+                me += dir;
+                if (me < -1)
+                    me = maxplayers - 1;
+                for (; me >= 0 && me < maxplayers; me += dir)
+                    if (fx.player[me].used)
+                        break;
+                if (me >= maxplayers)
+                    me = -1;
+            }
         break; default:
             // Add character to text
             if (!replaying && talkbuffer.length() < max_chat_message_length && !is_nonprintable_char(ch) &&
@@ -4314,10 +4333,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     else
         showMenu(menu);
     gameshow = false;
-    #ifndef DEDICATED_SERVER_ONLY
     replaying = false;
     spectating = false;
-    #endif
 
     g_timeCounter.refresh();
     double nextSend = get_time();
@@ -4325,6 +4342,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
 
     if (!extConfig.autoPlay.empty()) {
         nlStringToAddr(extConfig.autoPlay.c_str(), &serverIP);
+        if (nlGetPortFromAddr(&serverIP) == 0)
+            nlSetAddrPort(&serverIP, DEFAULT_UDP_PORT);
         connect_command(true);
     }
     else if (!extConfig.autoSpectate.empty()) {
@@ -4760,7 +4779,8 @@ void Client::stop_replay() {
         nlClose(spectate_socket);
         spectate_socket = NL_INVALID;
     }
-    spectate_buffer.str("");
+    if (spectating)
+        spectate_buffer.str("");
 
     replaying = false;
     spectating = false;
@@ -4825,7 +4845,6 @@ void Client::continue_spectating() {
         return;
 
     if (!spectate_data_received) {
-        // TODO: Hide the waiting dialog.
         log("First data from relay, %d bytes: %s", result, buffer);
         spectate_data_received = true;
         spectate_buffer.write(buffer, result);
@@ -4833,8 +4852,9 @@ void Client::continue_spectating() {
             log.error(_("Could not start spectating."));
             stop_replay();
         }
+        // Keep the waiting dialog still on as the relay may delay the actual game frames.
     }
-    else
+    else // TODO: Hide the waiting dialog.
         spectate_buffer.write(buffer, result);
 }
 #endif // !DEDICATED_SERVER_ONLY
@@ -5150,14 +5170,13 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     // Time left if time limit is on and the game is running.
     if (map_time_limit && gameover_plaque == NEXTMAP_NONE && players_sb.size() > 1)
         if (map_end_time > time)
-            graphics.draw_map_time(map_end_time - static_cast<int>(time));
+            graphics.draw_map_time(map_end_time - static_cast<int>(time), extra_time_running);
         else
             graphics.draw_map_time(0);
 
     if (replaying)
         graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
-
-    if (me >= 0) {
+    else if (me >= 0) {
         // player's power-ups
         double val = fx.player[me].item_power_time - time;
         if (val > 0)
@@ -5170,13 +5189,10 @@ void Client::draw_game_frame() {    // call with frameMutex locked
             graphics.draw_player_shadow(val);
         graphics.draw_player_weapon(fx.player[me].weapon);
 
-        if (!replaying) {
-            if (want_change_teams)
-                graphics.draw_change_team_message(time);
-            if (want_map_exit)
-                graphics.draw_change_map_message(time, want_map_exit_delayed);
-        }
-
+        if (want_change_teams)
+            graphics.draw_change_team_message(time);
+        if (want_map_exit)
+            graphics.draw_change_map_message(time, want_map_exit_delayed);
         graphics.draw_player_health(fx.player[me].health);
         graphics.draw_player_energy(fx.player[me].energy);
     }
@@ -5200,8 +5216,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // debug panel
     if (key[KEY_F9]) {
-        const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED);
-        const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT);
+        const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED) + nlGetSocketStat(spectate_socket, NL_AVE_BYTES_RECEIVED);
+        const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT) + nlGetSocketStat(spectate_socket, NL_AVE_BYTES_SENT);
 
         vector<vector<pair<int, int> > > sticks;
         vector<int> buttons;
@@ -5353,7 +5369,7 @@ void Client::draw_playfield() {
         }
 
     // draw powerups
-    for (int i = 0; i < MAX_PICKUPS; i++)
+    for (int i = 0; i < MAX_POWERUPS; i++)
         if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py, fx.item[i].x, fx.item[i].y, Graphics::extended_item_max_size_in_world / 2))
             graphics.draw_pup(fx.item[i], time, live);
 

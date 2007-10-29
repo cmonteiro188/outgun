@@ -664,7 +664,7 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) cons
 }
 
 ClientControls Client::GetPowerup(double mex, double mey) const {
-    for (int i = 0; i < MAX_PICKUPS; ++i) {
+    for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (fx.item[i].kind == Powerup::pup_unused || fx.item[i].kind == Powerup::pup_respawning ||
             fx.item[i].px != fx.player[me].roomx || fx.item[i].py != fx.player[me].roomy)
                 continue;
@@ -844,10 +844,10 @@ void Client::BuildMap() {
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y) {
             Room& room = fx.map.room[x][y];
-            room.pass[0] = scan_door(room, PLAYER_RADIUS, 0, PLAYER_RADIUS, 0, S_W-PLAYER_RADIUS);
-            room.pass[1] = scan_door(room, PLAYER_RADIUS, S_H, PLAYER_RADIUS, 0, S_W-PLAYER_RADIUS);
-            room.pass[2] = scan_door(room, 0, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H-PLAYER_RADIUS);
-            room.pass[3] = scan_door(room, S_W, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H-PLAYER_RADIUS);
+            room.pass[0] = scan_door(room, PLAYER_RADIUS, 0, PLAYER_RADIUS, 0, S_W - PLAYER_RADIUS);
+            room.pass[1] = scan_door(room, PLAYER_RADIUS, S_H, PLAYER_RADIUS, 0, S_W - PLAYER_RADIUS);
+            room.pass[2] = scan_door(room, 0, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H - PLAYER_RADIUS);
+            room.pass[3] = scan_door(room, S_W, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H - PLAYER_RADIUS);
             for (int i = 0; i < Table_Max; i++) {
                 room.route[i] = false;
                 room.label[i] = -1;
@@ -1432,7 +1432,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
     const bool on_base = state == 0;
 
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
-    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;//.begin();
+    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
         if (state == 2 && !fi->carried())

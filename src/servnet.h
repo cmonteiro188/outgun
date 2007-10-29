@@ -156,9 +156,12 @@ private:
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
+    Thread    relay_thread;
     NLaddress relay_address;
     NLsocket  relay_socket;
     bool      relay_new_game;
+    std::queue<std::string> relay_frame;
+    MutexHolder relay_mutex;    // mutex for relay buffer
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -183,6 +186,8 @@ private:
     void run_shellslave_thread(volatile bool* quitFlag);
 
     void run_website_thread();
+
+    void run_relay_thread();
 
     void broadcast_message(const char* data, int length) const;
     void send_simple_message(Network_data_code code, int pid) const;
@@ -277,8 +282,8 @@ public:
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const;
     void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const;
     void sendDeathbringer(int pid, const ServerPlayer& ply) const;
-    void sendPickupVisible(int pid, int pup_id, const Powerup& it) const;
-    void broadcastPickupPicked(int roomx, int roomy, int pup_id) const;
+    void sendPowerupVisible(int pid, int pup_id, const Powerup& it) const;
+    void broadcastPowerupPicked(int roomx, int roomy, int pup_id) const;
     void sendPupTime(int pid, NLubyte pupType, double timeLeft) const;
     void sendFragUpdate(int pid, NLulong frags) const;
     void sendNameAuthorizationRequest(int pid) const;
@@ -299,6 +304,7 @@ public:
     bool is_relay_active() const;
     void send_first_relay_data(const std::string& data);
     void send_relay_data(const std::string& data);
+    void send_next_relay_frame();
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
     void sendTextToAdminShell(const std::string& text) const;

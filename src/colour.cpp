@@ -26,6 +26,7 @@
 #include <sstream>
 
 #include "commont.h"
+#include "language.h"
 #include "nassert.h"
 
 #include "colour.h"
@@ -124,18 +125,10 @@ void Colour_manager::init(const string& file, bool create_default_only) {
                 out << left << setw(longest_key_length + 1) << s->name << right;
                 out << s->col.triplet() << '\n';
             }
-            else if (Colour_setting_section* sect = dynamic_cast<Colour_setting_section*>(&*settings[i])) {
-                out << '\n';
-                if (!sect->name.empty()) {
-                    out << "; " << sect->name;
-                    out << '\n';
-                }
-            }
-            else if (Colour_setting_comment* c = dynamic_cast<Colour_setting_comment*>(&*settings[i])) {
-                if (!c->name.empty())
-                    out << "; " << c->name;
-                out << '\n';
-            }
+            else if (Colour_setting_section* sect = dynamic_cast<Colour_setting_section*>(&*settings[i]))
+                out << '\n' << "; " << sect->name << '\n';
+            else if (Colour_setting_comment* c = dynamic_cast<Colour_setting_comment*>(&*settings[i]))
+                out << "; " << c->name << '\n';
         }
         return;
     }
@@ -166,7 +159,7 @@ void Colour_manager::init(const string& file, bool create_default_only) {
                 log("Unknown key in colours.txt: %s", key.c_str());
         }
         else
-            log("Syntax error in colours.txt, line: %s", line.c_str());
+            log.error(_("Syntax error in colours.txt, line '$1'.", line.c_str()));
     }
 }
 
