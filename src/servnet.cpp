@@ -2979,7 +2979,7 @@ void ServerNetworking::run_relay_thread() {
         if (is_relay_active())
             platSleep(50);
         else
-            platSleep(5000);
+            platSleep(1000);
         send_next_relay_frame();
     }
 }
