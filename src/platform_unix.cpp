@@ -192,16 +192,26 @@ void platUninit() {
 
 #ifndef DEDICATED_SERVER_ONLY
 
-void platMessageBox(const string& caption, const string& msg, bool blocking) {
+void platMessageBox(string caption, string msg, bool blocking) {
     // The dialog tools may bug totally when given characters in wrong encoding.
     // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message. (some versions of it did that with normal input like '&' too, so it's no longer used at all)
     // When UTF-8 is not detected, we have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
 
-    char* capBuf = new char[caption.length() + 1];
-    char* msgBuf = new char[    msg.length() + 1];
+    char* capBuf = 0, * msgBuf = 0;
+    const char* captionConv, * msgConv;
+    if (utf8_mode) {
+        caption = latin1_to_utf8(caption);
+            msg = latin1_to_utf8(msg);
+        captionConv = caption.c_str();
+            msgConv =     msg.c_str();
+    }
+    else {
+        capBuf = new char[caption.length() + 1];
+        msgBuf = new char[    msg.length() + 1];
 
-    const char* captionConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
-    const char*     msgConv = utf8_mode ? latin1_to_utf8(caption).c_str() : uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+        captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
+            msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+    }
 
     // print to console, it's more reliable than the dialog tools
     fprintf(stderr, "%s: %s\n", captionConv, msgConv);
@@ -231,11 +241,8 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
                 funci = nFuncs;
                 break;
             }
-            if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS) {
-                delete[] capBuf;
-                delete[] msgBuf;
-                return;
-            }
+            if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)
+                break;
         }
         else {
             platSleep(200); // this is a total hack - but how else to detect the call failing?
@@ -245,11 +252,8 @@ void platMessageBox(const string& caption, const string& msg, bool blocking) {
                 funci = nFuncs;
                 break;
             }
-            if (ret == 0 || (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)) { // ret == 0 means the child is still running, ie. probably showing the message as it should
-                delete[] capBuf;
-                delete[] msgBuf;
-                return;
-            }
+            if (ret == 0 || (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SUCCESS)) // ret == 0 means the child is still running, ie. probably showing the message as it should
+                break;
         }
         ++lFunci;
         funci = lFunci;
