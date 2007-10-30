@@ -2551,7 +2551,9 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
 
     break; case data_gameover_show: {
+        #ifndef DEDICATED_SERVER_ONLY
         extra_time_running = false;
+        #endif
         NLubyte plaque;
         readByte(lebuf, count, plaque);
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
@@ -3366,8 +3368,8 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #endif
 
     break; case data_normal_time_out: {
-        extra_time_running = true;
         #ifndef DEDICATED_SERVER_ONLY
+        extra_time_running = true;
         NLubyte sudden_death;
         readByte(lebuf, count, sudden_death);
         string msg = _("*** Normal time out - extra-time started");
