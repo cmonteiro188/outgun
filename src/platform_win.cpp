@@ -75,7 +75,7 @@ class MMSystemTimer : public SystemTimer {
     uint64_t base;
     uint32_t prev;
 
-    MutexHolder readMutex; // read needs to be locked to avoid extra additions to base
+    Mutex readMutex; // read needs to be locked to avoid extra additions to base
 
 public:
     MMSystemTimer() {

@@ -108,7 +108,7 @@ private:
     static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime);
 
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems
-    MutexHolder& threadLockMutex;    // used to implement threadLock, if it is enabled; the mutex is external
+    Mutex& threadLockMutex;    // used to implement threadLock, if it is enabled; the mutex is external
 
     std::map<std::string, std::string> master_parameters(const std::string& address, bool quitting = false) const;
     std::map<std::string, std::string> website_parameters(const std::string& address) const;
@@ -128,7 +128,7 @@ private:
     volatile bool   mjob_exit;              //flag for all pending master jobs to quit now
     volatile bool   mjob_fastretry;         //flag for all pending master jobs to stop waiting and retry immediately
     volatile int    mjob_count;
-    MutexHolder     mjob_mutex;             //mutex for socket list
+    Mutex           mjob_mutex;             //mutex for socket list
 
     int             max_world_rank;
 
@@ -148,7 +148,7 @@ private:
     int             bot_count;
     std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
     int             localPlayers;
-    MutexHolder     addPlayerMutex;
+    Mutex           addPlayerMutex;
     unsigned        newUniqueId;
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
@@ -161,7 +161,7 @@ private:
     NLsocket  relay_socket;
     bool      relay_new_game;
     std::queue<std::string> relay_frame;
-    MutexHolder relay_mutex;    // mutex for relay buffer
+    Mutex     relay_mutex;    // mutex for relay buffer
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -201,7 +201,7 @@ private:
 
 public:
 
-    ServerNetworking(Server* hostp, const Settings& settings, ServerWorld& w, LogSet logs, bool threadLock, MutexHolder& threadLockMutex);
+    ServerNetworking(Server* hostp, const Settings& settings, ServerWorld& w, LogSet logs, bool threadLock, Mutex& threadLockMutex);
     ~ServerNetworking();
     void setMaxPlayers(int num) { maxplayers = num; }
 

@@ -30,13 +30,13 @@
 #include "nassert.h"
 #include "utility.h"
 
-// note: don't use exit() (_exit() is OK) when a global MutexHolder may be locked
-class MutexHolder {
+// note: don't use exit() (_exit() is OK) when a global Mutex may be locked
+class Mutex {
     pthread_mutex_t mutex;
 
 public:
-    MutexHolder()  { nAssert(0 == pthread_mutex_init(&mutex, 0)); }
-    ~MutexHolder() { nAssert(0 == pthread_mutex_destroy(&mutex)); }
+    Mutex()  { nAssert(0 == pthread_mutex_init(&mutex, 0)); }
+    ~Mutex() { nAssert(0 == pthread_mutex_destroy(&mutex)); }
     void lock()    { logAction('L'); nAssert(0 == pthread_mutex_lock(&mutex)); logAction('G'); }
     void unlock()  { logAction('U'); nAssert(0 == pthread_mutex_unlock(&mutex)); }
 
@@ -47,34 +47,34 @@ private:
             doLogAction(operation);
     }
 
-    friend class ConditionVariableHolder;
+    friend class ConditionVariable;
 };
 
 class MutexLock {
-    MutexHolder& mutex;
+    Mutex& mutex;
 
 public:
-    MutexLock(MutexHolder& mutex_) : mutex(mutex_) { mutex.lock(); }
+    MutexLock(Mutex& mutex_) : mutex(mutex_) { mutex.lock(); }
     ~MutexLock() { mutex.unlock(); }
 };
 
 class MutexUnlock {
-    MutexHolder& mutex;
+    Mutex& mutex;
 
 public:
-    MutexUnlock(MutexHolder& mutex_) : mutex(mutex_) { mutex.unlock(); }
+    MutexUnlock(Mutex& mutex_) : mutex(mutex_) { mutex.unlock(); }
     ~MutexUnlock() { mutex.lock(); }
 };
 
-class ConditionVariableHolder {
+class ConditionVariable {
     pthread_cond_t cond;
 
 public:
-    ConditionVariableHolder() { nAssert(0 == pthread_cond_init(&cond, 0)); }
-    ~ConditionVariableHolder() { nAssert(0 == pthread_cond_destroy(&cond)); }
+    ConditionVariable() { nAssert(0 == pthread_cond_init(&cond, 0)); }
+    ~ConditionVariable() { nAssert(0 == pthread_cond_destroy(&cond)); }
 
-    void wait(MutexHolder& mutex) { nAssert(0 == pthread_cond_wait(&cond, &mutex.mutex)); }
-    bool timedWait(MutexHolder& mutex, const struct timespec& abstime) {
+    void wait(Mutex& mutex) { nAssert(0 == pthread_cond_wait(&cond, &mutex.mutex)); }
+    bool timedWait(Mutex& mutex, const struct timespec& abstime) {
         const int val = pthread_cond_timedwait(&cond, &mutex.mutex, &abstime);
         nAssert(val == 0 || val == ETIMEDOUT);
         return val == ETIMEDOUT;
@@ -82,14 +82,14 @@ public:
 
     void signal   () { nAssert(0 == pthread_cond_signal   (&cond)); }
     void broadcast() { nAssert(0 == pthread_cond_broadcast(&cond)); }
-    void signal   (MutexHolder& mutex) { MutexLock ml(mutex); signal   (); }
-    void broadcast(MutexHolder& mutex) { MutexLock ml(mutex); broadcast(); }
+    void signal   (Mutex& mutex) { MutexLock ml(mutex); signal   (); }
+    void broadcast(Mutex& mutex) { MutexLock ml(mutex); broadcast(); }
 };
 
 // Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
 template<class ObjT>
 class Threadsafe {
-    mutable MutexHolder mutex;
+    mutable Mutex mutex;
     ObjT obj;
 
 public:
@@ -106,6 +106,6 @@ public:
     const ObjT& access() const { return obj; }  // use obj only between lock() and unlock()
 };
 
-extern MutexHolder nlOpenMutex;
+extern Mutex nlOpenMutex;
 
 #endif

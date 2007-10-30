@@ -29,7 +29,7 @@
 // make all thread functions log their start and exit to the context's regular log file; helps reading any dumps that contain thread IDs (e.g. mutex log)
 static const bool LOG_THREAD_IDS = false;
 
-// create ./mutexlog.bin containing information on every lock and unlock operation on a MutexHolder, including thread ID
+// create ./mutexlog.bin containing information on every lock and unlock operation on a Mutex, including thread ID
 static const bool LOG_MUTEX_LOCKUNLOCK = false;
 
 // report on missing or wrongly ordered packets (both client and server)

@@ -36,7 +36,7 @@
 #include "utility.h"
 
 class Log { // base class
-    mutable MutexHolder m;
+    mutable Mutex m;
     int nLines;
 
     virtual void add(const std::string& str) =0;

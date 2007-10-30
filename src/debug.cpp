@@ -31,8 +31,8 @@
 #include "thread.h"
 #include "utility.h"
 
-void MutexHolder::doLogAction(char operation) { // from mutex.h
-    static MutexHolder logMutex;    // used to simplify its creation; using lock() or unlock() would lead in endless recursion
+void Mutex::doLogAction(char operation) { // from mutex.h
+    static Mutex logMutex;    // used to simplify its creation; using lock() or unlock() would lead in endless recursion
     nAssert(0 == pthread_mutex_lock(&logMutex.mutex));
     FILE* logFile = fopen("mutexlog.bin", "ab");
     if (logFile) {

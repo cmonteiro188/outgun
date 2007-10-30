@@ -112,11 +112,11 @@ public:
 
     #ifdef LEETNET_DATA_LOG
     FILE* datalog;
-    MutexHolder datalogMutex;
+    Mutex datalogMutex;
     #endif
 
     double packetDelay; // how many seconds every sent frame is delayed to increase lag
-    MutexHolder sendQueueMutex; // lock for operating on sendQueue
+    Mutex sendQueueMutex; // lock for operating on sendQueue
     std::queue< std::pair<double, QueueSendCommand*> > sendQueue;  // pair of sendtime, command for delayed sends (used if packetDelay != 0)
 
     //the server address
@@ -139,7 +139,7 @@ public:
     //the reader thread
     Thread      thread_read;
 
-    MutexHolder readerThreadManipulationMutex;
+    Mutex readerThreadManipulationMutex;
 
     //quit reader thread?
     bool                quit_reader_thread;

@@ -258,7 +258,7 @@ public:
     // since all unacked messages are always sent, this includes those that were not sent a single time yet.
     msgrec reliable[MAXMSG];  // FIXME: access to "reliable" must be sinchronized
     NLbyte  reliable_count;     //count of reliable messages in buffer
-    MutexHolder relmsg_mutex;
+    Mutex relmsg_mutex;
 
     #ifdef EXTRA_RELIABLE_STORAGE
     NLulong reliable_size;  // total size of reliable messages in reliable[], plus 6 bytes extra for each

@@ -34,7 +34,7 @@ std::string wheregamedir;
 volatile bool g_exitFlag;
 
 // from mutex.h
-MutexHolder nlOpenMutex;
+Mutex nlOpenMutex;
 
 // from debugconfig.h
 AutoBugReporting g_autoBugReporting = ABR_disabled;

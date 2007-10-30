@@ -75,7 +75,7 @@ public:
     int cid;
 };
 
-ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, ServerWorld& w, LogSet logs, bool threadLock_, MutexHolder& threadLockMutex_) :
+ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, ServerWorld& w, LogSet logs, bool threadLock_, Mutex& threadLockMutex_) :
     threadLock(threadLock_),
     threadLockMutex(threadLockMutex_),
     host(hostp),

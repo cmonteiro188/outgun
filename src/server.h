@@ -92,7 +92,7 @@ class Server {
     mutable LogSet log;
 
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems so it's often wise
-    MutexHolder threadLockMutex;    // used to implement threadLock, if it is enabled
+    Mutex threadLockMutex;    // used to implement threadLock, if it is enabled
 
     bool abortFlag;
 

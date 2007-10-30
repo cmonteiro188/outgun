@@ -97,10 +97,10 @@ struct client_t {
     bool                        in_lag;         // if client is lagged
 
     //mutex for the station object and condition variable
-    MutexHolder   station_mutex;
+    Mutex   station_mutex;
 
     //condition variable
-    ConditionVariableHolder       station_cond_hasdata;
+    ConditionVariable       station_cond_hasdata;
 
     //thread must quit flag
     volatile bool       quitflag;
@@ -130,7 +130,7 @@ public:
 
     #ifdef LEETNET_DATA_LOG
     FILE* datalog;
-    MutexHolder datalogMutex;
+    Mutex datalogMutex;
     #endif
 
     // number of clients allocated

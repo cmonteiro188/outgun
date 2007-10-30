@@ -231,7 +231,7 @@ class Client : public ClientInterface {
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     #endif
     int me;
-    MutexHolder frameMutex;
+    Mutex frameMutex;
     int maxplayers;
 
     // network
@@ -263,7 +263,7 @@ class Client : public ClientInterface {
 
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
-    MutexHolder downloadMutex;
+    Mutex downloadMutex;
     #ifndef DEDICATED_SERVER_ONLY
     std::list<FileDownload> downloads;
 
@@ -274,7 +274,7 @@ class Client : public ClientInterface {
     #endif
 
     #ifndef DEDICATED_SERVER_ONLY
-    MutexHolder mapInfoMutex;
+    Mutex mapInfoMutex;
     std::vector<MapInfo> maps;
     std::vector< std::pair<const MapInfo*, int> > sortedMaps;
 
@@ -328,7 +328,7 @@ class Client : public ClientInterface {
 
     std::vector<ServerListEntry> gamespy;
     std::vector<ServerListEntry> mgamespy;  //gamespy of master server
-    MutexHolder serverListMutex;
+    Mutex serverListMutex;
 
     RegisterMouseClicks mouseClicked;
     #endif

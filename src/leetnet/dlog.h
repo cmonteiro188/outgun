@@ -56,7 +56,7 @@ class DLOG_Main { };
 
 class DLOG_Main {
     FILE* fp;
-    MutexHolder writeMutex;
+    Mutex writeMutex;
 
 public:
     DLOG_Main() { fp = fopen("lnetdlog.bin", "wb"); nAssert(fp); }
