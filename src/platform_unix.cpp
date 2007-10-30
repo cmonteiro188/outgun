@@ -192,29 +192,29 @@ void platUninit() {
 
 #ifndef DEDICATED_SERVER_ONLY
 
-void platMessageBox(string caption, string msg, bool blocking) {
+void platMessageBox(const string& caption, const string& msg, bool blocking) {
     // The dialog tools may bug totally when given characters in wrong encoding.
     // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message. (some versions of it did that with normal input like '&' too, so it's no longer used at all)
     // When UTF-8 is not detected, we have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
 
-    char* capBuf = 0, * msgBuf = 0;
-    const char* captionConv, * msgConv;
+    string captionConv, msgConv;
     if (utf8_mode) {
-        caption = latin1_to_utf8(caption);
-            msg = latin1_to_utf8(msg);
-        captionConv = caption.c_str();
-            msgConv =     msg.c_str();
+        captionConv = latin1_to_utf8(caption);
+            msgConv = latin1_to_utf8(msg);
     }
     else {
-        capBuf = new char[caption.length() + 1];
-        msgBuf = new char[    msg.length() + 1];
+        char* capBuf = new char[caption.length() + 1];
+        char* msgBuf = new char[    msg.length() + 1];
 
         captionConv = uconvert(caption.c_str(), U_CURRENT, capBuf, U_ASCII_CP, caption.length() + 1);
             msgConv = uconvert(    msg.c_str(), U_CURRENT, msgBuf, U_ASCII_CP,     msg.length() + 1);
+
+        delete[] capBuf;
+        delete[] msgBuf;
     }
 
     // print to console, it's more reliable than the dialog tools
-    fprintf(stderr, "%s: %s\n", captionConv, msgConv);
+    fprintf(stderr, "%s: %s\n", captionConv.c_str(), msgConv.c_str());
 
     static const int nFuncs = 2;
     static const char* func[nFuncs] = { "kdialog", "xmessage" };
@@ -225,9 +225,9 @@ void platMessageBox(string caption, string msg, bool blocking) {
         pid_t pid = fork();
         if (pid == 0) { // child
             if (lFunci == iXmessage)    // xmessage
-                execlp(func[lFunci], func[lFunci], captionConv, ":", msgConv, (const char*)0);
+                execlp(func[lFunci], func[lFunci], captionConv.c_str(), ":", msgConv.c_str(), (const char*)0);
             else
-                execlp(func[lFunci], func[lFunci], "--title", captionConv, "--msgbox", msgConv, (const char*)0);
+                execlp(func[lFunci], func[lFunci], "--title", captionConv.c_str(), "--msgbox", msgConv.c_str(), (const char*)0);
             _exit(EXIT_FAILURE);
         }
         if (pid == -1) {
@@ -258,8 +258,6 @@ void platMessageBox(string caption, string msg, bool blocking) {
         ++lFunci;
         funci = lFunci;
     }
-    delete[] capBuf;
-    delete[] msgBuf;
 }
 
 #endif // DEDICATED_SERVER_ONLY
