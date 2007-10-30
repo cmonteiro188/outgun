@@ -50,8 +50,6 @@
 #include "rudp.h"
 #include "Timer.h"
 #include "../timer.h" // for platSleep
-#include "ConditionVariable.h"
-#include "Mutex.h"
 using namespace GNE;
 
 // max (absolute) clients that can connect to a server
@@ -99,16 +97,15 @@ struct client_t {
     bool                        in_lag;         // if client is lagged
 
     //mutex for the station object and condition variable
-    Mutex   station_mutex;
+    MutexHolder   station_mutex;
 
     //condition variable
-    ConditionVariable       station_cond_hasdata;
-    //pthread_cond_t    station_cond_hasdata;
+    ConditionVariableHolder       station_cond_hasdata;
 
     //thread must quit flag
     volatile bool       quitflag;
 
-    client_t() : station_mutex(), station_cond_hasdata(&station_mutex) { }
+    client_t() : station_mutex(), station_cond_hasdata() { }
 };
 
 
@@ -285,7 +282,7 @@ public:
             log("server_ci::stop() -- signal %i", i);
 
             //pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
-            client[i].station_cond_hasdata.signal();
+            client[i].station_cond_hasdata.signal(client[i].station_mutex);
         }
 
         log("server_ci::stop() -- joining master thread");
@@ -611,7 +608,7 @@ public:
             // ira' processá-lo. obs: "station" precisa ser locket
 
             //set packet, slap slave
-            client[i].station_mutex.acquire();
+            client[i].station_mutex.lock();
 
             //pode ser null aqui  (free slave  lock/delete/unlock)
             if (client[i].station)
@@ -620,7 +617,7 @@ public:
             //pthread_cond_signal ( &client[i].station_cond_hasdata );  //slap the slave
             client[i].station_cond_hasdata.signal();
 
-            client[i].station_mutex.release();
+            client[i].station_mutex.unlock();
 
             // ok
             return 1;
@@ -715,7 +712,7 @@ public:
         for (i=0;i<MAX_CLIENTS;i++)
         {
             //lock client
-            client[i].station_mutex.acquire();
+            client[i].station_mutex.lock();
 
             if (!client[i].used)
             {
@@ -750,7 +747,7 @@ public:
                 //client[i].station->set_remote_address(adrstr);
                 if (client[i].station->set_remote_address(&client[i].addr, minLocalPort, maxLocalPort) == 0) {
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
-                    client[i].station_mutex.release();
+                    client[i].station_mutex.unlock();
                     return 1;       //abort connection
                 }
 
@@ -771,12 +768,12 @@ public:
                 client[i].used = true;
 
                 //ok - unlock client
-                client[i].station_mutex.release();
+                client[i].station_mutex.unlock();
                 return 1;
             }
 
             //unlock client
-            client[i].station_mutex.release();
+            client[i].station_mutex.unlock();
         }
 
         //WEIRD WEIRD fail: num_clients esta mentindo para baixo
@@ -799,9 +796,9 @@ public:
                 if (client[i].droptime < curr_time) {
                     //bye
                     log("droptime: client %i's slave freed.", i);
-                    client[i].station_mutex.acquire();
+                    client[i].station_mutex.lock();
                     free_slave(i);
-                    client[i].station_mutex.release();
+                    client[i].station_mutex.unlock();
                 }
 
                 //HACK: check for lagged call
@@ -1226,7 +1223,7 @@ void thread_slave_f(client_t* mydata)
     //my id
     int myid = mydata->id;
 
-    mydata->station_mutex.acquire();    // timedWait releases it for the waiting period
+    mydata->station_mutex.lock();    // timedWait releases it for the waiting period
 
     //loop
     while (mydata->quitflag == false) {
@@ -1240,8 +1237,7 @@ void thread_slave_f(client_t* mydata)
         //wait for "work now!" signal from master
         //pthread_cond_wait ( &mydata->station_cond_hasdata, &mydata->station_mutex );
 
-        //timedwait, so it does not deadlock if something goes wrong (only the paranoids will survive! ha ha ha!)
-        mydata->station_cond_hasdata.timedWait(1000);
+        mydata->station_cond_hasdata.wait(mydata->station_mutex);
 
         //SLEEP(5);  // IMPROVED WITH CONDITION VARIABLE! THANKS TO GNE!
 
@@ -1262,7 +1258,7 @@ void thread_slave_f(client_t* mydata)
             //pthread_mutex_unlock( &mydata->station_mutex );
         }
     }
-    mydata->station_mutex.release();
+    mydata->station_mutex.unlock();
     logThreadExit("Leet server thread_slave_f", server->log);
 }
 

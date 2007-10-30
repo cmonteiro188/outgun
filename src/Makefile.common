@@ -67,7 +67,7 @@ OUTGUN_CLIENT_OBJ_NAMES = $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colo
 ifdef WITH_PNG
  OUTGUN_CLIENT_OBJ_NAMES += loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o
 endif
-LEETNET_OBJ_NAMES = ConditionVariable.o Mutex.o rudp.o client.o server.o Time.o Timer.o dlog.o
+LEETNET_OBJ_NAMES = rudp.o client.o server.o Time.o Timer.o dlog.o
 
 RELAY_OBJ_NAMES = tools/relay.o globals.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
 MAKEDEP_OBJ_NAMES = tools/makedep.o
