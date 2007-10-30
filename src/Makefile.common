@@ -19,6 +19,7 @@ CXX ?= g++
 ifdef LINUX
 
  RM ?= rm -f
+ MKDIR ?= mkdir
  EXE_SUFFIX =
 
  ALLEGRO_CONFIG ?= allegro-config
@@ -43,6 +44,7 @@ else
 
  WINDRES ?= windres
  RM ?= del
+ MKDIR ?= mkdir
  EXE_SUFFIX = .exe
 
  COMMON_LIBS = -lNL -lpthreadGC1 -lwinmm
@@ -117,44 +119,64 @@ relay: ../relay$(EXE_SUFFIX)
 clean:
 	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) TAGS
 
-.PHONY: all outgun outgun-ded makedep srvmonit relay clean
+.PHONY: standard all outgun outgun-ded makedep srvmonit relay clean
 
 TAGS: $(SRC_FILES)
 	etags $^
+
+# directories for generated files
+
+dep obj:
+	$(MKDIR) $@
+
+dep/leetnet dep/loadpng dep/tools: | dep
+	$(MKDIR) $@
+
+obj/gui obj/text obj/leetnet: | obj
+	$(MKDIR) $@
+
+obj/text/tools: | obj/text
+	$(MKDIR) $@
+
+obj/gui/loadpng: | obj/gui
+	$(MKDIR) $@
+
+# make-directories-file must exist and is not generated anywhere (because its date should stay old); it is used to work around a gmake bug
+make-directories-file: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
 
 # file dependency lists
 
 MAKEDEP ?= tools/makedep$(EXE_SUFFIX)
 
-dep/leetnet/%.d: leetnet/% $(MAKEDEP)
+dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj/leetnet $< > $@
 
-dep/loadpng/%.d: loadpng/% $(MAKEDEP)
+dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj/gui/loadpng $< > $@
 
-dep/tools/%.d: tools/% $(MAKEDEP)
+dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj/text/tools $< > $@
 
-dep/%.d: % $(MAKEDEP)
+dep/%.d: % $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
 
 -include $(DEPENDENCY_FILES)
 
 # object files
 
-obj/gui/%.o: %.cpp
+obj/gui/%.o: %.cpp | make-directories-file
 	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
 
-obj/gui/loadpng/%.o: loadpng/%.c
+obj/gui/loadpng/%.o: loadpng/%.c | make-directories-file
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
 
-obj/text/%.o: %.cpp
+obj/text/%.o: %.cpp | make-directories-file
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
 
-obj/text/nassert_simple.o: obj/text/nassert.o
+obj/text/nassert_simple.o: obj/text/nassert.o | make-directories-file
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
-obj/leetnet/%.o: leetnet/%.cpp
+obj/leetnet/%.o: leetnet/%.cpp | make-directories-file
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # binaries
