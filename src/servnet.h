@@ -156,12 +156,36 @@ private:
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
-    Thread    relay_thread;
-    NLaddress relay_address;
-    NLsocket  relay_socket;
-    bool      relay_new_game;
-    std::queue<std::string> relay_frame;
-    Mutex     relay_mutex;    // mutex for relay buffer
+    class RelayThread {
+        Thread thread;
+        volatile bool& quitFlag;
+        NLsocket socket;
+        bool newGame;
+        std::queue<std::string> dataQueue;
+        ConditionVariable wakeup;
+        mutable Mutex mutex;
+        mutable LogSet log;
+
+        bool send(const std::string& data);
+        void threadMain();
+        void pushData_locked(const std::string& data);
+        bool isConnected_locked() const { return socket != NL_INVALID; }
+
+    public:
+        RelayThread(LogSet logs, volatile bool& quitFlag_) : quitFlag(quitFlag_), socket(NL_INVALID), log(logs) { }
+        ~RelayThread() { nlClose(socket); }
+
+        void start(int priority);
+        void stop();
+
+        void startNewGame(const NLaddress& relayAddress, const std::string& initData);
+        void pushFrame(const std::string& frame);
+
+        bool isConnected() const { MutexLock ml(mutex); return isConnected_locked(); }
+    };
+
+    NLaddress       relay_address;
+    RelayThread     relayThread;
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -186,8 +210,6 @@ private:
     void run_shellslave_thread(volatile bool* quitFlag);
 
     void run_website_thread();
-
-    void run_relay_thread();
 
     void broadcast_message(const char* data, int length) const;
     void send_simple_message(Network_data_code code, int pid) const;
@@ -304,7 +326,6 @@ public:
     bool is_relay_active() const;
     void send_first_relay_data(const std::string& data);
     void send_relay_data(const std::string& data);
-    void send_next_relay_frame();
 
     void forwardSayadminMessage(int cid, const std::string& message) const;
     void sendTextToAdminShell(const std::string& text) const;

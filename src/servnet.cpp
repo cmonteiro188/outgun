@@ -87,7 +87,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     newUniqueId(0),
     accelerationModeMask(0),
     maplist_revision(0),
-    relay_socket(NL_INVALID),
+    relayThread(logs, file_threads_quit),
     playerSlotReservationTime(get_time()),
     reservedPlayerSlots(0)
 {
@@ -96,7 +96,6 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
 }
 
 ServerNetworking::~ServerNetworking() {
-    nlClose(relay_socket);
     if (server) {
         delete server;
         server = 0;
@@ -1140,85 +1139,15 @@ bool ServerNetworking::is_relay_used() const {
 }
 
 bool ServerNetworking::is_relay_active() const {
-    return relay_socket != NL_INVALID;
+    return relayThread.isConnected();
 }
 
 void ServerNetworking::send_first_relay_data(const string& data) {
-    relay_new_game = true;
-    if (is_relay_active()) // already sent
-        return;
-    relay_frame = queue<string>();
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    relay_socket = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (relay_socket == NL_INVALID) {
-        log("Could not open relay socket.");
-        return;
-    }
-    if (!nlConnect(relay_socket, &relay_address)) {
-        log("Could not connect to relay.");
-        nlClose(relay_socket);
-        relay_socket = NL_INVALID;
-        return;
-    }
-    ostringstream ost;
-    write_string(ost, GAME_STRING);
-    write_string(ost, "SERVER");
-    write(ost, static_cast<unsigned>(data.length()));
-    ost << data;
-
-    /*const NetworkResult result = writeToUnblockingTCP(relay_socket, ost.str().data(), ost.str().length(), &file_threads_quit, 100, 5);
-    if (result != NR_ok) {
-        log("Could not send init data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        nlClose(relay_socket);
-        relay_socket = NL_INVALID;
-    }
-    else
-        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));*/
-
-    relay_mutex.lock();
-    relay_frame.push(ost.str());
-    relay_mutex.unlock();
+    relayThread.startNewGame(relay_address, data);
 }
 
 void ServerNetworking::send_relay_data(const string& data) {
-    if (!is_relay_active())  // Try again in the next game.
-        return;
-    ostringstream ost;
-    write(ost, static_cast<unsigned char>(relay_new_game ? relay_data_game_start : relay_data_frame));
-    ost << data;
-    relay_new_game = false;
-    relay_mutex.lock();
-    relay_frame.push(ost.str());
-    relay_mutex.unlock();
-}
-
-void ServerNetworking::send_next_relay_frame() {
-    if (relay_frame.empty())
-        return;
-
-    relay_mutex.lock();
-    const string frame = relay_frame.front();
-    relay_frame.pop();
-    relay_mutex.unlock();
-
-    // Test the connection
-    const unsigned max_buffer_size = 100;
-    NLbyte buffer[max_buffer_size];
-    const int receive = nlRead(relay_socket, buffer, max_buffer_size);
-    if (receive == NL_INVALID) {
-        log("Relay disconnected: %s", getNlErrorString());
-        nlClose(relay_socket);
-        relay_socket = NL_INVALID;
-        return;
-    }
-    const NetworkResult result = writeToUnblockingTCP(relay_socket, frame.data(), frame.length(), &file_threads_quit, 500, 1);
-    if (result != NR_ok) {
-        log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        nlClose(relay_socket);
-        relay_socket = NL_INVALID;
-    }
+    relayThread.pushFrame(data);
 }
 
 bool ServerNetworking::start() {
@@ -1272,8 +1201,7 @@ bool ServerNetworking::start() {
     //start website thread
     webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), settings.lowerPriority());
 
-    //start relay thread
-    relay_thread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_relay_thread), settings.lowerPriority());
+    relayThread.start(settings.lowerPriority());
 
     return true;
 }
@@ -2972,16 +2900,105 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
     logThreadExit("run_shellslave_thread", log);
 }
 
-void ServerNetworking::run_relay_thread() {
-    logThreadStart("run_relay_thread", log);
-
-    while (!file_threads_quit) {
-        if (is_relay_active())
-            platSleep(50);
-        else
-            platSleep(1000);
-        send_next_relay_frame();
+bool ServerNetworking::RelayThread::send(const string& data) {
+    // Test the connection
+    const unsigned max_buffer_size = 100;
+    NLbyte buffer[max_buffer_size];
+    const int receive = nlRead(socket, buffer, max_buffer_size);
+    if (receive == NL_INVALID) {
+        log("Relay disconnected: %s", getNlErrorString());
+        return false;
     }
+    const NetworkResult result = writeToUnblockingTCP(socket, data.data(), data.length(), &quitFlag, 100, 50); // 5 second timeout
+    if (result != NR_ok) {
+        log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+        return false;
+    }
+    return true;
+}
+
+void ServerNetworking::RelayThread::threadMain() {
+    logThreadStart("RelayThread::threadMain", log);
+
+    MutexLock ml(mutex);
+    for (;;) {
+        while (!quitFlag && dataQueue.empty())
+            wakeup.wait(mutex);
+        if (quitFlag)
+            break;
+        if (!isConnected_locked())
+            continue;
+
+        nAssert(!dataQueue.empty());
+        const string data = dataQueue.front();
+        dataQueue.pop();
+
+        MutexUnlock mu(mutex);
+        if (!send(data)) {
+            nlClose(socket);
+            socket = NL_INVALID;
+        }
+    }
+
+    logThreadExit("RelayThread::threadMain", log);
+}
+
+void ServerNetworking::RelayThread::pushData_locked(const string& data) {
+    dataQueue.push(data);
+    wakeup.signal();
+}
+
+void ServerNetworking::RelayThread::start(int priority) {
+    thread.start_assert(RedirectToMemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain), priority);
+}
+
+void ServerNetworking::RelayThread::stop() {
+    nAssert(quitFlag);
+    wakeup.signal(mutex);
+    thread.join();
+}
+
+void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData) {
+    MutexLock ml(mutex);
+
+    newGame = true;
+
+    if (isConnected_locked())
+        return; // initData already sent, too
+
+    dataQueue = queue<string>();
+
+    nlOpenMutex.lock();
+    nlDisable(NL_BLOCKING_IO);
+    socket = nlOpen(0, NL_RELIABLE);
+    nlOpenMutex.unlock();
+    if (socket == NL_INVALID) {
+        log("Could not open relay socket.");
+        return;
+    }
+
+    if (!nlConnect(socket, &relayAddress)) {
+        log("Could not connect to relay.");
+        nlClose(socket);
+        socket = NL_INVALID;
+        return;
+    }
+
+    ostringstream ost;
+    write_string(ost, GAME_STRING);
+    write_string(ost, "SERVER");
+    write(ost, static_cast<unsigned>(initData.length()));
+    ost << initData;
+
+    pushData_locked(ost.str());
+}
+
+void ServerNetworking::RelayThread::pushFrame(const string& frame) {
+    MutexLock ml(mutex);
+    if (!isConnected_locked())  // Try again in the next game.
+        return;
+    pushData_locked(static_cast<char>(newGame ? relay_data_game_start : relay_data_frame) + frame);
+    newGame = false;
 }
 
 void ServerNetworking::stop() {
@@ -3031,7 +3048,7 @@ void ServerNetworking::stop() {
     webthread.join();
 
     settings.statusOutput()(_("Shutdown: relay thread"));
-    relay_thread.join();
+    relayThread.stop();
 
     settings.statusOutput()(_("Shutdown: main thread"));
 }
