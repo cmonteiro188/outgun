@@ -35,11 +35,13 @@
 
 using std::cin;
 using std::cout;
+using std::deque;
 using std::ios;
 using std::ifstream;
 using std::istream;
 using std::istringstream;
 using std::map;
+using std::noskipws;
 using std::ostringstream;
 using std::string;
 using std::stringstream;
@@ -144,7 +146,7 @@ void Relay::run() {
         get_server_data();
         send_data();
         //send_master_server();
-        remove_old_games();
+        remove_oldest_game();
         platSleep(5);
     }
 
@@ -313,6 +315,8 @@ void Relay::check_new_connections() {
 
 void Relay::get_server_data() {
     stringstream data;
+    data << waiting_data;
+    waiting_data.clear();
     while (server_socket != NL_INVALID) {
         const unsigned max_buffer_size = 20000;
         NLbyte buffer[max_buffer_size];
@@ -333,12 +337,16 @@ void Relay::get_server_data() {
         return;
 
     while (data) {
-        add_data(data);
+        const bool skipped = !add_data(data);
+        if (skipped) {  // not enough data to create frame
+            data >> noskipws >> waiting_data;
+            break;
+        }
         //cout << "Frame data\n";
     }
 }
 
-void Relay::add_data(istream& in) {
+bool Relay::add_data(istream& in) {
     if (games.empty())
         games.push_back(Game());
     vector<Frame>* data_buffer = &games.back().buffer();
@@ -349,27 +357,38 @@ void Relay::add_data(istream& in) {
         //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes.\n";
     }
     else {
+        const istream::pos_type pos = in.tellg();
         unsigned char data_code;
-        if (read(in, data_code) && data_code == relay_data_game_start) { // New game started
-            games.back().finish();
-            games.push_back(Game());
-            data_buffer = &games.back().buffer();
-            cout << "New game started.\n";
-        }
         unsigned length;
-        if (read(in, length)) {
+        if (read(in, data_code) && read(in, length)) {
+            switch (data_code) {
+            /*break;*/ case relay_data_game_start:
+                    games.back().finish();
+                    games.push_back(Game());
+                    data_buffer = &games.back().buffer();
+                    cout << "New game started.\n";
+                break; case relay_data_frame:
+                break; default: nAssert(0);
+            }
             string temp;
             read(in, temp, length);
             data_buffer->push_back(Frame(length, temp, get_time()));
             //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes of " << length << ".\n";
         }
+        else {
+            in.clear();
+            in.seekg(pos);
+            return false;
+        }
     }
+    return true;
 }
 
 void Relay::send_data() {
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
         const unsigned temp_buffer_size = 10;
         NLbyte temp[temp_buffer_size];
+        // Check connection
         int result = nlRead(si->socket, temp, temp_buffer_size);
         if (result == NL_INVALID) {
             cout << "Spectator disconnected: " << getNlErrorString() << '\n';
@@ -377,11 +396,11 @@ void Relay::send_data() {
             si = spectators.erase(si);
             continue;
         }
-        if (!first_buffer.full()) {
+        if (!first_buffer.full()) { // First buffer not ready to send yet
             ++si;
             continue;
         }
-        if (!si->local) {
+        if (!si->local) {           // Limit data sending rate for spectators
             const unsigned bpsout = nlGetSocketStat(si->socket, NL_AVE_BYTES_SENT);
             if (bpsout > bandwidth_limit / spectators.size())
                 continue;
@@ -396,7 +415,7 @@ void Relay::send_data() {
             chunk = frame_data(si->next_frame, si->bytes_sent);
             protocol_size = sizeof(unsigned);
         }
-        if (chunk.empty()) {
+        if (chunk.empty()) {    // Nothing to send yet
             ++si;
             continue;
         }
@@ -410,12 +429,12 @@ void Relay::send_data() {
         si->bytes_sent += result;
         const Frame& frame = si->first_buffer_sent ? *get_frame(si->next_frame) : first_buffer;
         nAssert(si->bytes_sent <= frame.length() + protocol_size);
-        if (si->bytes_sent == frame.length() + protocol_size) {
+        if (si->bytes_sent == frame.length() + protocol_size) { // A frame has entirely been sent
             si->bytes_sent = 0;
-            if (!si->first_buffer_sent) {
+            if (!si->first_buffer_sent) {   // Send next the last game available
                 cout << "Init data sent to a client.\n";
                 unsigned game_start_buffer = buffer_first_frame;
-                for (vector<Game>::iterator gi = games.begin(); gi != games.end(); gi++)
+                for (deque<Game>::iterator gi = games.begin(); gi != games.end(); gi++)
                     if (gi->finished())
                         game_start_buffer += gi->size();
                 si->next_frame = game_start_buffer;
@@ -436,29 +455,25 @@ int Relay::send_data(NLsocket& socket, const string& data) const {
     return nlWrite(socket, data.data(), data.length());
 }
 
-void Relay::remove_old_games() {
-    unsigned game_start_frame = buffer_first_frame;
-    for (vector<Game>::iterator gi = games.begin(); gi != games.end(); game_start_frame += gi->size(), gi++) {
-        if (!gi->finished()) // Only the last game can be still going on
-            break;
-        bool transmissions_needed = false;
-        for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); si++)
-            if (si->next_frame <= game_start_frame + gi->size()) {
-                transmissions_needed = true;
-                break;
-            }
-        if (!transmissions_needed) {
-            buffer_first_frame += gi->size();
-            gi = games.erase(gi);
+void Relay::remove_oldest_game() {
+    if (!games.front().finished())
+        return;
+    bool transmissions_needed = false;
+    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); si++)
+        if (si->next_frame <= buffer_first_frame + games.front().size()) {
+            transmissions_needed = true;
             break;
         }
+    if (!transmissions_needed) {
+        buffer_first_frame += games.front().size();
+        games.pop_front();
     }
 }
 
 const Frame* Relay::get_frame(unsigned frame_nr) const {
     const Frame* frame = 0;
     unsigned game_start_buffer = buffer_first_frame;
-    for (vector<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
+    for (deque<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
         if (game_start_buffer + gi->size() > frame_nr) {
             frame = &gi->frame(frame_nr - game_start_buffer);
             break;
@@ -472,7 +487,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
     const Frame* frame = 0;
     unsigned game_start_buffer = buffer_first_frame;
     bool current_game_finished = false;
-    for (vector<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
+    for (deque<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
         if (game_start_buffer + gi->size() > frame_nr) {
             frame = &gi->frame(frame_nr - game_start_buffer);
             current_game_finished = gi->finished();
@@ -480,7 +495,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
         }
         game_start_buffer += gi->size();
     }
-    if (!frame)
+    if (!frame || !frame->full())
         return string();
     // Do not send too recent frames if the game is still going on.
     if (!current_game_finished && frame->time() + 0 * 60 > get_time())

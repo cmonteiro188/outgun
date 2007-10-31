@@ -25,6 +25,7 @@
 #define RELAY_H_INC
 
 #include <fstream>
+#include <deque>
 #include <sstream>
 #include <vector>
 
@@ -117,7 +118,7 @@ private:
     void get_server_data();
 
     /// Add game data to buffer
-    void add_data(std::istream& in);
+    bool add_data(std::istream& in);
 
     /// Send data to every spectator
     void send_data();
@@ -125,8 +126,8 @@ private:
     /// Send data to the socket
     int send_data(NLsocket& socket, const std::string& data) const;
 
-    /// Remove games that are not needed anymore
-    void remove_old_games();
+    /// Remove the oldest game if it is not needed anymore
+    void remove_oldest_game();
 
     const Frame* get_frame(unsigned frame_nr) const;
     std::string frame_data(unsigned frame_nr, unsigned pos) const;
@@ -146,7 +147,9 @@ private:
 
     std::vector<Spectator> spectators;
     std::vector<Peer> peers;    /// Just connected "things"
-    std::vector<Game> games;    /// Game data
+    std::deque<Game> games;     /// Game data
+
+    std::string waiting_data;
 
     Frame first_buffer;         /// Initial buffer that basically has the same data as in the start of the replay
     unsigned buffer_first_frame; /// Frame number of the start frame of the first game in list
