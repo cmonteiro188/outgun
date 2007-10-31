@@ -126,20 +126,13 @@ TAGS: $(SRC_FILES)
 
 # directories for generated files
 
-dep obj:
+dep dep/leetnet dep/loadpng dep/tools obj obj/gui obj/gui/loadpng obj/leetnet obj/text obj/text/tools:
 	$(MKDIR) $@
 
 dep/leetnet dep/loadpng dep/tools: | dep
-	$(MKDIR) $@
-
 obj/gui obj/text obj/leetnet: | obj
-	$(MKDIR) $@
-
 obj/text/tools: | obj/text
-	$(MKDIR) $@
-
 obj/gui/loadpng: | obj/gui
-	$(MKDIR) $@
 
 # make-directories-file must exist and is not generated anywhere (because its date should stay old); it is used to work around a gmake bug
 make-directories-file: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
