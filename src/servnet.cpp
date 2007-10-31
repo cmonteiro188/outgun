@@ -2997,8 +2997,7 @@ void ServerNetworking::RelayThread::pushFrame(const string& frame) {
     MutexLock ml(mutex);
     if (!isConnected_locked())  // Try again in the next game.
         return;
-    pushData_locked(string() + static_cast<char>(newGame ? relay_data_game_start : relay_data_frame));
-    pushData_locked(frame);
+    pushData_locked(static_cast<char>(newGame ? relay_data_game_start : relay_data_frame) + frame);
     newGame = false;
 }
 
