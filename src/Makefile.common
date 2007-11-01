@@ -100,8 +100,10 @@ ifdef WITH_PNG
 endif
 
 SRC_PREFIXES = * leetnet/* loadpng/* tools/*
+# Suffix order is important for dependency generation.
+# Files that generate Makefile rules (.cpp and .c) must be included last.
 SRC_SUFFIXES = .h .inc .cpp .c
-SRC_FILE_PATTERNS = $(foreach PREFIX,$(SRC_PREFIXES),$(addprefix $(PREFIX),$(SRC_SUFFIXES)))
+SRC_FILE_PATTERNS = $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
 SRC_FILES = $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
 DEPENDENCY_FILES = $(patsubst %,dep/%.d,$(SRC_FILES))
 
@@ -142,13 +144,13 @@ make-directories-file: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/t
 MAKEDEP ?= tools/makedep$(EXE_SUFFIX)
 
 dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-file
-	@$(MAKEDEP) -O obj/leetnet $< > $@
+	@$(MAKEDEP) -O obj $< > $@
 
 dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-file
-	@$(MAKEDEP) -O obj/gui/loadpng $< > $@
+	@$(MAKEDEP) -O obj/gui $< > $@
 
 dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-file
-	@$(MAKEDEP) -O obj/text/tools $< > $@
+	@$(MAKEDEP) -O obj/text $< > $@
 
 dep/%.d: % $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
