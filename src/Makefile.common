@@ -4,7 +4,7 @@
 # or "make WINDOWS=1" to override, or edit this test.
 ifdef XAUTHORITY
  ifndef WINDOWS
-  LINUX = 1
+  LINUX := 1
  endif
 endif
 
@@ -20,44 +20,44 @@ ifdef LINUX
 
  RM ?= rm -f
  MKDIR ?= mkdir
- EXE_SUFFIX =
+ EXE_SUFFIX :=
 
  ALLEGRO_CONFIG ?= allegro-config
  ifdef DEBUGLIBS
-  COMMON_LIBS = -lNL_debug
-  ALLEG_LIBS = $(shell $(ALLEGRO_CONFIG) --libs debug)
-  ALLEG_CFLAGS = $(shell $(ALLEGRO_CONFIG) --cflags debug)
+  COMMON_LIBS := -lNL_debug
+  ALLEG_LIBS := $(shell $(ALLEGRO_CONFIG) --libs debug)
+  ALLEG_CFLAGS := $(shell $(ALLEGRO_CONFIG) --cflags debug)
  else
-  COMMON_LIBS = -lNL
-  ALLEG_LIBS = $(shell $(ALLEGRO_CONFIG) --libs)
-  ALLEG_CFLAGS = $(shell $(ALLEGRO_CONFIG) --cflags)
+  COMMON_LIBS := -lNL
+  ALLEG_LIBS := $(shell $(ALLEGRO_CONFIG) --libs)
+  ALLEG_CFLAGS := $(shell $(ALLEGRO_CONFIG) --cflags)
  endif
- PNG_LIBS = -lz -lpng
- PNG_CFLAGS = -DWITH_PNG
- PLATFORM_OBJ_NAMES = platform_unix.o
- OUTGUN_LDFLAGS = -pthread
- MAKEDEP_LDFLAGS =
- MON_LDFLAGS = -pthread
- RELAY_LDFLAGS = -pthread
+ PNG_LIBS := -lz -lpng
+ PNG_CFLAGS := -DWITH_PNG
+ PLATFORM_OBJ_NAMES := platform_unix.o
+ OUTGUN_LDFLAGS := -pthread
+ MAKEDEP_LDFLAGS :=
+ MON_LDFLAGS := -pthread
+ RELAY_LDFLAGS := -pthread
 
 else
 
  WINDRES ?= windres
  RM ?= del
  MKDIR ?= mkdir
- EXE_SUFFIX = .exe
+ EXE_SUFFIX := .exe
 
- COMMON_LIBS = -lNL -lpthreadGC1 -lwinmm
- PNG_LIBS = -lz -lpng
- PNG_CFLAGS = -DWITH_PNG
- ALLEG_LIBS = -lalleg
- ALLEG_CFLAGS =
- PLATFORM_OBJ_NAMES = platform_win.o
+ COMMON_LIBS := -lNL -lpthreadGC1 -lwinmm
+ PNG_LIBS := -lz -lpng
+ PNG_CFLAGS := -DWITH_PNG
+ ALLEG_LIBS := -lalleg
+ ALLEG_CFLAGS :=
+ PLATFORM_OBJ_NAMES := platform_win.o
  OUTGUN_COMMON_OBJ_NAMES += icon.res
- OUTGUN_LDFLAGS = -mwindows
- MAKEDEP_LDFLAGS = -mconsole
- MON_LDFLAGS = -mconsole
- RELAY_LDFLAGS = -mconsole
+ OUTGUN_LDFLAGS := -mwindows
+ MAKEDEP_LDFLAGS := -mconsole
+ MON_LDFLAGS := -mconsole
+ RELAY_LDFLAGS := -mconsole
 
  obj/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
@@ -65,47 +65,47 @@ else
 endif
 
 OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o mapgen.o $(PLATFORM_OBJ_NAMES)
-OUTGUN_CLIENT_OBJ_NAMES = $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o sounds.o menu.o mappic.o
+OUTGUN_CLIENT_OBJ_NAMES := $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o sounds.o menu.o mappic.o
 ifdef WITH_PNG
  OUTGUN_CLIENT_OBJ_NAMES += loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o
 endif
-LEETNET_OBJ_NAMES = rudp.o client.o server.o Time.o Timer.o dlog.o
+LEETNET_OBJ_NAMES := rudp.o client.o server.o Time.o Timer.o dlog.o
 
-RELAY_OBJ_NAMES = tools/relay.o globals.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
-MAKEDEP_OBJ_NAMES = tools/makedep.o
-MON_OBJ_NAMES = tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o $(PLATFORM_OBJ_NAMES)
+RELAY_OBJ_NAMES := tools/relay.o globals.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
+MAKEDEP_OBJ_NAMES := tools/makedep.o
+MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o $(PLATFORM_OBJ_NAMES)
 
-LEETNET_OBJS = $(patsubst %,obj/leetnet/%,$(LEETNET_OBJ_NAMES))
-OUTGUN_CLIENT_OBJS = $(patsubst %,obj/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
-OUTGUN_DEDSERV_OBJS = $(patsubst %,obj/text/%,$(OUTGUN_COMMON_OBJ_NAMES)) $(LEETNET_OBJS)
+LEETNET_OBJS := $(patsubst %,obj/leetnet/%,$(LEETNET_OBJ_NAMES))
+OUTGUN_CLIENT_OBJS := $(patsubst %,obj/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
+OUTGUN_DEDSERV_OBJS := $(patsubst %,obj/text/%,$(OUTGUN_COMMON_OBJ_NAMES)) $(LEETNET_OBJS)
 
-RELAY_OBJS = $(patsubst %,obj/text/%,$(RELAY_OBJ_NAMES))
-MAKEDEP_OBJS = $(patsubst %,obj/text/%,$(MAKEDEP_OBJ_NAMES))
-MON_OBJS = $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
+RELAY_OBJS := $(patsubst %,obj/text/%,$(RELAY_OBJ_NAMES))
+MAKEDEP_OBJS := $(patsubst %,obj/text/%,$(MAKEDEP_OBJ_NAMES))
+MON_OBJS := $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
 
-MAKEDEP_LIBS =
-MON_LIBS = $(COMMON_LIBS)
-RELAY_LIBS = $(COMMON_LIBS)
+MAKEDEP_LIBS :=
+MON_LIBS := $(COMMON_LIBS)
+RELAY_LIBS := $(COMMON_LIBS)
 
-TEXT_CXXFLAGS = $(CXXFLAGS) -DDEDICATED_SERVER_ONLY
+TEXT_CXXFLAGS := $(CXXFLAGS) -DDEDICATED_SERVER_ONLY
 
-GUI_CXXFLAGS = $(CXXFLAGS) $(ALLEG_CFLAGS)
-GUI_CFLAGS = $(CFLAGS) $(ALLEG_CFLAGS)
+GUI_CXXFLAGS := $(CXXFLAGS) $(ALLEG_CFLAGS)
+GUI_CFLAGS := $(CFLAGS) $(ALLEG_CFLAGS)
 
-OUTGUN_DEDSERV_LIBS = $(COMMON_LIBS)
-OUTGUN_CLIENT_LIBS = $(COMMON_LIBS) $(ALLEG_LIBS)
+OUTGUN_DEDSERV_LIBS := $(COMMON_LIBS)
+OUTGUN_CLIENT_LIBS := $(COMMON_LIBS) $(ALLEG_LIBS)
 ifdef WITH_PNG
  GUI_CXXFLAGS += $(PNG_CFLAGS)
  OUTGUN_CLIENT_LIBS += $(PNG_LIBS)
 endif
 
-SRC_PREFIXES = * leetnet/* loadpng/* tools/*
+SRC_PREFIXES := * leetnet/* loadpng/* tools/*
 # Suffix order is important for dependency generation.
 # Files that generate Makefile rules (.cpp and .c) must be included last.
-SRC_SUFFIXES = .h .inc .cpp .c
-SRC_FILE_PATTERNS = $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
-SRC_FILES = $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
-DEPENDENCY_FILES = $(patsubst %,dep/%.d,$(SRC_FILES))
+SRC_SUFFIXES := .h .inc .cpp .c
+SRC_FILE_PATTERNS := $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
+SRC_FILES := $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
+DEPENDENCY_FILES := $(patsubst %,dep/%.d,$(SRC_FILES))
 
 # shorthand target names
 
@@ -136,43 +136,43 @@ obj/gui obj/text obj/leetnet: | obj
 obj/text/tools: | obj/text
 obj/gui/loadpng: | obj/gui
 
-# make-directories-file must exist and is not generated anywhere (because its date should stay old).
+# make-directories-dummy must exist and is not generated anywhere (because its date should stay old).
 # It is used to work around a gmake bug.
-make-directories-file: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
+make-directories-dummy: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
 
 # file dependency lists
 
-MAKEDEP = tools/makedep$(EXE_SUFFIX)
+MAKEDEP := tools/makedep$(EXE_SUFFIX)
 
-dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-file
+dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O obj $< > $@
 
-dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-file
+dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O obj/gui $< > $@
 
-dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-file
+dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O obj/text $< > $@
 
-dep/%.d: % $(MAKEDEP) | make-directories-file
+dep/%.d: % $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
 
 -include $(DEPENDENCY_FILES)
 
 # object files
 
-obj/gui/%.o: %.cpp | make-directories-file
+obj/gui/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
 
-obj/gui/loadpng/%.o: loadpng/%.c | make-directories-file
+obj/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
 
-obj/text/%.o: %.cpp | make-directories-file
+obj/text/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
 
-obj/text/nassert_simple.o: obj/text/nassert.o | make-directories-file
+obj/text/nassert_simple.o: obj/text/nassert.o | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
-obj/leetnet/%.o: leetnet/%.cpp | make-directories-file
+obj/leetnet/%.o: leetnet/%.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # binaries
