@@ -50,21 +50,50 @@ private:
     friend class ConditionVariable;
 };
 
-class MutexLock {
-    Mutex& mutex;
+template<class MutexT> class GenericMutexLock {
+    MutexT& mutex;
 
 public:
-    MutexLock(Mutex& mutex_) : mutex(mutex_) { mutex.lock(); }
-    ~MutexLock() { mutex.unlock(); }
+    GenericMutexLock(MutexT& mutex_) : mutex(mutex_) { mutex.lock(); }
+    ~GenericMutexLock() { mutex.unlock(); }
 };
 
-class MutexUnlock {
-    Mutex& mutex;
+template<class MutexT> class GenericMutexUnlock {
+    MutexT& mutex;
 
 public:
-    MutexUnlock(Mutex& mutex_) : mutex(mutex_) { mutex.unlock(); }
-    ~MutexUnlock() { mutex.lock(); }
+    GenericMutexUnlock(MutexT& mutex_) : mutex(mutex_) { mutex.unlock(); }
+    ~GenericMutexUnlock() { mutex.lock(); }
 };
+
+typedef GenericMutexLock<Mutex> MutexLock;
+typedef GenericMutexUnlock<Mutex> MutexUnlock;
+
+#ifdef EXTRA_DEBUG
+/** Assert mutual exclusion (only with EXTRA_DEBUG).
+ * Verify mutual exclusion where it's supposed to be actually provided by other means (e.g. a real Mutex).
+ * Trying to lock an AssertMutex while it's already locked will trigger an assertion.
+ */
+class AssertMutex {
+    Mutex mutex;
+    bool locked;
+    pthread_t owner;
+
+public:
+    AssertMutex() : locked(false) { }
+    void lock() { MutexLock ml(mutex); numAssert(!locked, *reinterpret_cast<const int*>(&owner)); locked = true; owner = pthread_self(); }
+    void unlock() { MutexLock ml(mutex); nAssert(locked && owner == pthread_self()); locked = false; }
+};
+#else
+class AssertMutex {
+public:
+    void lock() { }
+    void unlock() { }
+};
+#endif // EXTRA_DEBUG
+
+typedef GenericMutexLock<AssertMutex> AssertMutexLock;
+typedef GenericMutexUnlock<AssertMutex> AssertMutexUnlock;
 
 class ConditionVariable {
     pthread_cond_t cond;
