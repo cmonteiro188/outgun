@@ -4825,7 +4825,9 @@ void Client::start_spectating(const NLaddress& address) {
     replaying = true;
     replay_rate = 1;
     spectate_data_received = false;
-    // TODO: Show a dialog "Waiting for the game to start" or something.
+
+    m_connectProgress.wrapLine(_("Waiting for the game to start."));
+    showMenu(m_connectProgress);
 }
 
 void Client::continue_spectating() {
@@ -4856,8 +4858,10 @@ void Client::continue_spectating() {
         }
         // Keep the waiting dialog still on as the relay may delay the actual game frames.
     }
-    else // TODO: Hide the waiting dialog.
+    else {
+        openMenus.close(&m_connectProgress.menu);
         spectate_buffer.write(buffer, result);
+    }
 }
 #endif // !DEDICATED_SERVER_ONLY
 
