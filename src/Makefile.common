@@ -8,7 +8,7 @@ ifdef XAUTHORITY
  endif
 endif
 
-CFLAGS ?= -W -Wall -O3 -march=pentium -ffast-math
+CFLAGS ?= -W -Wall -O3 -ffast-math
 CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
@@ -25,12 +25,12 @@ ifdef LINUX
  ALLEGRO_CONFIG ?= allegro-config
  ifdef DEBUGLIBS
   COMMON_LIBS = -lNL_debug
-  ALLEG_LIBS = `$(ALLEGRO_CONFIG) --libs debug`
-  ALLEG_CFLAGS = `$(ALLEGRO_CONFIG) --cflags debug`
+  ALLEG_LIBS = $(shell $(ALLEGRO_CONFIG) --libs debug)
+  ALLEG_CFLAGS = $(shell $(ALLEGRO_CONFIG) --cflags debug)
  else
   COMMON_LIBS = -lNL
-  ALLEG_LIBS = `$(ALLEGRO_CONFIG) --libs`
-  ALLEG_CFLAGS = `$(ALLEGRO_CONFIG) --cflags`
+  ALLEG_LIBS = $(shell $(ALLEGRO_CONFIG) --libs)
+  ALLEG_CFLAGS = $(shell $(ALLEGRO_CONFIG) --cflags)
  endif
  PNG_LIBS = -lz -lpng
  PNG_CFLAGS = -DWITH_PNG
@@ -129,19 +129,20 @@ TAGS: $(SRC_FILES)
 # directories for generated files
 
 dep dep/leetnet dep/loadpng dep/tools obj obj/gui obj/gui/loadpng obj/leetnet obj/text obj/text/tools:
-	$(MKDIR) $@
+	-$(MKDIR) $@
 
 dep/leetnet dep/loadpng dep/tools: | dep
 obj/gui obj/text obj/leetnet: | obj
 obj/text/tools: | obj/text
 obj/gui/loadpng: | obj/gui
 
-# make-directories-file must exist and is not generated anywhere (because its date should stay old); it is used to work around a gmake bug
+# make-directories-file must exist and is not generated anywhere (because its date should stay old).
+# It is used to work around a gmake bug.
 make-directories-file: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
 
 # file dependency lists
 
-MAKEDEP ?= tools/makedep$(EXE_SUFFIX)
+MAKEDEP = tools/makedep$(EXE_SUFFIX)
 
 dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-file
 	@$(MAKEDEP) -O obj $< > $@
