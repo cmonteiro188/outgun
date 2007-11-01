@@ -78,19 +78,30 @@ string makeId(string filename) {
     return filename;
 }
 
-/** Skip through source file until /^ *#include +"/ is found.
+char readBack(FILE* src, long& pos) { // internal to skipToInclude
+    for (;;) {
+        if (pos <= 0)
+            return '\n';
+        fseek(src, --pos, SEEK_SET);
+        const char ch = getChar(src);
+        if (ch != ' ' && ch != '\t')
+            return ch;
+    }
+}
+
+/** Skip through source file until /^ *# *include +"/ is found.
  * @throws EOF_Hit End of file before encountering an #include.
  */
 void skipToInclude(FILE* src) {
-    static const char matchStr[] = "#include ";
-    static const int matchLen = 9;
+    static const char matchStr[] = "include ";
+    static const int matchLen = 8;
     // note: the first match character isn't repeated in the match string
     //       that means we don't have to rewind at any point when only searching for this
     for (;;) {
         if (getChar(src) != matchStr[0])
             continue;
         for (int match = 1;; ++match) {
-            if (match == matchLen) { // '#include ' found; verify that the whole regexp is matched
+            if (match == matchLen) { // 'include ' found; verify that the whole regexp is matched
                 long pos0 = ftell(src) - matchLen;
                 char ch;
                 do {
@@ -99,17 +110,10 @@ void skipToInclude(FILE* src) {
                 if (ch != '"')
                     break; // no match
                 const long endPos = ftell(src);
-                do {
-                    if (pos0 == 0)
-                        ch = '\n';
-                    else {
-                        fseek(src, --pos0, SEEK_SET);
-                        ch = getChar(src);
-                    }
-                } while (ch == ' ' || ch == '\t');
+                const bool match = readBack(src, pos0) == '#' && readBack(src, pos0) == '\n';
                 fseek(src, endPos, SEEK_SET);
-                if (ch != '\n')
-                    break; // no match
+                if (!match)
+                    break;
                 return;
             }
             const char ch = getChar(src);
