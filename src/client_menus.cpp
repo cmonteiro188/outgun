@@ -35,6 +35,7 @@
 #include "network.h"
 #include "sounds.h"
 #include "utility.h"
+#include "version.h"
 
 #include "client_menus.h"
 
@@ -815,7 +816,7 @@ Menu_main::Menu_main() :
     help        (),
     exitOutgun  (_("Exit Outgun")),
 
-    menu        ("Outgun " GAME_VERSION, true)
+    menu        ("Outgun " + getVersionString(), true)
 { }
 
 void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) {
@@ -844,7 +845,7 @@ Menu_text::Menu_text() :
     accept  (_("OK")),
     cancel  (_("Cancel")),
 
-    menu    ("Outgun " GAME_VERSION, false)
+    menu    ("Outgun " + getVersionString(), false)
 { }
 
 void Menu_text::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) {

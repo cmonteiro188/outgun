@@ -36,7 +36,7 @@ ifdef LINUX
  PNG_CFLAGS := -DWITH_PNG
  PLATFORM_OBJ_NAMES := platform_unix.o
  OUTGUN_LDFLAGS := -pthread
- MAKEDEP_LDFLAGS :=
+ BUILDTOOL_LDFLAGS :=
  MON_LDFLAGS := -pthread
  RELAY_LDFLAGS := -pthread
 
@@ -55,7 +55,7 @@ else
  PLATFORM_OBJ_NAMES := platform_win.o
  OUTGUN_COMMON_OBJ_NAMES += icon.res
  OUTGUN_LDFLAGS := -mwindows
- MAKEDEP_LDFLAGS := -mconsole
+ BUILDTOOL_LDFLAGS := -mconsole
  MON_LDFLAGS := -mconsole
  RELAY_LDFLAGS := -mconsole
 
@@ -64,16 +64,21 @@ else
 
 endif
 
-OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o mapgen.o $(PLATFORM_OBJ_NAMES)
+ifeq ($(wildcard .svn),.svn)
+ SVN_REVISION := $(shell svnversion)
+endif
+
+OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o mapgen.o version.o $(PLATFORM_OBJ_NAMES)
 OUTGUN_CLIENT_OBJ_NAMES := $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o sounds.o menu.o mappic.o
 ifdef WITH_PNG
  OUTGUN_CLIENT_OBJ_NAMES += loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o
 endif
 LEETNET_OBJ_NAMES := rudp.o client.o server.o Time.o Timer.o dlog.o
 
-RELAY_OBJ_NAMES := tools/relay.o globals.o timer.o nassert_simple.o network.o $(PLATFORM_OBJ_NAMES)
+RELAY_OBJ_NAMES := tools/relay.o globals.o timer.o nassert_simple.o network.o version.o $(PLATFORM_OBJ_NAMES)
 MAKEDEP_OBJ_NAMES := tools/makedep.o
-MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o $(PLATFORM_OBJ_NAMES)
+WRITEIFDIFFERENT_OBJ_NAMES := tools/writeifdifferent.o
+MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o version.o $(PLATFORM_OBJ_NAMES)
 
 LEETNET_OBJS := $(patsubst %,obj/leetnet/%,$(LEETNET_OBJ_NAMES))
 OUTGUN_CLIENT_OBJS := $(patsubst %,obj/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
@@ -81,9 +86,10 @@ OUTGUN_DEDSERV_OBJS := $(patsubst %,obj/text/%,$(OUTGUN_COMMON_OBJ_NAMES)) $(LEE
 
 RELAY_OBJS := $(patsubst %,obj/text/%,$(RELAY_OBJ_NAMES))
 MAKEDEP_OBJS := $(patsubst %,obj/text/%,$(MAKEDEP_OBJ_NAMES))
+WRITEIFDIFFERENT_OBJS := $(patsubst %,obj/text/%,$(WRITEIFDIFFERENT_OBJ_NAMES))
 MON_OBJS := $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
 
-MAKEDEP_LIBS :=
+BUILDTOOL_LIBS :=
 MON_LIBS := $(COMMON_LIBS)
 RELAY_LIBS := $(COMMON_LIBS)
 
@@ -104,41 +110,43 @@ SRC_PREFIXES := * leetnet/* loadpng/* tools/*
 # Files that generate Makefile rules (.cpp and .c) must be included last.
 SRC_SUFFIXES := .h .inc .cpp .c
 SRC_FILE_PATTERNS := $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
-SRC_FILES := $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
+GENERATED_HEADER_FILES := generated/svnrevision.inc
+SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
 DEPENDENCY_FILES := $(patsubst %,dep/%.d,$(SRC_FILES))
 
 # shorthand target names
 
 standard: outgun srvmonit relay
-all: outgun outgun-ded makedep srvmonit relay
+all: outgun outgun-ded makedep writeifdifferent srvmonit relay
 
 outgun: ../outgun$(EXE_SUFFIX)
 outgun-ded: ../outgun-ded$(EXE_SUFFIX)
 makedep: tools/makedep$(EXE_SUFFIX)
+writeifdifferent: tools/writeifdifferent$(EXE_SUFFIX)
 srvmonit: ../srvmonit$(EXE_SUFFIX)
 relay: ../relay$(EXE_SUFFIX)
 
 clean:
-	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) TAGS
+	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(WRITEIFDIFFERENT_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) TAGS
 
-.PHONY: standard all outgun outgun-ded makedep srvmonit relay clean
+.PHONY: standard all outgun outgun-ded makedep writeifdifferent srvmonit relay clean
 
 TAGS: $(SRC_FILES)
 	etags $^
 
 # directories for generated files
 
-dep dep/leetnet dep/loadpng dep/tools obj obj/gui obj/gui/loadpng obj/leetnet obj/text obj/text/tools:
+dep dep/generated dep/leetnet dep/loadpng dep/tools generated obj obj/gui obj/gui/loadpng obj/leetnet obj/text obj/text/tools:
 	-$(MKDIR) $@
 
-dep/leetnet dep/loadpng dep/tools: | dep
+dep/generated dep/leetnet dep/loadpng dep/tools: | dep
 obj/gui obj/text obj/leetnet: | obj
 obj/text/tools: | obj/text
 obj/gui/loadpng: | obj/gui
 
 # make-directories-dummy must exist and is not generated anywhere (because its date should stay old).
 # It is used to work around a gmake bug.
-make-directories-dummy: | dep obj dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
+make-directories-dummy: | dep generated obj dep/generated dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
 
 # file dependency lists
 
@@ -157,6 +165,15 @@ dep/%.d: % $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
 
 -include $(DEPENDENCY_FILES)
+
+# generated source files
+
+WRITEIFDIFFERENT := tools/writeifdifferent$(EXE_SUFFIX)
+
+generated/svnrevision.inc :: | make-directories-dummy $(WRITEIFDIFFERENT)
+
+generated/svnrevision.inc ::
+	@$(WRITEIFDIFFERENT) $@ "#define SVN_REVISION \"$(SVN_REVISION)\""
 
 # object files
 
@@ -184,7 +201,10 @@ obj/leetnet/%.o: leetnet/%.cpp | make-directories-dummy
 	$(CXX) $(OUTGUN_LDFLAGS) -o $@ $(OUTGUN_DEDSERV_OBJS) $(OUTGUN_DEDSERV_LIBS)
 
 tools/makedep$(EXE_SUFFIX): $(MAKEDEP_OBJS)
-	$(CXX) $(MAKEDEP_LDFLAGS) -o $@ $(MAKEDEP_OBJS) $(MAKEDEP_LIBS)
+	$(CXX) $(BUILDTOOL_LDFLAGS) -o $@ $(MAKEDEP_OBJS) $(BUILDTOOL_LIBS)
+
+tools/writeifdifferent$(EXE_SUFFIX): $(WRITEIFDIFFERENT_OBJS)
+	$(CXX) $(BUILDTOOL_LDFLAGS) -o $@ $(WRITEIFDIFFERENT_OBJS) $(BUILDTOOL_LIBS)
 
 ../srvmonit$(EXE_SUFFIX): $(MON_OBJS)
 	$(CXX) $(MON_LDFLAGS) -o $@ $(MON_OBJS) $(MON_LIBS)

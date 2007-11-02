@@ -46,6 +46,7 @@
 #include "protocol.h"
 #include "timer.h"
 #include "utility.h"
+#include "version.h"
 
 #include "client.h"
 
@@ -3991,7 +3992,7 @@ bool Client::parseServerList(istream& response) {
     if (servers_read != total_servers)
         return false;
 
-    if (newest_version != GAME_VERSION)
+    if (newest_version != GAME_RELEASED_VERSION)
         menu.newVersion.set(_("New version: $1", newest_version));
     else
         menu.newVersion.set("");
@@ -6369,6 +6370,12 @@ void Client::loadHelp() {
         menu.help.addLine(line);
 }
 
+void Client::addSplashLine(string line) { // internal to loadSplashScreen
+    replace_all_in_place(line, "@VERSION@", getVersionString());
+    replace_all_in_place(line, "@YEAR@", GAME_COPYRIGHT_YEAR);
+    menu.options.bugReports.addLine(line);
+}
+
 void Client::loadSplashScreen() {
     menu.options.bugReports.clear();
     const string splashFile = wheregamedir + "languages" + directory_separator + "splash." + language.code() + ".txt";
@@ -6376,11 +6383,11 @@ void Client::loadSplashScreen() {
     if (in) {
         string line;
         while (getline_smart(in, line))
-            menu.options.bugReports.addLine(line);
+            addSplashLine(line);
     }
     else {
         static const char* msg[] = {
-            GAME_STRING " " GAME_VERSION ", copyright © 2002-2007 multiple authors.",
+            "Outgun @VERSION@, copyright © 2002-@YEAR@ multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
@@ -6401,7 +6408,7 @@ void Client::loadSplashScreen() {
             0
         };
         for (const char** line = msg; *line; ++line)
-            menu.options.bugReports.addLine(*line);
+            addSplashLine(*line);
     }
 }
 

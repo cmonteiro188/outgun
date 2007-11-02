@@ -555,6 +555,7 @@ class Client : public ClientInterface {
     void apply_fav_maps();
 
     void loadHelp();
+    void addSplashLine(std::string line); // internal to loadSplashScreen
     void loadSplashScreen();
     void openMessageLog();
     void closeMessageLog();

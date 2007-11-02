@@ -27,6 +27,10 @@
 
 #include "leetnet/server.h"
 
+#define GAME_STRING "Outgun"
+#define GAME_PROTOCOL "1.0"
+#define PROTOCOL_EXTENSIONS_VERSION 0
+
 enum Network_data_code {
     data_name_update,
     data_text_message,

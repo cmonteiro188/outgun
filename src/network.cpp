@@ -28,8 +28,10 @@
 
 #include "commont.h"
 #include "nassert.h"
+#include "protocol.h"
 #include "utility.h"
 #include "timer.h"
+#include "version.h"
 
 #include "network.h"
 
@@ -190,7 +192,7 @@ string build_http_request(bool post, const string& host, const string& script, c
     data << " HTTP/1.0\r\n";
 
     data << "Host: " << host << "\r\n";
-    data << "User-Agent: " << GAME_STRING << '/' << GAME_BRANCH << '-' << GAME_VERSION << "\r\n";
+    data << "User-Agent: Outgun/" << GAME_BRANCH << '-' << getVersionString(false) << "\r\n";
     if (!auth.empty())
         data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
     data << "Connection: close\r\n";

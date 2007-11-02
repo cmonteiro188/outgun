@@ -234,6 +234,10 @@ string trim(string str) {
 }
 
 string replace_all(string text, const string& s1, const string& s2) {
+    return replace_all_in_place(text, s1, s2);
+}
+
+string& replace_all_in_place(string& text, const string& s1, const string& s2) {
     string::size_type pos = 0;
     while ((pos = text.find(s1, pos)) != string::npos) {
         text.replace(pos, s1.length(), s2);

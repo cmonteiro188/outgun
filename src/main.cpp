@@ -36,8 +36,10 @@
 #include "language.h"
 #include "network.h"
 #include "platform.h"
+#include "protocol.h"
 #include "timer.h"
 #include "utility.h"
+#include "version.h"
 
 #ifndef DEDICATED_SERVER_ONLY
 # ifdef WITH_PNG
@@ -210,7 +212,7 @@ int wrappedMain(int argc, const char* argv[]) {
 }
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) {
-    log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, GAME_VERSION);
+    log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, getVersionString().c_str());
     logThreadStart("main", log);
 
     bool showFirstTimeSplash = true;

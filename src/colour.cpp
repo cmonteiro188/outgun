@@ -28,6 +28,7 @@
 #include "commont.h"
 #include "language.h"
 #include "nassert.h"
+#include "version.h"
 
 #include "colour.h"
 
@@ -115,7 +116,7 @@ void Colour_manager::init(const string& file, bool create_default_only) {
         ofstream out(file.c_str());
         if (!out)
             return;
-        out <<  "; This file contains the default colour definitions of Outgun " << GAME_VERSION << ".\n"
+        out <<  "; This file contains the default colour definitions of Outgun " << getVersionString() << ".\n"
                 "; Each line has the colour key and value. Colours can be in format\n"
                 "; of RRGGBB or RGB (red, green, blue) with hexadecimal values.\n"
                 "; For example, red is FF0000, green 00FF00, yellow FFFF00 and white FFFFFF.\n"

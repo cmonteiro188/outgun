@@ -44,6 +44,7 @@
 #include "protocol.h"
 #include "server.h"
 #include "timer.h"
+#include "version.h"
 
 // Delay for the server contacting the master server, in seconds.
 // It is good if this delay is set to a minute or so, since this will
@@ -1219,7 +1220,7 @@ void ServerNetworking::update_serverinfo() {
         info << "D ";
     else
         info << "  ";
-    info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << GAME_SHORT_VERSION << ' ' << settings.get_hostname();
+    info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << getVersionString(true, 7, 8, true) << ' ' << settings.get_hostname();
     server->set_server_info(info.str().c_str());
 }
 
@@ -2562,7 +2563,10 @@ map<string, string> ServerNetworking::master_parameters(const string& address, b
         if (settings.dedicated())
             parameters["dedicated"] = "1";
         parameters["max_players"] = itoa(maxplayers);
-        parameters["version"] = GAME_VERSION;
+        parameters["version"] = getVersionString(true, 1); // as short as possible
+        const string longVersion = getVersionString();
+        if (longVersion != parameters["version"])
+            parameters["long_version"] = longVersion;
         parameters["protocol"] = GAME_PROTOCOL;
         parameters["uptime"] = itoa(world.frame / 10);
         parameters["map"] = host->current_map().title;
@@ -2592,7 +2596,10 @@ map<string, string> ServerNetworking::website_parameters(const string& address) 
     if (settings.dedicated())
         parameters["dedicated"] = "1";
     parameters["max_players"] = itoa(maxplayers);
-    parameters["version"] = GAME_VERSION;
+    parameters["version"] = getVersionString(true, 1); // as short as possible
+    const string longVersion = getVersionString();
+    if (longVersion != parameters["version"])
+        parameters["long_version"] = longVersion;
     parameters["uptime"] = itoa(world.frame / 10);
     parameters["map"] = host->current_map().title;
     parameters["mapfile"] = host->getCurrentMapFile();

@@ -40,6 +40,7 @@
 #include "platform.h"
 #include "thread.h"
 #include "timer.h"
+#include "version.h"
 
 // implements:
 #include "server.h"
@@ -1646,7 +1647,7 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) {
             if (errors && settings.showErrorCount())
                 status << _("ERRORS:$1", itoa(errors)) << "  ";
             status << _("$1/$2p $3k/s v$4 port:$5",
-                        itoa(network.get_human_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), GAME_VERSION, itoa(settings.get_port()));
+                        itoa(network.get_human_count()), itoa(maxplayers), fcvt(network.getTraffic() / 1024, 1), getVersionString(false), itoa(settings.get_port()));
             if (quitOnEsc)
                 status << ' ' << _("Esc:quit");
             settings.statusOutput()(status.str());

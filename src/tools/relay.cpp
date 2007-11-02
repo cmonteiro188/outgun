@@ -30,6 +30,7 @@
 #include "../platform.h"
 #include "../protocol.h"
 #include "../timer.h"
+#include "../version.h"
 
 #include "relay.h"
 
@@ -48,7 +49,7 @@ using std::stringstream;
 using std::vector;
 
 int main(int argc, const char* argv[]) {
-    cout << "Outgun relay " << GAME_VERSION << '\n';
+    cout << "Outgun relay " << getVersionString() << '\n';
     int port = 0;
     //int bandwidth_limit = 20000;
     int spectators = 32;
