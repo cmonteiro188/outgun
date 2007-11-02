@@ -542,7 +542,7 @@ void Relay::send_master_server() {
     map<string, string> parameters;
     parameters["port"] = itoa(listen_port);
     parameters["server"] = hostname;
-    const string data = build_http_data(parameters);
+    const string data = format_http_parameters(parameters);
     cout << master_name << ": " << data << '\n';
     NetworkResult result = post_http_data(msock, &g_exitFlag, 1000, master_name, master_submit, data);
     if (result != NR_ok)

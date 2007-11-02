@@ -310,8 +310,6 @@ static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 #define GAME_SHORT_VERSION "1.0.4"   // to keep the entry in the server list menu nice, this should be at most 7 characters; 8 is borderline acceptable
 #define GAME_BRANCH "base"           // this only affects the master server communications, to make it tell the correct newest version
 
-#define HTTP_USER_AGENT (GAME_STRING "/" GAME_BRANCH "-" GAME_VERSION)
-
 #define TK1_VERSION_STRING "v048"
 
 static const unsigned REPLAY_VERSION = 0; // increase when the replay structure changes

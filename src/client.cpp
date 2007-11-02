@@ -329,15 +329,11 @@ void TournamentPasswordManager::threadFn() {
         nlSetAddrPort(&tournamentServer, 80);
         nlConnect(sock, &tournamentServer);
 
-        const string query =
-            string() +
-            "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-            '&' + (newToken?"new":"old") +
-            "&name=" + url_encode(name) +
-            "&password=" + url_encode(password) +
-            " HTTP/1.0\r\n"
-            "Host: www.mycgiserver.com\r\n"
-            "\r\n";
+        const string query = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
+                                                url_encode(TK1_VERSION_STRING) +
+                                                '&' + (newToken ? "new" : "old") +
+                                                "&name=" + url_encode(name) +
+                                                "&password=" + url_encode(password));
 
         passStatus = PS_sending;
         if (newToken)
@@ -3838,15 +3834,12 @@ bool Client::getServerList() {
         return false;
     }
 
-    //build query
-    ostringstream request;
-    request << "GET " << g_masterSettings.query() << "?simple&branch=" << url_encode(GAME_BRANCH) << "&master=" << itoa(g_masterSettings.crc())
-            << "&protocol=" << url_encode(GAME_PROTOCOL) << " HTTP/1.0\r\n";
-    request << "Host: " << g_masterSettings.host() << "\r\n";
-    request << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
-    request << "Connection: close\r\n\r\n";
-
-    NetworkResult result = writeToUnblockingTCP(sock, request.str().data(), request.str().length(), &abortThreads, 30000);
+    const string request = build_http_request(false, g_masterSettings.host(), g_masterSettings.query(),
+                                              "simple"
+                                              "&branch=" + url_encode(GAME_BRANCH) +
+                                              "&master=" + itoa(g_masterSettings.crc()) +
+                                              "&protocol=" + url_encode(GAME_PROTOCOL));
+    NetworkResult result = writeToUnblockingTCP(sock, request.data(), request.length(), &abortThreads, 30000);
     if (result != NR_ok) {
         nlClose(sock);
         if (!abortThreads)
@@ -3856,7 +3849,7 @@ bool Client::getServerList() {
 
     refreshStatus = RS_receiving;
 
-    log("Successfully sent query to master: '%s'", formatForLogging(request.str()).c_str());
+    log("Successfully sent query to master: '%s'", formatForLogging(request).c_str());
 
     stringstream response;
     result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);

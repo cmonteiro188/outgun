@@ -70,7 +70,9 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
 NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, std::ostream& out,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
 
-std::string build_http_data(const std::map<std::string, std::string>& parameters);
+std::string format_http_parameters(const std::map<std::string, std::string>& parameters);
+
+std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "");
 
 NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
                              const std::string& script, const std::string& parameters, const std::string& auth = ""); // timeout in ms

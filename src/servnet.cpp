@@ -831,15 +831,12 @@ void ServerNetworking::client_report_status(int id) {
     MasterQuery* job = new MasterQuery();
     job->cid = id;
     job->code = MasterQuery::JT_score;
-    job->request = string() +
-        "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-        "&dscp=" + itoa(clid.delta_score) +
-        "&dscn=" + itoa(clid.neg_delta_score) +
-        "&name=" + url_encode(world.player[ctop[id]].name) +
-        "&token=" + url_encode(clid.token) +
-        " HTTP/1.0\r\n"
-        "Host: www.mycgiserver.com\r\n"
-        "\r\n";
+    job->request = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
+                                      url_encode(TK1_VERSION_STRING) +
+                                      "&dscp=" + itoa(clid.delta_score) +
+                                      "&dscn=" + itoa(clid.neg_delta_score) +
+                                      "&name=" + url_encode(world.player[ctop[id]].name) +
+                                      "&token=" + url_encode(clid.token));
 
     {
         MutexLock ml(mjob_mutex);
@@ -1584,14 +1581,12 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
             job->code = MasterQuery::JT_login;
-            job->request = string() +
-                    "GET /servlet/fcecin.tk1/index.html?" + url_encode(TK1_VERSION_STRING) +
-                    "&chktk" +
-                    "&name=" + url_encode(sender.name) +
-                    "&token=" + url_encode(tok) +
-                    " HTTP/1.0\r\n"
-                    "Host: www.mycgiserver.com\r\n"
-                    "\r\n";
+            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html", 
+                                              url_encode(TK1_VERSION_STRING) +
+                                              "&chktk" +
+                                              "&name=" + url_encode(sender.name) +
+                                              "&token=" + url_encode(tok));
+
             {
                 MutexLock ml(mjob_mutex);
                 mjob_count++;
@@ -2344,7 +2339,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
         // build and send data
         map<string, string> parameters = master_parameters(localAddress);
-        const string data = build_http_data(parameters);
+        const string data = format_http_parameters(parameters);
         NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
         if (result != NR_ok)
             log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
@@ -2409,7 +2404,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
     }
 
     const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
-    const string data = build_http_data(parameters);
+    const string data = format_http_parameters(parameters);
     NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
     if (result != NR_ok)
         log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
@@ -2499,7 +2494,7 @@ void ServerNetworking::run_website_thread() {
             parameters["maplist"] = website_maplist();
             first_connection = false;
         }
-        const string data = build_http_data(parameters);
+        const string data = format_http_parameters(parameters);
         NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
         if (result == NR_ok) {
             // save response to a file

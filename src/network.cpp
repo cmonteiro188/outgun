@@ -164,7 +164,7 @@ NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const vol
     }
 }
 
-string build_http_data(const map<string, string>& parameters) {
+string format_http_parameters(const map<string, string>& parameters) {
     // URL encode parameter values
     ostringstream param_line;
     for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
@@ -172,27 +172,43 @@ string build_http_data(const map<string, string>& parameters) {
             param_line << '&';
         for (string::const_iterator s = i->first.begin(); s != i->first.end(); s++)
             url_encode(*s, param_line);
-        param_line << '=';
-        for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
-            url_encode(*s, param_line);
+        if (!i->second.empty()) {
+            param_line << '=';
+            for (string::const_iterator s = i->second.begin(); s != i->second.end(); s++)
+                url_encode(*s, param_line);
+        }
     }
     return param_line.str();
 }
 
-NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
-                             const string& host, const string& script, const string& parameters, const string& auth) {
+string build_http_request(bool post, const string& host, const string& script, const string& parameters, const string& auth) {
     ostringstream data;
-    data << "POST " << script << " HTTP/1.0\r\n";
+
+    data << (post ? "POST" : "GET") << ' ' << script;
+    if (!post && !parameters.empty())
+        data << '?' << parameters;
+    data << " HTTP/1.0\r\n";
+
     data << "Host: " << host << "\r\n";
-    data << "User-Agent: " << HTTP_USER_AGENT << "\r\n";
+    data << "User-Agent: " << GAME_STRING << '/' << GAME_BRANCH << '-' << GAME_VERSION << "\r\n";
     if (!auth.empty())
         data << "Authorization: Basic " << base64_encode(auth) << "\r\n";
     data << "Connection: close\r\n";
-    data << "Content-Type: application/x-www-form-urlencoded\r\n";
-    data << "Content-Length: " << parameters.length() << "\r\n\r\n";
-    data << parameters;
-    const string& str = data.str();
-    return writeToUnblockingTCP(socket, str.data(), str.length(), abortFlag, timeout);
+    if (post) {
+        nAssert(!parameters.empty());
+        data << "Content-Type: application/x-www-form-urlencoded\r\n";
+        data << "Content-Length: " << parameters.length() << "\r\n\r\n";
+        data << parameters;
+    }
+    else
+        data << "\r\n";
+    return data.str();
+}
+
+NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+                             const string& host, const string& script, const string& parameters, const string& auth) {
+    const string request = build_http_request(true, host, script, parameters, auth);
+    return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
 NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
