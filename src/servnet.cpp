@@ -3222,7 +3222,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         readStr(data, count, stri); //read gamestring
 
     if (stri != GAME_STRING) {
-        log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING, stri.c_str());
+        log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING.c_str(), stri.c_str());
         res->accepted = false;      // not accepted
 
         temp << "This game is " << GAME_STRING;
@@ -3235,7 +3235,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
         const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
         const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
         if (stri != GAME_PROTOCOL) {
-            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL, stri.c_str());
+            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), stri.c_str());
             res->accepted = false;
 
             if (stri.length() > 50)

@@ -24,8 +24,8 @@
  *
  */
 
-#ifndef NAMES_H
-#define NAMES_H
+#ifndef NAMES_H_INC
+#define NAMES_H_INC
 
 #include <string>
 

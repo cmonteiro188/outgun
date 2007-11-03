@@ -25,6 +25,7 @@
 #include "commont.h"
 #include "debugconfig.h"
 #include "mutex.h"
+#include "protocol.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
 
@@ -40,3 +41,8 @@ Mutex nlOpenMutex;
 AutoBugReporting g_autoBugReporting = ABR_disabled;
 bool g_leetnetLog = false;
 bool g_leetnetDataLog = false;
+
+// from protocol.h
+const std::string GAME_STRING = "Outgun";
+const std::string GAME_PROTOCOL = "1.0";
+const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";

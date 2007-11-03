@@ -21,8 +21,8 @@
  *
  */
 
-#ifndef __MAP_WITH_HELPERS_H_INCLUDED__
-#define __MAP_WITH_HELPERS_H_INCLUDED__
+#ifndef MAP_WITH_HELPERS_H_INC
+#define MAP_WITH_HELPERS_H_INC
 
 #include <map>
 

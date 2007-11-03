@@ -1331,7 +1331,7 @@ void Client::connect_failed_denied(const char* data, int length) {
         int count = 0;
         readStr(data, count, message);
         const string str1 = "Protocol mismatch: server: ";
-        const string str2 = ", client: " GAME_PROTOCOL;
+        const string str2 = ", client: " + GAME_PROTOCOL;
         const string::size_type str2pos = message.length() - str2.length();
         if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
             const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
@@ -1528,8 +1528,8 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     char lebuf[256]; int count = 0;
-    writeString(lebuf, count, GAME_STRING);
-    writeString(lebuf, count, GAME_PROTOCOL);
+    writeStr(lebuf, count, GAME_STRING);
+    writeStr(lebuf, count, GAME_PROTOCOL);
     writeStr(lebuf, count, playername);
     if (botmode) {
         writeStr(lebuf, count, bot_password);

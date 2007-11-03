@@ -24,15 +24,13 @@
 #ifndef VERSION_H_INC
 #define VERSION_H_INC
 
-#define GAME_BRANCH "base" // this only affects the master server communications, to make it tell the correct newest version
+#include <string>
 
-/* To keep the entry in the server list menu nice, GAME_RELEASED_VERSION_SHORT should be at most 7 characters, 8 is borderline acceptable.
- * If at some point this requirement is relaxed, all uses of getVersionString must be checked for their hard limit.
- * It should fully indentify the release (within the GAME_BRANCH). It must not contain spaces.
- */
-#define GAME_RELEASED_VERSION_SHORT "1.0.3" 
-#define GAME_RELEASED_VERSION "1.0.3"
-#define GAME_COPYRIGHT_YEAR "2007"
+extern const std::string GAME_BRANCH; // this only affects the master server communications, to make it tell the correct newest version
+
+extern const std::string GAME_RELEASED_VERSION_SHORT; // no longer than 8 characters
+extern const std::string GAME_RELEASED_VERSION;
+extern const std::string GAME_COPYRIGHT_YEAR;
 
 /** Get a version identifier string combining the GAME_RELEASED_VERSION definitions and a potential SVN revision.
  * @param allowSpaces      allow spaces in the string (prefer VERSION), otherwise use VERSION_SHORT

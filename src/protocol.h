@@ -25,11 +25,16 @@
 #ifndef PROTOCOL_H_INC
 #define PROTOCOL_H_INC
 
+#include <string>
+
 #include "leetnet/server.h"
 
-#define GAME_STRING "Outgun"
-#define GAME_PROTOCOL "1.0"
-#define PROTOCOL_EXTENSIONS_VERSION 0
+extern const std::string GAME_STRING;
+extern const std::string GAME_PROTOCOL;
+static const int PROTOCOL_EXTENSIONS_VERSION = 0;
+
+extern const std::string REPLAY_IDENTIFICATION;
+static const unsigned REPLAY_VERSION = 0; // increase when the replay structure changes
 
 enum Network_data_code {
     data_name_update,

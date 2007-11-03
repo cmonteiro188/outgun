@@ -302,10 +302,7 @@ static const int PLAYER_RADIUS = 15;
 static const int SHIELD_RADIUS_ADD = 9; // this is added to PLAYER_RADIUS
 static const int ROCKET_RADIUS = 4, POWER_ROCKET_RADIUS = 6;
 
-#define TK1_VERSION_STRING "v048"
-
-static const unsigned REPLAY_VERSION = 0; // increase when the replay structure changes
-static const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";
+extern const std::string TK1_VERSION_STRING;
 
 //************************************************************
 //  common stuff
@@ -315,8 +312,8 @@ static const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";
 const NLushort DEFAULT_UDP_PORT = 25000;
 
 //directories for save/load maps
-#define SERVER_MAPS_DIR "maps"
-#define CLIENT_MAPS_DIR "cmaps"
+extern const std::string SERVER_MAPS_DIR;
+extern const std::string CLIENT_MAPS_DIR;
 
 // system directory separator
 extern char directory_separator;

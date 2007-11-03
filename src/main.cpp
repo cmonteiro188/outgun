@@ -212,7 +212,7 @@ int wrappedMain(int argc, const char* argv[]) {
 }
 
 void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) {
-    log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING, GAME_PROTOCOL, getVersionString().c_str());
+    log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING.c_str(), GAME_PROTOCOL.c_str(), getVersionString().c_str());
     logThreadStart("main", log);
 
     bool showFirstTimeSplash = true;

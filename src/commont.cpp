@@ -38,6 +38,11 @@ using std::ifstream;
 using std::istream;
 using std::string;
 
+const string TK1_VERSION_STRING = "v048";
+
+const string SERVER_MAPS_DIR = "maps";
+const string CLIENT_MAPS_DIR = "cmaps";
+
 #ifndef DEDICATED_SERVER_ONLY
 
 bool readJoystickButton(int button) {

@@ -30,6 +30,15 @@
 
 using std::string;
 
+const string GAME_BRANCH = "base";
+/* To keep the entry in the server list menu nice, GAME_RELEASED_VERSION_SHORT should be at most 7 characters, 8 is borderline acceptable.
+ * If at some point this requirement is relaxed, all uses of getVersionString must be checked for their hard limit.
+ * It should fully indentify the release (within the GAME_BRANCH). It must not contain spaces.
+ */
+const string GAME_RELEASED_VERSION_SHORT = "1.0.3";
+const string GAME_RELEASED_VERSION = "1.0.3";
+const string GAME_COPYRIGHT_YEAR = "2007";
+
 string getVersionString(bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) {
     static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = SVN_REVISION;
     string ver;
