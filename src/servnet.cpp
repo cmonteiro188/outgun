@@ -2928,17 +2928,20 @@ void ServerNetworking::RelayThread::threadMain() {
             wakeup.wait(mutex);
         if (quitFlag)
             break;
-        if (!isConnected_locked())
-            continue;
-
+        nAssert(isConnected_locked());
         nAssert(!dataQueue.empty());
         const string data = dataQueue.front();
         dataQueue.pop();
 
-        MutexUnlock mu(mutex);
-        if (!send(data)) {
+        bool result;
+        {
+            MutexUnlock mu(mutex);
+            result = send(data);
+        }
+        if (!result) {
             nlClose(socket);
             socket = NL_INVALID;
+            dataQueue = queue<string>();
         }
     }
 
