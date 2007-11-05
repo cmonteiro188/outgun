@@ -35,7 +35,7 @@ static Mutex g_randomSeedMutex("g_randomSeedMutex");
 static time_t g_randomSeed = time(0);
 
 void Thread::randomize() {
-    MutexLock ml(g_randomSeedMutex);
+    Lock ml(g_randomSeedMutex);
     srand(++g_randomSeed);
 }
 
@@ -85,7 +85,7 @@ int Thread::doGetPriority(pthread_t thread) {
 void Thread::logEvent(pthread_t thread, char event, const char* data) {
     if (!LOG_THREAD_ACTIONS)
         return;
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     ThreadLogWriter t(g_threadLog());
     t.put('T');
     t.putThreadId(thread);

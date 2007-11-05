@@ -41,7 +41,7 @@ Mutex::Mutex(LoggingDisabler) : logging(false), locked(false), nWaiters(0) {
 }
 
 Mutex::Mutex(const char* identifier, bool logging_) : logging(logging_), locked(false), nWaiters(0) {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     nAssert(identifier);
     logId(identifier);
     logAction('C');
@@ -49,7 +49,7 @@ Mutex::Mutex(const char* identifier, bool logging_) : logging(logging_), locked(
 }
 
 Mutex::~Mutex() {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     logAction('D');
     nAssert(!locked && nWaiters == 0);
     nAssert(0 == pthread_mutex_destroy(&mutex));
@@ -57,14 +57,14 @@ Mutex::~Mutex() {
 
 void Mutex::lock() {
     {
-        GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex());
         logAction('L');
         nAssert(!locked || owner != pthread_self());
         ++nWaiters;
     }
     nAssert(0 == pthread_mutex_lock(&mutex));
     {
-        GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex());
         --nWaiters;
         nAssert(!locked);
         locked = true;
@@ -75,7 +75,7 @@ void Mutex::lock() {
 
 void Mutex::unlock() {
     {
-        GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex());
         logAction('U');
         nAssert(locked && owner == pthread_self());
         locked = false;
@@ -107,7 +107,7 @@ ConditionVariable::ConditionVariable(LoggingDisabler) : logging(false), nWaiting
 }
 
 ConditionVariable::ConditionVariable(const char* identifier, bool logging_) : logging(logging_), nWaiting(0) {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     nAssert(identifier);
     logId(identifier);
     logAction('C');
@@ -115,7 +115,7 @@ ConditionVariable::ConditionVariable(const char* identifier, bool logging_) : lo
 }
 
 ConditionVariable::~ConditionVariable() {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     logAction('D');
     nAssert(nWaiting == 0);
     nAssert(0 == pthread_cond_destroy(&cond));
@@ -137,7 +137,7 @@ bool ConditionVariable::timedWait(Mutex& mutex, const struct timespec& abstime) 
 
 void ConditionVariable::signal() {
     {
-        GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex());
         logAction('S');
     }
     nAssert(0 == pthread_cond_signal(&cond));
@@ -145,14 +145,14 @@ void ConditionVariable::signal() {
 
 void ConditionVariable::broadcast() {
     {
-        GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex());
         logAction('B');
     }
     nAssert(0 == pthread_cond_broadcast(&cond));
 }
 
 void ConditionVariable::debugPreWait(Mutex& mutex) {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     mutex.logAction('W');
     logAction('W');
     nAssert(nWaiting == 0 || waitingMutex == &mutex);
@@ -163,7 +163,7 @@ void ConditionVariable::debugPreWait(Mutex& mutex) {
 }
 
 void ConditionVariable::debugPostWait(Mutex& mutex) {
-    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex());
     nAssert(!mutex.locked);
     mutex.locked = true;
     mutex.owner = pthread_self();

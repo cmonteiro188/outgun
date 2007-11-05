@@ -181,7 +181,7 @@ private:
         void startNewGame(const NLaddress& relayAddress, const std::string& initData);
         void pushFrame(const std::string& frame);
 
-        bool isConnected() const { MutexLock ml(mutex); return isConnected_locked(); }
+        bool isConnected() const { Lock ml(mutex); return isConnected_locked(); }
     };
 
     NLaddress       relay_address;

@@ -389,7 +389,7 @@ public:
     virtual int broadcast_frame(const char* data, int length) {
         #ifdef LEETNET_DATA_LOG
         if (datalog)
-            MutexLock ml(datalogMutex);
+            Lock ml(datalogMutex);
         #endif
 
         for (int i=0;i<MAX_CLIENTS;i++)
@@ -427,7 +427,7 @@ public:
 
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
-            MutexLock ml(datalogMutex);
+            Lock ml(datalogMutex);
             static const char writeModeMarker = 'W';
             fwrite(&writeModeMarker, sizeof(char), 1, datalog);
             double currTime = get_time();
@@ -599,7 +599,7 @@ public:
 
             #ifdef LEETNET_DATA_LOG
             if (datalog) {
-                MutexLock ml(datalogMutex);
+                Lock ml(datalogMutex);
                 static const char readModeMarker = 'R';
                 fwrite(&readModeMarker, sizeof(char), 1, datalog);
                 double currTime = get_time();
@@ -632,7 +632,7 @@ public:
 
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
-            MutexLock ml(datalogMutex);
+            Lock ml(datalogMutex);
             static const char readModeMarker = 'R';
             fwrite(&readModeMarker, sizeof(char), 1, datalog);
             double currTime = get_time();

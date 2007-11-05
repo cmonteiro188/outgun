@@ -62,6 +62,44 @@ protected:
     NoCopyAssign() { }
 };
 
+class Lockable {
+public:
+    virtual ~Lockable() { }
+
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+};
+
+/** Base class for lockable classes whose lock/unlock methods are const.
+ * The apparent case is internal use of a mutable Lockable to provide locking.
+ */
+class ConstLockable : public Lockable {
+    void lock  () { static_cast<const ConstLockable&>(*this).lock  (); }
+    void unlock() { static_cast<const ConstLockable&>(*this).unlock(); }
+
+public:
+    virtual ~ConstLockable() { }
+
+    virtual void lock() const = 0;
+    virtual void unlock() const = 0;
+};
+
+class Lock : private NoCopying {
+    Lockable& t;
+
+public:
+    Lock(Lockable& target) : t(target) { t.lock(); }
+    ~Lock() { t.unlock(); }
+};
+
+class Unlock : private NoCopying {
+    Lockable& t;
+
+public:
+    Unlock(Lockable& target) : t(target) { t.unlock(); }
+    ~Unlock() { t.lock(); }
+};
+
 template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str);

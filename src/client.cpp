@@ -901,7 +901,7 @@ bool Client::start() {
 }
 
 void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang, int bot_id) {
-    MutexLock ml(frameMutex);
+    Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
     #endif
@@ -937,7 +937,7 @@ void Client::send_client_ready() {
 #ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
 void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
-    MutexLock ml(downloadMutex);
+    Lock ml(downloadMutex);
     if (downloads.empty() || !downloads.front().isActive()) {
         log.error("Server sent a file we aren't expecting");
         addThreadMessage(new TM_DoDisconnect());
@@ -1008,7 +1008,7 @@ void Client::download_server_file(const string& type, const string& name) {
         return;
     }
 
-    MutexLock ml(downloadMutex);
+    Lock ml(downloadMutex);
     const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + name + ".txt";
     downloads.push_back(FileDownload(type, name, fileName));
     check_download();
@@ -1249,7 +1249,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
     send_tournament_participation();
 
     {
-        MutexLock ml(mapInfoMutex);
+        Lock ml(mapInfoMutex);
         maps.clear();
         mapListChangedAfterSort = true;
     }
@@ -1317,7 +1317,7 @@ void Client::client_disconnected(const char* data, int length) {
     tournamentPassword.disconnectedFromServer();
 
     {
-        MutexLock ml(downloadMutex);
+        Lock ml(downloadMutex);
         downloads.clear();
     }
     #endif
@@ -2733,7 +2733,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 
     break; case data_reset_map_list: {
         #ifndef DEDICATED_SERVER_ONLY
-        MutexLock ml(mapInfoMutex);
+        Lock ml(mapInfoMutex);
         maps.clear();
         mapListChangedAfterSort = true;
         map_vote = -1;
@@ -2764,7 +2764,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         mapinfo.random = random;
         mapinfo.votes = votes;
         mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
-        MutexLock ml(mapInfoMutex);
+        Lock ml(mapInfoMutex);
         maps.push_back(mapinfo);
         mapListChangedAfterSort = true;
         #endif
@@ -2782,7 +2782,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         #ifndef DEDICATED_SERVER_ONLY
         NLbyte total, map_nr, votes;
         readByte(lebuf, count, total);
-        MutexLock ml(mapInfoMutex);
+        Lock ml(mapInfoMutex);
         for (int i = 0; i < total; i++) {
             readByte(lebuf, count, map_nr);
             readByte(lebuf, count, votes);
@@ -3520,7 +3520,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
 }
 
 void Client::process_incoming_data(const char* data, int length) {
-    MutexLock ml(frameMutex);
+    Lock ml(frameMutex);
 
     if (!connected && !replaying) // means that the connection notification is still in the thread message queue
         return;
@@ -3734,7 +3734,7 @@ bool Client::refresh_all_servers() {
         }
 
         if (round < 4) {    // on first 4 rounds, packets are sent to each server
-            MutexLock ml(serverListMutex);
+            Lock ml(serverListMutex);
             for (int i = 0; i < nServers; i++) {
                 int count = 0;
                 writeLong(lebuf, count, 0);         //special packet
@@ -3774,7 +3774,7 @@ bool Client::refresh_all_servers() {
                 if (index >= nServers || pack >= 4 || pack > round || len < count)  // don't have to worry about < 0 because they're unsigned
                     continue;
 
-                MutexLock ml(serverListMutex);
+                Lock ml(serverListMutex);
 
                 NLaddress from;
                 nlGetRemoteAddr(sock, &from);
@@ -3796,7 +3796,7 @@ bool Client::refresh_all_servers() {
 
     // mark those that got no responses
     {
-        MutexLock ml(serverListMutex);
+        Lock ml(serverListMutex);
         for (int i = 0; i < nServers; i++)
             if (tempd[i].received() == 0)
                 servers[i]->noresponse = true;
@@ -3966,7 +3966,7 @@ bool Client::parseServerList(istream& response) {
     if (!is || is.peek() != eof_ch || total_servers < 0 || total_servers > 10000)
         return false;
 
-    MutexLock ml(serverListMutex);
+    Lock ml(serverListMutex);
 
     // Parse the successful response into the gamespy screen.
 
@@ -4034,7 +4034,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     if (handled)
         return;
     if (!openMenus.empty()) {
-        MutexLock ml(frameMutex);   // some menus need access
+        Lock ml(frameMutex);   // some menus need access
         if (!openMenus.handleKeypress(sc, ch)) {
             if (sc == KEY_ESC)
                 MCF_menuCloser();
@@ -4414,7 +4414,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
             }
 
             {
-                MutexLock ml(frameMutex);
+                Lock ml(frameMutex);
                 handlePendingThreadMessages();
 
                 if (GlobalDisplaySwitchHook::readAndClear() && menu.options.screenMode.flipping())
@@ -4465,7 +4465,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         // the rest is drawing
 
         if (gameshow && (replaying || me >= 0)) {
-            MutexLock ml(frameMutex);
+            Lock ml(frameMutex);
 
             ClientPhysicsCallbacks cb(*this);
             if (replaying)
@@ -4603,7 +4603,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         }
 
         if (menusel != menu_none || !openMenus.empty()) {
-            MutexLock ml(frameMutex);   // some menus need access
+            Lock ml(frameMutex);   // some menus need access
             draw_game_menu();
         }
 
@@ -4852,7 +4852,7 @@ void Client::continue_spectating() {
 #endif // !DEDICATED_SERVER_ONLY
 
 void Client::bot_loop() {
-    MutexLock ml(frameMutex);
+    Lock ml(frameMutex);
 
     handlePendingThreadMessages();
 
@@ -4960,7 +4960,7 @@ void Client::stop() {
         log.error(_("Can't open $1 for writing.", fileName));
 
     {
-        MutexLock ml(downloadMutex);
+        Lock ml(downloadMutex);
         downloads.clear();
     }
 
@@ -5132,7 +5132,7 @@ void Client::draw_game_frame() {    // call with frameMutex locked
         if (map_ready)
             graphics.draw_waiting_map_message(_("Waiting game start - next map is"), fx.map.title);
         else {
-            MutexLock ml(downloadMutex);
+            Lock ml(downloadMutex);
             if (!downloads.empty() && downloads.front().isActive()) {
                 const string text = _("Loading map: $1 bytes", itoa(downloads.front().progress()));
                 graphics.draw_loading_map_message(text);
@@ -5609,7 +5609,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
 void Client::draw_game_menu() {
     switch (menusel) {
     /*break;*/ case menu_maps: {
-            MutexLock ml(mapInfoMutex);
+            Lock ml(mapInfoMutex);
             if (mapListChangedAfterSort) {
                 mapListChangedAfterSort = false;
                 sortedMaps.clear();

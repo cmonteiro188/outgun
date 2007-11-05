@@ -84,7 +84,7 @@ public:
     }
 
     double read() {
-        MutexLock ml(readMutex);
+        Lock ml(readMutex);
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
             base += uint64_t(1) << 32;

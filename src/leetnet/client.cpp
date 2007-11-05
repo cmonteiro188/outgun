@@ -237,7 +237,7 @@ public:
     }
 
     void queueSend(QueueSendCommand* qsc) {
-        MutexLock ml(sendQueueMutex);
+        Lock ml(sendQueueMutex);
         sendQueue.push(std::pair<double, QueueSendCommand*>(get_time() + packetDelay, qsc));
     }
 
@@ -261,7 +261,7 @@ public:
     }
 
     void clearSendQueue() {
-        MutexLock ml(sendQueueMutex);
+        Lock ml(sendQueueMutex);
         while (!sendQueue.empty()) {
             delete sendQueue.front().second;
             sendQueue.pop();
@@ -324,7 +324,7 @@ public:
 
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
-            MutexLock ml(datalogMutex);
+            Lock ml(datalogMutex);
             static const char writeModeMarker = 'W';
             fwrite(&writeModeMarker, sizeof(char), 1, datalog);
             double currTime = get_time();
@@ -428,7 +428,7 @@ public:
         const int length = 1;
         connectionCallback(customp, connect_result, data, length);
 
-        MutexLock ml(readerThreadManipulationMutex);
+        Lock ml(readerThreadManipulationMutex);
 
         if (thread_read.isRunning()) {
             //quit reader thread
@@ -504,7 +504,7 @@ public:
 
         log("stop_connect() - deletes station - connect status = 0");
 
-        MutexLock ml(readerThreadManipulationMutex);
+        Lock ml(readerThreadManipulationMutex);
 
         if (thread_read.isRunning()) {
             //quit reader thread
@@ -525,7 +525,7 @@ public:
 DLOG_Scope s("CPIDg");
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
-            MutexLock ml(datalogMutex);
+            Lock ml(datalogMutex);
             static const char readModeMarker = 'R';
             fwrite(&readModeMarker, sizeof(char), 1, datalog);
             double currTime = get_time();

@@ -33,7 +33,7 @@
 // note: don't use exit() (_exit() is OK) when a global Mutex may be locked
 
 // BareMutex is only intended for mutexes referenced by Mutex code itself. Use Mutex instead.
-class BareMutex : private NoCopying {
+class BareMutex : private NoCopying, public Lockable {
     pthread_mutex_t mutex;
     friend class ConditionVariable;
 
@@ -47,29 +47,13 @@ public:
     void unlock() { nAssert(0 == pthread_mutex_unlock(&mutex)); }
 };
 
-template<class MutexT> class GenericMutexLock : private NoCopying {
-    MutexT& mutex;
-
-public:
-    GenericMutexLock(MutexT& mutex_) : mutex(mutex_) { mutex.lock(); }
-    ~GenericMutexLock() { mutex.unlock(); }
-};
-
-template<class MutexT> class GenericMutexUnlock : private NoCopying {
-    MutexT& mutex;
-
-public:
-    GenericMutexUnlock(MutexT& mutex_) : mutex(mutex_) { mutex.unlock(); }
-    ~GenericMutexUnlock() { mutex.lock(); }
-};
-
 #if DEBUG_SYNCHRONIZATION == 0
 
 typedef BareMutex Mutex;
 
 #elif DEBUG_SYNCHRONIZATION == 1
 
-class Mutex : private NoCopying {
+class Mutex : private NoCopying, public Lockable {
 public:
     // Use Mutex m(NoLogging); rather than Mutex m("some-id", false); so that unlogged mutexes can be quicky found by text search (besides, identifier is never used in the latter case).
     // The logging_ parameter is intended to be used like Mutex m("some-id", SOME_SUBSYSTEM_EXTRA_LOGGING);.
@@ -100,38 +84,32 @@ private:
 
 #endif // DEBUG_SYNCHRONIZATION
 
-typedef GenericMutexLock<Mutex> MutexLock;
-typedef GenericMutexUnlock<Mutex> MutexUnlock;
-
 #ifdef EXTRA_DEBUG
 
 /** Assert mutual exclusion (only with EXTRA_DEBUG).
  * Verify mutual exclusion where it's supposed to be actually provided by other means (e.g. a real Mutex).
  * Trying to lock an AssertMutex while it's already locked will trigger an assertion.
  */
-class AssertMutex : private NoCopying {
+class AssertMutex : private NoCopying, public Lockable {
     Mutex mutex;
     bool locked;
     pthread_t owner;
 
 public:
     AssertMutex() : mutex(Mutex::NoLogging), locked(false) { }
-    void lock() { MutexLock ml(mutex); numAssert(!locked, *reinterpret_cast<const int*>(&owner)); locked = true; owner = pthread_self(); }
-    void unlock() { MutexLock ml(mutex); nAssert(locked && owner == pthread_self()); locked = false; }
+    void lock() { Lock ml(mutex); numAssert(!locked, *reinterpret_cast<const int*>(&owner)); locked = true; owner = pthread_self(); }
+    void unlock() { Lock ml(mutex); nAssert(locked && owner == pthread_self()); locked = false; }
 };
 
 #else
 
-class AssertMutex : private NoCopying {
+class AssertMutex : private NoCopying, public Lockable {
 public:
     void lock() { }
     void unlock() { }
 };
 
 #endif // EXTRA_DEBUG
-
-typedef GenericMutexLock<AssertMutex> AssertMutexLock;
-typedef GenericMutexUnlock<AssertMutex> AssertMutexUnlock;
 
 #if DEBUG_SYNCHRONIZATION == 0
 
@@ -151,8 +129,8 @@ public:
     void broadcast() { nAssert(0 == pthread_cond_broadcast(&cond)); }
 
     // note: these aren't generally needed even if you haven't already locked the mutex
-    void signal   (Mutex& mutex) { MutexLock ml(mutex); signal   (); }
-    void broadcast(Mutex& mutex) { MutexLock ml(mutex); broadcast(); }
+    void signal   (Mutex& mutex) { Lock ml(mutex); signal   (); }
+    void broadcast(Mutex& mutex) { Lock ml(mutex); broadcast(); }
 };
 
 #elif DEBUG_SYNCHRONIZATION == 1
@@ -171,8 +149,8 @@ public:
     void broadcast();
 
     // note: these aren't generally needed even if you haven't already locked the mutex
-    void signal   (Mutex& mutex) { MutexLock ml(mutex); signal   (); }
-    void broadcast(Mutex& mutex) { MutexLock ml(mutex); broadcast(); }
+    void signal   (Mutex& mutex) { Lock ml(mutex); signal   (); }
+    void broadcast(Mutex& mutex) { Lock ml(mutex); broadcast(); }
 
 private:
     pthread_cond_t cond;
@@ -194,7 +172,7 @@ private:
 #endif // DEBUG_SYNCHRONIZATION
 
 // Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
-template<class ObjT> class Threadsafe : private NoCopying {
+template<class ObjT> class Threadsafe : private NoCopying, public ConstLockable {
     mutable Mutex mutex;
     ObjT obj;
 

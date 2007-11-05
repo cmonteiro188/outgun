@@ -35,7 +35,7 @@
 #include "mutex.h"
 #include "utility.h"
 
-class Log : public NoCopying { // base class
+class Log : public NoCopying, protected ConstLockable { // base class
     mutable Mutex m;
     int nLines;
 
@@ -84,7 +84,7 @@ protected:
 public:
     MemoryLog() { }
     virtual ~MemoryLog() { }
-    int size() const { lock(); int sz = data.size(); unlock(); return sz; }
+    int size() const { Lock l(*this); int sz = data.size(); return sz; }
     std::string pop();  // returns empty string when there's nothing more to pop
 };
 

@@ -842,7 +842,7 @@ void ServerNetworking::client_report_status(int id) {
                                       "&token=" + url_encode(clid.token));
 
     {
-        MutexLock ml(mjob_mutex);
+        Lock ml(mjob_mutex);
         mjob_count++;
     }
     RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
@@ -1599,7 +1599,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
                                               "&token=" + url_encode(tok));
 
             {
-                MutexLock ml(mjob_mutex);
+                Lock ml(mjob_mutex);
                 mjob_count++;
             }
 
@@ -2292,7 +2292,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
             log("Tournament thread: Invalid response (bad @-code)");
     }
     {
-        MutexLock ml(mjob_mutex);
+        Lock ml(mjob_mutex);
         --mjob_count;
     }
     delete job;
@@ -2918,7 +2918,7 @@ bool ServerNetworking::RelayThread::send(const string& data) {
 }
 
 void ServerNetworking::RelayThread::threadMain() {
-    MutexLock ml(mutex);
+    Lock ml(mutex);
     for (;;) {
         while (!quitFlag && dataQueue.empty())
             wakeup.wait(mutex);
@@ -2931,7 +2931,7 @@ void ServerNetworking::RelayThread::threadMain() {
 
         bool result;
         {
-            MutexUnlock mu(mutex);
+            Unlock mu(mutex);
             result = send(data);
         }
         if (!result) {
@@ -2968,7 +2968,7 @@ void ServerNetworking::RelayThread::stop() {
 }
 
 void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData) {
-    MutexLock ml(mutex);
+    Lock ml(mutex);
 
     newGame = true;
 
@@ -3003,7 +3003,7 @@ void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, 
 }
 
 void ServerNetworking::RelayThread::pushFrame(const string& frame) {
-    MutexLock ml(mutex);
+    Lock ml(mutex);
     if (!isConnected_locked())  // Try again in the next game.
         return;
     pushData_locked(static_cast<char>(newGame ? relay_data_game_start : relay_data_frame) + frame);

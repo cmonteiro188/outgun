@@ -34,10 +34,9 @@ Log::Log() :
 { }
 
 void Log::put(const string& str) {
-    lock();
+    Lock l(*this);
     add(str);
     ++nLines;
-    unlock();
 }
 
 void Log::operator()(const char* fmt, ...) {
@@ -92,14 +91,11 @@ void MemoryLog::add(const string& str) {
 }
 
 string MemoryLog::pop() {
-    lock();
-    if (data.empty()) {
-        unlock();
+    Lock l(*this);
+    if (data.empty())
         return string();
-    }
     const string s = data.front();
     data.pop_front();
-    unlock();
     return s;
 }
 
