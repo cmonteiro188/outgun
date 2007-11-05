@@ -35,14 +35,11 @@
 #include "mutex.h"
 #include "utility.h"
 
-class Log { // base class
+class Log : public NoCopying { // base class
     mutable Mutex m;
     int nLines;
 
     virtual void add(const std::string& str) =0;
-
-    Log(const Log&);    // log objects aren't supposed to be copied; these aren't implemented anywhere to ensure that
-    Log& operator=(const Log&);
 
 protected:
     // note: operator()() and put() lock the mutex automatically, so it is already locked on an add() call

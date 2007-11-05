@@ -84,7 +84,7 @@ public:
     }
 };
 
-class Server {
+class Server : private NoCopying {
     FileLog normalLog;
     DualLog errorLog;
     SupplementaryLog<FileLog> securityLog;
@@ -319,10 +319,6 @@ class Server {
 
     bool trySetMaxplayers(int val); // checks that no players are connected, if that fails, logs an error and returns false
     void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
-
-    // copying not allowed
-    Server(const Server& o);
-    Server& operator=(const Server& o);
 
     void start_recording();
     void stop_recording();

@@ -187,10 +187,7 @@ public:
 
 typedef std::list<YSegment> SegListT;
 
-class PixelSource { // base class
-    PixelSource(const PixelSource&);    // prohibited (and not implemented anywhere)
-    PixelSource& operator=(const PixelSource&);
-
+class PixelSource : private NoCopying { // base class
 protected:
     PixelSource() { }
 

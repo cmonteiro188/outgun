@@ -33,7 +33,7 @@
 // note: don't use exit() (_exit() is OK) when a global Mutex may be locked
 
 // BareMutex is only intended for mutexes referenced by Mutex code itself. Use Mutex instead.
-class BareMutex {
+class BareMutex : private NoCopying {
     pthread_mutex_t mutex;
     friend class ConditionVariable;
 
@@ -47,7 +47,7 @@ public:
     void unlock() { nAssert(0 == pthread_mutex_unlock(&mutex)); }
 };
 
-template<class MutexT> class GenericMutexLock {
+template<class MutexT> class GenericMutexLock : private NoCopying {
     MutexT& mutex;
 
 public:
@@ -55,7 +55,7 @@ public:
     ~GenericMutexLock() { mutex.unlock(); }
 };
 
-template<class MutexT> class GenericMutexUnlock {
+template<class MutexT> class GenericMutexUnlock : private NoCopying {
     MutexT& mutex;
 
 public:
@@ -69,7 +69,7 @@ typedef BareMutex Mutex;
 
 #elif DEBUG_SYNCHRONIZATION == 1
 
-class Mutex {
+class Mutex : private NoCopying {
 public:
     // Use Mutex m(NoLogging); rather than Mutex m("some-id", false); so that unlogged mutexes can be quicky found by text search (besides, identifier is never used in the latter case).
     // The logging_ parameter is intended to be used like Mutex m("some-id", SOME_SUBSYSTEM_EXTRA_LOGGING);.
@@ -109,7 +109,7 @@ typedef GenericMutexUnlock<Mutex> MutexUnlock;
  * Verify mutual exclusion where it's supposed to be actually provided by other means (e.g. a real Mutex).
  * Trying to lock an AssertMutex while it's already locked will trigger an assertion.
  */
-class AssertMutex {
+class AssertMutex : private NoCopying {
     Mutex mutex;
     bool locked;
     pthread_t owner;
@@ -122,7 +122,7 @@ public:
 
 #else
 
-class AssertMutex {
+class AssertMutex : private NoCopying {
 public:
     void lock() { }
     void unlock() { }
@@ -135,7 +135,7 @@ typedef GenericMutexUnlock<AssertMutex> AssertMutexUnlock;
 
 #if DEBUG_SYNCHRONIZATION == 0
 
-class ConditionVariable {
+class ConditionVariable : private NoCopying {
     pthread_cond_t cond;
 
 public:
@@ -157,7 +157,7 @@ public:
 
 #elif DEBUG_SYNCHRONIZATION == 1
 
-class ConditionVariable {
+class ConditionVariable : private NoCopying {
 public:
     enum LoggingDisabler { NoLogging };
     ConditionVariable(LoggingDisabler);
@@ -194,7 +194,7 @@ private:
 #endif // DEBUG_SYNCHRONIZATION
 
 // Threadsafe: Wrapper of an object of type ObjT providing a thread safe very limited interface.
-template<class ObjT> class Threadsafe {
+template<class ObjT> class Threadsafe : private NoCopying {
     mutable Mutex mutex;
     ObjT obj;
 

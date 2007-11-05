@@ -45,11 +45,8 @@ public:
     ~ThreadLog() { if (file) fclose(file); }
 };
 
-class ThreadLogWriter {
+class ThreadLogWriter : private NoCopying {
     ThreadLog& host;
-
-    ThreadLogWriter(ThreadLogWriter&);
-    ThreadLogWriter& operator=(const ThreadLogWriter&);
 
 public:
     ThreadLogWriter(ThreadLog& host_) : host(host_) {

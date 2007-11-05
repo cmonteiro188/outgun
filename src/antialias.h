@@ -28,6 +28,7 @@
 #include <list>
 #include "incalleg.h"
 #include "nassert.h"
+#include "utility.h"
 
 // // // // internal definitions
 
@@ -204,7 +205,7 @@ private:
     int spanEnd;    // when we must move to the next segment to continue adding pixels
 };
 
-class SceneAntialiaser {
+class SceneAntialiaser : private NoCopying {
 public:
     SceneAntialiaser() { }
     ~SceneAntialiaser();
@@ -230,10 +231,6 @@ public:
     void render(Texturizer& tex) const;
 
 private:
-    // deny copying
-    SceneAntialiaser(const SceneAntialiaser&) { nAssert(0); }
-    SceneAntialiaser& operator=(const SceneAntialiaser&) { nAssert(0); return *this; }
-
     void createClipFns();
     void clip(int i0);
     template<class Texturizer> void renderTemplate(Texturizer& tex) const;

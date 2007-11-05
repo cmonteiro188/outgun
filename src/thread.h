@@ -30,7 +30,7 @@
 #include "nassert.h"    // for STACK_GUARD and __attribute__ for non-GCC, as well as nAssert
 #include "utility.h"
 
-class Thread {
+class Thread : private NoCopying {
 public:
     Thread() : running(false) { }
     ~Thread() { nAssert(!running); }
@@ -85,10 +85,6 @@ private:
 
     pthread_t thread;
     bool running; // set if running AND not detached
-
-    // deny copying (these aren't defined anywhere)
-    Thread(const Thread&);
-    Thread& operator=(const Thread&);
 };
 
 // template implementation

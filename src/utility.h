@@ -39,6 +39,29 @@
 #define PRINTF_FORMAT(a, b)
 #endif
 
+// to be used as a base class when a class is needed to not have a copy constructor or copy assignment operator available
+class NoCopying {
+    NoCopying(const NoCopying&) { }
+    NoCopying& operator=(const NoCopying&) { return *this; }
+
+protected:
+    NoCopying() { }
+};
+
+class NoCopyConstruct {
+    NoCopyConstruct(const NoCopyConstruct&) { }
+
+protected:
+    NoCopyConstruct() { }
+};
+
+class NoCopyAssign {
+    NoCopyAssign& operator=(const NoCopyAssign&) { return *this; }
+
+protected:
+    NoCopyAssign() { }
+};
+
 template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str);
