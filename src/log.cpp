@@ -28,6 +28,11 @@
 
 using std::string;
 
+Log::Log() :
+    m(Mutex::NoLogging),
+    nLines(0)
+{ }
+
 void Log::put(const string& str) {
     lock();
     add(str);

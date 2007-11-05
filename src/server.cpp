@@ -75,7 +75,7 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     adminActionLog(normalLog, "ADMIN ACTION: ", wheregamedir + "log" + directory_separator + "adminactionlog.txt", false),
     log(&normalLog, &errorLog, &securityLog),
     threadLock(config.threadLock),
-    threadLockMutex(),
+    threadLockMutex("Server::threadLockMutex"),
     abortFlag(false),
     quit_bots(false),
     world(this, &network, log),
@@ -917,7 +917,9 @@ bool Server::start(int target_maxplayers) {
     abortFlag = false;
 
     //start bot thread
-    botthread.start_assert(RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread), settings.lowerPriority());
+    botthread.start_assert("Server::run_bot_thread",
+                           RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread),
+                           settings.lowerPriority());
 
     return true;
 }

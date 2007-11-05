@@ -311,7 +311,7 @@ public:
     }
 
     //ctor
-    station_ci() {
+    station_ci() : relmsg_mutex("station_ci::relmsg_mutex") {
         sendsock = NL_INVALID_SOCKET;       //to avoid reset_state to close an invalid socket
         reset_state();
     }

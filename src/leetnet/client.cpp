@@ -385,7 +385,9 @@ public:
         started_disconnection = true;       // client started it
         connect_status = 1; //trying nice disconnection
         tries_left = 10;        //try 10 times
-        thread_disconnect.start_assert(thread_disconnect_f, this, threadPriority);
+        thread_disconnect.start_assert("leetnet/client.cpp:thread_disconnect_f",
+                                       thread_disconnect_f, this,
+                                       threadPriority);
     }
 
     //disconnect try - return TRUE to stop
@@ -480,7 +482,9 @@ public:
         }
         //create reader thread
         quit_reader_thread = false;
-        thread_read.start_assert(thread_reader_f, this, threadPriority);
+        thread_read.start_assert("leetnet/client.cpp:thread_reader_f",
+                                 thread_reader_f, this,
+                                 threadPriority);
 
         readerThreadManipulationMutex.unlock();
 
@@ -488,7 +492,9 @@ public:
         started_disconnection   = false;        //init "started_disconnection" flag for this connection session
         tries_left = 4;                 //number of tries
         ++connect_threads_running;
-        Thread::startDetachedThread_assert(thread_connect_f, this, threadPriority);
+        Thread::startDetachedThread_assert("leetnet/client.cpp:thread_connect_f",
+                                           thread_connect_f, this,
+                                           threadPriority);
     }
 
     //cleanup connect sequence
@@ -758,7 +764,12 @@ DLOG_Scope s("CPIDg");
         #else
         log(),
         #endif
-        packetDelay(0.)
+        #ifdef LEETNET_DATA_LOG
+        datalogMutex("client_ci::datalogMutex"),
+        #endif
+        packetDelay(0.),
+        sendQueueMutex("client_ci::sendQueueMutex"),
+        readerThreadManipulationMutex("client_ci::readerThreadManipulationMutex")
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
@@ -808,22 +819,16 @@ DLOG_Scope s("CPIDg");
 
 //connector thread function
 void thread_connect_f(client_ci* client) {
-    logThreadStart("Leet client thread_connect_f", client->log);
-
     for (;;) {
         if (client->connect_try())
             break;
         platSleep(1000); // *** NO CPU PROBLEM HERE ***
     }
-
-    logThreadExit("Leet client thread_connect_f", client->log);
     --client->connect_threads_running;
 }
 
 //disconnector thread function
 void thread_disconnect_f(client_ci* client) {
-    logThreadStart("Leet client thread_disconnect_f", client->log);
-
     //repeat
     bool stop = false;
     while (!stop) {
@@ -837,16 +842,12 @@ void thread_disconnect_f(client_ci* client) {
 
     //nice disconnect done
     client->nice_disconnect_done(server_c::disconnect_client_initiated);
-
-    logThreadExit("Leet client thread_disconnect_f", client->log);
 }
 
 //reader thread function
 #define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
 void thread_reader_f(client_ci* client) {
 DLOG_ScopeNegStart("CTR");
-    logThreadStart("Leet client thread_reader_f", client->log);
-
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];
     NLint amount; //amount read
@@ -881,8 +882,6 @@ DLOG_ScopeNeg s("CTR");
             client->process_incoming_datagram(buffer, amount);
         }
     }
-
-    logThreadExit("Leet client thread_reader_f", client->log);
 }
 
 

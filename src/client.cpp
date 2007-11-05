@@ -195,8 +195,6 @@ public:
 
 #ifndef DEDICATED_SERVER_ONLY
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
-    logThreadStart("ServerThreadOwner::threadFn", log);
-
     GameserverInterface gameserver(log, config, *log.accessError(), _("(server)") + ' ');
     if (!gameserver.start(config.server_maxplayers)) {
         log.error(_("Can't start listen server."));
@@ -212,8 +210,6 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
         //restore client's windowtitle
         config.statusOutput(_("Outgun client"));    // note: this is the server's statusOutput not client's
     }
-
-    logThreadExit("ServerThreadOwner::threadFn", log);
 }
 
 void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
@@ -222,7 +218,7 @@ void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
     quitFlag = false;
     threadFlag = true;
     RedirectToMemFun1<ServerThreadOwner, void, const ServerExternalSettings&> rmf(this, &ServerThreadOwner::threadFn);
-    serverThread.start_assert(rmf, config, config.priority);
+    serverThread.start_assert("ServerThreadOwner::threadFn", rmf, config, config.priority);
 }
 
 void ServerThreadOwner::stop() {
@@ -234,7 +230,9 @@ void ServerThreadOwner::stop() {
 
 void TournamentPasswordManager::start() {
     quitThread = false;
-    thread.start_assert(RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn), priority);
+    thread.start_assert("TournamentPasswordManager::threadFn",
+                        RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn),
+                        priority);
 }
 
 void TournamentPasswordManager::setToken(const string& newToken) {
@@ -250,9 +248,9 @@ TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT
     quitThread(true),
     passStatus(PS_noPassword),
     priority(threadPriority),
-    servStatus(PS_noPassword)   // no server
-{
-}
+    servStatus(PS_noPassword), // no server
+    token("TournamentPasswordManager::token")
+{ }
 
 void TournamentPasswordManager::stop() {
     if (!quitThread) {
@@ -299,8 +297,6 @@ string TournamentPasswordManager::statusAsString() const {
 }
 
 void TournamentPasswordManager::threadFn() {
-    logThreadStart("TournamentPasswordManager::threadFn", log);
-
     bool newToken = true;
     int delay = 0;  // given a value in MS before each continue: this time will be waited before next round
 
@@ -426,8 +422,6 @@ void TournamentPasswordManager::threadFn() {
             passStatus = PS_invalidResponse;
         }
     }
-
-    logThreadExit("TournamentPasswordManager::threadFn", log);
 }
 
 bool ServerListEntry::setAddress(const string& address) {
@@ -592,7 +586,12 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     log(&clientLog, &errorLog, 0),
     #ifndef DEDICATED_SERVER_ONLY
     listenServer(log),
+    #endif
+    frameMutex("Client::frameMutex"),
+    downloadMutex("Client::downloadMutex"),
+    #ifndef DEDICATED_SERVER_ONLY
     tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
+    mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
     current_map(-1),
@@ -603,6 +602,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     framecount(0),
     totalframecount(0),
     frameCountStartTime(0),
+    serverListMutex("Client::serverListMutex"),
     botmode(false),
     #endif
     finished(false),
@@ -3657,8 +3657,6 @@ string Client::refreshStatusAsString() const {
 }
 
 void Client::getServerListThread() {
-    logThreadStart("getServerListThread", log);
-
     nAssert(refreshStatus == RS_running);
 
     // get server list and refresh
@@ -3669,18 +3667,12 @@ void Client::getServerListThread() {
         if (!refresh_all_servers())
             ok = false;
 
-    logThreadExit("getServerListThread", log);
     refreshStatus = ok ? RS_none : RS_failed;
 }
 
 void Client::refreshThread() {
-    logThreadStart("refreshThread", log);
-
     nAssert(refreshStatus == RS_running);
-    const bool ok = refresh_all_servers();
-
-    logThreadExit("refreshThread", log);
-    refreshStatus = ok ? RS_none : RS_failed;
+    refreshStatus = refresh_all_servers() ? RS_none : RS_failed;
 }
 
 class TempPingData {    // internal to Client::refresh_all_servers
@@ -6242,14 +6234,18 @@ void Client::MCF_connect(Textarea& target) {
 void Client::MCF_updateServers() {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert(RedirectToMemFun0<Client, void>(this, &Client::getServerListThread), extConfig.lowerPriority);
+        Thread::startDetachedThread_assert("Client::getServerListThread",
+                                           RedirectToMemFun0<Client, void>(this, &Client::getServerListThread),
+                                           extConfig.lowerPriority);
     }
 }
 
 void Client::MCF_refreshServers() {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert(RedirectToMemFun0<Client, void>(this, &Client::refreshThread), extConfig.lowerPriority);
+        Thread::startDetachedThread_assert("Client::refreshThread",
+                                           RedirectToMemFun0<Client, void>(this, &Client::refreshThread),
+                                           extConfig.lowerPriority);
     }
 }
 

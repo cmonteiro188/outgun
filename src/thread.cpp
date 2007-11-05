@@ -25,12 +25,13 @@
 #include <ctime>
 #include <cerrno>
 
+#include "debug.h"
 #include "language.h"
 #include "mutex.h"
 #include "thread.h"
 #include "utility.h"
 
-static Mutex g_randomSeedMutex;
+static Mutex g_randomSeedMutex("g_randomSeedMutex");
 static time_t g_randomSeed = time(0);
 
 void Thread::randomize() {
@@ -38,10 +39,9 @@ void Thread::randomize() {
     srand(++g_randomSeed);
 }
 
-int Thread::doStart(pthread_t* pThread, void* (*function)(void*), void* argument, bool detached, int priority) {
+int Thread::doStart(pthread_t* pThread, const char* identity, void* (*function)(void*), void* argument, bool detached, int priority) {
     pthread_attr_t attr;
     int val = pthread_attr_init(&attr);
-
     if (val != 0)
         return val;
     nAssert(0 == pthread_attr_setdetachstate(&attr, detached ? PTHREAD_CREATE_DETACHED : PTHREAD_CREATE_JOINABLE));
@@ -51,13 +51,23 @@ int Thread::doStart(pthread_t* pThread, void* (*function)(void*), void* argument
     nAssert(0 == pthread_attr_setschedparam(&attr, &param));
 
     val = pthread_create(pThread, &attr, function, argument);
+    logEvent(*pThread, 'C', ((detached ? 'D' : 'J') + itoa(priority)).c_str());
+    if (identity)
+        logEvent(*pThread, 'I', identity);
 
     nAssert(0 == pthread_attr_destroy(&attr));
 
     return val;
 }
 
+void Thread::assertStartSuccess(int returned) {
+    if (returned == EAGAIN || returned == ENOMEM)
+        criticalError(_("Can't create new thread. Insufficient system resources."));
+    numAssert(returned == 0, returned);
+}
+
 void Thread::doSetPriority(pthread_t thread, int priority) {
+    logEvent(thread, 'P', itoa(priority).c_str());
     int policy;
     sched_param param;
     nAssert(0 == pthread_getschedparam(thread, &policy, &param));
@@ -72,21 +82,38 @@ int Thread::doGetPriority(pthread_t thread) {
     return param.sched_priority;
 }
 
-void Thread::startError() {
-    criticalError(_("Can't create new thread. Insufficient system resources."));
+void Thread::logEvent(pthread_t thread, char event, const char* data) {
+    if (!LOG_THREAD_ACTIONS)
+        return;
+    GenericMutexLock<BareMutex> ml(g_threadLogMutex());
+    ThreadLogWriter t(g_threadLog());
+    t.put('T');
+    t.putThreadId(thread);
+    t.put(event);
+    if (data)
+        t.put(data);
 }
 
 void Thread::join(bool acceptRecursive) {
     nAssert(running);
     running = false;
-    int ret = pthread_join(thread, 0);
-    if (ret == EDEADLK && acceptRecursive)
+    int ret;
+    if (thread == pthread_self()) {
+        nAssert(acceptRecursive);
+        logEvent(thread, 'd');
         ret = pthread_detach(thread);
+    }
+    else {
+        logEvent(thread, 'J');
+        ret = pthread_join(thread, 0);
+        logEvent(thread, 'j');
+    }
     numAssert(ret == 0, ret);
 }
 
 void Thread::detach() {
     nAssert(running);
     running = false;
+    logEvent(thread, 'D');
     nAssert(0 == pthread_detach(thread));
 }

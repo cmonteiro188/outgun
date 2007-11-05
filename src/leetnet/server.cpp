@@ -105,7 +105,7 @@ struct client_t {
     //thread must quit flag
     volatile bool       quitflag;
 
-    client_t() : station_mutex(), station_cond_hasdata() { }
+    client_t() : station_mutex("client_t::station_mutex"), station_cond_hasdata("client_t::station_cond_hasdata") { }
 };
 
 
@@ -246,11 +246,15 @@ public:
             client[i].in_lag    = false;            // not in lag
 
             // create the slave thread
-            client[i].thread.start_assert(thread_slave_f, &client[i], threadPriority);
+            client[i].thread.start_assert("leetnet/server.cpp:thread_slave_f",
+                                          thread_slave_f, &client[i],
+                                          threadPriority);
         }
 
         //create and start the master thread
-        reader_thread.start_assert(thread_master_f, this, threadPriority);
+        reader_thread.start_assert("leetnet/server.cpp:thread_master_f",
+                                   thread_master_f, this,
+                                   threadPriority);
 
         //ok
         return 1;
@@ -282,7 +286,7 @@ public:
             log("server_ci::stop() -- signal %i", i);
 
             //pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
-            client[i].station_cond_hasdata.signal(client[i].station_mutex);
+            client[i].station_cond_hasdata.signal();
         }
 
         log("server_ci::stop() -- joining master thread");
@@ -367,7 +371,9 @@ public:
             client[client_id].discleft = 5;
 
         //spawn disconnector thread
-        client[client_id].discthread.start_assert(thread_disconnector_f, &client[client_id], threadPriority);
+        client[client_id].discthread.start_assert("leetnet/server.cpp:thread_disconnector_f",
+                                                  thread_disconnector_f, &client[client_id],
+                                                  threadPriority);
 
         log("disconnect_client %i droptime = %.2f", client_id, client[client_id].droptime);
 
@@ -1124,6 +1130,9 @@ public:
         #else
         log(),
         #endif
+        #ifdef LEETNET_DATA_LOG
+        datalogMutex("server_ci::datalogMutex"),
+        #endif
         minLocalPort(minLocalPort_),
         maxLocalPort(maxLocalPort_)
     {
@@ -1173,7 +1182,6 @@ public:
 #define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
 void thread_master_f(server_ci* server)
 {
-    logThreadStart("Leet server thread_master_f", server->log);
     //get socket to read from
     NLsocket servsock = server->get_server_socket();
 
@@ -1208,7 +1216,6 @@ void thread_master_f(server_ci* server)
         else
             server->process_incoming_datagram(buffer, amount);
     }
-    logThreadExit("Leet server thread_master_f", server->log);
 }
 
 //client message processor (slave) thread - one for each client
@@ -1217,8 +1224,6 @@ void thread_slave_f(client_t* mydata)
 {
     //server
     server_ci *server = mydata->server;
-
-    logThreadStart("Leet server thread_slave_f", server->log);
 
     //my id
     int myid = mydata->id;
@@ -1259,7 +1264,6 @@ void thread_slave_f(client_t* mydata)
         }
     }
     mydata->station_mutex.unlock();
-    logThreadExit("Leet server thread_slave_f", server->log);
 }
 
 //client disconnector auxiliary thread. bombards
@@ -1267,8 +1271,6 @@ void thread_slave_f(client_t* mydata)
 void thread_disconnector_f(client_t* mydata) {
     //server
     server_ci *server = mydata->server;
-
-    logThreadStart("Leet server thread_disconnector_f", server->log);
 
     //loop
     while (1) {
@@ -1280,8 +1282,6 @@ void thread_disconnector_f(client_t* mydata) {
         //sleep a bit
         platSleep(100);    //*** NO CPU PROBLEM HERE ***
     }
-
-    logThreadExit("Leet server thread_disconnector_f", server->log);
 }
 
 

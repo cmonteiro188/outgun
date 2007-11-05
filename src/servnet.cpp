@@ -83,8 +83,10 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     settings(settings_),
     world(w),
     log(logs),
+    mjob_mutex("ServerNetworking::mjob_mutex"),
     player_count(0),
     localPlayers(0),
+    addPlayerMutex("ServerNetworking::addPlayerMutex"),
     newUniqueId(0),
     accelerationModeMask(0),
     maplist_revision(0),
@@ -844,7 +846,9 @@ void ServerNetworking::client_report_status(int id) {
         mjob_count++;
     }
     RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-    Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
+    Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
+                                       rmf, job,
+                                       settings.lowerPriority());
 
     clid.delta_score = 0;
     clid.neg_delta_score = 0;
@@ -1191,13 +1195,19 @@ bool ServerNetworking::start() {
     shellssock = NL_INVALID;    // not in use
 
     //start TCP shell master thread in the port number 500 less than server UDP port
-    shellmthread.start_assert(RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(), settings.lowerPriority());
+    shellmthread.start_assert("ServerNetworking::run_shellmaster_thread",
+                              RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
+                              settings.lowerPriority());
 
     //start TCP thread for talking with master server
-    mthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread), settings.lowerPriority());
+    mthread.start_assert("ServerNetworking::run_mastertalker_thread",
+                         RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread),
+                         settings.lowerPriority());
 
     //start website thread
-    webthread.start_assert(RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread), settings.lowerPriority());
+    webthread.start_assert("ServerNetworking::run_website_thread",
+                           RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread),
+                           settings.lowerPriority());
 
     relayThread.start(settings.lowerPriority());
 
@@ -1594,7 +1604,9 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
             }
 
             RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
-            Thread::startDetachedThread_assert(rmf, job, settings.lowerPriority());
+            Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
+                                               rmf, job,
+                                               settings.lowerPriority());
         }
     }
     break; case data_tournament_participation: {
@@ -2137,8 +2149,6 @@ double ServerNetworking::getTraffic() const {
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
-    logThreadStart("run_masterjob_thread", log);
-
     int delay = 0;  // given a value in MS before each continue: this time will be waited before next round
 
     while (!mjob_exit) {
@@ -2286,13 +2296,9 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
         --mjob_count;
     }
     delete job;
-
-    logThreadExit("run_masterjob_thread", log);
 }
 
 void ServerNetworking::run_mastertalker_thread() {
-    logThreadStart("run_mastertalker_thread", log);
-
     string localAddress = settings.ip();
     if (!isValidIP(localAddress) || check_private_IP(localAddress)) {
         log("Master talker: No public IP address. Letting the master server decide.");
@@ -2432,8 +2438,6 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
 }
 
 void ServerNetworking::run_website_thread() {
-    logThreadStart("run_website_thread", log);
-
     if (settings.get_web_servers().empty() || settings.get_web_script().empty())
         return;
 
@@ -2648,8 +2652,6 @@ bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
 
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) {
-    logThreadStart("run_shellmaster_thread", log);
-
     Thread slaveThread;
     volatile bool slaveRunning = false; // the slave thread will modify this flag when quitting
 
@@ -2737,19 +2739,17 @@ void ServerNetworking::run_shellmaster_thread(int port) {
             slaveThread.join();
         slaveRunning = true;    // slave will set it false when exiting
         shellssock = newSock;
-        slaveThread.start(RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning, settings.lowerPriority());
+        slaveThread.start("ServerNetworking::run_shellslave_thread",
+                          RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
+                          settings.lowerPriority());
     }
     nlClose(shellmsock);
     log("Admin shell master thread quitting");
     if (slaveThread.isRunning())
         slaveThread.join();
-
-    logThreadExit("run_shellmaster_thread", log);
 }
 
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // sets *runningFlag = true when quitting
-    logThreadStart("run_shellslave_thread", log);
-
     while (!file_threads_quit) {
         char rbuf[256];
         int rcount = 0;
@@ -2898,8 +2898,6 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
     shellssock = NL_INVALID;    // not in use
     *runningFlag = false;
     log("Admin shell slave thread quitting");
-
-    logThreadExit("run_shellslave_thread", log);
 }
 
 bool ServerNetworking::RelayThread::send(const string& data) {
@@ -2920,8 +2918,6 @@ bool ServerNetworking::RelayThread::send(const string& data) {
 }
 
 void ServerNetworking::RelayThread::threadMain() {
-    logThreadStart("RelayThread::threadMain", log);
-
     MutexLock ml(mutex);
     for (;;) {
         while (!quitFlag && dataQueue.empty())
@@ -2944,8 +2940,6 @@ void ServerNetworking::RelayThread::threadMain() {
             dataQueue = queue<string>();
         }
     }
-
-    logThreadExit("RelayThread::threadMain", log);
 }
 
 void ServerNetworking::RelayThread::pushData_locked(const string& data) {
@@ -2953,13 +2947,23 @@ void ServerNetworking::RelayThread::pushData_locked(const string& data) {
     wakeup.signal();
 }
 
+ServerNetworking::RelayThread::RelayThread(LogSet logs, volatile bool& quitFlag_) :
+    quitFlag(quitFlag_),
+    socket(NL_INVALID),
+    wakeup("ServerNetworking::RelayThread::wakeup"),
+    mutex("ServerNetworking::RelayThread::mutex"),
+    log(logs)
+{ }
+
 void ServerNetworking::RelayThread::start(int priority) {
-    thread.start_assert(RedirectToMemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain), priority);
+    thread.start_assert("ServerNetworking::RelayThread::threadMain",
+                        RedirectToMemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain),
+                        priority);
 }
 
 void ServerNetworking::RelayThread::stop() {
     nAssert(quitFlag);
-    wakeup.signal(mutex);
+    wakeup.signal();
     thread.join();
 }
 

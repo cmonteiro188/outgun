@@ -24,16 +24,49 @@
 #ifndef DEBUG_H_INC
 #define DEBUG_H_INC
 
-class Log;
-class LogSet;
+#include <cstdio>
+#include "mutex.h"
 
-// thread ID logging; this is controlled by LOG_THREAD_IDS in debugconfig.h
-void logThreadEvent(bool exit, const char* function, Log& log);
-void logThreadEvent(bool exit, const char* function, LogSet& log);  // simply dumps to the normal log of the LogSet
-inline void logThreadStart(const char* function, Log& log) { logThreadEvent(false, function, log); }
-inline void logThreadExit (const char* function, Log& log) { logThreadEvent(true , function, log); }
-inline void logThreadStart(const char* function, LogSet& log) { logThreadEvent(false, function, log); }
-inline void logThreadExit (const char* function, LogSet& log) { logThreadEvent(true , function, log); }
+class ThreadLog {
+    FILE* file;
+
+    void beginEntry();
+    void endEntry();
+
+    typedef uint32_t ThreadId;
+    typedef uint64_t ObjectId;
+    static ThreadId idThread(pthread_t t) { return static_cast<ThreadId>(t); }
+    static ObjectId idObject(void* p)     { return static_cast<ObjectId>(reinterpret_cast<intptr_t>(p)); }
+
+    friend class ThreadLogWriter;
+
+public:
+    ThreadLog() : file(0) { }
+    ~ThreadLog() { if (file) fclose(file); }
+};
+
+class ThreadLogWriter {
+    ThreadLog& host;
+
+    ThreadLogWriter(ThreadLogWriter&);
+    ThreadLogWriter& operator=(const ThreadLogWriter&);
+
+public:
+    ThreadLogWriter(ThreadLog& host_) : host(host_) {
+        host.beginEntry();
+        putThreadId(pthread_self());
+    }
+    ~ThreadLogWriter() { host.endEntry(); }
+
+    template<class Type> void put(Type t) { fwrite(&t, sizeof(t), 1, host.file); }
+    void put(const char* str) { fputs(str, host.file); fputc('\0', host.file); }
+    void putThreadId(pthread_t t) { put(ThreadLog::idThread(t)); }
+    void putObjectId(void* p) { put(ThreadLog::idObject(p)); }
+};
+
+// access global objects; protected this way because these are used in initialization of global Mutexes etc. and must be initialized on use
+ThreadLog& g_threadLog();
+BareMutex& g_threadLogMutex();
 
 #ifdef NDEBUG
 

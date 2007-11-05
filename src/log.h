@@ -50,7 +50,7 @@ protected:
     void unlock() const { m.unlock(); }
 
 public:
-    Log() : nLines(0) { }
+    Log();
     virtual ~Log() { }
     void put(const std::string& str);
     void operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);

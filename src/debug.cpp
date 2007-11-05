@@ -23,37 +23,20 @@
 
 #include <cstdio>
 
-#include "incpthread.h"
 #include "debug.h"
 #include "debugconfig.h"
-#include "log.h"
-#include "mutex.h"
-#include "thread.h"
-#include "utility.h"
 
-void Mutex::doLogAction(char operation) { // from mutex.h
-    static Mutex logMutex;    // used to simplify its creation; using lock() or unlock() would lead in endless recursion
-    nAssert(0 == pthread_mutex_lock(&logMutex.mutex));
-    FILE* logFile = fopen("mutexlog.bin", "ab");
-    if (logFile) {
-        const pthread_t threadIdP = pthread_self();
-        const int threadId = *reinterpret_cast<const int*>(&threadIdP);
-        const int mutexId = reinterpret_cast<long>(&mutex);
-        fwrite(&operation, sizeof(char), 1, logFile);
-        fwrite(&threadId, sizeof(int), 1, logFile);
-        fwrite(&mutexId, sizeof(int), 1, logFile);
-        fclose(logFile);
-    }
-    nAssert(0 == pthread_mutex_unlock(&logMutex.mutex));
-}
+ThreadLog& g_threadLog() { static ThreadLog tl; return tl; }
+BareMutex& g_threadLogMutex() { static BareMutex tlm(BareMutex::NoLogging); return tlm; }
 
-void logThreadEvent(bool exit, const char* function, Log& log) {
-    if (LOG_THREAD_IDS) {
-        const pthread_t threadIdP = pthread_self();
-        log("%s%s() ID = %d, prio = %d", exit ? "exiting: " : "", function, *reinterpret_cast<const int*>(&threadIdP), Thread::getCallerPriority());
+void ThreadLog::beginEntry() {
+    if (!file) {
+        file = fopen("threadlog.bin", "wb");
+        nAssert(file); // no fancy handling in developer-only code
     }
 }
 
-void logThreadEvent(bool exit, const char* function, LogSet& log) {
-    logThreadEvent(exit, function, *log.accessNormal());
+void ThreadLog::endEntry() {
+    if (FLUSH_THREAD_LOG)
+        fflush(file);
 }

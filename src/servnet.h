@@ -172,7 +172,7 @@ private:
         bool isConnected_locked() const { return socket != NL_INVALID; }
 
     public:
-        RelayThread(LogSet logs, volatile bool& quitFlag_) : quitFlag(quitFlag_), socket(NL_INVALID), log(logs) { }
+        RelayThread(LogSet logs, volatile bool& quitFlag_);
         ~RelayThread() { nlClose(socket); }
 
         void start(int priority);
