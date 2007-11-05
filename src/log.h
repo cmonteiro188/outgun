@@ -84,7 +84,7 @@ protected:
 public:
     MemoryLog() { }
     virtual ~MemoryLog() { }
-    int size() const { lock(); int sz = data.size(); unlock(); return sz; }
+    int size() const { ConstLock l(*this); return data.size(); }
     std::string pop();  // returns empty string when there's nothing more to pop
 };
 

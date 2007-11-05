@@ -84,6 +84,7 @@ public:
     virtual void unlock() const = 0;
 };
 
+/** Lock a Lockable for the lifetime of the object. */
 class Lock : private NoCopying {
     Lockable& t;
 
@@ -92,12 +93,35 @@ public:
     ~Lock() { t.unlock(); }
 };
 
+/** Unlock a Lockable for the lifetime of the object. */
 class Unlock : private NoCopying {
     Lockable& t;
 
 public:
     Unlock(Lockable& target) : t(target) { t.unlock(); }
     ~Unlock() { t.lock(); }
+};
+
+/** Lock a ConstLockable for the lifetime of the object.
+ * Needed in place of regular Lock when the target is actually const.
+ */
+class ConstLock : private NoCopying {
+    const ConstLockable& t;
+
+public:
+    ConstLock(const ConstLockable& target) : t(target) { t.lock(); }
+    ~ConstLock() { t.unlock(); }
+};
+
+/** Unlock a ConstLockable for the lifetime of the object.
+ * Needed in place of regular Unlock when the target is actually const.
+ */
+class ConstUnlock : private NoCopying {
+    const ConstLockable& t;
+
+public:
+    ConstUnlock(const ConstLockable& target) : t(target) { t.unlock(); }
+    ~ConstUnlock() { t.lock(); }
 };
 
 template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb ? hb : val; }
