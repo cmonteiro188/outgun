@@ -116,6 +116,7 @@ bool isLocalIP(NLaddress address) { // local doesn't mean private
 }
 
 string addressToString(const NLaddress& address) {
+    nAssert(address.valid);
     char buf[NL_MAX_STRING_LENGTH];
     nlAddrToString(&address, buf);
     return buf;

@@ -260,9 +260,12 @@ void MasterSettings::load(LogSet& log) {
     static const int defaultPort = 80;
     static const char* defaultQueryScript = "/outgun/servers/";
     static const char* defaultSubmitScript = "/outgun/servers/submit.php";
-    static const char* defaultBugName = "-";
-    static const char* defaultBugIP = "130.233.18.23";
+    static const char* defaultBugName = "nix.dnsalias.net";
+    static const char* defaultBugIP = "-";
     static const int defaultBugPort = 24900;
+    static const NLushort defaultConfigCRC = 54840;
+    // defaultConfigCRC should correspond to the file the master is sending that contains the above settings, so that downloading is not needed on a fresh install.
+    // If instead downloading in that case is preferred, use 0 which is guaranteed not to be used by a legitimate master.txt.
 
     log("Reading config/master.txt");
     ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
@@ -272,7 +275,7 @@ void MasterSettings::load(LogSet& log) {
         name = defaultName;
     if (!getline_skip_comments(in, ip))
         ip = defaultIP;
-    else if (!isValidIP(ip, true, 1)) {
+    else if (!isValidIP(ip, true, 1) && ip != "-") { // Note: don't use '-' if pre-1.0.4 clients may use the file: they don't accept a master.txt with no master server ip.
         log.error(_("'$1', given in master.txt is not a valid IP address.", ip));
         ip = defaultIP;
     }
@@ -285,59 +288,58 @@ void MasterSettings::load(LogSet& log) {
         bugName = defaultBugName;
     if (!getline_skip_comments(in, bugIP))
         bugIP = defaultBugIP;
-    else if (!isValidIP(ip, true, 1)) {
+    else if (!isValidIP(bugIP, true, 1) && bugIP != "-") { // Note: don't use '-' if pre-1.0.4 clients may use the file: even though they accept it here, they still fail later if bugName doesn't resolve.
         log.error(_("'$1', given in master.txt is not a valid IP address.", bugIP));
         bugIP = defaultBugIP;
     }
-
+    if (bugIP == "127.0.0.1:65535") // The bug reporting IP in server-sent master.txt is set to this because pre-1.0.4 Outgun requires a valid IP. That way at least packets won't be sent to the network if the hostname doesn't resolve.
+        bugIP = defaultBugIP;
     in.close();
 
     FILE *fp = fopen((wheregamedir + "config" + directory_separator + "master.txt").c_str(), "rb");
     if (fp) {
-        static const int bufSize = 1024;    // the first kbyte should be enough to distinguish versions, even if the file at some point gets this large
+        static const int bufSize = 1024; // The first kbyte should be enough to distinguish versions, even if the file at some point gets this large.
         NLubyte buf[bufSize];
         const int numread = fread(buf, 1, bufSize, fp);
         fclose(fp);
         configCRC = nlGetCRC16(buf, numread);
     }
     else
-        configCRC = 0;
+        configCRC = defaultConfigCRC;
 
     log("Resolving master server address...");
+    masterAddress.valid = bugAddress.valid = NL_FALSE;
     try {
-        if (name.length() < 3)
-            masterAddress.valid = NL_FALSE;
-        else {
+        if (name.length() >= 3) {
             nlGetAddrFromName(name.c_str(), &masterAddress);
             hostName = name;
         }
-        if (bugName.length() < 3)
-            bugAddress.valid = NL_FALSE;
-        else
+        if (bugName.length() >= 3)
             nlGetAddrFromName(bugName.c_str(), &bugAddress);
     } catch (...) {
         log("Caught exception probably on nlGetAddrFromNameAsync()");
-        masterAddress.valid = bugAddress.valid = NL_FALSE;
     }
 
     if (masterAddress.valid == NL_FALSE) {
-        if (name.length() >= 3)
+        if (name.length() >= 3 || ip.length() <= 1)
             log("Can't resolve master server DNS name to IP.");
         else
             hostName = ip;
-        nlStringToAddr(ip.c_str(), &masterAddress);
+        if (ip.length() > 1)
+            nlStringToAddr(ip.c_str(), &masterAddress);
     }
     if (bugAddress.valid == NL_FALSE) {
-        if (bugName.length() >= 3)
+        if (bugName.length() >= 3 || bugIP.length() <= 1)
             log("Can't resolve bug report server DNS name to IP.");
-        nlStringToAddr(bugIP.c_str(), &bugAddress);
+        if (bugIP.length() > 1)
+            nlStringToAddr(bugIP.c_str(), &bugAddress);
     }
     if (nlGetPortFromAddr(&masterAddress) == 0) // port is unspecified or an error occured
         nlSetAddrPort(&masterAddress, defaultPort);
     if (nlGetPortFromAddr(&bugAddress) == 0) // port is unspecified or an error occured
         nlSetAddrPort(&bugAddress, defaultBugPort);
-    log("Master server address set: %s (%s), port %d.", name.c_str(), ip.c_str(), nlGetPortFromAddr(&masterAddress));
-    log("Bug report server address set: %s (%s), port %d.", bugName.c_str(), bugIP.c_str(), nlGetPortFromAddr(&bugAddress));
+    log("Master server address set: %s/%s -> %s.", name.c_str(), ip.c_str(), masterAddress.valid ? addressToString(masterAddress).c_str() : "none");
+    log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid ? addressToString(bugAddress).c_str() : "none");
 }
 
 MasterSettings g_masterSettings;

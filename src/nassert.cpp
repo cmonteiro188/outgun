@@ -102,7 +102,7 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     messageBox(_("Internal error"), std::string("Assertion failed: ") + std::string(buf) + ", file " + file + ", line " + itoa(line) + '\n' +
                _("This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi"));
     // finally, throw it to the net and hope it's caught
-    if (g_autoBugReporting == ABR_disabled || GAME_BRANCH != "base")
+    if (g_autoBugReporting == ABR_disabled || GAME_BRANCH != "base" || !g_masterSettings.bugReportAddress().valid)
         return;
     static const int stackDumpSize = 10000; // it splits into 7 Ethernet frames and so has a good chance of getting lost, but much less size isn't useful
     char* mbuf = new char[stackDumpSize];   // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting

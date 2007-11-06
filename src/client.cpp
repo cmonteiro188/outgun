@@ -3807,6 +3807,9 @@ bool Client::refresh_all_servers() {
 }
 
 bool Client::getServerList() {
+    if (!g_masterSettings.address().valid)
+        return false;
+
     refreshStatus = RS_connecting;
 
     //open a nonblocking socket

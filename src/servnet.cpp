@@ -2325,6 +2325,9 @@ void ServerNetworking::run_mastertalker_thread() {
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
+        if (!g_masterSettings.address().valid)
+            continue;
+
         //open socket
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
@@ -2392,6 +2395,9 @@ void ServerNetworking::run_mastertalker_thread() {
 
 // Quitting: Delete my IP from the master so clients won't see it.
 void ServerNetworking::send_master_quit(const string& localAddress) const {
+    if (!g_masterSettings.address().valid)
+        return;
+
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);

@@ -4,13 +4,16 @@ NLLIBS = -lNL
 
 .PHONY: all
 
-all: buglistener leetdatalogrd threadlogrd stackdump2text translationdb watsonrd
+all: buglistener leetdatalogrd mastertxt_crc threadlogrd stackdump2text translationdb watsonrd
 
 buglistener : src/buglistener.cpp
 	g++ $(CFLAGS) -o $@ $< $(NLLIBS)
 
 leetdatalogrd : src/leetdatalogrd.cpp
 	g++ $(CFLAGS) -o $@ $<
+
+mastertxt_crc : src/mastertxt_crc.cpp
+	g++ $(CFLAGS) -o $@ $< $(NLLIBS)
 
 threadlogrd : src/threadlogrd.cpp
 	g++ $(CFLAGS) -o $@ $<
