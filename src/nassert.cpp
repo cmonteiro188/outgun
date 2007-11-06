@@ -30,13 +30,16 @@
 #include "utility.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
-#include <nl.h>
+ #include <nl.h>
 
-#include "commont.h"
-#include "debugconfig.h"
-#include "language.h"
-#include "mutex.h"
-#include "platform.h"
+ #include "commont.h"
+ #include "debugconfig.h"
+ #include "language.h"
+ #include "mutex.h"
+ #include "network.h"
+ #include "platform.h"
+ #include "protocol.h"
+ #include "version.h"
 #endif
 
 #include "nassert.h"
@@ -79,7 +82,7 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     // save to assert.log
     FILE* asfile = fopen((wheregamedir + "log" + directory_separator + "assert.log").c_str(), "at");
     if (asfile) {
-        fprintf(asfile, "%s  %s  %s:%d ", date_and_time().c_str(), GAME_SHORT_VERSION, file, line);
+        fprintf(asfile, "%s  %s  %s:%d ", date_and_time().c_str(), getVersionString().c_str(), file, line);
         va_start(argptr, expr);
         vfprintf(asfile, expr, argptr);
         va_end(argptr);
@@ -99,13 +102,13 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     messageBox(_("Internal error"), std::string("Assertion failed: ") + std::string(buf) + ", file " + file + ", line " + itoa(line) + '\n' +
                _("This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi"));
     // finally, throw it to the net and hope it's caught
-    if (g_autoBugReporting == ABR_disabled || strcmp(GAME_BRANCH, "base"))
+    if (g_autoBugReporting == ABR_disabled || GAME_BRANCH != "base")
         return;
     static const int stackDumpSize = 10000; // it splits into 7 Ethernet frames and so has a good chance of getting lost, but much less size isn't useful
     char* mbuf = new char[stackDumpSize];   // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting
     int len = 0;
-    writeString(mbuf, len, GAME_STRING);
-    writeString(mbuf, len, GAME_SHORT_VERSION);
+    writeStr(mbuf, len, GAME_STRING);
+    writeStr(mbuf, len, getVersionString());
     #ifdef OFFICIAL_BUILD_ID
     // please don't define OFFICIAL_BUILD_ID unless you've set up your own bug report server, configured it in MasterSettings::load, and agreed about it with whoever is keeping the server list master server your version uses so that the master won't override the setting in what is downloaded to master.txt
     writeByte(mbuf, len, OFFICIAL_BUILD_ID);
