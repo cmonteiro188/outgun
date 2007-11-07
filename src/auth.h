@@ -31,9 +31,8 @@
 
 #include <ctime>
 
-#include <nl.h>
-
 #include "function_utility.h"
+#include "network.h"
 #include "utility.h"    // for LogSet
 
 class AuthorizationDatabase {

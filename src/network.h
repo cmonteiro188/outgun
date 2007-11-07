@@ -29,7 +29,7 @@
 #include <map>
 #include <string>
 
-#include <nl.h>
+#include "nl.h"
 
 class LineReceiver;
 

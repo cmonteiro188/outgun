@@ -23,7 +23,6 @@
  */
 
 #include <string>
-#include <nl.h>
 #include <cstdio>
 #include <ctime>
 

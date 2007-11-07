@@ -27,7 +27,7 @@
 
 #include <string>
 
-#include <nl.h>
+#include "network.h"
 
 class Client;
 class ServerExternalSettings;

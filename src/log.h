@@ -30,9 +30,8 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include <nl.h>
-
 #include "mutex.h"
+#include "network.h"
 #include "utility.h"
 
 class Log : public NoCopying, protected ConstLockable { // base class

@@ -34,7 +34,7 @@
 
 #include <cmath>
 
-#include <nl.h>
+#include "network.h"
 
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str);

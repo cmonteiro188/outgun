@@ -30,8 +30,6 @@
 #include "utility.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
- #include <nl.h>
-
  #include "commont.h"
  #include "debugconfig.h"
  #include "language.h"

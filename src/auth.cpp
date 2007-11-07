@@ -25,8 +25,6 @@
 #include <fstream>
 #include <sstream>
 
-#include <nl.h>
-
 #include "commont.h"
 #include "language.h"
 #include "nassert.h"

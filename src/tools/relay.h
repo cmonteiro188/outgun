@@ -29,7 +29,7 @@
 #include <sstream>
 #include <vector>
 
-#include <nl.h>
+#include "../network.h"
 
 class Peer {
 public:
