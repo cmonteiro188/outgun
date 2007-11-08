@@ -52,6 +52,9 @@ public:
 
         operator NLaddress&(); //#remove
         operator const NLaddress&() const; //#remove
+
+        NLaddress* NLptr(); //#remove
+        const NLaddress* NLptr() const; //#remove
     };
 
     class Socket : private NoCopying {

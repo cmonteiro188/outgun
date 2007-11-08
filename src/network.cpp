@@ -98,6 +98,14 @@ Address::operator const NLaddress&() const {
     return NLA;
 }
 
+NLaddress* Address::NLptr() {
+    return &NLA;
+}
+
+const NLaddress* Address::NLptr() const {
+    return &NLA;
+}
+
 Socket::Socket() :
     hidden(new HiddenData(NL_INVALID))
 { }
