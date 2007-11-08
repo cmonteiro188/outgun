@@ -2158,7 +2158,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket sock = nlOpen(0, NL_RELIABLE);
+        Network::Socket sock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (sock == NL_INVALID) {
             log("Tournament thread: Can't open socket. %s", getNlErrorString());
@@ -2327,7 +2327,7 @@ void ServerNetworking::run_mastertalker_thread() {
         //open socket
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket msock = nlOpen(0, NL_RELIABLE);
+        Network::Socket msock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (msock == NL_INVALID) {
             log.error(_("Master talker: Can't open socket to connect to master server."));
@@ -2397,7 +2397,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket msock = nlOpen(0, NL_RELIABLE);
+    Network::Socket msock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
 
     if (msock == NL_INVALID) {
@@ -2464,7 +2464,7 @@ void ServerNetworking::run_website_thread() {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket websock = nlOpen(0, NL_RELIABLE);
+        Network::Socket websock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (websock == NL_INVALID) {
             log.error(_("Website thread: Can't open socket to connect to server website."));
@@ -2526,7 +2526,7 @@ void ServerNetworking::run_website_thread() {
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket websock = nlOpen(0, NL_RELIABLE);
+    Network::Socket websock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
 
     if (websock == NL_INVALID) {
@@ -2641,7 +2641,7 @@ string ServerNetworking::website_maplist() const {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
+bool ServerNetworking::read_string_from_TCP(Network::Socket sock, char *buf) {
     for (;;) {
         NLint result = nlRead(sock, buf, 1);
         if (result != 1)    // message not completely received
@@ -2661,7 +2661,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
+    Network::Socket shellmsock = nlOpen(port, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (shellmsock == NL_INVALID) {
         log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
@@ -2678,7 +2678,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         //accept one connection
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket newSock = nlAcceptConnection(shellmsock);
+        Network::Socket newSock = nlAcceptConnection(shellmsock);
         nlOpenMutex.unlock();
 
         if (newSock == NL_INVALID) {

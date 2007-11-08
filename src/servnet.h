@@ -135,7 +135,7 @@ private:
     ClientTransferData fileTransfer[MAX_PLAYERS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
-    NLsocket shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
+    Network::Socket shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
     Thread          shellmthread;
 
     Thread          mthread;
@@ -159,7 +159,7 @@ private:
     class RelayThread {
         Thread thread;
         volatile bool& quitFlag;
-        NLsocket socket;
+        Network::Socket socket;
         bool newGame;
         std::queue<std::string> dataQueue;
         ConditionVariable wakeup;
@@ -205,7 +205,7 @@ private:
     void run_mastertalker_thread();
     void send_master_quit(const std::string& localAddress) const;
 
-    bool read_string_from_TCP(NLsocket sock, char *buf);
+    bool read_string_from_TCP(Network::Socket sock, char *buf);
     void run_shellmaster_thread(int port);
     void run_shellslave_thread(volatile bool* quitFlag);
 
