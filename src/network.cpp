@@ -43,6 +43,81 @@ using std::setfill;
 using std::setw;
 using std::string;
 
+typedef Network::Address Address;
+typedef Network::Socket Socket;
+
+class Address::HiddenData {
+public:
+    NLaddress nla;
+    // Everything else is in the Address class itself. This class is used only to avoid including nl.h in network.h.
+
+    HiddenData() { }
+    HiddenData(const NLaddress& n) : nla(n) { }
+};
+
+class Socket::HiddenData {
+public:
+    NLsocket nls;
+    // Everything else is in the Socket class itself. This class is used only to avoid including nl.h in network.h.
+
+    HiddenData(NLsocket n) : nls(n) { }
+};
+
+// shortcuts for accessing raw NLaddresses and NLsockets within Address and Socket classes, used throughout this file
+#define NLA hidden->nla
+#define NLS hidden->nls
+
+Address::Address() :
+    hidden(new HiddenData())
+{
+    NLA.valid = false;
+}
+
+Address::Address(const NLaddress& nla) :
+    hidden(new HiddenData(nla))
+{ }
+
+Address::Address(const Address& a) :
+    hidden(new HiddenData(*a.hidden))
+{ }
+
+Address::~Address() {
+    delete hidden;
+}
+
+Address& Address::operator=(const Address& a) {
+    NLA = a.NLA;
+    return *this;
+}
+
+Address::operator NLaddress&() {
+    return NLA;
+}
+
+Address::operator const NLaddress&() const {
+    return NLA;
+}
+
+Socket::Socket() :
+    hidden(new HiddenData(NL_INVALID))
+{ }
+
+Socket::Socket(const NLsocket& nls) :
+    hidden(new HiddenData(nls))
+{ }
+
+Socket::~Socket() {
+    delete hidden;
+}
+
+Socket::operator NLsocket&() {
+    return NLS;
+}
+
+Socket::operator const NLsocket&() const {
+    return NLS;
+}
+
 const char* getNlErrorString() {
     if (nlGetError() == NL_SYSTEM_ERROR)
         return nlGetSystemErrorStr(nlGetSystemError());

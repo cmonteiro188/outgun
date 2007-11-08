@@ -29,9 +29,48 @@
 #include <map>
 #include <string>
 
-#include "nl.h"
+#include "utility.h"
+
+#include <nl.h> //#remove
 
 class LineReceiver;
+
+class Network {
+public:
+    class Address {
+        class HiddenData;
+        HiddenData* hidden;
+
+        friend class Network;
+
+    public:
+        Address();
+        Address(const NLaddress& nla); //#remove
+        Address(const Address& a);
+        ~Address();
+        Address& operator=(const Address& a);
+
+        operator NLaddress&(); //#remove
+        operator const NLaddress&() const; //#remove
+    };
+
+    class Socket : private NoCopying {
+        class HiddenData;
+        HiddenData* hidden;
+
+        friend class Network;
+
+    public:
+        Socket();
+        Socket(const NLsocket& nls); //#remove
+        ~Socket();
+
+        operator NLsocket&(); //#remove
+        operator const NLsocket&() const; //#remove
+    };
+
+    // static members only
+};
 
 const char* getNlErrorString();
 
