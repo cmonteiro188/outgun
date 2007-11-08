@@ -57,13 +57,13 @@ public:
 
     ServerListEntry() : refreshed(false), noresponse(true), ping(0) { }
 
-    const NLaddress& address() const { return addr; }
+    const Network::Address& address() const { return addr; }
     std::string addressString() const;
     bool setAddress(const std::string& address);    // returns false if address is invalid
-    void setAddress(const NLaddress& address);
+    void setAddress(const Network::Address& address);
 
 private:
-    NLaddress   addr;
+    Network::Address addr;
 };
 
 class FileDownload {
@@ -334,7 +334,7 @@ class Client : public ClientInterface {
     #endif
 
     std::string playername;
-    NLaddress serverIP;
+    Network::Address serverIP;
 
     // for bots:
     std::string bot_password;
@@ -459,7 +459,7 @@ class Client : public ClientInterface {
     double visible_rooms;
 
     bool spectating;
-    NLsocket spectate_socket;
+    Network::Socket spectate_socket;
     bool spectate_data_received;
     std::stringstream spectate_buffer;
     #else
@@ -685,7 +685,7 @@ class Client : public ClientInterface {
     void continue_replay();
     void continue_replay(std::istream& in);
     void stop_replay();
-    void start_spectating(const NLaddress& address);
+    void start_spectating(const Network::Address& address);
     void continue_spectating();
     #endif
 
@@ -709,7 +709,7 @@ public:
     #endif
     void stop();
 
-    void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId);
+    void bot_start(const Network::Address& addr, int ping, const std::string& name_lang, int botId);
     void bot_loop();
     void set_ping(int ping);
     bool is_connected() const { return connected; }

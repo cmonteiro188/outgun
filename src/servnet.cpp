@@ -584,7 +584,7 @@ void ServerNetworking::new_player_to_admin_shell(int pid) const {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_IP);
         writeLong(lebuf, count, world.player[pid].cid);
-        NLaddress addr = get_client_address(world.player[pid].cid);
+        Network::Address addr = get_client_address(world.player[pid].cid);
         nlSetAddrPort(&addr, 0);
         writeStr(lebuf, count, addressToString(addr));
         nlWrite(shellssock, lebuf, count);
@@ -1315,16 +1315,16 @@ int ServerNetworking::client_connected(int id) {
     if (world.player[myself].localIP)
         ++localPlayers;
     else {
-        NLaddress ip = get_client_address(id);
+        Network::Address ip = get_client_address(id);
         nlSetAddrPort(&ip, 0);
-        vector< pair<NLaddress, int> >::iterator pi;
+        vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
             if (nlAddrCompare(&pi->first, &ip)) {
                 ++pi->second;
                 break;
             }
         if (pi == distinctRemotePlayers.end())
-            distinctRemotePlayers.push_back(pair<NLaddress, int>(ip, 1));
+            distinctRemotePlayers.push_back(pair<Network::Address, int>(ip, 1));
     }
 
     const vector<string>& welcome_message = host->getWelcomeMessage();
@@ -1430,9 +1430,9 @@ void ServerNetworking::client_disconnected(int id) {
     if (world.player[pid].localIP)
         --localPlayers;
     else {
-        NLaddress ip = get_client_address(id);
+        Network::Address ip = get_client_address(id);
         nlSetAddrPort(&ip, 0);
-        vector< pair<NLaddress, int> >::iterator pi;
+        vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
             nAssert(pi != distinctRemotePlayers.end());
         --pi->second;
@@ -1660,7 +1660,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
         broadcast_player_crap(pid);
     }
     break; case data_bot: {
-        NLaddress address = get_client_address(sender.cid);
+        Network::Address address = get_client_address(sender.cid);
         nlSetAddrPort(&address, 0);
         char buf[NL_MAX_STRING_LENGTH];
         nlAddrToString(&address, buf);
@@ -2162,7 +2162,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket sock = nlOpen(0, NL_RELIABLE);
+        Network::Socket sock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (sock == NL_INVALID) {
             log("Tournament thread: Can't open socket. %s", getNlErrorString());
@@ -2170,7 +2170,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
             continue;
         }
 
-        NLaddress tournamentServer;
+        Network::Address tournamentServer;
         if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
             nlStringToAddr("64.69.35.205", &tournamentServer);
 
@@ -2331,7 +2331,7 @@ void ServerNetworking::run_mastertalker_thread() {
         //open socket
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket msock = nlOpen(0, NL_RELIABLE);
+        Network::Socket msock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (msock == NL_INVALID) {
             log.error(_("Master talker: Can't open socket to connect to master server."));
@@ -2401,7 +2401,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket msock = nlOpen(0, NL_RELIABLE);
+    Network::Socket msock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
 
     if (msock == NL_INVALID) {
@@ -2450,7 +2450,7 @@ void ServerNetworking::run_website_thread() {
     const string& localAddress = settings.ip();
     // use it even if not public
 
-    NLaddress website_address;
+    Network::Address website_address;
     string working_address_string;
     double website_talk_time = 0.0;
     bool first_connection = true;
@@ -2468,7 +2468,7 @@ void ServerNetworking::run_website_thread() {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket websock = nlOpen(0, NL_RELIABLE);
+        Network::Socket websock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (websock == NL_INVALID) {
             log.error(_("Website thread: Can't open socket to connect to server website."));
@@ -2530,7 +2530,7 @@ void ServerNetworking::run_website_thread() {
     //open socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket websock = nlOpen(0, NL_RELIABLE);
+    Network::Socket websock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
 
     if (websock == NL_INVALID) {
@@ -2645,7 +2645,7 @@ string ServerNetworking::website_maplist() const {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) {
+bool ServerNetworking::read_string_from_TCP(Network::Socket sock, char *buf) {
     for (;;) {
         NLint result = nlRead(sock, buf, 1);
         if (result != 1)    // message not completely received
@@ -2665,7 +2665,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
+    Network::Socket shellmsock = nlOpen(port, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (shellmsock == NL_INVALID) {
         log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
@@ -2682,7 +2682,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         //accept one connection
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket newSock = nlAcceptConnection(shellmsock);
+        Network::Socket newSock = nlAcceptConnection(shellmsock);
         nlOpenMutex.unlock();
 
         if (newSock == NL_INVALID) {
@@ -2695,7 +2695,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         log("Incoming admin shell connection");
 
         //accept connections only from localhost
-        NLaddress addr, c1, c2;
+        Network::Address addr, c1, c2;
         nlGetRemoteAddr(newSock, &addr);
         nlStringToAddr("127.0.0.1", &c1);
         get_self_IP(&c2);
@@ -2731,7 +2731,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
                 writeLong(lebuf, count, STA_PLAYER_IP);
                 writeLong(lebuf, count, world.player[i].cid);
-                NLaddress addr = get_client_address(world.player[i].cid);
+                Network::Address addr = get_client_address(world.player[i].cid);
                 nlSetAddrPort(&addr, 0);
                 writeStr(lebuf, count, addressToString(addr));
 
@@ -2973,7 +2973,7 @@ void ServerNetworking::RelayThread::stop() {
     thread.join();
 }
 
-void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData) {
+void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAddress, const string& initData) {
     Lock ml(mutex);
 
     newGame = true;
@@ -3212,7 +3212,7 @@ void ServerNetworking::sendNameAuthorizationRequest(int pid) const {
     server->send_message(world.player[pid].cid, lebuf, count);
 }
 
-NLaddress ServerNetworking::get_client_address(int cid) const {
+Network::Address ServerNetworking::get_client_address(int cid) const {
     return server->get_client_address(cid);
 }
 

@@ -140,7 +140,7 @@ void Server::saveAuthorizations() const {
 void Server::banPlayer(int pid, int admin, int minutes) {
     if (!loadAuthorizations())
         return;
-    const NLaddress addr = network.get_client_address(world.player[pid].cid);
+    const Network::Address addr = network.get_client_address(world.player[pid].cid);
     if (!authorizations.isBanned(addr)) {
         authorizations.ban(addr, world.player[pid].name, minutes);
         saveAuthorizations();
@@ -819,7 +819,7 @@ void Server::init_bots() {
     pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
     clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
     clientCfg.statusOutput = settings.statusOutput();
-    NLaddress address;
+    Network::Address address;
     if (!nlStringToAddr(("127.0.0.1:" + itoa(settings.get_port())).c_str(), &address))
         nAssert(0);
     static int botId = 1;

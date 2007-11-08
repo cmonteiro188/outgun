@@ -234,20 +234,20 @@ public:
 class LogSet;
 
 class MasterSettings {
-    NLaddress masterAddress;
+    Network::Address masterAddress;
     std::string hostName;
     std::string queryScript;
     std::string submitScript;
-    NLaddress bugAddress;
+    Network::Address bugAddress;
     int configCRC;
 
 public:
     MasterSettings() : configCRC(0) { masterAddress.valid = bugAddress.valid = NL_FALSE; }
-    const NLaddress& address() const { return masterAddress; }
+    const Network::Address& address() const { return masterAddress; }
     const std::string& host() const { return hostName; }
     const std::string& query() const { return queryScript; }
     const std::string& submit() const { return submitScript; }
-    const NLaddress& bugReportAddress() const { return bugAddress; }
+    const Network::Address& bugReportAddress() const { return bugAddress; }
     int crc() const { return configCRC; }
 
     void load(LogSet& log);

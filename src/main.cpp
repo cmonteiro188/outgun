@@ -499,7 +499,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
         //get all local addresses
         NLint locsize;
-        const NLaddress* locals = nlGetAllLocalAddr(&locsize);
+        const Network::Address* locals = nlGetAllLocalAddr(&locsize);
 
         string infobuf =
             _("Possible thread priorities (-prio <val>):") + '\n' +

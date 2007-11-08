@@ -310,7 +310,7 @@ void TournamentPasswordManager::threadFn() {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        NLsocket sock = nlOpen(0, NL_RELIABLE);
+        Network::Socket sock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (sock == NL_INVALID) {
             log("Password thread: Can't open socket. %s", getNlErrorString());
@@ -319,7 +319,7 @@ void TournamentPasswordManager::threadFn() {
             continue;
         }
 
-        NLaddress tournamentServer;
+        Network::Address tournamentServer;
         if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
             nlStringToAddr("64.69.35.205", &tournamentServer);
 
@@ -434,7 +434,7 @@ bool ServerListEntry::setAddress(const string& address) {
     return true;
 }
 
-void ServerListEntry::setAddress(const NLaddress& address) {
+void ServerListEntry::setAddress(const Network::Address& address) {
     addr = address;
     if (nlGetPortFromAddr(&addr) == 0)
         nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
@@ -444,7 +444,7 @@ string ServerListEntry::addressString() const {
     if (nlGetPortFromAddr(&addr) != DEFAULT_UDP_PORT)
         return addressToString(addr);
     else {
-        NLaddress cpy = addr;
+        Network::Address cpy = addr;
         nlSetAddrPort(&cpy, 0);
         return addressToString(cpy);
     }
@@ -900,7 +900,7 @@ bool Client::start() {
     return true;
 }
 
-void Client::bot_start(const NLaddress& addr, int ping, const string& name_lang, int bot_id) {
+void Client::bot_start(const Network::Address& addr, int ping, const string& name_lang, int bot_id) {
     Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
@@ -3716,7 +3716,7 @@ bool Client::refresh_all_servers() {
 
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket sock = nlOpen(0, NL_UNRELIABLE);
+    Network::Socket sock = nlOpen(0, NL_UNRELIABLE);
     nlOpenMutex.unlock();
 
     if (sock == NL_INVALID) {
@@ -3776,7 +3776,7 @@ bool Client::refresh_all_servers() {
 
                 Lock ml(serverListMutex);
 
-                NLaddress from;
+                Network::Address from;
                 nlGetRemoteAddr(sock, &from);
                 if (!nlAddrCompare(&from, &servers[index]->address()))
                     continue;
@@ -3815,7 +3815,7 @@ bool Client::getServerList() {
     //open a nonblocking socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket sock = nlOpen(0, NL_RELIABLE);
+    Network::Socket sock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (sock == NL_INVALID) {
         log.error(_("Can't open socket to connect to master server. $1", getNlErrorString()));
@@ -3872,13 +3872,13 @@ bool Client::get_local_servers() {
     //open a nonblocking socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket sock = nlOpen(0, NL_BROADCAST);
+    Network::Socket sock = nlOpen(0, NL_BROADCAST);
     nlOpenMutex.unlock();
     if (sock == NL_INVALID) {
         log("Can't open broadcast socket.");
         return false;
     }
-    NLaddress addr;
+    Network::Address addr;
     nlStringToAddr("255.255.255.255:25000", &addr);
     nlSetRemoteAddr(sock, &addr);
 
@@ -4338,7 +4338,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
         connect_command(true);
     }
     else if (!extConfig.autoSpectate.empty()) {
-        NLaddress addr;
+        Network::Address addr;
         nlStringToAddr(extConfig.autoSpectate.c_str(), &addr);
         start_spectating(addr);
     }
@@ -4782,7 +4782,7 @@ void Client::stop_replay() {
     menusel = menu_none;
 }
 
-void Client::start_spectating(const NLaddress& address) {
+void Client::start_spectating(const Network::Address& address) {
     disconnect_command();
     stop_replay();
 
@@ -6100,7 +6100,7 @@ void Client::MCF_prepareServerMenu() {
     const int oldSel = menu.connect.menu.selection();
 
     menu.connect.reset();
-    vector<NLaddress> addresses;
+    vector<Network::Address> addresses;
     const vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
     serverListMutex.lock();
     for (vector<ServerListEntry>::const_iterator spy = servers.begin(); spy != servers.end(); ++spy) {
@@ -6208,7 +6208,7 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
     (void)chr;
     if (scan == KEY_DEL) {
         vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
-        const NLaddress address = menu.connect.getAddress(target);
+        const Network::Address address = menu.connect.getAddress(target);
         for (vector<ServerListEntry>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
             if (nlAddrCompare(&address, &spy->address())) {
                 servers.erase(spy);
@@ -6217,7 +6217,7 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
         return true;
     }
     else if (scan == KEY_INSERT && !menu.connect.favorites()) {
-        const NLaddress address = menu.connect.getAddress(target);
+        const Network::Address address = menu.connect.getAddress(target);
         for (vector<ServerListEntry>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
             if (nlAddrCompare(&address, &spy->address())) {
                 gamespy.push_back(*spy);

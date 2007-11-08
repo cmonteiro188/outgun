@@ -135,7 +135,7 @@ private:
     ClientTransferData fileTransfer[MAX_PLAYERS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
-    NLsocket        shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
+    Network::Socket shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
     Thread          shellmthread;
 
     Thread          mthread;
@@ -146,7 +146,7 @@ private:
     int             ctop[256];          // client id-to-player id index
     int             player_count;       // number of players including bots
     int             bot_count;
-    std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
+    std::vector< std::pair<Network::Address, int> > distinctRemotePlayers;
     int             localPlayers;
     Mutex           addPlayerMutex;
     unsigned        newUniqueId;
@@ -159,7 +159,7 @@ private:
     class RelayThread {
         Thread thread;
         volatile bool& quitFlag;
-        NLsocket socket;
+        Network::Socket socket;
         bool newGame;
         std::queue<std::string> dataQueue;
         ConditionVariable wakeup;
@@ -178,14 +178,14 @@ private:
         void start(int priority);
         void stop();
 
-        void startNewGame(const NLaddress& relayAddress, const std::string& initData);
+        void startNewGame(const Network::Address& relayAddress, const std::string& initData);
         void pushFrame(const std::string& frame);
 
         bool isConnected() const { Lock ml(mutex); return isConnected_locked(); }
     };
 
-    NLaddress       relay_address;
-    RelayThread     relayThread;
+    Network::Address relay_address;
+    RelayThread relayThread;
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -205,7 +205,7 @@ private:
     void run_mastertalker_thread();
     void send_master_quit(const std::string& localAddress) const;
 
-    bool read_string_from_TCP(NLsocket sock, char *buf);
+    bool read_string_from_TCP(Network::Socket sock, char *buf);
     void run_shellmaster_thread(int port);
     void run_shellslave_thread(volatile bool* quitFlag);
 
@@ -332,7 +332,7 @@ public:
 
     void broadcast_frame(bool gameRunning);
 
-    NLaddress get_client_address(int cid) const;
+    Network::Address get_client_address(int cid) const;
     int get_player_count() const { return player_count; }
     int get_human_count() const { return player_count - bot_count; }
     int get_bot_count() const { return bot_count; }

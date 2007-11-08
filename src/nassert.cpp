@@ -121,7 +121,7 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     }
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    NLsocket dbgSock = nlOpen(0, NL_UNRELIABLE);
+    Network::Socket dbgSock = nlOpen(0, NL_UNRELIABLE);
     nlOpenMutex.unlock();
     if (dbgSock == NL_INVALID)
         return;

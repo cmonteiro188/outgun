@@ -77,9 +77,9 @@ const char* getNlErrorString();
 bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false);
 bool check_private_IP(const std::string& address, bool allowAnyExternal = false);   // with allowAnyExternal only (invalid and) loopback addresses are blocked
 std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false);    // with allowAnyExternal only (invalid and) loopback addresses are blocked
-bool isLocalIP(NLaddress address);  // returns true if address points to this machine (nothing to do with the address being private)
-std::string addressToString(const NLaddress& address);
-inline bool operator==(const NLaddress& a1, const NLaddress& a2) { return nlAddrCompare(&a1, &a2); }
+bool isLocalIP(Network::Address address);  // returns true if address points to this machine (nothing to do with the address being private)
+std::string addressToString(const Network::Address& address);
+inline bool operator==(const Network::Address& a1, const Network::Address& a2) { return nlAddrCompare(&a1, &a2); }
 
 inline void readStr(const char* buf, int& count, std::string& dst) {
     dst.clear();
@@ -104,19 +104,19 @@ inline void safeWriteFloat(char* buf, int& count, float val) {  // this adds typ
 
 enum NetworkResult { NR_ok, NR_timeout, NR_nlError };   // timeout is also returned when abortFlag triggers the return
 
-NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length,
+NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
-NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, std::ostream& out,
+NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, std::ostream& out,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
 
 std::string format_http_parameters(const std::map<std::string, std::string>& parameters);
 
 std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "");
 
-NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
+NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
                              const std::string& script, const std::string& parameters, const std::string& auth = ""); // timeout in ms
 
-NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
+NetworkResult save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
 
 std::string url_encode(const std::string& str);
 void url_encode(char c, std::ostream& out);

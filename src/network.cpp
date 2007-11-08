@@ -161,7 +161,7 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
 
 string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
     NLint nLocals;
-    NLaddress* locals = nlGetAllLocalAddr(&nLocals);
+    Network::Address* locals = nlGetAllLocalAddr(&nLocals);
     for (int i = 0; i < nLocals; ++i) {
         const string addr = addressToString(locals[i]);
         if (check_private_IP(addr, allowAnyExternal))
@@ -175,13 +175,13 @@ string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
     return string();
 }
 
-bool isLocalIP(NLaddress address) { // local doesn't mean private
+bool isLocalIP(Network::Address address) { // local doesn't mean private
     nlSetAddrPort(&address, 0);
-    NLaddress loopback;
+    Network::Address loopback;
     nAssert(nlStringToAddr("127.0.0.1", &loopback));
     if (nlAddrCompare(&address, &loopback))
         return true;
-    NLaddress* locals;
+    Network::Address* locals;
     NLint nLocals;
     locals = nlGetAllLocalAddr(&nLocals);
     for (int i = 0; i < nLocals; ++i)
@@ -190,14 +190,14 @@ bool isLocalIP(NLaddress address) { // local doesn't mean private
     return false;
 }
 
-string addressToString(const NLaddress& address) {
+string addressToString(const Network::Address& address) {
     nAssert(address.valid);
     char buf[NL_MAX_STRING_LENGTH];
     nlAddrToString(&address, buf);
     return buf;
 }
 
-NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -218,7 +218,7 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
     const int buffer_size = 511;
     char lebuf[buffer_size + 1];
 
@@ -283,13 +283,13 @@ string build_http_request(bool post, const string& host, const string& script, c
     return data.str();
 }
 
-NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
                              const string& host, const string& script, const string& parameters, const string& auth) {
     const string request = build_http_request(true, host, script, parameters, auth);
     return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
     return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 

@@ -170,7 +170,7 @@ void Relay::load_master_settings() {
 void Relay::listen() {
     while (listen_socket != NL_INVALID) {
         nlDisable(NL_BLOCKING_IO);
-        NLsocket new_socket = nlAcceptConnection(listen_socket);
+        Network::Socket new_socket = nlAcceptConnection(listen_socket);
 
         if (new_socket == NL_INVALID) {
             if (nlGetError() != NL_NO_PENDING)
@@ -178,7 +178,7 @@ void Relay::listen() {
             break;
         }
 
-        NLaddress addr;
+        Network::Address addr;
         nlGetRemoteAddr(new_socket, &addr);
         NLchar addr_str[NL_MAX_STRING_LENGTH];
         nlAddrToString(&addr, addr_str);
@@ -448,7 +448,7 @@ void Relay::send_data() {
     }
 }
 
-int Relay::send_data(NLsocket& socket, const string& data) const {
+int Relay::send_data(Network::Socket& socket, const string& data) const {
     if (socket == NL_INVALID) {
         cout << "Invalid spectator socket in send_data().\n";
         return NL_INVALID;
@@ -515,13 +515,13 @@ void Relay::send_master_server() {
     master_talk_time = get_time() + 5 * 60.0;
 
     nlDisable(NL_BLOCKING_IO);
-    NLsocket msock = nlOpen(0, NL_RELIABLE);
+    Network::Socket msock = nlOpen(0, NL_RELIABLE);
     if (msock == NL_INVALID) {
         cout << "Can't open socket to connect to master server.\n";;
         return;
     }
 
-    NLaddress master_address;
+    Network::Address master_address;
     if (!nlGetAddrFromName(master_name.c_str(), &master_address)) {
         cout << "Can't resolve master address for " << master_name << ".\n";
         nlClose(msock);

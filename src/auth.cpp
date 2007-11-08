@@ -148,7 +148,7 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw(FileErro
             if (!isValidIP(data))
                 throw FileError(_("Invalid ban command (IP address) in auth.txt: \"$1\"", line));
             else {
-                NLaddress addr;
+                Network::Address addr;
                 if (!nlStringToAddr(data.c_str(), &addr))
                     nAssert(0);
                 nlSetAddrPort(&addr, 0);
@@ -226,7 +226,7 @@ bool AuthorizationDatabase::checkNamePassword(const string& name, const string& 
     return (idx == -1 || names[idx].password == password);
 }
 
-bool AuthorizationDatabase::isBanned(NLaddress addr) const {
+bool AuthorizationDatabase::isBanned(Network::Address addr) const {
     nlSetAddrPort(&addr, 0);
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
         if (nlAddrCompare(&addr, &bi->address) && bi->endTime > time(0))
@@ -234,7 +234,7 @@ bool AuthorizationDatabase::isBanned(NLaddress addr) const {
     return false;
 }
 
-void AuthorizationDatabase::ban(NLaddress addr, const string& name, int minutes) {
+void AuthorizationDatabase::ban(Network::Address addr, const string& name, int minutes) {
     nlSetAddrPort(&addr, 0);
     bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }

@@ -100,10 +100,10 @@ private:
     };
     struct BanEntry {
         std::string name;
-        NLaddress address;
+        Network::Address address;
         time_t endTime;
 
-        BanEntry(const std::string& n, const NLaddress& a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
+        BanEntry(const std::string& n, const Network::Address& a, time_t e = time(0) + 365 * 24 * 60 * 60) : name(n), address(a), endTime(e) { }
     };
 
     std::map<std::string, AccessDescriptor> classes;
@@ -127,8 +127,8 @@ public:
 
     bool checkNamePassword(const std::string& name, const std::string& password) const;
 
-    bool isBanned(NLaddress addr) const;
-    void ban(NLaddress addr, const std::string& name, int minutes);
+    bool isBanned(Network::Address addr) const;
+    void ban(Network::Address addr, const std::string& name, int minutes);
 };
 
 inline std::ostream& operator<<(std::ostream& os, const AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor& gad) { return gad.output(os); }

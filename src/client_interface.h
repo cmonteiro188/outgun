@@ -69,7 +69,7 @@ public:
     #endif
     virtual void stop() = 0;
 
-    virtual void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId) = 0;
+    virtual void bot_start(const Network::Address& addr, int ping, const std::string& name_lang, int botId) = 0;
     virtual void bot_loop() = 0;
     virtual void set_ping(int ping) = 0;
     virtual bool is_connected() const = 0;
