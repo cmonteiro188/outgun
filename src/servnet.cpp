@@ -585,8 +585,8 @@ void ServerNetworking::new_player_to_admin_shell(int pid) const {
         writeLong(lebuf, count, STA_PLAYER_IP);
         writeLong(lebuf, count, world.player[pid].cid);
         Network::Address addr = get_client_address(world.player[pid].cid);
-        nlSetAddrPort(&addr, 0);
-        writeStr(lebuf, count, addressToString(addr));
+        addr.setPort(0);
+        writeStr(lebuf, count, addr.toString());
         nlWrite(shellssock, lebuf, count);
     }
 }
@@ -1118,11 +1118,11 @@ void ServerNetworking::broadcast_broken_map() const {
 }
 
 void ServerNetworking::set_relay_server(const string& address) {
-    if (!nlGetAddrFromName(address.c_str(), &relay_address)) {
+    if (!relay_address.resolve(address)) {
         log("Relay address could not be resolved from %s.", address.c_str());
         return;
     }
-    const NLushort port = nlGetPortFromAddr(&relay_address);
+    const NLushort port = relay_address.getPort();
     if (port == 0)
         log("Invalid or missing relay port in %s.", address.c_str());
     else
@@ -1130,14 +1130,11 @@ void ServerNetworking::set_relay_server(const string& address) {
 }
 
 string ServerNetworking::get_relay_server() const {
-    char buf[NL_MAX_STRING_LENGTH];
-    if (!nlAddrToString(&relay_address, buf))
-        return string();
-    return string(buf);
+    return is_relay_used() ? relay_address.toString() : string();
 }
 
 bool ServerNetworking::is_relay_used() const {
-    return nlGetPortFromAddr(&relay_address);
+    return relay_address.valid() && relay_address.getPort() != 0;
 }
 
 bool ServerNetworking::is_relay_active() const {
@@ -1316,10 +1313,10 @@ int ServerNetworking::client_connected(int id) {
         ++localPlayers;
     else {
         Network::Address ip = get_client_address(id);
-        nlSetAddrPort(&ip, 0);
+        ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
-            if (nlAddrCompare(&pi->first, &ip)) {
+            if (pi->first == ip) {
                 ++pi->second;
                 break;
             }
@@ -1431,9 +1428,9 @@ void ServerNetworking::client_disconnected(int id) {
         --localPlayers;
     else {
         Network::Address ip = get_client_address(id);
-        nlSetAddrPort(&ip, 0);
+        ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
-        for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
+        for (pi = distinctRemotePlayers.begin(); pi->first != ip; ++pi)
             nAssert(pi != distinctRemotePlayers.end());
         --pi->second;
         if (pi->second == 0)
@@ -1661,11 +1658,10 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
     }
     break; case data_bot: {
         Network::Address address = get_client_address(sender.cid);
-        nlSetAddrPort(&address, 0);
-        char buf[NL_MAX_STRING_LENGTH];
-        nlAddrToString(&address, buf);
-        if (strcmp(buf, "127.0.0.1"))
-            log("Remote bot from %s.", buf);
+        address.setPort(0);
+        const string addrStr = address.toString();
+        if (addrStr != "127.0.0.1")
+            log("Remote bot from %s.", addrStr.c_str());
         if (!sender.is_bot()) {
             ++bot_count;
             sender.set_bot();
@@ -2171,11 +2167,11 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
         }
 
         Network::Address tournamentServer;
-        if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-            nlStringToAddr("64.69.35.205", &tournamentServer);
+        if (!tournamentServer.resolve("www.mycgiserver.com"))
+            tournamentServer.fromValidIP("64.69.35.205");
 
-        nlSetAddrPort(&tournamentServer, 80);
-        nlConnect(sock, &tournamentServer);
+        tournamentServer.setPort(80);
+        nlConnect(sock, tournamentServer.NLptr());
 
         const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
         if (result != NR_ok) {
@@ -2269,7 +2265,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
             if (pid != -1) {
                 if (job->code == MasterQuery::JT_login) {
                     log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
-                                world.player[pid].name.c_str(), addressToString(get_client_address(job->cid)).c_str(), formatForLogging(job->request).c_str());
+                                 world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
                     char lebuf[128]; int count = 0;
                     writeByte(lebuf, count, data_registration_response);
                     writeByte(lebuf, count, 0); // registration failed
@@ -2325,7 +2321,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        if (!g_masterSettings.address().valid)
+        if (!g_masterSettings.address().valid())
             continue;
 
         //open socket
@@ -2338,7 +2334,7 @@ void ServerNetworking::run_mastertalker_thread() {
             continue;
         }
 
-        if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
+        if (nlConnect(msock, g_masterSettings.address().NLptr()) == NL_FALSE) {
             log("Master talker: Can't connect to master server.");
             nlClose(msock);
             continue;
@@ -2395,7 +2391,7 @@ void ServerNetworking::run_mastertalker_thread() {
 
 // Quitting: Delete my IP from the master so clients won't see it.
 void ServerNetworking::send_master_quit(const string& localAddress) const {
-    if (!g_masterSettings.address().valid)
+    if (!g_masterSettings.address().valid())
         return;
 
     //open socket
@@ -2410,7 +2406,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
     }
 
     //connect
-    if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
+    if (nlConnect(msock, g_masterSettings.address().NLptr()) == NL_FALSE) {
         log.error(_("Master talker: (Quit) Can't connect to master server."));
         nlClose(msock);
         return;
@@ -2476,7 +2472,7 @@ void ServerNetworking::run_website_thread() {
         }
         bool success = false;
         for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri)
-            if (nlGetAddrFromName(addri->c_str(), &website_address)) {
+            if (website_address.resolve(*addri)) {
                 success = true;
                 working_address_string = *addri;
                 break;
@@ -2487,12 +2483,12 @@ void ServerNetworking::run_website_thread() {
             log("Website thread: Can't get any address from the list!");
             continue;
         }
-        int web_port = nlGetPortFromAddr(&website_address);
+        int web_port = website_address.getPort();
         if (!web_port) {
             web_port = 80;
-            nAssert(nlSetAddrPort(&website_address, web_port));
+            website_address.setPort(web_port);
         }
-        if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {       // connect
+        if (!website_address.valid() || nlConnect(websock, website_address.NLptr()) == NL_FALSE) {       // connect
             log("Website thread: Server can't connect to server website! Reason: %s", getNlErrorString());
             nlClose(websock);
             continue;
@@ -2539,7 +2535,7 @@ void ServerNetworking::run_website_thread() {
     }
 
     //connect
-    if (nlConnect(websock, &website_address) == NL_FALSE) {
+    if (nlConnect(websock, website_address.NLptr()) == NL_FALSE) {
         log.error(_("Website thread: (Quit) Can't connect to server website."));
         nlClose(websock);
         return;
@@ -2695,15 +2691,14 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         log("Incoming admin shell connection");
 
         //accept connections only from localhost
-        Network::Address addr, c1, c2;
-        nlGetRemoteAddr(newSock, &addr);
-        nlStringToAddr("127.0.0.1", &c1);
-        get_self_IP(&c2);
-        nlSetAddrPort(&addr, 0);
-        nlSetAddrPort(&c1, 0);
-        nlSetAddrPort(&c2, 0);
+        Network::Address addr, c1("127.0.0.1"), c2;
+        nlGetRemoteAddr(newSock, addr.NLptr());
+        get_self_IP(c2.NLptr());
+        addr.setPort(0);
+        c1.setPort(0);
+        c2.setPort(0);
 
-        if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
+        if (addr != c1 && addr != c2) {
             log("Attempt to connect a remote admin shell blocked.");
             nlClose(newSock);
             continue;
@@ -2732,8 +2727,8 @@ void ServerNetworking::run_shellmaster_thread(int port) {
                 writeLong(lebuf, count, STA_PLAYER_IP);
                 writeLong(lebuf, count, world.player[i].cid);
                 Network::Address addr = get_client_address(world.player[i].cid);
-                nlSetAddrPort(&addr, 0);
-                writeStr(lebuf, count, addressToString(addr));
+                addr.setPort(0);
+                writeStr(lebuf, count, addr.toString());
 
                 writeLong(lebuf, count, STA_PLAYER_FRAGS);
                 writeLong(lebuf, count, world.player[i].cid);
@@ -2992,7 +2987,7 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
         return;
     }
 
-    if (!nlConnect(socket, &relayAddress)) {
+    if (!nlConnect(socket, relayAddress.NLptr())) {
         log("Could not connect to relay.");
         nlClose(socket);
         socket = NL_INVALID;
@@ -3279,7 +3274,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
             writeByte(res->customData, res->customDataLength, reject_server_full);
         }
         else if (host->isBanned(client_id)) {
-            log("Rejected a client because their IP is banned (%s).", addressToString(get_client_address(client_id)).c_str());
+            log("Rejected a client because their IP is banned (%s).", get_client_address(client_id).toString().c_str());
             res->accepted = false;
             writeByte(res->customData, res->customDataLength, reject_banned);
         }
@@ -3311,7 +3306,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                         writeByte(res->customData, res->customDataLength, reject_player_password_needed);
                     else {
                         log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
+                                     name.c_str(), player_password.c_str(), get_client_address(client_id).toString().c_str());
                         writeByte(res->customData, res->customDataLength, reject_wrong_player_password);
                     }
                 }
@@ -3322,7 +3317,7 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                     writeByte(res->customData, res->customDataLength, reject_server_password_needed);
                 else {
                     log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-                            password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
+                                 password.c_str(), get_client_address(client_id).toString().c_str(), name.c_str());
                     writeByte(res->customData, res->customDataLength, reject_wrong_server_password);
                 }
             }

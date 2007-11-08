@@ -56,6 +56,7 @@
 using std::ifstream;
 using std::ostringstream;
 using std::string;
+using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
 
@@ -497,10 +498,6 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         if (memoryErrorLog.size() != acceptedErrorCount)  // not continuing if there were errors
             return;
 
-        //get all local addresses
-        NLint locsize;
-        const Network::Address* locals = nlGetAllLocalAddr(&locsize);
-
         string infobuf =
             _("Possible thread priorities (-prio <val>):") + '\n' +
             _("* Minimum: $1", itoa(pmin)) + '\n' +
@@ -509,8 +506,9 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             _("* Outgun default: $1", itoa((pmax - 1 < pmin) ? pdef : pmax - 1)) + "\n\n" +
             _("IP addresses:") + '\n';
 
-        for (int i = 0; i < locsize; i++) {
-            infobuf += addressToString(locals[i]);
+        const vector<Network::Address> locals = Network::getAllLocalAddresses();
+        for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li) {
+            infobuf += li->toString();
             infobuf += '\n';
         }
 

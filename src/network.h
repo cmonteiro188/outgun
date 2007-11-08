@@ -41,12 +41,15 @@ public:
         class HiddenData;
         HiddenData* hidden;
 
+        Address(HiddenData* h);
+
         friend class Network;
 
     public:
         Address();
         Address(const NLaddress& nla); //#remove
         Address(const Address& a);
+        Address(const std::string& ip);
         ~Address();
         Address& operator=(const Address& a);
 
@@ -55,6 +58,23 @@ public:
 
         NLaddress* NLptr(); //#remove
         const NLaddress* NLptr() const; //#remove
+
+        void clear();
+
+        bool resolve(const std::string& hostname);
+        bool fromIP(const std::string& ip);
+        void fromValidIP(const std::string& ip);
+
+        std::string toString() const;
+
+        void setPort(uint16_t port);
+        uint16_t getPort() const;
+
+        bool valid() const;
+        bool operator!() const { return !valid(); }
+
+        bool operator==(const Address& a) const;
+        bool operator!=(const Address& a) const { return !(*this == a); }
     };
 
     class Socket : private NoCopying {
@@ -73,6 +93,7 @@ public:
     };
 
     // static members only
+    static std::vector<Address> getAllLocalAddresses();
 };
 
 const char* getNlErrorString();
@@ -81,8 +102,7 @@ bool isValidIP(const std::string& address, bool allowPort = false, unsigned int 
 bool check_private_IP(const std::string& address, bool allowAnyExternal = false);   // with allowAnyExternal only (invalid and) loopback addresses are blocked
 std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false);    // with allowAnyExternal only (invalid and) loopback addresses are blocked
 bool isLocalIP(Network::Address address);  // returns true if address points to this machine (nothing to do with the address being private)
-std::string addressToString(const Network::Address& address);
-inline bool operator==(const Network::Address& a1, const Network::Address& a2) { return nlAddrCompare(&a1, &a2); }
+inline std::string addressToString(const NLaddress& address) { return Network::Address(address).toString(); }
 
 inline void readStr(const char* buf, int& count, std::string& dst) {
     dst.clear();

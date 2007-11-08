@@ -242,7 +242,7 @@ class MasterSettings {
     int configCRC;
 
 public:
-    MasterSettings() : configCRC(0) { masterAddress.valid = bugAddress.valid = NL_FALSE; }
+    MasterSettings() : configCRC(0) { }
     const Network::Address& address() const { return masterAddress; }
     const std::string& host() const { return hostName; }
     const std::string& query() const { return queryScript; }

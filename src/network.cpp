@@ -42,9 +42,10 @@ using std::map;
 using std::setfill;
 using std::setw;
 using std::string;
+using std::vector;
 
 typedef Network::Address Address;
-typedef NLsocket Socket;
+typedef Network::Socket Socket;
 
 class Address::HiddenData {
 public:
@@ -67,6 +68,10 @@ public:
 #define NLA hidden->nla
 #define NLS hidden->nls
 
+Address::Address(HiddenData* h) :
+    hidden(h)
+{ }
+
 Address::Address() :
     hidden(new HiddenData())
 {
@@ -80,6 +85,12 @@ Address::Address(const NLaddress& nla) :
 Address::Address(const Address& a) :
     hidden(new HiddenData(*a.hidden))
 { }
+
+Address::Address(const std::string& ip) :
+    hidden(new HiddenData())
+{
+    fromIP(ip);
+}
 
 Address::~Address() {
     delete hidden;
@@ -106,6 +117,62 @@ const NLaddress* Address::NLptr() const {
     return &NLA;
 }
 
+void Address::clear() {
+    NLA.valid = false;
+}
+
+bool Address::resolve(const std::string& hostname) {
+    if (!nlGetAddrFromName(hostname.c_str(), &NLA))
+        clear();
+    return valid();
+}
+
+bool Address::fromIP(const std::string& ip) {
+    if (!nlStringToAddr(ip.c_str(), &NLA))
+        clear();
+    //todo: else { check port here }
+    return valid();
+}
+
+void Address::fromValidIP(const std::string& ip) {
+    if (!fromIP(ip))
+        nAssert(0);
+}
+
+std::string Address::toString() const {
+    nAssert(valid());
+    char buf[NL_MAX_STRING_LENGTH];
+    if (!nlAddrToString(&NLA, buf))
+        nAssert(0);
+    return buf;
+}
+
+void Address::setPort(uint16_t port) {
+    nAssert(valid());
+    if (!nlSetAddrPort(&NLA, port))
+        nAssert(0);
+}
+
+uint16_t Address::getPort() const {
+    nAssert(valid());
+    /*todo:
+    if (!portSet)
+        return 0;
+    */
+    const uint16_t port = nlGetPortFromAddr(&NLA);
+    //todo: nAssert(port != 0);
+    return port;
+}
+
+bool Address::valid() const {
+    return NLA.valid;
+}
+
+bool Address::operator==(const Address& a) const {
+    nAssert(valid() && a.valid());
+    return nlAddrCompare(&NLA, &a.NLA);
+}
+
 Socket::Socket() :
     hidden(new HiddenData(NL_INVALID))
 { }
@@ -124,6 +191,16 @@ Socket::operator NLsocket&() {
 
 Socket::operator const NLsocket&() const {
     return NLS;
+}
+
+vector<Address> Network::getAllLocalAddresses() {
+    NLint count;
+    NLaddress* addressList = nlGetAllLocalAddr(&count);
+    vector<Address> a;
+    a.reserve(count);
+    for (int i = 0; i < count; ++i)
+        a.push_back(Address(new Address::HiddenData(addressList[i])));
+    return a;
 }
 
 const char* getNlErrorString() {
@@ -168,10 +245,9 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
 }
 
 string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
-    NLint nLocals;
-    Network::Address* locals = nlGetAllLocalAddr(&nLocals);
-    for (int i = 0; i < nLocals; ++i) {
-        const string addr = addressToString(locals[i]);
+    const vector<Network::Address> locals = Network::getAllLocalAddresses();
+    for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li) {
+        const string addr = li->toString();
         if (check_private_IP(addr, allowAnyExternal))
             output("Local address " + addr + " ignored");
         else {
@@ -184,25 +260,14 @@ string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
 }
 
 bool isLocalIP(Network::Address address) { // local doesn't mean private
-    nlSetAddrPort(&address, 0);
-    Network::Address loopback;
-    nAssert(nlStringToAddr("127.0.0.1", &loopback));
-    if (nlAddrCompare(&address, &loopback))
+    address.setPort(0);
+    if (address == Network::Address("127.0.0.1"))
         return true;
-    Network::Address* locals;
-    NLint nLocals;
-    locals = nlGetAllLocalAddr(&nLocals);
-    for (int i = 0; i < nLocals; ++i)
-        if (nlAddrCompare(&address, &locals[i]))
+    const vector<Network::Address> locals = Network::getAllLocalAddresses();
+    for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li)
+        if (address == *li)
             return true;
     return false;
-}
-
-string addressToString(const Network::Address& address) {
-    nAssert(address.valid);
-    char buf[NL_MAX_STRING_LENGTH];
-    nlAddrToString(&address, buf);
-    return buf;
 }
 
 NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {

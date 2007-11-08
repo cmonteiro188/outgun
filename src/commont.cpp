@@ -308,38 +308,36 @@ void MasterSettings::load(LogSet& log) {
         configCRC = defaultConfigCRC;
 
     log("Resolving master server address...");
-    masterAddress.valid = bugAddress.valid = NL_FALSE;
-    try {
-        if (name.length() >= 3) {
-            nlGetAddrFromName(name.c_str(), &masterAddress);
-            hostName = name;
-        }
-        if (bugName.length() >= 3)
-            nlGetAddrFromName(bugName.c_str(), &bugAddress);
-    } catch (...) {
-        log("Caught exception probably on nlGetAddrFromNameAsync()");
+    if (name.length() >= 3) {
+        hostName = name;
+        if (!masterAddress.resolve(name))
+            log("Can't resolve master server DNS name to IP.");
+    }
+    else if (ip.length() > 1)
+        hostName = ip;
+    else {
+        masterAddress.clear();
+        hostName.clear();
+    }
+    if (!masterAddress && ip.length() > 1)
+        masterAddress.fromValidIP(ip);
+
+    if (bugName.length() >= 3)
+        if (!bugAddress.resolve(bugName))
+            log("Can't resolve bug report server DNS name to IP.");
+    if (!bugAddress) {
+        if (bugIP.length() > 1)
+            bugAddress.fromValidIP(bugIP);
+        else
+            bugAddress.clear();
     }
 
-    if (masterAddress.valid == NL_FALSE) {
-        if (name.length() >= 3 || ip.length() <= 1)
-            log("Can't resolve master server DNS name to IP.");
-        else
-            hostName = ip;
-        if (ip.length() > 1)
-            nlStringToAddr(ip.c_str(), &masterAddress);
-    }
-    if (bugAddress.valid == NL_FALSE) {
-        if (bugName.length() >= 3 || bugIP.length() <= 1)
-            log("Can't resolve bug report server DNS name to IP.");
-        if (bugIP.length() > 1)
-            nlStringToAddr(bugIP.c_str(), &bugAddress);
-    }
-    if (nlGetPortFromAddr(&masterAddress) == 0) // port is unspecified or an error occured
-        nlSetAddrPort(&masterAddress, defaultPort);
-    if (nlGetPortFromAddr(&bugAddress) == 0) // port is unspecified or an error occured
-        nlSetAddrPort(&bugAddress, defaultBugPort);
-    log("Master server address set: %s/%s -> %s.", name.c_str(), ip.c_str(), masterAddress.valid ? addressToString(masterAddress).c_str() : "none");
-    log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid ? addressToString(bugAddress).c_str() : "none");
+    if (masterAddress.getPort() == 0)
+        masterAddress.setPort(defaultPort);
+    if (bugAddress.getPort() == 0)
+        bugAddress.setPort(defaultBugPort);
+    log("Master server address set: %s/%s -> %s.", name.c_str(), ip.c_str(), masterAddress.valid() ? masterAddress.toString().c_str() : "none");
+    log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid() ? bugAddress.toString().c_str() : "none");
 }
 
 MasterSettings g_masterSettings;

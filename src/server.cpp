@@ -155,7 +155,7 @@ void Server::logAdminAction(int admin, const string& action, int target) {
     if (target == pid_none)
         message = (admin == shell_pid ? "Admin shell user" : world.player[admin].name) + ' ' + action;
     else
-        message = world.player[target].name + " [" + addressToString(network.get_client_address(world.player[target].cid)) + "] was "
+        message = world.player[target].name + " [" + network.get_client_address(world.player[target].cid).toString() + "] was "
                   + action + " by " + (admin == shell_pid ? "admin shell user" : world.player[admin].name);
     adminActionLog.put(message);
     network.sendTextToAdminShell(message);
@@ -819,9 +819,8 @@ void Server::init_bots() {
     pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
     clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
     clientCfg.statusOutput = settings.statusOutput();
-    Network::Address address;
-    if (!nlStringToAddr(("127.0.0.1:" + itoa(settings.get_port())).c_str(), &address))
-        nAssert(0);
+    const Network::Address address("127.0.0.1:" + itoa(settings.get_port()));
+    nAssert(address.valid());
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
         ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);
@@ -992,7 +991,7 @@ void Server::nameChange(int id, int pid, string name, const string& password) {
         else {
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                name.c_str(), password.c_str(), addressToString(network.get_client_address(id)).c_str());
+                             name.c_str(), password.c_str(), network.get_client_address(id).toString().c_str());
             network.sendNameAuthorizationRequest(pid);
             return;
         }

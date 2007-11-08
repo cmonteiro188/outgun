@@ -320,11 +320,11 @@ void TournamentPasswordManager::threadFn() {
         }
 
         Network::Address tournamentServer;
-        if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-            nlStringToAddr("64.69.35.205", &tournamentServer);
+        if (!tournamentServer.resolve("www.mycgiserver.com"))
+            tournamentServer.fromValidIP("64.69.35.205");
 
-        nlSetAddrPort(&tournamentServer, 80);
-        nlConnect(sock, &tournamentServer);
+        tournamentServer.setPort(80);
+        nlConnect(sock, tournamentServer.NLptr());
 
         const string query = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
                                                 url_encode(TK1_VERSION_STRING) +
@@ -427,26 +427,25 @@ void TournamentPasswordManager::threadFn() {
 bool ServerListEntry::setAddress(const string& address) {
     if (!isValidIP(address, true, 1))
         return false;
-    if (!nlStringToAddr(address.c_str(), &addr))
-        nAssert(0);
-    if (nlGetPortFromAddr(&addr) == 0)
-        nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
+    addr.fromValidIP(address);
+    if (addr.getPort() == 0)
+        addr.setPort(DEFAULT_UDP_PORT);
     return true;
 }
 
 void ServerListEntry::setAddress(const Network::Address& address) {
     addr = address;
-    if (nlGetPortFromAddr(&addr) == 0)
-        nlSetAddrPort(&addr, DEFAULT_UDP_PORT);
+    if (addr.getPort() == 0)
+        addr.setPort(DEFAULT_UDP_PORT);
 }
 
 string ServerListEntry::addressString() const {
-    if (nlGetPortFromAddr(&addr) != DEFAULT_UDP_PORT)
-        return addressToString(addr);
+    if (addr.getPort() != DEFAULT_UDP_PORT)
+        return addr.toString();
     else {
         Network::Address cpy = addr;
-        nlSetAddrPort(&cpy, 0);
-        return addressToString(cpy);
+        cpy.setPort(0);
+        return cpy.toString();
     }
 }
 
@@ -1207,7 +1206,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
         sendFavoriteColors();
         sendMinimapBandwidth();
 
-        extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), addressToString(serverIP)));
+        extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
     }
 
     show_all_messages = false;
@@ -1360,7 +1359,7 @@ void Client::connect_failed_denied(const char* data, int length) {
                     message = "Asking for player password."; // just for logging
                 break; case reject_wrong_player_password:
                     message = _("Wrong player password.");
-                    remove_player_password(playername, addressToString(serverIP));
+                    remove_player_password(playername, serverIP.toString());
                 break; case reject_server_password_needed:
                     openMenus.close(&m_connectProgress.menu);
                     showMenu(m_serverPassword);
@@ -1514,7 +1513,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
 
     // start connecting to specified IP/port
     // connection results will come through the CFUNC_CONNECTION_UPDATE callback
-    const string strAddress = addressToString(serverIP);
+    const string strAddress = serverIP.toString();
     client->set_server_address(strAddress.c_str());
 
     #ifndef DEDICATED_SERVER_ONLY
@@ -1594,7 +1593,7 @@ void Client::change_name_command() {
     openMenus.close(&menu.options.player.menu);
 
     playername = newName;
-    m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
+    m_playerPassword.password.set(load_player_password(playername, serverIP.toString()));
     issue_change_name_command();
     tournamentPassword.changeData(playername, menu.options.player.password());
 }
@@ -3742,7 +3741,7 @@ bool Client::refresh_all_servers() {
                 writeByte(lebuf, count, (NLubyte)i);        //connect entry (am I lazy or what)
                 writeByte(lebuf, count, (NLubyte)round);        //packet number
 
-                nlSetRemoteAddr(sock, &servers[i]->address());
+                nlSetRemoteAddr(sock, servers[i]->address().NLptr());
                 nlWrite(sock, lebuf, count);
                 tempd[i].send(round);
             }
@@ -3777,8 +3776,8 @@ bool Client::refresh_all_servers() {
                 Lock ml(serverListMutex);
 
                 Network::Address from;
-                nlGetRemoteAddr(sock, &from);
-                if (!nlAddrCompare(&from, &servers[index]->address()))
+                nlGetRemoteAddr(sock, from.NLptr());
+                if (from != servers[index]->address())
                     continue;
 
                 readStr(lebuf, count, servers[index]->info);
@@ -3807,7 +3806,7 @@ bool Client::refresh_all_servers() {
 }
 
 bool Client::getServerList() {
-    if (!g_masterSettings.address().valid)
+    if (!g_masterSettings.address().valid())
         return false;
 
     refreshStatus = RS_connecting;
@@ -3823,7 +3822,7 @@ bool Client::getServerList() {
     }
 
     //connect the nonblocking way
-    if (nlConnect(sock, &g_masterSettings.address()) == NL_FALSE) {
+    if (nlConnect(sock, g_masterSettings.address().NLptr()) == NL_FALSE) {
         log.error(_("Can't connect to master server. $1", getNlErrorString()));
         nlClose(sock);
         sock = NL_INVALID;
@@ -3878,9 +3877,8 @@ bool Client::get_local_servers() {
         log("Can't open broadcast socket.");
         return false;
     }
-    Network::Address addr;
-    nlStringToAddr("255.255.255.255:25000", &addr);
-    nlSetRemoteAddr(sock, &addr);
+    Network::Address addr("255.255.255.255:25000");
+    nlSetRemoteAddr(sock, addr.NLptr());
 
     const char broadcast_string[] = "Outgun";
     NLbyte buffer[512]; int count = 0;
@@ -3904,7 +3902,7 @@ bool Client::get_local_servers() {
         if (strcmp(buffer, broadcast_string))
             continue;   // Not an Outgun server.
 
-        nlGetRemoteAddr(sock, &addr);
+        nlGetRemoteAddr(sock, addr.NLptr());
 
         ServerListEntry spy;
         spy.setAddress(addr);
@@ -4332,14 +4330,14 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     double nextClientFrame = get_time();
 
     if (!extConfig.autoPlay.empty()) {
-        nlStringToAddr(extConfig.autoPlay.c_str(), &serverIP);
-        if (nlGetPortFromAddr(&serverIP) == 0)
-            nlSetAddrPort(&serverIP, DEFAULT_UDP_PORT);
+        serverIP.fromValidIP(extConfig.autoPlay);
+        if (serverIP.getPort() == 0)
+            serverIP.setPort(DEFAULT_UDP_PORT);
         connect_command(true);
     }
     else if (!extConfig.autoSpectate.empty()) {
-        Network::Address addr;
-        nlStringToAddr(extConfig.autoSpectate.c_str(), &addr);
+        Network::Address addr(extConfig.autoSpectate);
+        nAssert(addr.valid());
         start_spectating(addr);
     }
     else if (!extConfig.autoReplay.empty())
@@ -4790,7 +4788,7 @@ void Client::start_spectating(const Network::Address& address) {
     serverIP = address;
     nlDisable(NL_BLOCKING_IO);
     spectate_socket = nlOpen(0, NL_RELIABLE);
-    if (!nlConnect(spectate_socket, &serverIP)) {
+    if (!nlConnect(spectate_socket, serverIP.NLptr())) {
         log.error(_("Could not set address to spectate socket."));
         return;
     }
@@ -6078,7 +6076,7 @@ void Client::MCF_acceptBugReporting() {
 void Client::MCF_playerPasswordAccept() {
     openMenus.close(&m_playerPassword.menu);
     if (m_playerPassword.save())
-        save_player_password(playername, addressToString(serverIP), m_playerPassword.password());
+        save_player_password(playername, serverIP.toString(), m_playerPassword.password());
     if (connected)
         issue_change_name_command();
     else
@@ -6210,7 +6208,7 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
         vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
         const Network::Address address = menu.connect.getAddress(target);
         for (vector<ServerListEntry>::iterator spy = servers.begin(); spy != servers.end(); ++spy)
-            if (nlAddrCompare(&address, &spy->address())) {
+            if (address == spy->address()) {
                 servers.erase(spy);
                 break;
             }
@@ -6219,7 +6217,7 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
     else if (scan == KEY_INSERT && !menu.connect.favorites()) {
         const Network::Address address = menu.connect.getAddress(target);
         for (vector<ServerListEntry>::const_iterator spy = mgamespy.begin(); spy != mgamespy.end(); ++spy)
-            if (nlAddrCompare(&address, &spy->address())) {
+            if (address == spy->address()) {
                 gamespy.push_back(*spy);
                 break;
             }
@@ -6270,8 +6268,8 @@ void Client::MCF_startServer() {
 
 void Client::MCF_playServer() {
     if (listenServer.running()) {
-        nAssert(nlStringToAddr("127.0.0.1", &serverIP));
-        nAssert(nlSetAddrPort(&serverIP, listenServer.port()));
+        serverIP.fromValidIP("127.0.0.1");
+        serverIP.setPort(listenServer.port());
         openMenus.clear();
         m_serverPassword.password.set("");
         connect_command(true);

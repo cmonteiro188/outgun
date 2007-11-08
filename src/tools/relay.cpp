@@ -179,10 +179,8 @@ void Relay::listen() {
         }
 
         Network::Address addr;
-        nlGetRemoteAddr(new_socket, &addr);
-        NLchar addr_str[NL_MAX_STRING_LENGTH];
-        nlAddrToString(&addr, addr_str);
-        cout << "Incoming connection from " << addr_str << ".\n";
+        nlGetRemoteAddr(new_socket, addr.NLptr());
+        cout << "Incoming connection from " << addr.toString() << ".\n";
 
         peers.push_back(Peer(addr, new_socket));
     }
@@ -522,18 +520,18 @@ void Relay::send_master_server() {
     }
 
     Network::Address master_address;
-    if (!nlGetAddrFromName(master_name.c_str(), &master_address)) {
+    if (!master_address.resolve(master_name)) {
         cout << "Can't resolve master address for " << master_name << ".\n";
         nlClose(msock);
         return;
     }
-    int port = nlGetPortFromAddr(&master_address);
+    int port = master_address.getPort();
     if (!port) {
         port = 80;
-        nAssert(nlSetAddrPort(&master_address, port));
+        master_address.setPort(port);
     }
 
-    if (!nlConnect(msock, &master_address)) {
+    if (!nlConnect(msock, master_address.NLptr())) {
         cout << "Can't connect to master server.\n";
         nlClose(msock);
         return;

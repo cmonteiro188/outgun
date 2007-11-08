@@ -333,11 +333,10 @@ bool runMonitor(int port, bool messageBoxes) {
     nAssert(sock != NL_INVALID);
 
     try {
-        Network::Address addr;
-        nlStringToAddr("127.0.0.1", &addr);
-        nlSetAddrPort(&addr, port);
+        Network::Address addr("127.0.0.1");
+        addr.setPort(port);
 
-        if (nlConnect(sock, &addr) != NL_TRUE)
+        if (nlConnect(sock, addr.NLptr()) != NL_TRUE)
             throw ConnectFail();
         char nul;
         while (nlWrite(sock, &nul, 0) != 0) {
