@@ -168,7 +168,7 @@ int main(int argc, const char* argv[]) {
         --argc;
         ++argv;
     }
-    if (argc != 2 || clientFilter < -1 || clientFilter >= 32) {
+    if (argc != 2 || clientFilter < ALL_CLIENTS || clientFilter >= 32) {
         cerr << "syntax: " << argv[0] << " [clientfilter] logfile\n";
         return 9;
     }
