@@ -33,19 +33,19 @@
 
 class Peer {
 public:
-    Peer(const Network::Address& addr, const Network::Socket& sock): address(addr), socket(sock) { }
+    Peer(const Network::Address& addr, const NLsocket& sock): address(addr), socket(sock) { }
     Peer(const Peer& peer);
 
     Peer& operator=(const Peer& peer);
 
     Network::Address address;
-    Network::Socket  socket;
+    NLsocket  socket;
     std::stringstream buffer;
 };
 
 class Spectator {
 public:
-    Spectator(const Network::Address& addr, const Network::Socket& sock):
+    Spectator(const Network::Address& addr, const NLsocket& sock):
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -55,7 +55,7 @@ public:
     { }
 
     Network::Address address;
-    Network::Socket  socket;
+    NLsocket  socket;
     bool local;
     unsigned  next_frame;
     unsigned  bytes_sent;
@@ -124,7 +124,7 @@ private:
     void send_data();
 
     /// Send data to the socket
-    int send_data(Network::Socket& socket, const std::string& data) const;
+    int send_data(NLsocket& socket, const std::string& data) const;
 
     /// Remove the oldest game if it is not needed anymore
     void remove_oldest_game();
@@ -135,11 +135,11 @@ private:
     void load_master_settings();
     void send_master_server();
 
-    Network::Socket listen_socket;     /// Socket for all incoming connections
+    NLsocket listen_socket;     /// Socket for all incoming connections
     unsigned short listen_port; /// Port for all incoming connections
 
     Network::Address server_address;   /// Game server address
-    Network::Socket server_socket;     /// Game server socket
+    NLsocket server_socket;     /// Game server socket
     std::string hostname;
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second

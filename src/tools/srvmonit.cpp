@@ -99,7 +99,7 @@ string decode(const string& str) {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::Socket sock, const void* data, int len) {
+void send(NLsocket sock, const void* data, int len) {
     if (nlWrite(sock, data, len) != len)
         throw SendFail();
 }
@@ -113,14 +113,14 @@ public:
 class DelayHandler : public IdleFunction {
     enum { sayBufLen = 1024 };
     char sayBuf[sayBufLen + 1];
-    Network::Socket sock;
+    NLsocket sock;
     int sayIdx; // -1 when not typing
     bool kick, ban;
     int mute;
     bool* messageBoxSetting;
 
 public:
-    DelayHandler(Network::Socket socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
+    DelayHandler(NLsocket socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
     void pauseSay() const {
         if (sayIdx != -1)
             printf("\r%79s\r", "");
@@ -268,13 +268,13 @@ public:
 
 class DelaySocketReader {
     enum { rbufSz = 1024 };
-    Network::Socket sock;
+    NLsocket sock;
     IdleFunction* ifp;
     char rbuf[rbufSz];
     int rbufUsed, rbufRd;
 
 public:
-    DelaySocketReader(Network::Socket socket, IdleFunction* handlerFn) : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
+    DelaySocketReader(NLsocket socket, IdleFunction* handlerFn) : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
     NLulong getLong() {
         NLulong val = 0;
         val =              getByte();
@@ -326,7 +326,7 @@ const char* plyName(int idx) {
 }
 
 bool runMonitor(int port, bool messageBoxes) {
-    Network::Socket sock;
+    NLsocket sock;
 
     nlDisable(NL_BLOCKING_IO);
     sock = nlOpen(0, NL_RELIABLE);

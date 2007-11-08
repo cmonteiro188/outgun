@@ -44,7 +44,7 @@ using std::setw;
 using std::string;
 
 typedef Network::Address Address;
-typedef Network::Socket Socket;
+typedef NLsocket Socket;
 
 class Address::HiddenData {
 public:
@@ -197,7 +197,7 @@ string addressToString(const Network::Address& address) {
     return buf;
 }
 
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -218,7 +218,7 @@ NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, in
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
     const int buffer_size = 511;
     char lebuf[buffer_size + 1];
 
@@ -283,13 +283,13 @@ string build_http_request(bool post, const string& host, const string& script, c
     return data.str();
 }
 
-NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
+NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
                              const string& host, const string& script, const string& parameters, const string& auth) {
     const string request = build_http_request(true, host, script, parameters, auth);
     return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
     return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 

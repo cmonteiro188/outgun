@@ -310,7 +310,7 @@ void TournamentPasswordManager::threadFn() {
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
-        Network::Socket sock = nlOpen(0, NL_RELIABLE);
+        NLsocket sock = nlOpen(0, NL_RELIABLE);
         nlOpenMutex.unlock();
         if (sock == NL_INVALID) {
             log("Password thread: Can't open socket. %s", getNlErrorString());
@@ -3716,7 +3716,7 @@ bool Client::refresh_all_servers() {
 
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_UNRELIABLE);
+    NLsocket sock = nlOpen(0, NL_UNRELIABLE);
     nlOpenMutex.unlock();
 
     if (sock == NL_INVALID) {
@@ -3815,7 +3815,7 @@ bool Client::getServerList() {
     //open a nonblocking socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_RELIABLE);
+    NLsocket sock = nlOpen(0, NL_RELIABLE);
     nlOpenMutex.unlock();
     if (sock == NL_INVALID) {
         log.error(_("Can't open socket to connect to master server. $1", getNlErrorString()));
@@ -3872,7 +3872,7 @@ bool Client::get_local_servers() {
     //open a nonblocking socket
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_BROADCAST);
+    NLsocket sock = nlOpen(0, NL_BROADCAST);
     nlOpenMutex.unlock();
     if (sock == NL_INVALID) {
         log("Can't open broadcast socket.");
