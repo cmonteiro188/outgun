@@ -188,6 +188,7 @@ void Socket::close() {
     nAssert(isOpen());
     nlClose(NLS);
     NLS = NL_INVALID;
+    connected = false;
 }
 
 void Socket::closeIfOpen() {
@@ -230,6 +231,7 @@ bool Socket::connect(const Address& a) {
 }
 
 bool Socket::listen() {
+    nAssert(isOpen() && !connected);
     if (nlListen(NLS))
         return true;
     nAssert(nlGetError() == NL_SYSTEM_ERROR);
@@ -246,6 +248,7 @@ bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) {
     const NLsocket newSocket = nlAcceptConnection(listenerSock.NLS);
     if (newSocket != NL_INVALID) {
         NLS = newSocket;
+        connected = true;
         return true;
     }
     const NLenum err = nlGetError();
@@ -259,7 +262,7 @@ void Socket::setRemoteAddress(const Address& a) {
 }
 
 int Socket::read(void* buffer, int bufSize) {
-    nAssert(isOpen() && buffer);
+    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && buffer);
     const NLint val = nlRead(NLS, buffer, bufSize);
     if (val != NL_INVALID)
         return val;
@@ -269,7 +272,7 @@ int Socket::read(void* buffer, int bufSize) {
 }
 
 bool Socket::write(const void* data, int size, int* writtenSize) {
-    nAssert(isOpen() && data);
+    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data);
     const NLint val = nlWrite(NLS, data, size);
     if (val != NL_INVALID) {
         if (writtenSize)
