@@ -127,19 +127,19 @@ inline void safeWriteFloat(char* buf, int& count, float val) {  // this adds typ
 
 enum NetworkResult { NR_ok, NR_timeout, NR_nlError };   // timeout is also returned when abortFlag triggers the return
 
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length,
+NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, std::ostream& out,
+NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, std::ostream& out,
                                 const volatile bool* abortFlag, int timeout, int roundDelay = 500);
 
 std::string format_http_parameters(const std::map<std::string, std::string>& parameters);
 
 std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "");
 
-NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
+NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
                              const std::string& script, const std::string& parameters, const std::string& auth = ""); // timeout in ms
 
-NetworkResult save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
+NetworkResult save_http_response(NLsocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
 
 std::string url_encode(const std::string& str);
 void url_encode(char c, std::ostream& out);
