@@ -177,11 +177,15 @@ void platInitAfterAllegro() {
         #endif
     }
 
-    // grab basic closing signals from Allegro (this is not very nice but Allegro makes a mess when receiving a signal; besides, we just want to know a signal was received, not terminate immediately)
+    /* Grab basic closing signals from Allegro.
+     * This is not very nice but Allegro makes a mess when receiving a signal.
+     * Besides, we just want to know a signal was received, not terminate immediately.
+     */
     signal(SIGHUP, closeSignalHandler);
     signal(SIGINT, closeSignalHandler);
     signal(SIGTERM, closeSignalHandler);
 
+    signal(SIGABRT, SIG_IGN); // prevent Allegro from detecting abort and causing (more) assertions to fail etc.
     signal(SIGPIPE, SIG_IGN); // we don't want closed (TCP) sockets to kill us
 }
 
