@@ -194,12 +194,12 @@ vector<Address> Network::getAllLocalAddresses() {
 }
 
 Address Network::getDefaultLocalAddress() {
-    NLaddress addr;
+    Address addr;
     NLsocket s = nlOpen(0, NL_UNRELIABLE);
-    nlGetLocalAddr(s, &addr);
+    nlGetLocalAddr(s, addr.NLptr());
     nlClose(s);
-    nlSetAddrPort(&addr, 0);
-    return Address(new Address::HiddenData(addr));
+    addr.setPort(0);
+    return addr;
 }
 
 const char* getNlErrorString() {
