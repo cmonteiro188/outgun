@@ -63,16 +63,6 @@
 #endif
 
 
-// gets the IP of this machine
-//
-void get_self_IP(NLaddress *addr) {
-    NLsocket s = nlOpen(0, NL_UNRELIABLE);
-    nlGetLocalAddr(s, addr);
-    nlSetAddrPort(addr, 0);
-    nlClose(s);
-}
-
-
 // data class implementation
 //
 

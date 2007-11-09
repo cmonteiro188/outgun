@@ -33,7 +33,6 @@
 #include <cctype>
 
 #include "leetnet/server.h"
-#include "leetnet/rudp.h"   // get_self_IP
 #include "admshell.h"
 #include "debug.h"
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
@@ -2691,12 +2690,9 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         log("Incoming admin shell connection");
 
         //accept connections only from localhost
-        Network::Address addr, c1("127.0.0.1"), c2;
+        Network::Address addr, c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
         nlGetRemoteAddr(newSock, addr.NLptr());
-        get_self_IP(c2.NLptr());
         addr.setPort(0);
-        c1.setPort(0);
-        c2.setPort(0);
 
         if (addr != c1 && addr != c2) {
             log("Attempt to connect a remote admin shell blocked.");

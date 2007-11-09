@@ -197,10 +197,21 @@ vector<Address> Network::getAllLocalAddresses() {
     NLint count;
     NLaddress* addressList = nlGetAllLocalAddr(&count);
     vector<Address> a;
+    if (!addressList) // important because nlGetAllLocalAddr might not set count on an error
+        return a;
     a.reserve(count);
     for (int i = 0; i < count; ++i)
         a.push_back(Address(new Address::HiddenData(addressList[i])));
     return a;
+}
+
+Address Network::getDefaultLocalAddress() {
+    NLaddress addr;
+    NLsocket s = nlOpen(0, NL_UNRELIABLE);
+    nlGetLocalAddr(s, &addr);
+    nlClose(s);
+    nlSetAddrPort(&addr, 0);
+    return Address(new Address::HiddenData(addr));
 }
 
 const char* getNlErrorString() {

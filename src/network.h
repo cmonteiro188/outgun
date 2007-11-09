@@ -94,6 +94,7 @@ public:
 
     // static members only
     static std::vector<Address> getAllLocalAddresses();
+    static Address getDefaultLocalAddress();
 };
 
 const char* getNlErrorString();
