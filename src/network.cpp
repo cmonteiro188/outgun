@@ -165,20 +165,8 @@ Socket::Socket() :
     hidden(new HiddenData(NL_INVALID))
 { }
 
-Socket::Socket(const NLsocket& nls) :
-    hidden(new HiddenData(nls))
-{ }
-
 Socket::~Socket() {
     delete hidden;
-}
-
-Socket::operator NLsocket&() {
-    return NLS;
-}
-
-Socket::operator const NLsocket&() const {
-    return NLS;
 }
 
 vector<Address> Network::getAllLocalAddresses() {

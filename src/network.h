@@ -81,11 +81,7 @@ public:
 
     public:
         Socket();
-        Socket(const NLsocket& nls); //#remove
         ~Socket();
-
-        operator NLsocket&(); //#remove
-        operator const NLsocket&() const; //#remove
     };
 
     // static members only
