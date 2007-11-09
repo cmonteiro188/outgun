@@ -2969,7 +2969,7 @@ void ServerNetworking::RelayThread::start(int priority) {
 
 void ServerNetworking::RelayThread::stop() {
     nAssert(quitFlag);
-    wakeup.signal();
+    wakeup.signal(mutex);
     thread.join();
 }
 
