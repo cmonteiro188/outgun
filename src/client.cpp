@@ -308,11 +308,8 @@ void TournamentPasswordManager::threadFn() {
         }
         delay = 60000;  // default to one minute
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        Network::Socket sock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (sock == NL_INVALID) {
+        Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
+        if (!sock.isOpen()) {
             log("Password thread: Can't open socket. %s", getNlErrorString());
             passStatus = PS_socketError;
             delay = 10000;
@@ -324,20 +321,23 @@ void TournamentPasswordManager::threadFn() {
             tournamentServer.fromValidIP("64.69.35.205");
 
         tournamentServer.setPort(80);
-        nlConnect(sock, tournamentServer.NLptr());
+        NetworkResult result;
+        if (sock.connect(tournamentServer)) {
+            const string query = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
+                                                    url_encode(TK1_VERSION_STRING) +
+                                                    '&' + (newToken ? "new" : "old") +
+                                                    "&name=" + url_encode(name) +
+                                                    "&password=" + url_encode(password));
 
-        const string query = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
-                                                url_encode(TK1_VERSION_STRING) +
-                                                '&' + (newToken ? "new" : "old") +
-                                                "&name=" + url_encode(name) +
-                                                "&password=" + url_encode(password));
-
-        passStatus = PS_sending;
-        if (newToken)
-            log("Password thread: Sending login");
-        NetworkResult result = writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000);
+            passStatus = PS_sending;
+            if (newToken)
+                log("Password thread: Sending login");
+            result = writeToUnblockingTCP(sock, query.data(), query.length(), &quitThread, 30000);
+        }
+        else
+            result = NR_nlError;
         if (result != NR_ok) {
-            nlClose(sock);
+            sock.close();
             if (quitThread)
                 break;
             log("Password thread: Error sending login: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
@@ -350,7 +350,7 @@ void TournamentPasswordManager::threadFn() {
         {
             ostringstream respStream;
             const NetworkResult result = saveAllFromUnblockingTCP(sock, respStream, &quitThread, 30000);
-            nlClose(sock);
+            sock.close();
             if (result != NR_ok) {
                 if (quitThread)
                     break;
@@ -615,7 +615,6 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     replaying(false),
     visible_rooms(1),
     spectating(false),
-    spectate_socket(NL_INVALID),
     #endif
     mapChanged(false),
     #ifndef DEDICATED_SERVER_ONLY
@@ -3713,12 +3712,8 @@ bool Client::refresh_all_servers() {
     if (pending == 0)
         return true;
 
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_UNRELIABLE);
-    nlOpenMutex.unlock();
-
-    if (sock == NL_INVALID) {
+    Network::Socket sock(Network::NonBlocking, Network::UDP, 0);
+    if (!sock.isOpen()) {
         log.error(_("Can't open socket for refreshing servers. $1", getNlErrorString()));
         return false;
     }
@@ -3728,7 +3723,7 @@ bool Client::refresh_all_servers() {
     for (int round = 0; round < 20; round++) {  // each round takes .1 seconds
         if (abortThreads) {
             log("Refreshing servers aborted: client exiting.");
-            nlClose(sock);
+            sock.close();
             return false;
         }
 
@@ -3741,8 +3736,8 @@ bool Client::refresh_all_servers() {
                 writeByte(lebuf, count, (NLubyte)i);        //connect entry (am I lazy or what)
                 writeByte(lebuf, count, (NLubyte)round);        //packet number
 
-                nlSetRemoteAddr(sock, servers[i]->address().NLptr());
-                nlWrite(sock, lebuf, count);
+                sock.setRemoteAddress(servers[i]->address());
+                sock.write(lebuf, count);
                 tempd[i].send(round);
             }
         }
@@ -3755,8 +3750,8 @@ bool Client::refresh_all_servers() {
             platSleep(5);
 
             for (;;) {  // continue while there are new packets
-                int len = nlRead(sock, lebuf, 512);
-                if (len <= 0)
+                int len = sock.read(lebuf, 512);
+                if (len == Network::Error)
                     break;
 
                 int count = 0;
@@ -3775,8 +3770,7 @@ bool Client::refresh_all_servers() {
 
                 Lock ml(serverListMutex);
 
-                Network::Address from;
-                nlGetRemoteAddr(sock, from.NLptr());
+                const Network::Address from = sock.getRemoteAddress();
                 if (from != servers[index]->address())
                     continue;
 
@@ -3801,7 +3795,7 @@ bool Client::refresh_all_servers() {
                 servers[i]->noresponse = true;
     }
 
-    nlClose(sock);
+    sock.close();
     return true;
 }
 
@@ -3811,21 +3805,16 @@ bool Client::getServerList() {
 
     refreshStatus = RS_connecting;
 
-    //open a nonblocking socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (sock == NL_INVALID) {
+    Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
+    if (!sock.isOpen()) {
         log.error(_("Can't open socket to connect to master server. $1", getNlErrorString()));
         return false;
     }
 
     //connect the nonblocking way
-    if (nlConnect(sock, g_masterSettings.address().NLptr()) == NL_FALSE) {
+    if (!sock.connect(g_masterSettings.address())) {
         log.error(_("Can't connect to master server. $1", getNlErrorString()));
-        nlClose(sock);
-        sock = NL_INVALID;
+        sock.close();
         return false;
     }
 
@@ -3836,7 +3825,7 @@ bool Client::getServerList() {
                                               "&protocol=" + url_encode(GAME_PROTOCOL));
     NetworkResult result = writeToUnblockingTCP(sock, request.data(), request.length(), &abortThreads, 30000);
     if (result != NR_ok) {
-        nlClose(sock);
+        sock.close();
         if (!abortThreads)
             log("Client can't connect to master server. %s", result == NR_timeout ? "Timeout" : getNlErrorString());
         return false;
@@ -3848,7 +3837,7 @@ bool Client::getServerList() {
 
     stringstream response;
     result = saveAllFromUnblockingTCP(sock, response, &abortThreads, 30000);
-    nlClose(sock);
+    sock.close();
     if (result != NR_ok) {
         if (!abortThreads)
             log("Error receiving server list from master. %s", result == NR_timeout ? "Timeout" : getNlErrorString());
@@ -3868,26 +3857,20 @@ bool Client::getServerList() {
 bool Client::get_local_servers() {
     refreshStatus = RS_connecting;
 
-    //open a nonblocking socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket sock = nlOpen(0, NL_BROADCAST);
-    nlOpenMutex.unlock();
-    if (sock == NL_INVALID) {
+    Network::Socket sock(Network::NonBlocking, Network::Broadcast, 0);
+    if (!sock.isOpen()) {
         log("Can't open broadcast socket.");
         return false;
     }
-    Network::Address addr("255.255.255.255:25000");
-    nlSetRemoteAddr(sock, addr.NLptr());
+    sock.setRemoteAddress(Network::Address("255.255.255.255:25000"));
 
     const char broadcast_string[] = "Outgun";
     NLbyte buffer[512]; int count = 0;
     writeLong(buffer, count, 0);
     writeString(buffer, count, broadcast_string);
-    NLint result = nlWrite(sock, buffer, count);
-    if (result == NL_INVALID) {
+    if (!sock.write(buffer, count)) {
         log("Can't broadcast packet.");
-        nlClose(sock);
+        sock.close();
         return false;
     }
 
@@ -3896,20 +3879,20 @@ bool Client::get_local_servers() {
     log("Successfully sent broadcast query.");
 
     platSleep(500);
-    while (nlRead(sock, (NLvoid*)buffer, (NLint)sizeof(buffer)) > 0) {
+    while (sock.read(buffer, sizeof(buffer)) > 0) {
         log("Full response: '%s'", formatForLogging(buffer).c_str());
 
         if (strcmp(buffer, broadcast_string))
             continue;   // Not an Outgun server.
 
-        nlGetRemoteAddr(sock, addr.NLptr());
+        const Network::Address addr = sock.getRemoteAddress();
 
         ServerListEntry spy;
         spy.setAddress(addr);
         mgamespy.push_back(spy);
     }
 
-    nlClose(sock);
+    sock.close();
     return true;
 }
 
@@ -4764,10 +4747,8 @@ void Client::stop_replay() {
         return;
 
     replay.close();
-    if (spectate_socket != NL_INVALID) {
-        nlClose(spectate_socket);
-        spectate_socket = NL_INVALID;
-    }
+    spectate_socket.closeIfOpen();
+    
     if (spectating)
         spectate_buffer.str("");
 
@@ -4786,10 +4767,8 @@ void Client::start_spectating(const Network::Address& address) {
 
     log("Start spectating.");
     serverIP = address;
-    nlDisable(NL_BLOCKING_IO);
-    spectate_socket = nlOpen(0, NL_RELIABLE);
-    if (!nlConnect(spectate_socket, serverIP.NLptr())) {
-        log.error(_("Could not set address to spectate socket."));
+    if (!spectate_socket.open(Network::NonBlocking, Network::TCP, 0) || !spectate_socket.connect(serverIP)) {
+        log.error(_("Could not connect to spectating server."));
         return;
     }
     ostringstream ost;
@@ -4801,7 +4780,7 @@ void Client::start_spectating(const Network::Address& address) {
 
     const NetworkResult result = writeToUnblockingTCP(spectate_socket, ost.str().data(), ost.str().length(), 0, 500, 5);
     if (result != NR_ok) {
-        nlClose(spectate_socket);
+        spectate_socket.close();
         log.error(_("Could not send init data to the relay: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
         return;
     }
@@ -4818,16 +4797,16 @@ void Client::start_spectating(const Network::Address& address) {
 }
 
 void Client::continue_spectating() {
-    if (spectate_socket == NL_INVALID) {
+    if (!spectate_socket.isOpen()) {
         log.error(_("Connection to the server closed."));
         return;
     }
 
     const int max_buffer_size = 20000;
     char buffer[max_buffer_size];
-    const int result = nlRead(spectate_socket, buffer, max_buffer_size);
+    const int result = spectate_socket.read(buffer, max_buffer_size);
 
-    if (result == NL_INVALID) {
+    if (result == Network::Error) {
         log.error(_("Connection to the server closed: $1", getNlErrorString()));
         stop_replay();
         return;
@@ -5209,8 +5188,8 @@ void Client::draw_game_frame() {    // call with frameMutex locked
 
     // debug panel
     if (key[KEY_F9]) {
-        const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED) + nlGetSocketStat(spectate_socket, NL_AVE_BYTES_RECEIVED);
-        const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT) + nlGetSocketStat(spectate_socket, NL_AVE_BYTES_SENT);
+        const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED) + spectate_socket.getStat(NL_AVE_BYTES_RECEIVED);
+        const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT) + spectate_socket.getStat(NL_AVE_BYTES_SENT);
 
         vector<vector<pair<int, int> > > sticks;
         vector<int> buttons;

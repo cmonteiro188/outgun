@@ -99,8 +99,9 @@ string decode(const string& str) {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::Socket sock, const void* data, int len) {
-    if (nlWrite(sock, data, len) != len)
+void send(Network::Socket& sock, const void* data, int len) {
+    int written;
+    if (!sock.write(data, len, &written) || written != len)
         throw SendFail();
 }
 
@@ -113,14 +114,14 @@ public:
 class DelayHandler : public IdleFunction {
     enum { sayBufLen = 1024 };
     char sayBuf[sayBufLen + 1];
-    Network::Socket sock;
+    Network::Socket& sock;
     int sayIdx; // -1 when not typing
     bool kick, ban;
     int mute;
     bool* messageBoxSetting;
 
 public:
-    DelayHandler(Network::Socket socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
+    DelayHandler(Network::Socket& socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
     void pauseSay() const {
         if (sayIdx != -1)
             printf("\r%79s\r", "");
@@ -268,13 +269,13 @@ public:
 
 class DelaySocketReader {
     enum { rbufSz = 1024 };
-    Network::Socket sock;
+    Network::Socket& sock;
     IdleFunction* ifp;
     char rbuf[rbufSz];
     int rbufUsed, rbufRd;
 
 public:
-    DelaySocketReader(Network::Socket socket, IdleFunction* handlerFn) : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
+    DelaySocketReader(Network::Socket& socket, IdleFunction* handlerFn) : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
     NLulong getLong() {
         NLulong val = 0;
         val =              getByte();
@@ -287,9 +288,9 @@ public:
         for (;;) {
             if (rbufRd < rbufUsed)
                 return rbuf[rbufRd++];
-            rbufUsed = nlRead(sock, rbuf, rbufSz);
+            rbufUsed = sock.read(rbuf, rbufSz);
             rbufRd = 0;
-            if (rbufUsed == NL_INVALID)
+            if (rbufUsed == Network::Error)
                 throw ReadFail();
             if (rbufUsed == 0) {
                 (*ifp)();
@@ -326,20 +327,18 @@ const char* plyName(int idx) {
 }
 
 bool runMonitor(int port, bool messageBoxes) {
-    Network::Socket sock;
-
-    nlDisable(NL_BLOCKING_IO);
-    sock = nlOpen(0, NL_RELIABLE);
-    nAssert(sock != NL_INVALID);
+    Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
+    if (!sock.isOpen())
+        throw ConnectFail();
 
     try {
         Network::Address addr("127.0.0.1");
         addr.setPort(port);
 
-        if (nlConnect(sock, addr.NLptr()) != NL_TRUE)
+        if (!sock.connect(addr))
             throw ConnectFail();
         char nul;
-        while (nlWrite(sock, &nul, 0) != 0) {
+        while (!sock.write(&nul, 0)) {
             if (nlGetError() != NL_CON_PENDING)
                 throw ConnectFail();
             Sleep(10);
@@ -391,7 +390,7 @@ bool runMonitor(int port, bool messageBoxes) {
                 break; case STA_PLAYER_TOTAL_DEATHS:   dualprintf("| %s has %u deaths\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %u captures\n", plyName(ival[0]), ival[1]);
                 break; case STA_GAME_TEXT:             dualprintf("%s\n", encode(strBuf).c_str());
-                break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
+                break; case STA_QUIT:                  dualprintf("| Quit received\n"); sock.close(); return true;
                 break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
                 break; case STA_ADMIN_MESSAGE: {
@@ -405,7 +404,7 @@ bool runMonitor(int port, bool messageBoxes) {
         }
     } catch (UserExit) {
         printf("<User abort>\n");
-        nlClose(sock);
+        sock.close();
         return true;
     } catch (...) {
         try {
@@ -423,7 +422,7 @@ bool runMonitor(int port, bool messageBoxes) {
             printf("sys: %s\n", nlGetSystemErrorStr(nlGetSystemError()));
         else
             printf("nl: %s\n", nlGetErrorStr(nlGetError()));
-        nlClose(sock);
+        sock.close();
         return false;
     }
 }

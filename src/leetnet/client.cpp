@@ -356,7 +356,7 @@ public:
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
     virtual int get_socket_stat(int stat) {
-        return nlGetSocketStat(station->get_nl_socket(), stat);
+        return station->get_nl_socket().getStat(stat);
     }
 
     //------------------------------
@@ -720,11 +720,9 @@ DLOG_Scope s("CPIDg");
             return true;
         }
 
-        Network::Address ladr;
-        Network::Address radr;
-        nlGetLocalAddr( (station->get_nl_socket()), ladr.NLptr() );
-        nlGetRemoteAddr( (station->get_nl_socket()), radr.NLptr() );
-        log("trying... local = '%s' remote = '%s'", ladr.toString().c_str(), radr.toString().c_str());
+        log("trying... local = '%s' remote = '%s'",
+            station->get_nl_socket().getLocalAddress ().toString().c_str(),
+            station->get_nl_socket().getRemoteAddress().toString().c_str());
 
         //send the packet
         data_c  *dat = new_data_c();
@@ -860,7 +858,7 @@ DLOG_ScopeNeg s("CTR");
         }
 
         // check for error
-        if (amount == NL_INVALID) {
+        if (amount == Network::Error) {
             //DEBUG FIXME: error in nlGetError
             static volatile int menosmenos = 0;
             if (menosmenos == 0) {

@@ -214,13 +214,7 @@ public:
         //timeout defaults
         set_client_timeout(5, 10);
 
-        //open the server socket
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        servsock = nlOpen((NLushort)port, NL_UNRELIABLE);
-        nlOpenMutex.unlock();
-
-        if (servsock == NL_INVALID) {
+        if (!servsock.open(Network::NonBlocking, Network::UDP, port)) {
             log("server_ci::start(): cannot nlOpen server socket!");
             return 0;  // error
         }
@@ -322,8 +316,7 @@ public:
 
         log("server_ci::stop() -- closing server socket");
 
-        // close the server's socket (DEBUG FIXME: catch error)
-        nlClose(servsock);
+        servsock.close();
 
         log("server_ci::stop() -- server socket closed");
 
@@ -513,20 +506,20 @@ public:
 
         int thestat = 0;
 
-        if (servsock == NL_INVALID) return 0;
+        if (!servsock.isOpen()) return 0;
         if (server_stopped) return 0;
 
         //add serversocket
-        thestat = nlGetSocketStat(servsock, stat);
+        thestat = servsock.getStat(stat);
 
         //add all active client sockets
         for (int i=0;i<MAX_CLIENTS;i++)
         if (client[i].used)
         if (client[i].station)
         {
-            Network::Socket clsock = client[i].station->get_nl_socket();
-            if (clsock != NL_INVALID)
-                thestat += nlGetSocketStat(clsock, stat);
+            const Network::Socket& clsock = client[i].station->get_nl_socket();
+            if (clsock.isOpen())
+                thestat += clsock.getStat(stat);
         }
 
         return thestat;
@@ -581,8 +574,7 @@ public:
         // mensagem 0 200 = serverinfo request
 
         //extract remote address from server socket
-        Network::Address remoteaddr;
-        nlGetRemoteAddr(servsock, remoteaddr.NLptr());
+        const Network::Address remoteaddr = servsock.getRemoteAddress();
 
         int count = 0;
         NLulong packid, smsgid, leetversion;
@@ -662,9 +654,9 @@ public:
             writeByte(lebuf, count, b);
             writeString(lebuf, count, serverinfo);
             //send
-            nlSetRemoteAddr(servsock, remoteaddr.NLptr());
+            servsock.setRemoteAddress(remoteaddr);
             log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-            nlWrite(servsock, lebuf, count);
+            servsock.write(lebuf, count);
             return 1;
         }
 
@@ -676,9 +668,9 @@ public:
             if (a == 'u' && b == 'n') {
                 char lebuf[512]; int count = 0;
                 writeString(lebuf, count, "Outgun");
-                nlSetRemoteAddr(servsock, remoteaddr.NLptr());
+                servsock.setRemoteAddress(remoteaddr);
                 log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-                nlWrite(servsock, lebuf, count);
+                servsock.write(lebuf, count);
             }
             return 1;
         }
@@ -700,8 +692,8 @@ public:
             writeLong(lebuf, count, 201);           //"connection rejected - engine server FULL"
 
             //send
-            nlSetRemoteAddr(servsock, remoteaddr.NLptr());
-            nlWrite(servsock, lebuf, count);
+            servsock.setRemoteAddress(remoteaddr);
+            servsock.write(lebuf, count);
             log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, remoteaddr.toString().c_str());
             return 1;
         }
@@ -730,7 +722,7 @@ public:
                 client[i].quitflag = false; //thread must quit flag
 
                 // aloca jogador para thread
-                nlGetRemoteAddr(servsock, client[i].addr.NLptr());       //set address
+                client[i].addr = servsock.getRemoteAddress();       //set address
                 client[i].connected = false;                // must negotiate connection (client must first say "hello" :-)
                 client[i].connected_knows = false;      // did not receive game data packet yet when TRUE the
                                                                                             // server knows that the client knows that he was accepted
@@ -834,7 +826,7 @@ public:
     }
 
     //returns the serversocket
-    Network::Socket get_server_socket() {
+    Network::Socket& get_server_socket() {
         return servsock;
     }
 
@@ -930,8 +922,8 @@ public:
 //                      log("station debuginfo = %s", client[cid].station->debug_info());
 
                         // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
-                        nlSetRemoteAddr(servsock, client[cid].addr.NLptr());
-                        nlWrite(servsock, reply->getbuf(), reply->getlen());
+                        servsock.setRemoteAddress(client[cid].addr);
+                        servsock.write(reply->getbuf(), reply->getlen());
 
                         delete reply;
 
@@ -945,8 +937,8 @@ public:
                         reply->addlong(4);      //"connection rejected"
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom "connection denied" information
-                        nlSetRemoteAddr(servsock, client[cid].addr.NLptr());
-                        nlWrite(servsock, reply->getbuf(), reply->getlen());
+                        servsock.setRemoteAddress(client[cid].addr);
+                        servsock.write(reply->getbuf(), reply->getlen());
                         delete reply;
 
                         //return this thread/client slot to the free pool
@@ -1182,16 +1174,15 @@ public:
 void thread_master_f(server_ci* server)
 {
     //get socket to read from
-    Network::Socket servsock = server->get_server_socket();
+    Network::Socket& servsock = server->get_server_socket();
 
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];
-    NLint amount; //amount read
 
     //loop
     while (1) {
         //read from socket
-        amount = nlRead(servsock, buffer, THREAD_READER_BUFSIZE);
+        const int amount = servsock.read(buffer, THREAD_READER_BUFSIZE);
 
         //HACK (a better one): think for the server
         server->server_think();
@@ -1207,7 +1198,7 @@ void thread_master_f(server_ci* server)
         }
 
         // check for error
-        if (amount == NL_INVALID) {
+        if (amount == Network::Error) {
             server->log("Master thread: trouble reading socket: %s", getNlErrorString());
             platSleep(100);
         }

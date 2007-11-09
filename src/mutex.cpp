@@ -24,8 +24,6 @@
 #include "debug.h"
 #include "mutex.h"
 
-Mutex nlOpenMutex("nlOpenMutex");
-
 #if DEBUG_SYNCHRONIZATION == 0
 
 bool ConditionVariable::timedWait(Mutex& mutex, const struct timespec& abstime) {

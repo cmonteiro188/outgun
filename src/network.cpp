@@ -27,6 +27,7 @@
 #include <string>
 
 #include "commont.h"
+#include "mutex.h"
 #include "nassert.h"
 #include "protocol.h"
 #include "utility.h"
@@ -43,6 +44,8 @@ using std::setfill;
 using std::setw;
 using std::string;
 using std::vector;
+
+static Mutex nlOpenMutex("Network::Socket::nlOpenMutex");
 
 typedef Network::Address Address;
 typedef Network::Socket Socket;
@@ -95,14 +98,6 @@ Address::~Address() {
 Address& Address::operator=(const Address& a) {
     NLA = a.NLA;
     return *this;
-}
-
-NLaddress* Address::NLptr() {
-    return &NLA;
-}
-
-const NLaddress* Address::NLptr() const {
-    return &NLA;
 }
 
 void Address::clear() {
@@ -162,11 +157,132 @@ bool Address::operator==(const Address& a) const {
 }
 
 Socket::Socket() :
-    hidden(new HiddenData(NL_INVALID))
+    hidden(new HiddenData(NL_INVALID)),
+    connected(false)
 { }
 
+Socket::Socket(BlockingMode b, SocketType t, uint16_t port) :
+    hidden(new HiddenData(NL_INVALID)),
+    connected(false)
+{
+    open(b, t, port);
+}
+
 Socket::~Socket() {
+    nAssert(!isOpen());
     delete hidden;
+}
+
+bool Socket::open(BlockingMode b, SocketType t, uint16_t port) {
+    nAssert(!isOpen());
+    Lock ml(nlOpenMutex);
+    if (b == Blocking)
+        nlEnable(NL_BLOCKING_IO);
+    else
+        nlDisable(NL_BLOCKING_IO);
+    NLS = nlOpen(port, t == UDP ? NL_UNRELIABLE : t == TCP ? NL_RELIABLE : NL_BROADCAST);
+    return isOpen();
+}    
+
+void Socket::close() {
+    nAssert(isOpen());
+    nlClose(NLS);
+    NLS = NL_INVALID;
+}
+
+void Socket::closeIfOpen() {
+    if (isOpen())
+        close();
+}
+
+bool Socket::isOpen() const {
+    nAssert(NLS != NL_INVALID || !connected);
+    return NLS != NL_INVALID;
+}
+
+Address Socket::getLocalAddress() const {
+    Address a;
+    if (!nlGetLocalAddr(NLS, &a.NLA))
+        nAssert(0); //#fix? system error possible, throw?
+    return a;
+}
+
+Address Socket::getRemoteAddress() const {
+    Address a;
+    if (!nlGetRemoteAddr(NLS, &a.NLA))
+        nAssert(0); //#fix? system error possible, throw?
+    return a;
+}
+
+int Socket::getStat(NLenum type) const {
+    return nlGetSocketStat(NLS, type); // can't verify result, because 0 can mean two things and we've no real way to clear what nlGetError returns, either (we could force it to an error value never returned by nlGetSocketStat, but that would be too funny)
+}
+
+bool Socket::connect(const Address& a) {
+    nAssert(isOpen() && !connected);
+    if (nlConnect(NLS, &a.NLA)) {
+        connected = true;
+        return true;
+    }
+    const NLenum err = nlGetError();
+    numAssert(err == NL_SYSTEM_ERROR || err == NL_CON_REFUSED, err);
+    return false;
+}
+
+bool Socket::listen() {
+    if (nlListen(NLS))
+        return true;
+    nAssert(nlGetError() == NL_SYSTEM_ERROR);
+    return false;
+}
+
+bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) {
+    nAssert(!isOpen() && listenerSock.isOpen());
+    Lock ml(nlOpenMutex);
+    if (b == Blocking)
+        nlEnable(NL_BLOCKING_IO);
+    else
+        nlDisable(NL_BLOCKING_IO);
+    const NLsocket newSocket = nlAcceptConnection(listenerSock.NLS);
+    if (newSocket != NL_INVALID) {
+        NLS = newSocket;
+        return true;
+    }
+    const NLenum err = nlGetError();
+    numAssert(err == NL_NO_PENDING, err);
+    return false;
+}
+
+void Socket::setRemoteAddress(const Address& a) {
+    if (!nlSetRemoteAddr(NLS, &a.NLA))
+        nAssert(0); //#fix? system error possible, throw?
+}
+
+int Socket::read(void* buffer, int bufSize) {
+    nAssert(isOpen() && buffer);
+    const NLint val = nlRead(NLS, buffer, bufSize);
+    if (val != NL_INVALID)
+        return val;
+    const NLenum err = nlGetError();
+    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+    return Error;
+}
+
+bool Socket::write(const void* data, int size, int* writtenSize) {
+    nAssert(isOpen() && data);
+    const NLint val = nlWrite(NLS, data, size);
+    if (val != NL_INVALID) {
+        if (writtenSize)
+            *writtenSize = val;
+        else
+            numAssert2(val == size, val, size);
+        return true;
+    }
+    if (writtenSize)
+        *writtenSize = 0;
+    const NLenum err = nlGetError();
+    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+    return false;
 }
 
 vector<Address> Network::getAllLocalAddresses() {
@@ -184,7 +300,7 @@ vector<Address> Network::getAllLocalAddresses() {
 Address Network::getDefaultLocalAddress() {
     Address addr;
     NLsocket s = nlOpen(0, NL_UNRELIABLE);
-    nlGetLocalAddr(s, addr.NLptr());
+    nlGetLocalAddr(s, &addr.NLA);
     nlClose(s);
     addr.setPort(0);
     return addr;
@@ -264,8 +380,8 @@ NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, in
         if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
             return NR_timeout;
 
-        NLint written = nlWrite(socket, data + at, length - at);
-        if (written == NL_INVALID) {
+        int written;
+        if (!socket.write(data + at, length - at, &written)) {
             if (nlGetError() != NL_CON_PENDING)
                 return NR_nlError;
         }
@@ -287,8 +403,8 @@ NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, co
         if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
             return NR_timeout;
 
-        NLint read = nlRead(socket, lebuf, buffer_size);
-        if (read == NL_INVALID) {
+        int read = socket.read(lebuf, buffer_size);
+        if (read == Network::Error) {
             if (nlGetError() != NL_CON_PENDING)
                 return (nlGetError() == NL_MESSAGE_END) ? NR_ok : NR_nlError;
         }

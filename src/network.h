@@ -37,6 +37,11 @@ class LineReceiver;
 
 class Network {
 public:
+    // Socket related enums, declared here to avoid having to use Network::Socket::Something
+    enum BlockingMode { Blocking, NonBlocking };
+    enum SocketType { UDP, TCP, Broadcast };
+    enum { Error = -1 };
+
     class Address {
         class HiddenData;
         HiddenData* hidden;
@@ -51,9 +56,6 @@ public:
         Address(const std::string& ip);
         ~Address();
         Address& operator=(const Address& a);
-
-        NLaddress* NLptr(); //#remove
-        const NLaddress* NLptr() const; //#remove
 
         void clear();
 
@@ -76,12 +78,30 @@ public:
     class Socket : private NoCopying {
         class HiddenData;
         HiddenData* hidden;
+        bool connected;
 
         friend class Network;
 
     public:
         Socket();
+        Socket(BlockingMode b, SocketType t, uint16_t port);
         ~Socket();
+
+        bool open(BlockingMode b, SocketType t, uint16_t port);
+        void close();
+        void closeIfOpen();
+
+        bool isOpen() const;
+        Address getLocalAddress() const;
+        Address getRemoteAddress() const;
+        int getStat(NLenum type) const; //#fix: create an own enum for the type
+
+        bool connect(const Address& a);
+        bool listen();
+        bool acceptConnection(BlockingMode b, Socket& listenerSock);
+        void setRemoteAddress(const Address& a);
+        int read(void* buffer, int bufSize); // may return Error
+        bool write(const void* data, int size, int* writtenSize = 0);
     };
 
     // static members only

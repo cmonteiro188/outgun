@@ -268,10 +268,7 @@ public:
     virtual void reset_state() {
 
         //disconnect the socket (if any)
-        if (sendsock != NL_INVALID_SOCKET) {
-            nlClose(sendsock);
-            sendsock = NL_INVALID_SOCKET;
-        }
+        sendsock.closeIfOpen();
 
         relmsg_mutex.lock();
         //reset msgrecs!
@@ -303,7 +300,6 @@ public:
 
     //ctor
     station_ci() : relmsg_mutex("station_ci::relmsg_mutex") {
-        sendsock = NL_INVALID_SOCKET;       //to avoid reset_state to close an invalid socket
         reset_state();
     }
 
@@ -318,10 +314,7 @@ public:
         //FIXME -- what else?
 
         //disconnect the socket
-        if (sendsock != NL_INVALID_SOCKET) {
-            nlClose(sendsock);
-            sendsock = NL_INVALID_SOCKET;
-        }
+        sendsock.closeIfOpen();
     }
 
     // process incoming reliable message from network
@@ -362,33 +355,25 @@ DLOG_Scope s("UPIM");
     virtual int set_remote_address(const Network::Address& some_addr, int localPortMin, int localPortMax) {
         netaddr = some_addr;
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
         static int localPortLastTry = -1;
         if (localPortLastTry < localPortMin || localPortLastTry > localPortMax)
             localPortLastTry = localPortMin;
         const int firstTry = localPortLastTry;
         for (;;) {
-            sendsock = nlOpen(localPortLastTry, NL_UNRELIABLE);
-            if (sendsock != NL_INVALID)
+            if (sendsock.open(Network::NonBlocking, Network::UDP, localPortLastTry))
                 break;
             ++localPortLastTry;
             if (localPortLastTry > localPortMax)
                 localPortLastTry = localPortMin;
-            if (localPortLastTry == firstTry) {
-                nlOpenMutex.unlock();
+            if (localPortLastTry == firstTry)
                 return 0;   // ERROR
-            }
         }
-        nlOpenMutex.unlock();
-        nlSetRemoteAddr(sendsock, netaddr.NLptr());
+        sendsock.setRemoteAddress(netaddr);
         return 1;   // ok
     }
 
     virtual int getLocalPort() const {
-        Network::Address addr;
-        nlGetLocalAddr(sendsock, addr.NLptr());
-        return addr.getPort();
+        return sendsock.getLocalAddress().getPort();
     }
 
     // read a reliable message from the queue
@@ -710,22 +695,15 @@ DLOG_Scope s("USP");
 
         // send the packet
         //
-        nlSetRemoteAddr(sendsock, netaddr.NLptr());
-        NLint result;
+        sendsock.setRemoteAddress(netaddr);
         #if LEETNET_SIMULATED_PACKET_LOSS != 0
         if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
-            result = count; // packet simulated as lost; sent ok though
+            ; // packet simulated as lost; sent ok though
         else
         #endif
 {DLOG_Scope s("USPw");
-            result = nlWrite(sendsock, sendbuf, count);
+            sendsock.write(sendbuf, count); //FIXME: deal with error
 }
-        if (result == NL_INVALID) {
-            //FIXME: deal with error
-            //printf("station_ci: send_packet() == NL_INVALID!!\n");
-        } else if (result != count) {
-            //printf("station_ci: send_packet() == %i != count %i\n", result, count);
-        }
 
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
@@ -746,18 +724,14 @@ DLOG_Scope s("USP");
     virtual int send_raw_packet(const data_c *data) {
 
         //fix remote addr (changed by reads)
-        nlSetRemoteAddr(sendsock, netaddr.NLptr());
+        sendsock.setRemoteAddress(netaddr);
 
-//      NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
-NLint result;
 {DLOG_Scope s("SRPw");
-result = nlWrite(sendsock, data->getbuf(), data->getlen());
-}
-        if (result == NL_INVALID) {
+        if (!sendsock.write(data->getbuf(), data->getlen())) {
             // FAILED
             return 0;
         }
-
+}
         //ok
         return 1;
     }
@@ -765,9 +739,8 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
     virtual int send_raw_packet_to_port(const data_c* data, int port) {
         Network::Address addr = netaddr;
         addr.setPort(port);
-        nlSetRemoteAddr(sendsock, addr.NLptr());
-        NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
-        return (result == NL_INVALID) ? 0 : 1;
+        sendsock.setRemoteAddress(addr);
+        return !!sendsock.write(data->getbuf(), data->getlen());
     }
 
     // non-blocking call: attempt to read data from the socket
@@ -776,8 +749,7 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
     virtual int receive_packet(char *buffer, int bufsize) {
 DLOG_Scope s("URPr");
 
-        int fakek = nlRead(sendsock, buffer, bufsize);
-        return fakek;
+        return sendsock.read(buffer, bufsize);
     }
 
     // return the socket for get_socket_stat purposes

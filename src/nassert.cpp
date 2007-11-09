@@ -100,7 +100,7 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
     messageBox(_("Internal error"), std::string("Assertion failed: ") + std::string(buf) + ", file " + file + ", line " + itoa(line) + '\n' +
                _("This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi"));
     // finally, throw it to the net and hope it's caught
-    if (g_autoBugReporting == ABR_disabled || GAME_BRANCH != "base" || !g_masterSettings.bugReportAddress().valid)
+    if (g_autoBugReporting == ABR_disabled || GAME_BRANCH != "base" || !g_masterSettings.bugReportAddress().valid())
         return;
     static const int stackDumpSize = 10000; // it splits into 7 Ethernet frames and so has a good chance of getting lost, but much less size isn't useful
     char* mbuf = new char[stackDumpSize];   // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting
@@ -119,24 +119,21 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
         buf[200] = '\0';    // truncate extremely long messages
         writeString(mbuf, len, buf);
     }
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket dbgSock = nlOpen(0, NL_UNRELIABLE);
-    nlOpenMutex.unlock();
-    if (dbgSock == NL_INVALID)
+    Network::Socket dbgSock(Network::NonBlocking, Network::UDP, 0);
+    if (!dbgSock.isOpen())
         return;
-    nlSetRemoteAddr(dbgSock, &g_masterSettings.bugReportAddress());
-    nlWrite(dbgSock, mbuf, len);
+    dbgSock.setRemoteAddress(g_masterSettings.bugReportAddress());
+    dbgSock.write(mbuf, len);
     #ifdef OFFICIAL_BUILD_ID
     // see note about OFFICIAL_BUILD_ID above
     // the stack dumps are only useful from known executables
     if (g_autoBugReporting == ABR_withDump) {
         // generate a secondary packet with the top of stack dump information
         len = stackDump(mbuf, stackDumpSize);
-        nlWrite(dbgSock, mbuf, len);
+        dbgSock.write(mbuf, len);
     }
     #endif
-    nlClose(dbgSock);
+    dbgSock.close();
     #endif // DISABLE_ENHANCED_NASSERT
 }
 

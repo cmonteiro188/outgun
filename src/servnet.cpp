@@ -229,12 +229,12 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const {
         broadcast_message(lebuf, count);
         record_message(lebuf, count);
 
-        if (shellssock != NL_INVALID) {
+        if (shellssock.isOpen()) {
             char lebuf[256]; int count = 0;
             writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
             writeLong(lebuf, count, world.player[pid].cid);
             writeStr(lebuf, count, world.player[pid].name);
-            nlWrite(shellssock, lebuf, count);
+            shellssock.write(lebuf, count);
         }
     }
     else
@@ -452,11 +452,11 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
     writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(lebuf, count);
     record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_CAPTURES);
         writeLong(lebuf, count, player.cid);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 }
 
@@ -513,7 +513,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     writeByte(lebuf, count, tar_flag);
     broadcast_message(lebuf, count);
     record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count = 0;
         if (attacker.used) {
             writeLong(lebuf, count, STA_PLAYER_KILLS);
@@ -523,7 +523,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
             writeLong(lebuf, count, STA_PLAYER_DIES);
             writeLong(lebuf, count, target.cid);
         }
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 }
 
@@ -539,11 +539,11 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
     writeByte(lebuf, count, id_flag);
     broadcast_message(lebuf, count);
     record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_DIES);
         writeLong(lebuf, count, player.cid);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 }
 
@@ -579,14 +579,14 @@ void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const {
 }
 
 void ServerNetworking::new_player_to_admin_shell(int pid) const {
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_IP);
         writeLong(lebuf, count, world.player[pid].cid);
         Network::Address addr = get_client_address(world.player[pid].cid);
         addr.setPort(0);
         writeStr(lebuf, count, addr.toString());
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 }
 
@@ -874,12 +874,12 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
     record_message(lebuf, count);
 
     //send to the admin shell
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         count = 0;
         writeLong(lebuf, count, STA_GAME_TEXT);
         writeByte(lebuf, count, '.');
         writeStr(lebuf, count, text);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 }
 
@@ -935,11 +935,11 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
             record_message(lebuf, count);
         else if (pid == shell_pid) {
             //send to the admin shell
-            if (shellssock != NL_INVALID) {
+            if (shellssock.isOpen()) {
                 count = 0;
                 writeLong(lebuf, count, STA_GAME_TEXT);
                 writeStr(lebuf, count, text);
-                nlWrite(shellssock, lebuf, count);
+                shellssock.write(lebuf, count);
             }
         }
         else if (pid == pid_all) {
@@ -966,12 +966,12 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
 void ServerNetworking::broadcast_text(Message_type type, const string& text) const {
     player_message(pid_all, type, text);
     //send to the admin shell
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char* lebuf = new char[text.length() + 10];
         int count = 0;
         writeLong(lebuf, count, STA_GAME_TEXT);
         writeStr(lebuf, count, text);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
         delete[] lebuf;
     }
 }
@@ -1025,10 +1025,10 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
     }
     else if (pid == pid_all) {
         broadcast_message(lebuf, count);
-        if (shellssock != NL_INVALID) {
+        if (shellssock.isOpen()) {
             char lebuf[256]; int count = 0;
             writeLong(lebuf, count, STA_GAME_OVER);
-            nlWrite(shellssock, lebuf, count);
+            shellssock.write(lebuf, count);
             sendTextToAdminShell("Map is " + host->current_map().title);
         }
     }
@@ -1188,8 +1188,6 @@ bool ServerNetworking::start() {
     mjob_exit = false;              //flag for all pending master jobs to quit now
     mjob_fastretry = false;     //flag for all pending master jobs to stop waiting and retry immediately
 
-    shellssock = NL_INVALID;    // not in use
-
     //start TCP shell master thread in the port number 500 less than server UDP port
     shellmthread.start_assert("ServerNetworking::run_shellmaster_thread",
                               RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
@@ -1343,11 +1341,11 @@ int ServerNetworking::client_connected(int id) {
     world.player[myself].stats().set_lifetime(0);
 
     //first update the ADMIN SHELL
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_CONNECTED);
         writeLong(lebuf, count, world.player[myself].cid);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 
     host->check_fav_colors(myself);
@@ -1412,12 +1410,12 @@ void ServerNetworking::client_disconnected(int id) {
     const bool was_bot = world.player[pid].is_bot();
 
     //first update the ADMIN SHELL
-    if (shellssock != NL_INVALID) {
+    if (shellssock.isOpen()) {
         char lebuf[256]; int count;
         count = 0;
         writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
         writeLong(lebuf, count, world.player[pid].cid);
-        nlWrite(shellssock, lebuf, count);
+        shellssock.write(lebuf, count);
     }
 
     //report the latest player achievements to the master server
@@ -1463,18 +1461,18 @@ void ServerNetworking::ping_result(int client_id, int ping_time) {
 }
 
 void ServerNetworking::forwardSayadminMessage(int cid, const string& message) const {
-    if (shellssock == NL_INVALID)
+    if (!shellssock.isOpen())
         return;
     char lebuf[256];
     int count = 0;
     writeLong(lebuf, count, STA_ADMIN_MESSAGE);
     writeLong(lebuf, count, cid);
     writeStr(lebuf, count, message);
-    nlWrite(shellssock, lebuf, count);
+    shellssock.write(lebuf, count);
 }
 
 void ServerNetworking::sendTextToAdminShell(const string& text) const {
-    if (shellssock == NL_INVALID)
+    if (!shellssock.isOpen())
         return;
     char buf[512];
     int count = 0;
@@ -1482,7 +1480,7 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const {
     buf[count++] = '|';
     buf[count++] = ' ';
     writeStr(buf, count, text);
-    nlWrite(shellssock, buf, count);
+    shellssock.write(buf, count);
 }
 
 bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
@@ -2155,11 +2153,8 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
         }
         delay = 60000;  // default to one minute
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        Network::Socket sock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (sock == NL_INVALID) {
+        Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
+        if (!sock.isOpen()) {
             log("Tournament thread: Can't open socket. %s", getNlErrorString());
             delay = 10000;
             continue;
@@ -2170,11 +2165,11 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
             tournamentServer.fromValidIP("64.69.35.205");
 
         tournamentServer.setPort(80);
-        nlConnect(sock, tournamentServer.NLptr());
+        sock.connect(tournamentServer);
 
         const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
         if (result != NR_ok) {
-            nlClose(sock);
+            sock.close();
             if (mjob_exit)
                 break;
             log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
@@ -2185,7 +2180,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) {
         {
             ostringstream respStream;
             const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
-            nlClose(sock);
+            sock.close();
             if (result != NR_ok) {
                 if (mjob_exit)
                     break;
@@ -2323,19 +2318,15 @@ void ServerNetworking::run_mastertalker_thread() {
         if (!g_masterSettings.address().valid())
             continue;
 
-        //open socket
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        Network::Socket msock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (msock == NL_INVALID) {
+        Network::Socket msock(Network::NonBlocking, Network::TCP, 0);
+        if (!msock.isOpen()) {
             log.error(_("Master talker: Can't open socket to connect to master server."));
             continue;
         }
 
-        if (nlConnect(msock, g_masterSettings.address().NLptr()) == NL_FALSE) {
+        if (!msock.connect(g_masterSettings.address())) {
             log("Master talker: Can't connect to master server.");
-            nlClose(msock);
+            msock.close();
             continue;
         }
 
@@ -2362,7 +2353,7 @@ void ServerNetworking::run_mastertalker_thread() {
                 out.close();
                 if (response.str().find("VERSION ERROR") != string::npos) {
                     log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
-                    nlClose(msock);
+                    msock.close();
                     return;
                 }
                 if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
@@ -2376,8 +2367,7 @@ void ServerNetworking::run_mastertalker_thread() {
             }
         }
 
-        //close socket
-        nlClose(msock);
+        msock.close();
     }
 
     log("Master talker: time to say goodbye.");
@@ -2393,21 +2383,15 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
     if (!g_masterSettings.address().valid())
         return;
 
-    //open socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket msock = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-
-    if (msock == NL_INVALID) {
+    Network::Socket msock(Network::NonBlocking, Network::TCP, 0);
+    if (!msock.isOpen()) {
         log.error(_("Master talker: (Quit) Can't open socket to connect to master server."));
         return;
     }
 
-    //connect
-    if (nlConnect(msock, g_masterSettings.address().NLptr()) == NL_FALSE) {
+    if (!msock.connect(g_masterSettings.address())) {
         log.error(_("Master talker: (Quit) Can't connect to master server."));
-        nlClose(msock);
+        msock.close();
         return;
     }
 
@@ -2435,7 +2419,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const {
             log.error(_("Master talker: (Quit) Error while waiting for a response: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
     }
 
-    nlClose(msock);
+    msock.close();
 }
 
 void ServerNetworking::run_website_thread() {
@@ -2461,11 +2445,8 @@ void ServerNetworking::run_website_thread() {
 
         // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        Network::Socket websock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (websock == NL_INVALID) {
+        Network::Socket websock(Network::NonBlocking, Network::TCP, 0);
+        if (!websock.isOpen()) {
             log.error(_("Website thread: Can't open socket to connect to server website."));
             continue;
         }
@@ -2487,9 +2468,9 @@ void ServerNetworking::run_website_thread() {
             web_port = 80;
             website_address.setPort(web_port);
         }
-        if (!website_address.valid() || nlConnect(websock, website_address.NLptr()) == NL_FALSE) {       // connect
+        if (!website_address.valid() || !websock.connect(website_address)) {
             log("Website thread: Server can't connect to server website! Reason: %s", getNlErrorString());
-            nlClose(websock);
+            websock.close();
             continue;
         }
 
@@ -2513,7 +2494,7 @@ void ServerNetworking::run_website_thread() {
             sent_maplist_revision = sending_maplist_revision;
 
         //close socket
-        nlClose(websock);
+        websock.close();
     }
 
     log("Website thread: time to say goodbye");
@@ -2522,21 +2503,15 @@ void ServerNetworking::run_website_thread() {
         return;
 
     //quitting: send server shutdown message to web script
-    //open socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket websock = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-
-    if (websock == NL_INVALID) {
+    Network::Socket websock(Network::NonBlocking, Network::TCP, 0);
+    if (!websock.isOpen()) {
         log.error(_("Website thread: (Quit) Can't open socket to connect to server website."));
         return;
     }
 
-    //connect
-    if (nlConnect(websock, website_address.NLptr()) == NL_FALSE) {
+    if (!websock.connect(website_address)) {
         log.error(_("Website thread: (Quit) Can't connect to server website."));
-        nlClose(websock);
+        websock.close();
         return;
     }
 
@@ -2551,7 +2526,7 @@ void ServerNetworking::run_website_thread() {
         save_http_response(websock, out, 0, 5000);  // only 5 seconds allowed; it's not so crucial
     }
 
-    nlClose(websock);
+    websock.close();
 }
 
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const {
@@ -2640,9 +2615,9 @@ string ServerNetworking::website_maplist() const {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(Network::Socket sock, char *buf) {
+bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, char *buf) {
     for (;;) {
-        NLint result = nlRead(sock, buf, 1);
+        const int result = sock.read(buf, 1);
         if (result != 1)    // message not completely received
             return false;
         if (*buf == '\0')
@@ -2658,15 +2633,12 @@ void ServerNetworking::run_shellmaster_thread(int port) {
 
     log("Admin shell master thread running");
 
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    Network::Socket shellmsock = nlOpen(port, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (shellmsock == NL_INVALID) {
+    Network::Socket shellmsock(Network::NonBlocking, Network::TCP, port);
+    if (!shellmsock.isOpen()) {
         log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
         return;
     }
-    if (!nlListen(shellmsock)) {
+    if (!shellmsock.listen()) {
         log.error(_("Admin shell: Can't set socket to listen mode."));
         return;
     }
@@ -2675,12 +2647,7 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         platSleep(1000); // this thread definitely is no priority
 
         //accept one connection
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        Network::Socket newSock = nlAcceptConnection(shellmsock);
-        nlOpenMutex.unlock();
-
-        if (newSock == NL_INVALID) {
+        if (!shellssock.acceptConnection(Network::NonBlocking, shellmsock)) {
             if (nlGetError() == NL_NO_PENDING)
                 continue;
             log.error(_("Admin shell: Can't accept connection."));
@@ -2690,19 +2657,18 @@ void ServerNetworking::run_shellmaster_thread(int port) {
         log("Incoming admin shell connection");
 
         //accept connections only from localhost
-        Network::Address addr, c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
-        nlGetRemoteAddr(newSock, addr.NLptr());
+        Network::Address addr = shellssock.getRemoteAddress(), c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
         addr.setPort(0);
 
         if (addr != c1 && addr != c2) {
             log("Attempt to connect a remote admin shell blocked.");
-            nlClose(newSock);
+            shellssock.close();
             continue;
         }
 
         if (slaveRunning) { // if already connected, skip
             log("Attempt to connect two simultaneous admin shells blocked.");
-            nlClose(newSock);
+            shellssock.close();
             continue;
         }
 
@@ -2730,17 +2696,16 @@ void ServerNetworking::run_shellmaster_thread(int port) {
                 writeLong(lebuf, count, world.player[i].cid);
                 writeLong(lebuf, count, world.player[i].stats().frags());
             }
-        nlWrite(newSock, lebuf, count);
+        shellssock.write(lebuf, count);
 
         if (slaveThread.isRunning())
             slaveThread.join();
         slaveRunning = true;    // slave will set it false when exiting
-        shellssock = newSock;
         slaveThread.start("ServerNetworking::run_shellslave_thread",
                           RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
                           settings.lowerPriority());
     }
-    nlClose(shellmsock);
+    shellmsock.close();
     log("Admin shell master thread quitting");
     if (slaveThread.isRunning())
         slaveThread.join();
@@ -2752,9 +2717,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         int rcount = 0;
 
         //read request code
-        NLint result = nlRead(shellssock, rbuf, 4);
+        int result = shellssock.read(rbuf, 4);
 
-        if (result == NL_INVALID) {
+        if (result == Network::Error) {
             log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
             break;
         }
@@ -2792,9 +2757,9 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         const int argsLen = (argPid[code] + argDw[code]) * 4;
 
         if (argsLen) {
-            result = nlRead(shellssock, rbuf, argsLen);
+            result = shellssock.read(rbuf, argsLen);
             if (result != argsLen) {
-                if (result == NL_INVALID)
+                if (result == Network::Error)
                     log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
                 else
                     log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
@@ -2883,7 +2848,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
             break;
 
         if (ansLen) {
-            result = nlWrite(shellssock, answer, ansLen);
+            result = shellssock.write(answer, ansLen);
             if (result != ansLen) {
                 log.error(_("Admin shell: sending response failed. Reason: $1", getNlErrorString()));
                 break;
@@ -2891,8 +2856,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) {  // s
         }
     }
 
-    nlClose(shellssock);
-    shellssock = NL_INVALID;    // not in use
+    shellssock.close();
     *runningFlag = false;
     log("Admin shell slave thread quitting");
 }
@@ -2901,8 +2865,8 @@ bool ServerNetworking::RelayThread::send(const string& data) {
     // Test the connection
     const unsigned max_buffer_size = 100;
     NLbyte buffer[max_buffer_size];
-    const int receive = nlRead(socket, buffer, max_buffer_size);
-    if (receive == NL_INVALID) {
+    const int receive = socket.read(buffer, max_buffer_size);
+    if (receive == Network::Error) {
         log("Relay disconnected: %s", getNlErrorString());
         return false;
     }
@@ -2932,8 +2896,7 @@ void ServerNetworking::RelayThread::threadMain() {
             result = send(data);
         }
         if (!result) {
-            nlClose(socket);
-            socket = NL_INVALID;
+            socket.close();
             dataQueue = queue<string>();
         }
     }
@@ -2946,7 +2909,6 @@ void ServerNetworking::RelayThread::pushData_locked(const string& data) {
 
 ServerNetworking::RelayThread::RelayThread(LogSet logs, volatile bool& quitFlag_) :
     quitFlag(quitFlag_),
-    socket(NL_INVALID),
     wakeup("ServerNetworking::RelayThread::wakeup"),
     mutex("ServerNetworking::RelayThread::mutex"),
     log(logs)
@@ -2974,19 +2936,15 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
 
     dataQueue = queue<string>();
 
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    socket = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (socket == NL_INVALID) {
+    socket.open(Network::NonBlocking, Network::TCP, 0);
+    if (!socket.isOpen()) {
         log("Could not open relay socket.");
         return;
     }
 
-    if (!nlConnect(socket, relayAddress.NLptr())) {
+    if (!socket.connect(relayAddress)) {
         log("Could not connect to relay.");
-        nlClose(socket);
-        socket = NL_INVALID;
+        socket.close();
         return;
     }
 

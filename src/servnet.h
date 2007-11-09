@@ -135,7 +135,7 @@ private:
     ClientTransferData fileTransfer[MAX_PLAYERS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
-    Network::Socket shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
+    mutable Network::Socket shellssock; // if open, admin shell messages are sent to this socket
     Thread          shellmthread;
 
     Thread          mthread;
@@ -169,11 +169,11 @@ private:
         bool send(const std::string& data);
         void threadMain();
         void pushData_locked(const std::string& data);
-        bool isConnected_locked() const { return socket != NL_INVALID; }
+        bool isConnected_locked() const { return socket.isOpen(); }
 
     public:
         RelayThread(LogSet logs, volatile bool& quitFlag_);
-        ~RelayThread() { nlClose(socket); }
+        ~RelayThread() { socket.closeIfOpen(); }
 
         void start(int priority);
         void stop();
@@ -205,7 +205,7 @@ private:
     void run_mastertalker_thread();
     void send_master_quit(const std::string& localAddress) const;
 
-    bool read_string_from_TCP(Network::Socket sock, char *buf);
+    bool read_string_from_TCP(Network::Socket& sock, char *buf);
     void run_shellmaster_thread(int port);
     void run_shellslave_thread(volatile bool* quitFlag);
 
