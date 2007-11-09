@@ -359,15 +359,8 @@ DLOG_Scope s("UPIM");
     }
 
     // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(char* address, int localPortMin, int localPortMax) {
-        Network::Address addr;
-        nlStringToAddr(address, &addr);
-        return set_remote_address(&addr, localPortMin, localPortMax);
-    }
-
-    // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(Network::Address *some_addr, int localPortMin, int localPortMax) {
-        memcpy(&netaddr, some_addr, sizeof(Network::Address));
+    virtual int set_remote_address(const Network::Address& some_addr, int localPortMin, int localPortMax) {
+        netaddr = some_addr;
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
@@ -388,14 +381,14 @@ DLOG_Scope s("UPIM");
             }
         }
         nlOpenMutex.unlock();
-        nlSetRemoteAddr(sendsock, &netaddr);
+        nlSetRemoteAddr(sendsock, netaddr.NLptr());
         return 1;   // ok
     }
 
     virtual int getLocalPort() const {
         Network::Address addr;
-        nlGetLocalAddr(sendsock, &addr);
-        return nlGetPortFromAddr(&addr);
+        nlGetLocalAddr(sendsock, addr.NLptr());
+        return addr.getPort();
     }
 
     // read a reliable message from the queue
@@ -512,9 +505,9 @@ DLOG_Scope s("UPIP");
             if (packet_ack != 0)
                 nextPortChange = 0;
             else if (packet_id >= nextPortChange) {
-                const int port = nlGetPortFromAddr(&netaddr);
+                const int port = netaddr.getPort();
                 if (port > 0 && port < 65535)
-                    nlSetAddrPort(&netaddr, port + 1);
+                    netaddr.setPort(port + 1);
                 nextPortChange += 30;
                 if (nextPortChange >= 150)   // 15 seconds, equals 5 ports, is max connect sequence length
                     nextPortChange = 0; // stop changing
@@ -717,7 +710,7 @@ DLOG_Scope s("USP");
 
         // send the packet
         //
-        nlSetRemoteAddr(sendsock, &netaddr);
+        nlSetRemoteAddr(sendsock, netaddr.NLptr());
         NLint result;
         #if LEETNET_SIMULATED_PACKET_LOSS != 0
         if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
@@ -753,7 +746,7 @@ DLOG_Scope s("USP");
     virtual int send_raw_packet(const data_c *data) {
 
         //fix remote addr (changed by reads)
-        nlSetRemoteAddr(sendsock, &netaddr);
+        nlSetRemoteAddr(sendsock, netaddr.NLptr());
 
 //      NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
 NLint result;
@@ -771,8 +764,8 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
 
     virtual int send_raw_packet_to_port(const data_c* data, int port) {
         Network::Address addr = netaddr;
-        nlSetAddrPort(&addr, port);
-        nlSetRemoteAddr(sendsock, &addr);
+        addr.setPort(port);
+        nlSetRemoteAddr(sendsock, addr.NLptr());
         NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
         return (result == NL_INVALID) ? 0 : 1;
     }
@@ -794,20 +787,7 @@ DLOG_Scope s("URPr");
 
     // get debug info
     virtual char* debug_info() {
-
-        //address
-        char ad[200];
-        char ad2[200];
-        char ad3[200];
-        Network::Address fuk;
-        nlAddrToString(&netaddr, ad);
-        nlGetLocalAddr(sendsock, &fuk);
-        nlAddrToString(&fuk, ad2);
-        nlGetRemoteAddr(sendsock, &fuk);
-        nlAddrToString(&fuk, ad3);
-        //sprintf(debug, "addr = %s  loc = %s  rem = %s", ad,ad2,ad3);
-
-        return debug;
+        nAssert(0); return 0;
     }
 
 

@@ -105,8 +105,7 @@ public:
     // set the station's remote address for sending.
     // returns 0 if (nlOpen(0, NL_UNRELIABLE) == NL_INVALID), returns 1 otherwise
     // if any local port is OK, set localPortMin = localPortMax = 0
-    virtual int set_remote_address(char* address, int localPortMin = 0, int localPortMax = 0) = 0; //notation is "bla.bla.bla.bla:portnum"
-    virtual int set_remote_address(Network::Address *some_addr, int localPortMin = 0, int localPortMax = 0) = 0; //NL address struct
+    virtual int set_remote_address(const Network::Address& some_addr, int localPortMin = 0, int localPortMax = 0) = 0; //NL address struct
 
     virtual int getLocalPort() const = 0;
 

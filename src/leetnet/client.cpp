@@ -167,7 +167,7 @@ public:
 
     //set the server's address. call before connect()
     virtual void set_server_address(const char *address) {
-        nlStringToAddr(address, &serveraddr);
+        serveraddr.fromIP(address);
     }
 
     //set the custom data sent with every connection packet
@@ -461,7 +461,7 @@ public:
         //char adrstr[NL_MAX_STRING_LENGTH];
         //nlAddrToString(&serveraddr, adrstr);
         //station->set_remote_address(adrstr);
-        if (station->set_remote_address(&serveraddr, minLocalPort, maxLocalPort) == 0) {
+        if (station->set_remote_address(serveraddr, minLocalPort, maxLocalPort) == 0) {
             log("start_connect() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
             connect_status = old_status;    //no idea if this is needed...
             // "socket problem"
@@ -720,16 +720,11 @@ DLOG_Scope s("CPIDg");
             return true;
         }
 
-        char adst[333];
-        char remadst[333];
         Network::Address ladr;
         Network::Address radr;
-        nlGetLocalAddr( (station->get_nl_socket()), &ladr );
-        nlGetRemoteAddr( (station->get_nl_socket()), &radr );
-        nlAddrToString( &ladr , adst );
-        nlAddrToString( &radr , remadst );
-
-        log("trying... local = '%s' remote = '%s'", adst, remadst);
+        nlGetLocalAddr( (station->get_nl_socket()), ladr.NLptr() );
+        nlGetRemoteAddr( (station->get_nl_socket()), radr.NLptr() );
+        log("trying... local = '%s' remote = '%s'", ladr.toString().c_str(), radr.toString().c_str());
 
         //send the packet
         data_c  *dat = new_data_c();

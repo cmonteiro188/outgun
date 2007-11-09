@@ -582,7 +582,7 @@ public:
 
         //extract remote address from server socket
         Network::Address remoteaddr;
-        nlGetRemoteAddr(servsock, &remoteaddr);
+        nlGetRemoteAddr(servsock, remoteaddr.NLptr());
 
         int count = 0;
         NLulong packid, smsgid, leetversion;
@@ -593,7 +593,7 @@ public:
       int i;
         for (i=0;i<MAX_CLIENTS;i++)
         if (client[i].used)
-        if (NL_TRUE == nlAddrCompare(&remoteaddr, &client[i].addr)) {
+        if (remoteaddr == client[i].addr) {
             log("DO CLIENT %i",i);
 
             #ifdef LEETNET_DATA_LOG
@@ -662,7 +662,7 @@ public:
             writeByte(lebuf, count, b);
             writeString(lebuf, count, serverinfo);
             //send
-            nlSetRemoteAddr(servsock, &remoteaddr);
+            nlSetRemoteAddr(servsock, remoteaddr.NLptr());
             log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
             nlWrite(servsock, lebuf, count);
             return 1;
@@ -676,7 +676,7 @@ public:
             if (a == 'u' && b == 'n') {
                 char lebuf[512]; int count = 0;
                 writeString(lebuf, count, "Outgun");
-                nlSetRemoteAddr(servsock, &remoteaddr);
+                nlSetRemoteAddr(servsock, remoteaddr.NLptr());
                 log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
                 nlWrite(servsock, lebuf, count);
             }
@@ -700,7 +700,7 @@ public:
             writeLong(lebuf, count, 201);           //"connection rejected - engine server FULL"
 
             //send
-            nlSetRemoteAddr(servsock, &remoteaddr);
+            nlSetRemoteAddr(servsock, remoteaddr.NLptr());
             nlWrite(servsock, lebuf, count);
             log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, addressToString(remoteaddr).c_str());
             return 1;
@@ -730,7 +730,7 @@ public:
                 client[i].quitflag = false; //thread must quit flag
 
                 // aloca jogador para thread
-                nlGetRemoteAddr(servsock, &(client[i].addr));       //set address
+                nlGetRemoteAddr(servsock, client[i].addr.NLptr());       //set address
                 client[i].connected = false;                // must negotiate connection (client must first say "hello" :-)
                 client[i].connected_knows = false;      // did not receive game data packet yet when TRUE the
                                                                                             // server knows that the client knows that he was accepted
@@ -750,7 +750,7 @@ public:
                 //char  adrstr[NL_MAX_STRING_LENGTH];
                 //nlAddrToString(&client[i].addr, adrstr);
                 //client[i].station->set_remote_address(adrstr);
-                if (client[i].station->set_remote_address(&client[i].addr, minLocalPort, maxLocalPort) == 0) {
+                if (client[i].station->set_remote_address(client[i].addr, minLocalPort, maxLocalPort) == 0) {
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
                     client[i].station_mutex.unlock();
                     return 1;       //abort connection
@@ -930,7 +930,7 @@ public:
 //                      log("station debuginfo = %s", client[cid].station->debug_info());
 
                         // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
-                        nlSetRemoteAddr(servsock, &client[cid].addr);
+                        nlSetRemoteAddr(servsock, client[cid].addr.NLptr());
                         nlWrite(servsock, reply->getbuf(), reply->getlen());
 
                         delete reply;
@@ -945,7 +945,7 @@ public:
                         reply->addlong(4);      //"connection rejected"
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom "connection denied" information
-                        nlSetRemoteAddr(servsock, &client[cid].addr);
+                        nlSetRemoteAddr(servsock, client[cid].addr.NLptr());
                         nlWrite(servsock, reply->getbuf(), reply->getlen());
                         delete reply;
 
