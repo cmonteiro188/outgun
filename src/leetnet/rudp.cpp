@@ -32,9 +32,10 @@
 
 #include "../mutex.h"
 #include "../nassert.h"
-#include "rudp.h"
-#include <nl.h>             // HawkNL
+#include "../network.h"
 #include "../incpthread.h"
+
+#include "rudp.h"
 
 // buffer size limitations (stupid hardcoded but works)
 //

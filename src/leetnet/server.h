@@ -28,7 +28,7 @@
 #ifndef _server_h_
 #define _server_h_
 
-#include <nl.h>
+#include "../network.h"
 
 struct ServerHelloResult {
     bool accepted;

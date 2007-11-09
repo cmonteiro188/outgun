@@ -33,7 +33,7 @@
 #include <memory>   // auto_ptr
 #include <queue>
 
-#include <nl.h>
+#include "../network.h"
 
 #include "../incpthread.h"
 #include <sched.h>

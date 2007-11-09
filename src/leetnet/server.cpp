@@ -35,7 +35,6 @@
 
 #include "../incpthread.h"
 #include <sched.h>
-#include <nl.h>
 #include <stdio.h>
 #include "../commont.h" // for wheregamedir
 #include "../debug.h"

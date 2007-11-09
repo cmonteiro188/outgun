@@ -30,8 +30,7 @@
 #ifndef _rudp_h_
 #define _rudp_h_
 
-//hawknl
-#include <nl.h>
+#include "../network.h"
 
 /*
 

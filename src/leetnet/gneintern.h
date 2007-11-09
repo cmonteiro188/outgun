@@ -42,9 +42,6 @@
 #include <cstdio>
 #include <cstdarg>
 
-//Include the HawkNL library
-#include <nl.h>
-
 //Standard C++ includes
 //We don't include the iostream includes because not all compilers support
 //pre-compiled headers, and the iostream library is quite large, and is used
