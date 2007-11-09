@@ -663,7 +663,7 @@ public:
             writeString(lebuf, count, serverinfo);
             //send
             nlSetRemoteAddr(servsock, remoteaddr.NLptr());
-            log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
+            log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
             nlWrite(servsock, lebuf, count);
             return 1;
         }
@@ -677,7 +677,7 @@ public:
                 char lebuf[512]; int count = 0;
                 writeString(lebuf, count, "Outgun");
                 nlSetRemoteAddr(servsock, remoteaddr.NLptr());
-                log("SENDING REPLY TO CLIENT AT %s", addressToString(remoteaddr).c_str());
+                log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
                 nlWrite(servsock, lebuf, count);
             }
             return 1;
@@ -702,7 +702,7 @@ public:
             //send
             nlSetRemoteAddr(servsock, remoteaddr.NLptr());
             nlWrite(servsock, lebuf, count);
-            log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, addressToString(remoteaddr).c_str());
+            log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, remoteaddr.toString().c_str());
             return 1;
         }
 

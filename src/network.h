@@ -47,14 +47,10 @@ public:
 
     public:
         Address();
-        Address(const NLaddress& nla); //#remove
         Address(const Address& a);
         Address(const std::string& ip);
         ~Address();
         Address& operator=(const Address& a);
-
-        operator NLaddress&(); //#remove
-        operator const NLaddress&() const; //#remove
 
         NLaddress* NLptr(); //#remove
         const NLaddress* NLptr() const; //#remove
@@ -103,7 +99,6 @@ bool isValidIP(const std::string& address, bool allowPort = false, unsigned int 
 bool check_private_IP(const std::string& address, bool allowAnyExternal = false);   // with allowAnyExternal only (invalid and) loopback addresses are blocked
 std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false);    // with allowAnyExternal only (invalid and) loopback addresses are blocked
 bool isLocalIP(Network::Address address);  // returns true if address points to this machine (nothing to do with the address being private)
-inline std::string addressToString(const NLaddress& address) { return Network::Address(address).toString(); }
 
 inline void readStr(const char* buf, int& count, std::string& dst) {
     dst.clear();

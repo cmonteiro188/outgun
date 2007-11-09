@@ -78,10 +78,6 @@ Address::Address() :
     NLA.valid = false;
 }
 
-Address::Address(const NLaddress& nla) :
-    hidden(new HiddenData(nla))
-{ }
-
 Address::Address(const Address& a) :
     hidden(new HiddenData(*a.hidden))
 { }
@@ -99,14 +95,6 @@ Address::~Address() {
 Address& Address::operator=(const Address& a) {
     NLA = a.NLA;
     return *this;
-}
-
-Address::operator NLaddress&() {
-    return NLA;
-}
-
-Address::operator const NLaddress&() const {
-    return NLA;
 }
 
 NLaddress* Address::NLptr() {
