@@ -429,7 +429,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             return;
         }
         else if (!strcmp(argv[i], "-play")) {
-            if (++i < argc && isValidIP(argv[i], true))
+            if (++i < argc && isValidIP(argv[i], true, 1))
                 clientCfg.autoPlay = argv[i];
             else
                 log.error(_("-play must be followed by an IP address and optionally port."));
@@ -441,7 +441,7 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
                 log.error(_("-replay must be followed by a filename."));
         }
         else if (!strcmp(argv[i], "-spectate")) {
-            if (++i < argc && isValidIP(argv[i], true))
+            if (++i < argc && isValidIP(argv[i], true, 1, true))
                 clientCfg.autoSpectate = argv[i];
             else
                 log.error(_("-spectate must be followed by an IP address and port."));
