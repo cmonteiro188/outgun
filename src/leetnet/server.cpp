@@ -136,7 +136,7 @@ public:
     int     num_clients;
 
     // the server UDP socket
-    NLsocket            servsock;
+    Network::Socket            servsock;
 
     int minLocalPort, maxLocalPort;
 
@@ -524,7 +524,7 @@ public:
         if (client[i].used)
         if (client[i].station)
         {
-            NLsocket clsock = client[i].station->get_nl_socket();
+            Network::Socket clsock = client[i].station->get_nl_socket();
             if (clsock != NL_INVALID)
                 thestat += nlGetSocketStat(clsock, stat);
         }
@@ -834,7 +834,7 @@ public:
     }
 
     //returns the serversocket
-    NLsocket get_server_socket() {
+    Network::Socket get_server_socket() {
         return servsock;
     }
 
@@ -1182,7 +1182,7 @@ public:
 void thread_master_f(server_ci* server)
 {
     //get socket to read from
-    NLsocket servsock = server->get_server_socket();
+    Network::Socket servsock = server->get_server_socket();
 
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];

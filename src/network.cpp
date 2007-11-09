@@ -269,7 +269,7 @@ bool isLocalIP(Network::Address address) { // local doesn't mean private
     return false;
 }
 
-NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -290,7 +290,7 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
     const int buffer_size = 511;
     char lebuf[buffer_size + 1];
 
@@ -355,13 +355,13 @@ string build_http_request(bool post, const string& host, const string& script, c
     return data.str();
 }
 
-NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
+NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
                              const string& host, const string& script, const string& parameters, const string& auth) {
     const string request = build_http_request(true, host, script, parameters, auth);
     return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
     return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 

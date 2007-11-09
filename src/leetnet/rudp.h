@@ -155,7 +155,7 @@ public:
     virtual int send_raw_packet_to_port(const data_c* data, int port) = 0;
 
     // return the socket for get_socket_stat purposes
-    virtual NLsocket get_nl_socket() = 0;
+    virtual const Network::Socket& get_nl_socket() = 0;
 
     // get debug info
     virtual char* debug_info() = 0;

@@ -459,7 +459,7 @@ class Client : public ClientInterface {
     double visible_rooms;
 
     bool spectating;
-    NLsocket spectate_socket;
+    Network::Socket spectate_socket;
     bool spectate_data_received;
     std::stringstream spectate_buffer;
     #else

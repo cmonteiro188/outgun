@@ -200,7 +200,7 @@ public:
     char debug[256];
 
     // send socket -- ALSO the receive socket now.
-    NLsocket sendsock;
+    Network::Socket sendsock;
 
     // the address set with set_remote_addr() -- must be set in the socket before all sending
     // cause receiving erases it
@@ -781,7 +781,7 @@ DLOG_Scope s("URPr");
     }
 
     // return the socket for get_socket_stat purposes
-    virtual NLsocket get_nl_socket() {
+    virtual const Network::Socket& get_nl_socket() {
         return sendsock;
     }
 
