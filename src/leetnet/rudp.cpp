@@ -204,7 +204,7 @@ public:
 
     // the address set with set_remote_addr() -- must be set in the socket before all sending
     // cause receiving erases it
-    NLaddress netaddr;
+    Network::Address netaddr;
 
     // the packet buffer's unreliable data
     data_ci unreliable;
@@ -360,14 +360,14 @@ DLOG_Scope s("UPIM");
 
     // set the station's remote address for sending (IP:PORT)
     virtual int set_remote_address(char* address, int localPortMin, int localPortMax) {
-        NLaddress addr;
+        Network::Address addr;
         nlStringToAddr(address, &addr);
         return set_remote_address(&addr, localPortMin, localPortMax);
     }
 
     // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(NLaddress *some_addr, int localPortMin, int localPortMax) {
-        memcpy(&netaddr, some_addr, sizeof(NLaddress));
+    virtual int set_remote_address(Network::Address *some_addr, int localPortMin, int localPortMax) {
+        memcpy(&netaddr, some_addr, sizeof(Network::Address));
 
         nlOpenMutex.lock();
         nlDisable(NL_BLOCKING_IO);
@@ -393,7 +393,7 @@ DLOG_Scope s("UPIM");
     }
 
     virtual int getLocalPort() const {
-        NLaddress addr;
+        Network::Address addr;
         nlGetLocalAddr(sendsock, &addr);
         return nlGetPortFromAddr(&addr);
     }
@@ -770,7 +770,7 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
     }
 
     virtual int send_raw_packet_to_port(const data_c* data, int port) {
-        NLaddress addr = netaddr;
+        Network::Address addr = netaddr;
         nlSetAddrPort(&addr, port);
         nlSetRemoteAddr(sendsock, &addr);
         NLint result = nlWrite(sendsock, data->getbuf(), data->getlen());
@@ -799,7 +799,7 @@ DLOG_Scope s("URPr");
         char ad[200];
         char ad2[200];
         char ad3[200];
-        NLaddress fuk;
+        Network::Address fuk;
         nlAddrToString(&netaddr, ad);
         nlGetLocalAddr(sendsock, &fuk);
         nlAddrToString(&fuk, ad2);

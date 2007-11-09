@@ -120,7 +120,7 @@ public:
     std::queue< std::pair<double, QueueSendCommand*> > sendQueue;  // pair of sendtime, command for delayed sends (used if packetDelay != 0)
 
     //the server address
-    NLaddress       serveraddr;
+    Network::Address       serveraddr;
 
     //client station
     station_c       *station;
@@ -722,8 +722,8 @@ DLOG_Scope s("CPIDg");
 
         char adst[333];
         char remadst[333];
-        NLaddress ladr;
-        NLaddress radr;
+        Network::Address ladr;
+        Network::Address radr;
         nlGetLocalAddr( (station->get_nl_socket()), &ladr );
         nlGetRemoteAddr( (station->get_nl_socket()), &radr );
         nlAddrToString( &ladr , adst );

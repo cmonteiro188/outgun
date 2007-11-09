@@ -79,7 +79,7 @@ struct client_t {
 
     server_ci               *server;        // the server instance (for the thread)
 
-    NLaddress               addr;                   //client's address, to resolve incoming packets
+    Network::Address               addr;                   //client's address, to resolve incoming packets
 
     Thread              thread;         // the slave thread
 
@@ -581,7 +581,7 @@ public:
         // mensagem 0 200 = serverinfo request
 
         //extract remote address from server socket
-        NLaddress remoteaddr;
+        Network::Address remoteaddr;
         nlGetRemoteAddr(servsock, &remoteaddr);
 
         int count = 0;
@@ -1075,7 +1075,7 @@ public:
         return 1;
     }
 
-    NLaddress get_client_address(int client_id) const {
+    Network::Address get_client_address(int client_id) const {
         return client[client_id].addr;
     }
 

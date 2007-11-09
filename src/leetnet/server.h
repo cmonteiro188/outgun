@@ -111,7 +111,7 @@ public:
     //results available for now.
     virtual int get_socket_stat(int stat) = 0;
 
-    virtual NLaddress get_client_address(int client_id) const = 0;
+    virtual Network::Address get_client_address(int client_id) const = 0;
 };
 
 
