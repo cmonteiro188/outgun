@@ -279,7 +279,7 @@ public:
             log("server_ci::stop() -- signal %i", i);
 
             //pthread_cond_signal( &client[i].station_cond_hasdata ); //slap the thread
-            client[i].station_cond_hasdata.signal();
+            client[i].station_cond_hasdata.signal(client[i].station_mutex);
         }
 
         log("server_ci::stop() -- joining master thread");
