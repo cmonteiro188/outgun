@@ -3750,9 +3750,11 @@ bool Client::refresh_all_servers() {
             platSleep(5);
 
             for (;;) {  // continue while there are new packets
-                int len = sock.read(lebuf, 512);
-                if (len == Network::Error)
+                const int len = sock.read(lebuf, 512);
+                if (len == Network::Error || len == 0)
                     break;
+                if (len < 10)
+                    continue;
 
                 int count = 0;
                 NLulong dw1, dw2;
