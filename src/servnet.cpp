@@ -1592,7 +1592,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
             job->code = MasterQuery::JT_login;
-            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html", 
+            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
                                               url_encode(TK1_VERSION_STRING) +
                                               "&chktk" +
                                               "&name=" + url_encode(sender.name) +
