@@ -4822,6 +4822,8 @@ void Client::start_spectating(const NLaddress& address) {
 void Client::continue_spectating() {
     if (spectate_socket == NL_INVALID) {
         log.error(_("Connection to the server closed."));
+        openMenus.close(&m_connectProgress.menu);
+        stop_replay();
         return;
     }
 
@@ -4831,6 +4833,7 @@ void Client::continue_spectating() {
 
     if (result == NL_INVALID) {
         log.error(_("Connection to the server closed: $1", getNlErrorString()));
+        openMenus.close(&m_connectProgress.menu);
         stop_replay();
         return;
     }
