@@ -862,6 +862,7 @@ void Client::BuildMap() {
     for (int i = 0; i < Table_Max; i++) {
         route_x[i] = route_y[i] = -1;
         routing[i] = Route_None;
+        routeTableCenter[i].x = -1;
     }
 }
 
@@ -938,14 +939,21 @@ int Client::route_room(int& x, int& y, RouteTable num) {
     return route_nr;
 }
 
-int Client::BuildRouteTable(int mex, int mey, RouteTable num) {
-    //const int mex = fx.player[me].roomx;
-    //const int mey = fx.player[me].roomy;
+void Client::BuildRouteTable(int mex, int mey, RouteTable num) {
+    return BuildRouteTable(vector<RoomCoords>(1, RoomCoords(mex, mey)), num);
+}
+
+void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable num) {
     const int w = fx.map.w;
     const int h = fx.map.h;
 
-    if (!fx.map.room[mex][mey].label[num])
-        return 0;
+    if (startPoints.size() == 1) {
+        if (routeTableCenter[num] == startPoints[0])
+            return;
+        routeTableCenter[num] = startPoints[0];
+    }
+    else
+        routeTableCenter[num].x = -1;
 
     for (int x = 0; x < w; ++x)
         for (int y = 0; y < h; ++y) {
@@ -954,13 +962,14 @@ int Client::BuildRouteTable(int mex, int mey, RouteTable num) {
         }
 
     int label = 0;
-    fx.map.room[mex][mey].label[num] = label; // start point
+    for (vector<RoomCoords>::const_iterator ti = startPoints.begin(); ti != startPoints.end(); ++ti)
+        fx.map.room[ti->x][ti->y].label[num] = label;
     while (1) {
         int i = 0;
         for (int x = 0; x < w; ++x)
             for (int y = 0; y < h; ++y)
                 i += label_room(x, y, label, num);
-        if (i == 0) // all alabeled
+        if (i == 0) // all labeled
             break;
         ++label;
     }
@@ -972,7 +981,6 @@ int Client::BuildRouteTable(int mex, int mey, RouteTable num) {
         fprintf(stderr,"\n");
     }
     #endif
-    return label;
 }
 
 int Client::BuildRoute(int tox, int toy, RouteTable num) {
@@ -1350,50 +1358,34 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
     return 0;
 }
 
-bool Client::IsCarriersDef(int team) const {
+bool Client::IsCarriersDef(int team) {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
-    int defenders = 0;
-    int def_me = -1;
-    const int players = GetPlayers(fx.player[me].team());
-    int nCarriedFlags = 0;
 
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-        if (!fi->carried())
+    vector<RoomCoords> carrierRooms;
+
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+        if (fi->carried()) {
+            const ClientPlayer& pl = fx.player[fi->carrier()];
+            carrierRooms.push_back(RoomCoords(pl.roomx, pl.roomy));
+        }
+
+    if (carrierRooms.empty()) // nothing to defend
+        return true;
+
+    BuildRouteTable(carrierRooms, Table_Def);
+
+    int teammates = 0, nearer = 0;
+    const int myDist = fx.map.room[fx.player[me].roomx][fx.player[me].roomy].label[Table_Def];
+    for (int pi = 0; pi < maxplayers; ++pi) {
+        const ClientPlayer& pl = fx.player[pi];
+        if (!pl.used || pl.team() != fx.player[me].team())
             continue;
-        nCarriedFlags++;
-        int enemies = 0, friends = 0;
-        const ClientPlayer& pl = fx.player[fi->carrier()];
-        int n = Teams(pl.roomx, pl.roomy, enemies, friends);
-        if (n != -1) { // I'm in the room, nth friend
-            if (me < fi->carrier())
-                n++;
-            else if (me == fi->carrier())
-                n = 0;
-            def_me = n + defenders;
-        }
-        defenders += friends;
-        #if 0
-        for (int i = 0; i < 4; i++) {
-            int nx = pl.roomx, ny = pl.roomy;
-            if (!fx.map.room[nx][ny].pass[i])
-                continue;
-            next_room(nx, ny, i);
-            n = Teams(nx, ny, enemies, friends);
-            if (n != -1)
-                def_me = n + defenders;
-            defenders += friends;
-        }
-        #endif
+        ++teammates;
+        const int dist = fx.map.room[pl.roomx][pl.roomy].label[Table_Def];
+        if (dist < myDist || dist == myDist && pi < me)
+            ++nearer;
     }
-    if (!nCarriedFlags) // nothing to defend
-        return true;
-    if (defenders < players / 2) // not enough defenders
-        return false;
-    if (def_me == -1) // enough and not me
-        return true;
-    if (def_me >= players / 2) // enough and not me
-        return true;
-    return false;
+    return nearer >= teammates / 2;
 }
 
 bool Client::IsHome(int mex, int mey) const {

@@ -355,15 +355,24 @@ class Client : public ClientInterface {
     int botId;
     bool finished;
 
+    struct RoomCoords {
+        int x, y;
+        RoomCoords() { }
+        RoomCoords(int x_, int y_) : x(x_), y(y_) { }
+        bool operator==(const RoomCoords& o) const { return x == o.x && y == o.y; }
+        bool operator!=(const RoomCoords& o) const { return x != o.x || y != o.y; }
+    };
+
     Routing     routing[Table_Max];
     int         route_x[Table_Max];
     int         route_y[Table_Max];
+    RoomCoords  routeTableCenter[Table_Max];
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
 
     bool        IsDefender(); // am i defender? (role)
-    bool        IsCarriersDef(int team) const; // are flags of team that we carry safe?
+    bool        IsCarriersDef(int team); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const; // are flags of team at bases?
     int         GetPlayers(int team) const; // get num of players
     int         Teams(int roomx, int roomy, int &en, int &fr) const; // get num of en and fr for sector
@@ -405,7 +414,8 @@ class Client : public ClientInterface {
 
     bool scan_door(Room& room, int x, int y, int dx, int dy, int len) const;
     void BuildMap();
-    int  BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point, return max path len
+    void BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point
+    void BuildRouteTable(const std::vector<RoomCoords>& startPoints, RouteTable num); // build route table (labeled) from multiple points
     int  BuildRoute(int tox, int toy, RouteTable num); // build route on route table tox(y), return 0 if not needed, -1 if no path
     bool RouteLogic(RouteTable num); // build route on route table using AI, -1 if not builded
 
