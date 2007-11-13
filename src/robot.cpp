@@ -1538,6 +1538,16 @@ int Client::TargetFog(RouteTable num) {
     return BuildRoute(roomx, roomy, num);
 }
 
+/* TargetRoute( {enemy,
+ *               my,
+ *               wild}Flag{at base, dropped off base, carried},
+ *              {enemy,my}Team,
+ *              {enemy,my,wild}Base )
+ * targets first one of the enabled options that yields the minimal distance among enabled options.
+ * Flag: flag possibly located where we last saw it with desired status
+ * Team: living non-me player possibly located where we last saw them
+ * Base: regardless of flag status, go to the base
+ */
 int Client::TargetRoute(int efb, int efd, int efc,
                         int mfb, int mfd, int mfc,
                         int wfb, int wfd, int wfc,
