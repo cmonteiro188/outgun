@@ -676,39 +676,35 @@ ClientControls Client::GetPowerup(double mex, double mey) const {
 }
 
 ClientControls Client::GetFlag(double mex, double mey) const {
-    const bool carry = HaveFlag(me);
+    const int myTeam = fx.player[me].team();
 
-    int t = fx.player[me].team();
-
-    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
-            continue;
-        if (carry || !IsFlagAtBase(*fi, t)) { // carry -> try to capture on, !AtBase -> try to return
-            const double dx = fi->position().x - mex;
-            const double dy = fi->position().y - mey;
-            return MoveTo(mex, mey, dx, dy); // to my flag
+    if (HaveFlag(me)) {
+        for (int type = 0; type < 2; ++type) { // 0 for own flags, 1 for wild
+            if (!(type == 0 ? capture_on_team_flags_in_effect : capture_on_wild_flags_in_effect))
+                continue;
+            const int team = type == 0 ? myTeam : 2;
+            const vector<Flag>& flags = type == 0 ? fx.teams[team].flags() : fx.wild_flags;
+            for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+                if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
+                    continue;
+                if (type == 0 || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
+                    return MoveTo(mex, mey, fi->position().x - mex, fi->position().y - mey);
+            }
         }
-    }
-
-    if (carry)
         return ClientControls(); // can't pick up another flag
-
-    t = 1 - fx.player[me].team(); // enemy team
-
-    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
-            continue;
-        const double dx = fi->position().x - mex;
-        const double dy = fi->position().y - mey;
-        return MoveTo(mex, mey, dx, dy);
     }
 
-    for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
+    for (int type = 0; type < 3; ++type) { // 0 for own flags, 1 for enemy, 2 for wild
+        if (type == 2 ? lock_wild_flags_in_effect : lock_team_flags_in_effect)
             continue;
-        const double dx = fi->position().x - mex;
-        const double dy = fi->position().y - mey;
-        return MoveTo(mex, mey, dx, dy);
+        const int team = type == 0 ? myTeam : type == 1 ? !myTeam : 2;
+        const vector<Flag>& flags = type == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+            if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
+                continue;
+            if (type != 0 || !IsFlagAtBase(*fi, team)) // try to pick up enemy or wild flag, or return own flag; nothing to do with own flags at base
+                return MoveTo(mex, mey, fi->position().x - mex, fi->position().y - mey);
+        }
     }
 
     return ClientControls();
@@ -1150,35 +1146,39 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
     routing[num] = Route_None;
 
     if (!flag) {
-        const bool at_bases = IsFlagsAtBases(fx.player[me].team());
+        const bool at_bases = IsFlagsAtBases(fx.player[me].team()); // are own flags safe?
 
-        bool efc = !IsCarriersDef(1 - fx.player[me].team());
-        bool wfc = !IsCarriersDef(2);
-        bool mfb = IsDefender();
+        const bool sef = !lock_team_flags_in_effect; // try to steal enemy flags?
+        const bool swf = !lock_wild_flags_in_effect; // try to steal wild flags?
+
+        bool efc = !IsCarriersDef(1 - fx.player[me].team()); // try to defend carriers of enemy flags?
+        bool wfc = !IsCarriersDef(2); // try to defend carriers of wild flags?
+        bool mfb = sef && IsDefender(); // try to defend own flags at bases? (!sef means the enemy won't try our flags either, so nothing to defend)
+
         if (at_bases && !efc && !wfc && !mfb) { // all flags are safe and nothing to support
-            TargetRoute(1, 1, 0,
-                        0, 0, 0,
-                        1, 1, 0, 0,
-                        0, 0,
-                        0, 0, 0,
+            TargetRoute(sef, sef,   0,
+                          0,   0,   0,
+                        swf, swf,   0,   0,
+                          0,   0,
+                          0,   0,   0,
                         num);
             if (routing[num] == Route_None) // we are carry all possible flags
                 mfb = efc = wfc = 1; // support ANYthing
         }
         if (routing[num] == Route_None) {
-            TargetRoute(1, 1, efc,
-                        mfb, 1, 1,
-                        1, 1, 1, wfc,
-                        0, 0,
-                        0, 0, 0,
+            TargetRoute(sef, sef, efc,
+                        mfb,   1,   1,
+                        swf, swf,   1, wfc,
+                          0,   0,
+                          0,   0,   0,
                         num);
         }
         if (routing[num] == Route_None) {
-            TargetRoute(0, 0, 0,
-                        0, 0, 0,
-                        0, 0, 0, 0,
-                        1, 0,
-                        1, 0, 0,
+            TargetRoute(  0,   0,   0,
+                          0,   0,   0,
+                          0,   0,   0,   0,
+                          1,   0,
+                        sef,   0,   0,
                         num);  // ..., or enemy, or enemy base
         }
         if (routing[num] == Route_None || routing[num] == Route_Base) {
@@ -1198,29 +1198,32 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
         }
     }
     else { // i am flagman ;)
+        const bool ctf = capture_on_team_flags_in_effect;
+        const bool cwf = capture_on_wild_flags_in_effect;
+
         if (GetPlayers(fx.player[me].team()) > 1) {
-            TargetRoute(0, 0, 0,
-                        1, 0, 0,
-                        0, 0, 0, 0,
-                        0, 0,
-                        0, 0, 0,
-                        num); // my flag at base
+            TargetRoute(  0,   0,   0,
+                        ctf,   0,   0,
+                        cwf,   0,   0,   0,
+                          0,   0,
+                          0,   0,   0,
+                        num); // available capture point
         }
         else {
-            TargetRoute(0, 0, 0,
-                        1, 1, 0,
-                        0, 0, 0, 0,
-                        0, 0,
-                        0, 0, 0,
-                        num); // my flag at base or dropped
+            TargetRoute(  0,   0,   0,
+                        ctf,   1,   0,
+                        cwf,   0,   0,   0,
+                          0,   0,
+                          0,   0,   0,
+                        num); // available capture point, or dropped own team flag
         }
         if (routing[num] == Route_None) {
-            TargetRoute(0, 0, 0,
-                        0, 0, 0,
-                        0, 0, 0, 0,
-                        0, 0,
-                        0, 1, 0,
-                        num);  // ok, to our base
+            TargetRoute(  0,   0,   0,
+                          0,   0,   0,
+                          0,   0,   0,   0,
+                          0,   0,
+                          0, ctf, cwf,
+                        num);  // ok, to capture point, even if unavailable
         }
     }
     #ifdef BOTDEBUG
