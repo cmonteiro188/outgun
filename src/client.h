@@ -383,6 +383,7 @@ class Client : public ClientInterface {
     int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
     bool        IsMassive() const; // am i berserker? (No rocket avoiding)
     bool        HaveFlag(int n) const; // returns if n is carrier
+    bool        IsFlagAtBase(const Flag& f, int team) const;
     int         IsAimed(double mex, double mey, int i) const; // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const; // for free turning; returns (shoot?, direction)
     double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const; // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)

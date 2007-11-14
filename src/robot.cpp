@@ -682,48 +682,35 @@ ClientControls Client::GetFlag(double mex, double mey) const {
 
     const vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
 
-    bool at_base = false;
-
     for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
             continue;
-        // found base of this flag
-
-        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-            if (fx.player[me].roomx != pi->px || fx.player[me].roomy != pi->py)
-                continue;
-            if (fabs(fi->position().x - pi->x) > 5. || fabs(fi->position().y - pi->y) > 5.)
-                continue;
-            at_base = true;
-        }
-
-        if (!fi->carried() && (carry || !at_base)) { // my flag and i am carrying or no at base
+        if (carry || !IsFlagAtBase(*fi, t)) { // carry -> try to capture on, !AtBase -> try to return
             const double dx = fi->position().x - mex;
             const double dy = fi->position().y - mey;
             return MoveTo(mex, mey, dx, dy); // to my flag
         }
     }
 
+    if (carry)
+        return ClientControls(); // can't pick up another flag
+
     t = 1 - fx.player[me].team(); // enemy team
 
     for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
             continue;
-        if (!fi->carried() && !carry) { // not my and i am not carry
-            const double dx = fi->position().x - mex;
-            const double dy = fi->position().y - mey;
-            return MoveTo(mex, mey, dx, dy);
-        }
+        const double dx = fi->position().x - mex;
+        const double dy = fi->position().y - mey;
+        return MoveTo(mex, mey, dx, dy);
     }
 
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi) {
-        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy)
+        if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
             continue;
-        if (!fi->carried() && !carry) {
-            const double dx = fi->position().x - mex;
-            const double dy = fi->position().y - mey;
-            return MoveTo(mex, mey, dx, dy);
-        }
+        const double dx = fi->position().x - mex;
+        const double dy = fi->position().y - mey;
+        return MoveTo(mex, mey, dx, dy);
     }
 
     return ClientControls();
@@ -1284,6 +1271,14 @@ bool Client::HaveFlag(int n) const {
     return false;
 }
 
+bool Client::IsFlagAtBase(const Flag& f, int team) const {
+    const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
+    for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
+        if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - fi->position().x) <= 5. && fabs(bi->y - fi->position().y) <= 5.)
+            return true;
+    return false;
+}
+
 int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num) {
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
@@ -1427,13 +1422,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
             ny = pl.roomy;
         }
         else {
-            bool at_base = false;
-            for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
-                if (pi->px == fi->position().px && pi->py == fi->position().py && fabs(pi->x - fi->position().x) <= 5. && fabs(pi->y - fi->position().y) <= 5.) {
-                    at_base = true;
-                    break;
-                }
-            if (at_base != (state == 0))
+            if (IsFlagAtBase(*fi, team) != (state == 0))
                 continue;
             nx = fi->position().px;
             ny = fi->position().py;
