@@ -22,6 +22,7 @@
  *
  */
 
+#include <queue>
 #include <vector>
 
 #include "leetnet/client.h"
@@ -33,6 +34,7 @@
 using std::make_pair;
 using std::min;
 using std::pair;
+using std::queue;
 using std::vector;
 
 const int SCAN_RADIUS = ROCKET_RADIUS;
@@ -891,29 +893,6 @@ void Client::next_room(int& x, int& y, int i) const {
     }
 }
 
-int Client::label_room(int x, int y, int label, RouteTable num) {
-    if (fx.map.room[x][y].label[num] != label) // not our label
-        return 0;
-
-    int n = 0;
-
-    for (int i = 0; i < 4; ++i) {
-        if (!fx.map.room[x][y].pass[i]) // looking for nearest room
-            continue;
-        int nx = x;
-        int ny = y;
-        next_room(nx, ny, i);
-        if (fx.map.room[nx][ny].label[num] != -1) // already labeled
-            continue;
-        #ifdef BOTDEBUG
-        fprintf(stderr,"label_room(%d, %d, %d) -> %d %d\n", x, y, label, nx, ny);
-        #endif
-        fx.map.room[nx][ny].label[num] = label + 1;
-        ++n;
-    }
-    return n;
-}
-
 int Client::route_room(int& x, int& y, RouteTable num) {
     int label = fx.map.room[x][y].label[num];
     if (label == -1) // not labeled
@@ -961,17 +940,25 @@ void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable n
             fx.map.room[x][y].route[num] = false;
         }
 
-    int label = 0;
-    for (vector<RoomCoords>::const_iterator ti = startPoints.begin(); ti != startPoints.end(); ++ti)
-        fx.map.room[ti->x][ti->y].label[num] = label;
-    while (1) {
-        int i = 0;
-        for (int x = 0; x < w; ++x)
-            for (int y = 0; y < h; ++y)
-                i += label_room(x, y, label, num);
-        if (i == 0) // all labeled
-            break;
-        ++label;
+    queue<RoomCoords> workQueue;
+    for (vector<RoomCoords>::const_iterator ti = startPoints.begin(); ti != startPoints.end(); ++ti) {
+        fx.map.room[ti->x][ti->y].label[num] = 0;
+        workQueue.push(*ti);
+    }
+    while (!workQueue.empty()) {
+        const RoomCoords& rc = workQueue.front();
+        const Room& r = fx.map.room[rc.x][rc.y];
+        for (int i = 0; i < 4; ++i) {
+            if (!r.pass[i])
+                continue;
+            int nx = rc.x, ny = rc.y;
+            next_room(nx, ny, i);
+            if (fx.map.room[nx][ny].label[num] != -1) // already labeled
+                continue;
+            fx.map.room[nx][ny].label[num] = r.label[num] + 1;
+            workQueue.push(RoomCoords(nx, ny));
+        }
+        workQueue.pop();
     }
     #ifdef BOTDEBUG
     fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
