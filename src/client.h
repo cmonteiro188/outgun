@@ -430,7 +430,7 @@ class Client : public ClientInterface {
 
     int TargetRoute(int efb, int efd, int efc,
                     int mfb, int mfd, int mfc,
-                    int wfb, int wfd, int wfc,
+                    int wfb, int wfd, int wfce, int wfcf,
                     int en,  int fr,
                     int eb,  int fb, int wb,
                     RouteTable num);

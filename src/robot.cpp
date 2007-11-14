@@ -1173,7 +1173,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
         if (at_bases && !efc && !wfc && !mfb) { // all flags are safe and nothing to support
             TargetRoute(1, 1, 0,
                         0, 0, 0,
-                        1, 1, 0,
+                        1, 1, 0, 0,
                         0, 0,
                         0, 0, 0,
                         num);
@@ -1183,7 +1183,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
         if (routing[num] == Route_None) {
             TargetRoute(1, 1, efc,
                         mfb, 1, 1,
-                        1, 1, 1, // was wfc
+                        1, 1, 1, wfc,
                         0, 0,
                         0, 0, 0,
                         num);
@@ -1191,7 +1191,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
         if (routing[num] == Route_None) {
             TargetRoute(0, 0, 0,
                         0, 0, 0,
-                        0, 0, 0,
+                        0, 0, 0, 0,
                         1, 0,
                         1, 0, 0,
                         num);  // ..., or enemy, or enemy base
@@ -1215,24 +1215,24 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
     else { // i am flagman ;)
         if (GetPlayers(fx.player[me].team()) > 1) {
             TargetRoute(0, 0, 0,
-                    1, 0, 0,
-                    0, 0, 0,
-                    0, 0,
-                    0, 0, 0,
-                    num); // my flag at base
+                        1, 0, 0,
+                        0, 0, 0, 0,
+                        0, 0,
+                        0, 0, 0,
+                        num); // my flag at base
         }
         else {
             TargetRoute(0, 0, 0,
-                    1, 1, 0,
-                    0, 0, 0,
-                    0, 0,
-                    0, 0, 0,
-                    num); // my flag at base or dropped
+                        1, 1, 0,
+                        0, 0, 0, 0,
+                        0, 0,
+                        0, 0, 0,
+                        num); // my flag at base or dropped
         }
         if (routing[num] == Route_None) {
             TargetRoute(0, 0, 0,
                         0, 0, 0,
-                        0, 0, 0,
+                        0, 0, 0, 0,
                         0, 0,
                         0, 1, 0,
                         num);  // ok, to our base
@@ -1398,62 +1398,43 @@ bool Client::IsFlagsAtBases(int team) const {
 }
 
 int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num) {
-    // state - 0 - at base, 1 - no at base/droped, 2 - no at base/carry
-    const bool on_base = state == 0;
+    // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
+
+    const bool wantCarried = state == 2 || state == 3;
+    const int carrierTeam = state == 2 ? fx.player[me].team() : !fx.player[me].team();
 
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-        if (state == 2 && !fi->carried())
-            continue;
-        if ((state == 1 || on_base) && fi->carried()) // dropped wanted but it is carried
-            continue;
-
-        bool enemy = fx.player[me].team() != team;
-
-        if (fi->carried() && team == 2) // wild flags can be enemy or friend
-            enemy = (fx.player[fi->carrier()].team() == team);
-
-        if (fi->carried() && !enemy) { // our flag carried, is there near our forces
-            const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (!pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h || fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
-                continue; // old data
-
-            if (!pl.onscreen) {
-                if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
-                    continue; // already here
-                if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
-                    continue; // was here
-            }
-        }
-        bool at_base = false;
-        // at base or not?
-        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-            if (fi->carried())
-                break;
-
-            if (pi->px != fi->position().px || pi->py != fi->position().py)
-                continue;
-
-            at_base = fabs(pi->x - fi->position().x) <= 5. && fabs(pi->y - fi->position().y) <= 5.;
-            if (at_base)
-                break;
-        }
-
-        if (at_base != on_base)
+        if (fi->carried() != wantCarried)
             continue;
 
         int nx, ny;
-        // this flag is ok
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (!pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
+            if (pl.team() != carrierTeam || !pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
                 continue;
+            if (state == 3 && !pl.onscreen) { // check if the position is current enough
+                if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
+                    continue;
+                if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
+                    continue;
+                if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
+                    continue;
+            }
             nx = pl.roomx;
             ny = pl.roomy;
         }
         else {
+            bool at_base = false;
+            for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
+                if (pi->px == fi->position().px && pi->py == fi->position().py && fabs(pi->x - fi->position().x) <= 5. && fabs(pi->y - fi->position().y) <= 5.) {
+                    at_base = true;
+                    break;
+                }
+            if (at_base != (state == 0))
+                continue;
             nx = fi->position().px;
             ny = fi->position().py;
         }
@@ -1506,19 +1487,22 @@ int Client::TargetFog(RouteTable num) {
     return BuildRoute(roomx, roomy, num);
 }
 
-/* TargetRoute( {enemy,
- *               my,
- *               wild}Flag{at base, dropped off base, carried},
- *              {enemy,my}Team,
- *              {enemy,my,wild}Base )
+/* TargetRoute(enemy flag {at base, dropped off base, carried},
+ *                my flag {at base, dropped off base, carried},
+ *              wild flag {at base, dropped off base, carried by enemy, carried by friend},
+ *       {enemy, my} team,
+ * {enemy, my, wild} base,
+ *                   <route table number>)
+ *
  * targets first one of the enabled options that yields the minimal distance among enabled options.
- * Flag: flag possibly located where we last saw it with desired status
- * Team: living non-me player possibly located where we last saw them
- * Base: regardless of flag status, go to the base
+ *
+ * flag: a flag with desired status and probably known location
+ * team: a living non-me player with probably known location
+ * base: a base, regardless of where its flag is
  */
 int Client::TargetRoute(int efb, int efd, int efc,
                         int mfb, int mfd, int mfc,
-                        int wfb, int wfd, int wfc,
+                        int wfb, int wfd, int wfce, int wfcf,
                         int en,  int fr,
                         int eb,  int fb, int wb,
                         RouteTable num) {
@@ -1548,7 +1532,7 @@ int Client::TargetRoute(int efb, int efd, int efc,
         n += TargetNearestFlag(m_label, x, y, t, 1, num);
 
     if (mfc)
-        n += TargetNearestFlag(m_label, x, y, t, 2, num);
+        n += TargetNearestFlag(m_label, x, y, t, 3, num);
 
     if (wfb)
         n += TargetNearestFlag(m_label, x, y, 2, 0, num);
@@ -1556,7 +1540,10 @@ int Client::TargetRoute(int efb, int efd, int efc,
     if (wfd)
         n += TargetNearestFlag(m_label, x, y, 2, 1, num);
 
-    if (wfc)
+    if (wfce)
+        n += TargetNearestFlag(m_label, x, y, 2, 3, num);
+
+    if (wfcf)
         n += TargetNearestFlag(m_label, x, y, 2, 2, num);
 
     if (en)
