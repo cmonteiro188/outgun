@@ -409,8 +409,7 @@ class Client : public ClientInterface {
     ClientControls MoveDir(int dir) const;
     ClientControls Escape(double mex, double mey) const;
     ClientControls FreeWalk(double mex, double mey) const;
-    ClientControls DoRoute(double mex, double mey, RouteTable num) const; // simulate keypress (follow route)
-    ClientControls Route(double mex, double mey, RouteTable num); // do all route (wrapper)
+    ClientControls Route(double mex, double mey, RouteTable num) const; // follow route
 
     bool scan_door(Room& room, int x, int y, int dx, int dy, int len) const;
     void BuildMap();

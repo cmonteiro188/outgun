@@ -1018,7 +1018,7 @@ int Client::BuildRoute(int tox, int toy, RouteTable num) {
     return i;
 }
 
-ClientControls Client::DoRoute(double melx, double mely, RouteTable num) const {
+ClientControls Client::Route(double melx, double mely, RouteTable num) const {
     if (routing[num] == Route_None)
         return ClientControls();
 
@@ -1265,12 +1265,6 @@ bool Client::IsMassive() const {
 
     const double dist = sqrt(dx * dx + dy * dy);
     return dist <= 2 * PLAYER_RADIUS;
-}
-
-ClientControls Client::Route(double mex, double mey, RouteTable num) {
-    if (routing[num] == Route_None)
-        return ClientControls();
-    return DoRoute(mex, mey, num);
 }
 
 bool Client::HaveFlag(int n) const {
