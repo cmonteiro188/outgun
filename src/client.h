@@ -293,6 +293,10 @@ class Client : public ClientInterface {
     bool extra_time_running;
     #endif
     NLbyte remove_flags;
+    bool lock_team_flags_in_effect;
+    bool lock_wild_flags_in_effect;
+    bool capture_on_team_flags_in_effect;
+    bool capture_on_wild_flags_in_effect;
 
     #ifndef DEDICATED_SERVER_ONLY
     // GUI

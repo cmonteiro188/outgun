@@ -1001,11 +1001,6 @@ class ServerWorld : public WorldBase {
     void player_captures_flag(int pid, int team, int flag);
     void team_gets_carrying_point(int team, bool forTournament);
 
-    bool lock_team_flags_in_effect() const;
-    bool lock_wild_flags_in_effect() const;
-    bool capture_on_team_flags_in_effect() const;
-    bool capture_on_wild_flags_in_effect() const;
-
     bool all_kind_of_flags_exist() const;
 
 public:
@@ -1070,6 +1065,11 @@ public:
     PhysicsCallbacksBase::PlayerHitResult playerHitPlayerCallback(int pid1, int pid2, double speed);
     void rocketOutOfBoundsCallback(int rid);
     bool shouldApplyPhysicsToPlayerCallback(int pid);
+
+    bool lock_team_flags_in_effect() const;
+    bool lock_wild_flags_in_effect() const;
+    bool capture_on_team_flags_in_effect() const;
+    bool capture_on_wild_flags_in_effect() const;
 };
 
 class ClientWorld : public WorldBase {

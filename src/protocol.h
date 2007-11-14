@@ -124,6 +124,7 @@ enum Network_data_code {
     data_extension_advantage,
     data_acknowledge_frame_extensions,
     data_waiting_time,
+    data_flag_modes,
     data_negotiated_third_party_extensions_first = 200 // from here on, codes are guaranteed to not be used by official versions present or future, and can be used after successful negotiation with data_negotiate_third_party_extensions
 };
 

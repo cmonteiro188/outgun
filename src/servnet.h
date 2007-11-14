@@ -153,6 +153,7 @@ private:
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
     NLulong         accelerationModeMask;
+    NLubyte         flagModeMask;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
@@ -245,6 +246,7 @@ public:
     void broadcast_team_change(int from, int to, bool swap) const;
     void warnAboutExtensionAdvantage(int pid) const;
     void send_acceleration_modes(int pid) const;
+    void send_flag_modes(int pid) const;
 
     void broadcast_reset_map_list();
     void broadcast_current_map(int mapNr) const;
