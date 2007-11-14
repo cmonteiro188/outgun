@@ -680,8 +680,6 @@ ClientControls Client::GetFlag(double mex, double mey) const {
 
     int t = fx.player[me].team();
 
-    const vector<WorldCoords>& tflags = fx.map.tinfo[t].flags;
-
     for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi) {
         if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
             continue;
@@ -1274,7 +1272,7 @@ bool Client::HaveFlag(int n) const {
 bool Client::IsFlagAtBase(const Flag& f, int team) const {
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
-        if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - fi->position().x) <= 5. && fabs(bi->y - fi->position().y) <= 5.)
+        if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - f.position().x) <= 5. && fabs(bi->y - f.position().y) <= 5.)
             return true;
     return false;
 }
@@ -1398,7 +1396,6 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
     const bool wantCarried = state == 2 || state == 3;
     const int carrierTeam = state == 2 ? fx.player[me].team() : !fx.player[me].team();
 
-    const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
