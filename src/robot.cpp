@@ -1162,8 +1162,10 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
                           0,   0,
                           0,   0,   0,
                         num);
-            if (routing[num] == Route_None) // we are carry all possible flags
-                mfb = efc = wfc = 1; // support ANYthing
+            if (routing[num] == Route_None) { // we are in control of all flags -> always defend
+                efc = wfc = 1;
+                mfb = sef; // still no point in defending the base if the flag can't be taken - resources better spent defending carriers
+            }
         }
         if (routing[num] == Route_None) {
             TargetRoute(sef, sef, efc,
