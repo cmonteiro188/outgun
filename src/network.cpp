@@ -317,18 +317,21 @@ const char* getNlErrorString() {
 }
 
 bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
+    nAssert(!(!allowPort && requirePort));
     unsigned int i1, i2, i3, i4, port;
     char midChar, endChar;
     const int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);
-    if (allowPort && (requirePort || n != 4)) {
-        if (n != 6 || midChar != ':' || port > 65535 || port < minimumPort)
+    if (n == 6) {
+        if (!allowPort || midChar != ':' || port == 0 || port > 65535 || port < minimumPort)
             return false;
     }
-    else {
-        if (n != 4)
+    else if (n == 4) {
+        if (requirePort)
             return false;
     }
-    return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && (i1 + i2 + i3 + i4 != 0));
+    else
+        return false;
+    return i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && i1 + i2 + i3 + i4 != 0;
 }
 
 bool check_private_IP(const string& address, bool allowAnyExternal) {
