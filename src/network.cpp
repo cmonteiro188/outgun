@@ -284,7 +284,7 @@ bool Socket::write(const void* data, int size, int* writtenSize) {
     if (writtenSize)
         *writtenSize = 0;
     const NLenum err = nlGetError();
-    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+    numAssert(err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
     return false;
 }
 
