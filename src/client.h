@@ -386,7 +386,7 @@ class Client : public ClientInterface {
     bool        IsMission(RouteTable num) const; // have i mission? (No agression mode)
     int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
     bool        IsMassive() const; // am i berserker? (No rocket avoiding)
-    bool        HaveFlag(int n) const; // returns if n is carrier
+    int         HaveFlag(int n) const; // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
     bool        IsFlagAtBase(const Flag& f, int team) const;
     int         IsAimed(double mex, double mey, int i) const; // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const; // for free turning; returns (shoot?, direction)
@@ -424,7 +424,6 @@ class Client : public ClientInterface {
     bool RouteLogic(RouteTable num); // build route on route table using AI, -1 if not builded
 
     void next_room(int& x, int& y, int i) const; // chose ith door
-    int  label_room(int x, int y, int label, RouteTable num); // label rooms around x y (wich is labeled as label)
     int  route_room(int &x, int &y, RouteTable num); // go one step to lower label and label it as route , return 1 if step is done
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     // -1 if no target labeled

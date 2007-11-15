@@ -1142,7 +1142,7 @@ bool Client::IsDefender() {
 }
 
 bool Client::RouteLogic(RouteTable num) { // NEED rewrite
-    const bool flag = HaveFlag(me);
+    const int flag = HaveFlag(me);
     routing[num] = Route_None;
 
     if (!flag) {
@@ -1224,7 +1224,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
                           0,   0,   0,
                           0,   0,   0,   0,
                           0,   0,
-                          0, ctf, cwf,
+                          0, ctf, cwf && flag != 2, // don't expect to capture a wild flag on an empty wild flag base: the missing flag might be the one we're carrying
                         num);  // ok, to capture point, even if unavailable
         }
     }
@@ -1257,21 +1257,21 @@ bool Client::IsMassive() const {
     return dist <= 2 * PLAYER_RADIUS;
 }
 
-bool Client::HaveFlag(int n) const {
+int Client::HaveFlag(int n) const {
     const int t = 1 - fx.player[n].team();
     nAssert(t == 0 || t == 1);
 
     // look for enemy flags in team
     for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
         if (fi->carried() && fi->carrier() == n)
-            return true;
+            return 1;
 
     // looking for wild flags
     for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
         if (fi->carried() && fi->carrier() == n)
-            return true;
+            return 2;
 
-    return false;
+    return 0;
 }
 
 bool Client::IsFlagAtBase(const Flag& f, int team) const {
