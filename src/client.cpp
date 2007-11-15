@@ -1191,6 +1191,11 @@ void Client::client_connected(const char* data, int length) {   // call with fra
         return;
     }
 
+    lock_team_flags_in_effect = false;
+    lock_wild_flags_in_effect = false;
+    capture_on_team_flags_in_effect = true;
+    capture_on_wild_flags_in_effect = false;
+
     #ifndef DEDICATED_SERVER_ONLY
 
     fd.reset();
@@ -3495,6 +3500,15 @@ bool Client::process_message(const char* const lebuf, int msglen) {
             fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
     }
 
+    break; case data_flag_modes: {
+        NLubyte mask;
+        readByte(lebuf, count, mask);
+        lock_team_flags_in_effect = mask & 8;
+        lock_wild_flags_in_effect = mask & 4;
+        capture_on_team_flags_in_effect = mask & 2;
+        capture_on_wild_flags_in_effect = mask & 1;
+    }
+
     break; case data_waiting_time: {
         NLulong waiting_time;
         readShort(lebuf, count, waiting_time);
@@ -4801,6 +4815,8 @@ void Client::start_spectating(const Network::Address& address) {
 void Client::continue_spectating() {
     if (!spectate_socket.isOpen()) {
         log.error(_("Connection to the server closed."));
+        openMenus.close(&m_connectProgress.menu);
+        stop_replay();
         return;
     }
 
@@ -4810,6 +4826,7 @@ void Client::continue_spectating() {
 
     if (result == Network::Error) {
         log.error(_("Connection to the server closed: $1", getNlErrorString()));
+        openMenus.close(&m_connectProgress.menu);
         stop_replay();
         return;
     }

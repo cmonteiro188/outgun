@@ -293,6 +293,10 @@ class Client : public ClientInterface {
     bool extra_time_running;
     #endif
     NLbyte remove_flags;
+    bool lock_team_flags_in_effect;
+    bool lock_wild_flags_in_effect;
+    bool capture_on_team_flags_in_effect;
+    bool capture_on_wild_flags_in_effect;
 
     #ifndef DEDICATED_SERVER_ONLY
     // GUI
@@ -355,15 +359,24 @@ class Client : public ClientInterface {
     int botId;
     bool finished;
 
+    struct RoomCoords {
+        int x, y;
+        RoomCoords() { }
+        RoomCoords(int x_, int y_) : x(x_), y(y_) { }
+        bool operator==(const RoomCoords& o) const { return x == o.x && y == o.y; }
+        bool operator!=(const RoomCoords& o) const { return x != o.x || y != o.y; }
+    };
+
     Routing     routing[Table_Max];
     int         route_x[Table_Max];
     int         route_y[Table_Max];
+    RoomCoords  routeTableCenter[Table_Max];
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
 
     bool        IsDefender(); // am i defender? (role)
-    bool        IsCarriersDef(int team) const; // are flags of team that we carry safe?
+    bool        IsCarriersDef(int team); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const; // are flags of team at bases?
     int         GetPlayers(int team) const; // get num of players
     int         Teams(int roomx, int roomy, int &en, int &fr) const; // get num of en and fr for sector
@@ -373,7 +386,8 @@ class Client : public ClientInterface {
     bool        IsMission(RouteTable num) const; // have i mission? (No agression mode)
     int         GetEasyEnemy(double mex, double mey) const; // get easy enemy to kill
     bool        IsMassive() const; // am i berserker? (No rocket avoiding)
-    bool        HaveFlag(int n) const; // returns if n is carrier
+    int         HaveFlag(int n) const; // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
+    bool        IsFlagAtBase(const Flag& f, int team) const;
     int         IsAimed(double mex, double mey, int i) const; // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const; // for free turning; returns (shoot?, direction)
     double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const; // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
@@ -400,17 +414,16 @@ class Client : public ClientInterface {
     ClientControls MoveDir(int dir) const;
     ClientControls Escape(double mex, double mey) const;
     ClientControls FreeWalk(double mex, double mey) const;
-    ClientControls DoRoute(double mex, double mey, RouteTable num) const; // simulate keypress (follow route)
-    ClientControls Route(double mex, double mey, RouteTable num); // do all route (wrapper)
+    ClientControls Route(double mex, double mey, RouteTable num) const; // follow route
 
     bool scan_door(Room& room, int x, int y, int dx, int dy, int len) const;
     void BuildMap();
-    int  BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point, return max path len
+    void BuildRouteTable(int roomx, int roomy, RouteTable num); // build route table (labeled) from me point
+    void BuildRouteTable(const std::vector<RoomCoords>& startPoints, RouteTable num); // build route table (labeled) from multiple points
     int  BuildRoute(int tox, int toy, RouteTable num); // build route on route table tox(y), return 0 if not needed, -1 if no path
     bool RouteLogic(RouteTable num); // build route on route table using AI, -1 if not builded
 
     void next_room(int& x, int& y, int i) const; // chose ith door
-    int  label_room(int x, int y, int label, RouteTable num); // label rooms around x y (wich is labeled as label)
     int  route_room(int &x, int &y, RouteTable num); // go one step to lower label and label it as route , return 1 if step is done
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     // -1 if no target labeled
@@ -421,7 +434,7 @@ class Client : public ClientInterface {
 
     int TargetRoute(int efb, int efd, int efc,
                     int mfb, int mfd, int mfc,
-                    int wfb, int wfd, int wfc,
+                    int wfb, int wfd, int wfce, int wfcf,
                     int en,  int fr,
                     int eb,  int fb, int wb,
                     RouteTable num);

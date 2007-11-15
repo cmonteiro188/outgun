@@ -88,6 +88,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     addPlayerMutex("ServerNetworking::addPlayerMutex"),
     newUniqueId(0),
     accelerationModeMask(0),
+    flagModeMask(0),
     maplist_revision(0),
     relayThread(logs, file_threads_quit),
     playerSlotReservationTime(get_time()),
@@ -287,6 +288,20 @@ void ServerNetworking::send_acceleration_modes(int pid) const {
     char lebuf[10]; int count = 0;
     writeByte(lebuf, count, data_acceleration_modes);
     writeLong(lebuf, count, accelerationModeMask);
+    if (pid != pid_all)
+        server->send_message(world.player[pid].cid, lebuf, count);
+    else {
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
+                server->send_message(world.player[i].cid, lebuf, count);
+        record_message(lebuf, count);
+    }
+}
+
+void ServerNetworking::send_flag_modes(int pid) const {
+    char lebuf[10]; int count = 0;
+    writeByte(lebuf, count, data_flag_modes);
+    writeByte(lebuf, count, flagModeMask);
     if (pid != pid_all)
         server->send_message(world.player[pid].cid, lebuf, count);
     else {
@@ -1586,7 +1601,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
             job->code = MasterQuery::JT_login;
-            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html", 
+            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
                                               url_encode(TK1_VERSION_STRING) +
                                               "&chktk" +
                                               "&name=" + url_encode(sender.name) +
@@ -1676,6 +1691,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) {
         sender.protocolExtensionsLevelSet = true;
         send_simple_message(data_set_extension_level, pid);
         send_acceleration_modes(pid);
+        send_flag_modes(pid);
     }
     break; case data_set_minimap_player_bandwidth: {
         NLubyte number;
@@ -1791,15 +1807,25 @@ void ServerNetworking::writeMinimapPlayerPosition(char* lebuf, int& lecount, int
 
 //simulate and broadcast frame
 void ServerNetworking::broadcast_frame(bool gameRunning) {
-    // check if player acceleration modes have changed
-    NLulong newMask = 0;
-    if (world.physics.allowFreeTurning)
-        for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].accelerationMode == AM_Gun)
-                newMask |= NLulong(1) << i;
-    if (newMask != accelerationModeMask) {
-        accelerationModeMask = newMask;
-        send_acceleration_modes(pid_all);
+    {
+        // check if player acceleration modes have changed
+        NLulong newMask = 0;
+        if (world.physics.allowFreeTurning)
+            for (int i = 0; i < maxplayers; ++i)
+                if (world.player[i].used && world.player[i].accelerationMode == AM_Gun)
+                    newMask |= NLulong(1) << i;
+        if (newMask != accelerationModeMask) {
+            accelerationModeMask = newMask;
+            send_acceleration_modes(pid_all);
+        }
+    }
+    {
+        // check if flag lock/capture settings have changed
+        const NLubyte newMask = world.lock_team_flags_in_effect() << 3 | world.lock_wild_flags_in_effect() << 2 | world.capture_on_team_flags_in_effect() << 1 | world.capture_on_wild_flags_in_effect();
+        if (newMask != flagModeMask) {
+            flagModeMask = newMask;
+            send_flag_modes(pid_all);
+        }
     }
 
     // ============================
