@@ -82,7 +82,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     network(this, settings, world, log, threadLock, threadLockMutex),
     settings(*this, config),
     authorizations(log),
-    recording_started(false)
+    recording_started(false),
+    end_game_human_count(0)
 {
     hostLogs("See serverlog.txt for server's log messages");
     setMaxPlayers(MAX_PLAYERS);
@@ -523,6 +524,8 @@ bool Server::load_rotation_map(int pos) {
 }
 
 bool Server::server_next_map(int reason, const string& currmap_title_override) {
+    end_game_human_count = network.get_human_count();
+
     network.update_serverinfo();
 
     nAssert(!maprot.empty());
@@ -647,17 +650,21 @@ void Server::start_recording() {
 void Server::stop_recording() {
     recording_started = false;
     if (record) {
-        record.seekp(16);
-        write(record, world.frame - record_start_frame);
-        record.close();
-        record.clear();
-        if (network.get_human_count() < settings.get_recording())
+        if (gameover && end_game_human_count >= settings.get_recording() ||
+            !gameover && network.get_human_count() >= settings.get_recording()) {
+            record.seekp(16);   // write the length of the record
+            write(record, world.frame - record_start_frame);
+            record.close();
+            record.clear();
+        }
+        else
             delete_recording();
     }
 }
 
 void Server::delete_recording() {
     record.close();
+    record.clear();
     if (remove(record_filename.c_str()))
         log("Could not delete the replay file: %s", record_filename.c_str());
     else

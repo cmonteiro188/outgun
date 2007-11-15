@@ -309,6 +309,7 @@ class Server : private NoCopying {
     mutable std::ostringstream record_frame;
     NLulong record_start_frame;
     std::string record_map;
+    int end_game_human_count;  // used for deciding whether to keep the record file
 
     bool loadAuthorizations();
     void saveAuthorizations() const;
