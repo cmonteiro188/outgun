@@ -301,11 +301,13 @@ vector<Address> Network::getAllLocalAddresses() {
 }
 
 Address Network::getDefaultLocalAddress() {
+    Socket s(NonBlocking, UDP, 0);
     Address addr;
-    NLsocket s = nlOpen(0, NL_UNRELIABLE);
-    nlGetLocalAddr(s, &addr.NLA);
-    nlClose(s);
-    addr.setPort(0);
+    if (s.isOpen()) {
+        addr = s.getLocalAddress();
+        s.close();
+        addr.setPort(0);
+    }
     return addr;
 }
 
