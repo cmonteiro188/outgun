@@ -234,6 +234,10 @@ void url_encode(char c, ostream& out) {
         out << '%' << hex << setw(2) << setfill('0') << static_cast<int>(static_cast<unsigned char>(c));
 }
 
+// RFC 1738:
+// Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),",
+// and reserved characters used for their reserved purposes may be used
+// unencoded within a URL.
 bool is_url_safe(char c) {
     if (c >= 'a' && c <= 'z')
         return true;
@@ -241,7 +245,7 @@ bool is_url_safe(char c) {
         return true;
     else if (c >= '0' && c <= '9')
         return true;
-    const string safe_characters("$-_.+!*'(),");
+    const string safe_characters("$-_.!*'(),"); // + is used for encoding spaces in the query part so escape it.
     return safe_characters.find(c) != string::npos;
 }
 
