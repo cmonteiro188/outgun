@@ -2811,8 +2811,8 @@ void Graphics::select_theme(const string& theme_dir, const string& bg_dir, bool 
 
     bool colours_found = false;
     // Try theme colours
-    if (use_theme_colours) {
-        colour_file += wheregamedir + "graphics" + directory_separator + theme_dir + directory_separator + "colours.txt";
+    if (use_theme_colours && theme_dir != _("<no theme>")) {
+        colour_file = wheregamedir + "graphics" + directory_separator + theme_dir + directory_separator + "colours.txt";
         colours_found = platIsFile(colour_file);
     }
     // Try colours from different theme

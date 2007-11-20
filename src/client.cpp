@@ -2673,6 +2673,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         ls.fromNetwork(regStatus);
         const ClientLoginStatus& os = fx.player[me].reg_status;
         const bool newMePrintout =
+            !replaying &&
             pid == me &&
             (ls.token() != os.token() ||
              (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
@@ -5707,6 +5708,7 @@ void Client::initMenus() {
     menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
 
     menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));
