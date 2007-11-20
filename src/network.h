@@ -40,76 +40,162 @@ public:
     // Socket related enums, declared here to avoid having to use Network::Socket::Something
     enum BlockingMode { Blocking, NonBlocking };
     enum SocketType { UDP, TCP, Broadcast };
-    enum { Error = -1 };
+
+    class Address;
+    class Socket;
+
+    class Error {
+        int sysError;
+
+    protected:
+        int nlError;
+
+        Error();
+        friend class Network;
+
+        std::string basicStr() const;
+
+    public:
+        virtual ~Error() { }
+
+        virtual std::string str() const;
+    };
+
+    class BadIP : public Error {
+        std::string ip;
+
+        BadIP(const std::string& ip_) : ip(ip_) { }
+
+        friend class Address;
+
+    public:
+        virtual std::string str() const;
+    };
+
+    class ResolveError : public Error {
+        std::string name;
+
+        ResolveError(const std::string& hostname) : name(hostname) { }
+
+        friend class Address;
+
+    public:
+        ResolveError();
+
+        virtual std::string str() const;
+    };
+
+    class OpenError : public Error {
+        SocketType type;
+        uint16_t port;
+
+        OpenError(SocketType t, uint16_t port_) : type(t), port(port_) { }
+
+        friend class Socket;
+
+    public:
+        virtual std::string str() const;
+    };
+
+    class ConnectError : public Error {
+        std::string addr;
+
+        ConnectError(const std::string& addr_) : addr(addr_) { }
+
+        friend class Socket;
+
+    public:
+        bool connectionRefused() const;
+        virtual std::string str() const;
+    };
+
+    class ListenError : public Error {
+        ListenError() { }
+        friend class Socket;
+
+    public:
+        virtual std::string str() const;
+    };
+
+    class ReadWriteError : public Error {
+        bool inRead;
+        ReadWriteError(bool read) : inRead(read) { }
+
+        friend class Socket;
+
+    public:
+        bool connectionRefused() const;
+        bool connectionPending() const;
+        bool disconnected() const;
+        virtual std::string str() const;
+    };
 
     class Address {
         class HiddenData;
         HiddenData* hidden;
 
-        Address(HiddenData* h);
+        Address(HiddenData* h) throw ();
 
         friend class Network;
 
     public:
-        Address();
-        Address(const Address& a);
-        Address(const std::string& ip);
-        ~Address();
-        Address& operator=(const Address& a);
+        Address() throw ();
+        Address(const Address& a) throw ();
+        Address(const std::string& ip) throw (BadIP);
+        ~Address() throw ();
+        Address& operator=(const Address& a) throw ();
 
-        void clear();
+        void clear() throw ();
 
-        bool resolve(const std::string& hostname);
-        bool fromIP(const std::string& ip);
-        void fromValidIP(const std::string& ip);
+        bool tryResolve(const std::string& hostname, ResolveError* errorStore = 0) throw (); // if errorStore is set, and an error occurs (false returned), it is saved in *errorStore
+        bool fromIP(const std::string& ip) throw ();
+        void fromValidIP(const std::string& ip) throw ();
 
-        std::string toString() const;
+        std::string toString() const throw ();
 
-        void setPort(uint16_t port);
-        uint16_t getPort() const;
+        void setPort(uint16_t port) throw ();
+        uint16_t getPort() const throw ();
 
-        bool valid() const;
-        bool operator!() const { return !valid(); }
+        bool valid() const throw ();
+        bool operator!() const throw () { return !valid(); }
 
-        bool operator==(const Address& a) const;
-        bool operator!=(const Address& a) const { return !(*this == a); }
+        bool operator==(const Address& a) const throw ();
+        bool operator!=(const Address& a) const throw () { return !(*this == a); }
     };
 
     class Socket : private NoCopying {
         class HiddenData;
         HiddenData* hidden;
         bool connected;
-
-        friend class Network;
+        bool autoClose;
 
     public:
-        Socket();
-        Socket(BlockingMode b, SocketType t, uint16_t port);
-        ~Socket();
+        Socket(bool autoClose_ = false) throw ();
+        Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_ = false) throw (OpenError);
+        ~Socket() throw ();
 
-        bool open(BlockingMode b, SocketType t, uint16_t port);
-        void close();
-        void closeIfOpen();
+        bool tryOpen(BlockingMode b, SocketType t, uint16_t port) throw ();
+        void open(BlockingMode b, SocketType t, uint16_t port) throw (OpenError);
+        void close() throw ();
+        void closeIfOpen() throw ();
 
-        bool isOpen() const;
-        Address getLocalAddress() const;
-        Address getRemoteAddress() const;
-        int getStat(NLenum type) const; //#fix: create an own enum for the type
+        bool isOpen() const throw ();
+        Address getLocalAddress() const throw (Error);
+        Address getRemoteAddress() const throw (Error);
+        int getStat(NLenum type) const throw (); //#fix: create an own enum for the type
 
-        bool connect(const Address& a);
-        bool listen();
-        bool acceptConnection(BlockingMode b, Socket& listenerSock);
-        void setRemoteAddress(const Address& a);
-        int read(void* buffer, int bufSize); // may return Error
-        bool write(const void* data, int size, int* writtenSize = 0);
+        void connect(const Address& a) throw (ConnectError);
+        void listen() throw (ListenError);
+        bool acceptConnection(BlockingMode b, Socket& listenerSock) throw ();
+        void setRemoteAddress(const Address& a) throw (Error);
+        int read(void* buffer, int bufSize) throw (ReadWriteError);
+        void write(const void* data, int size, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
     };
 
     // static members only
     static std::vector<Address> getAllLocalAddresses();
     static Address getDefaultLocalAddress();
 };
-
-const char* getNlErrorString();
 
 bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false);
 bool check_private_IP(const std::string& address, bool allowAnyExternal = false);   // with allowAnyExternal only (invalid and) loopback addresses are blocked

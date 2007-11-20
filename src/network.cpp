@@ -27,6 +27,7 @@
 #include <string>
 
 #include "commont.h"
+#include "language.h"
 #include "mutex.h"
 #include "nassert.h"
 #include "protocol.h"
@@ -45,10 +46,48 @@ using std::setw;
 using std::string;
 using std::vector;
 
-static Mutex nlOpenMutex("Network::Socket::nlOpenMutex");
+static Mutex nlOpenMutex("network.cpp:nlOpenMutex");
 
 typedef Network::Address Address;
 typedef Network::Socket Socket;
+
+Network::Error::Error() :
+    nlError(nlGetError())
+{
+    if (nlError == NL_SYSTEM_ERROR)
+        sysError = nlGetSystemError();
+}
+
+string Network::Error::basicStr() const {
+    nAssert(nlError != NL_NO_ERROR);
+    if (nlError == NL_SYSTEM_ERROR)
+        return nlGetSystemErrorStr(sysError);
+    else
+        return nlGetErrorStr(nlError);
+}
+
+Network::ResolveError::ResolveError() {
+    nlError = NL_NO_ERROR;
+}
+
+string Network::Error       ::str() const { return _("Network error: $1", basicStr()); }
+string Network::BadIP       ::str() const { return _("\"$1\" is not a valid IP address", ip); }
+string Network::ResolveError::str() const { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
+string Network::ConnectError::str() const { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
+string Network::ListenError ::str() const { return _("Error setting socket to listen mode: $1", basicStr()); }
+
+string Network::ReadWriteError::str() const {
+    if (inRead)
+        return _("Error reading from socket: $1", basicStr());
+    else
+        return _("Error writing to socket: $1", basicStr());
+}
+
+bool Network::ConnectError  ::connectionRefused() const { return nlError == NL_CON_REFUSED; }
+
+bool Network::ReadWriteError::connectionRefused() const { return nlError == NL_CON_REFUSED; }
+bool Network::ReadWriteError::connectionPending() const { return nlError == NL_CON_PENDING; }
+bool Network::ReadWriteError::disconnected()      const { return nlError == NL_MESSAGE_END; }
 
 class Address::HiddenData {
 public:
@@ -71,58 +110,67 @@ public:
 #define NLA hidden->nla
 #define NLS hidden->nls
 
-Address::Address(HiddenData* h) :
+Address::Address(HiddenData* h) throw () :
     hidden(h)
 { }
 
-Address::Address() :
+Address::Address() throw () :
     hidden(new HiddenData())
 {
     NLA.valid = false;
 }
 
-Address::Address(const Address& a) :
+Address::Address(const Address& a) throw () :
     hidden(new HiddenData(*a.hidden))
 { }
 
-Address::Address(const std::string& ip) :
+Address::Address(const std::string& ip) throw (BadIP) :
     hidden(new HiddenData())
 {
-    fromIP(ip);
+    if (!fromIP(ip))
+        throw BadIP(ip);
 }
 
-Address::~Address() {
+Address::~Address() throw () {
     delete hidden;
 }
 
-Address& Address::operator=(const Address& a) {
+Address& Address::operator=(const Address& a) throw () {
     NLA = a.NLA;
     return *this;
 }
 
-void Address::clear() {
+void Address::clear() throw () {
     NLA.valid = false;
 }
 
-bool Address::resolve(const std::string& hostname) {
-    if (!nlGetAddrFromName(hostname.c_str(), &NLA))
+bool Address::tryResolve(const std::string& hostname, ResolveError* errorStore) throw () {
+    if (!nlGetAddrFromName(hostname.c_str(), &NLA)) {
+        numAssert(nlGetError() == NL_OUT_OF_MEMORY || nlGetError() == NL_SYSTEM_ERROR, nlGetError());
+        if (errorStore)
+            *errorStore = ResolveError(hostname);
         clear();
-    return valid();
+        return false;
+    }
+    nAssert(valid());
+    return true;
 }
 
-bool Address::fromIP(const std::string& ip) {
-    if (!nlStringToAddr(ip.c_str(), &NLA))
+bool Address::fromIP(const std::string& ip) throw () {
+    if (!nlStringToAddr(ip.c_str(), &NLA)) {
+        numAssert(nlGetError() == NL_BAD_ADDR, nlGetError());
         clear();
+    }
     //todo: else { check port here }
     return valid();
 }
 
-void Address::fromValidIP(const std::string& ip) {
+void Address::fromValidIP(const std::string& ip) throw () {
     if (!fromIP(ip))
         nAssert(0);
 }
 
-std::string Address::toString() const {
+std::string Address::toString() const throw () {
     nAssert(valid());
     char buf[NL_MAX_STRING_LENGTH];
     if (!nlAddrToString(&NLA, buf))
@@ -130,13 +178,13 @@ std::string Address::toString() const {
     return buf;
 }
 
-void Address::setPort(uint16_t port) {
+void Address::setPort(uint16_t port) throw () {
     nAssert(valid());
     if (!nlSetAddrPort(&NLA, port))
         nAssert(0);
 }
 
-uint16_t Address::getPort() const {
+uint16_t Address::getPort() const throw () {
     nAssert(valid());
     /*todo:
     if (!portSet)
@@ -147,33 +195,37 @@ uint16_t Address::getPort() const {
     return port;
 }
 
-bool Address::valid() const {
+bool Address::valid() const throw () {
     return NLA.valid;
 }
 
-bool Address::operator==(const Address& a) const {
+bool Address::operator==(const Address& a) const throw () {
     nAssert(valid() && a.valid());
     return nlAddrCompare(&NLA, &a.NLA);
 }
 
-Socket::Socket() :
+Socket::Socket(bool autoClose_) throw () :
     hidden(new HiddenData(NL_INVALID)),
-    connected(false)
+    connected(false),
+    autoClose(autoClose_)
 { }
 
-Socket::Socket(BlockingMode b, SocketType t, uint16_t port) :
+Socket::Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_) throw (OpenError) :
     hidden(new HiddenData(NL_INVALID)),
-    connected(false)
+    connected(false),
+    autoClose(autoClose_)
 {
     open(b, t, port);
 }
 
-Socket::~Socket() {
+Socket::~Socket() throw () {
+    if (autoClose)
+        closeIfOpen();
     nAssert(!isOpen());
     delete hidden;
 }
 
-bool Socket::open(BlockingMode b, SocketType t, uint16_t port) {
+bool Socket::tryOpen(BlockingMode b, SocketType t, uint16_t port) throw () {
     nAssert(!isOpen());
     Lock ml(nlOpenMutex);
     if (b == Blocking)
@@ -181,64 +233,70 @@ bool Socket::open(BlockingMode b, SocketType t, uint16_t port) {
     else
         nlDisable(NL_BLOCKING_IO);
     NLS = nlOpen(port, t == UDP ? NL_UNRELIABLE : t == TCP ? NL_RELIABLE : NL_BROADCAST);
+    if (!isOpen())
+        numAssert(nlGetError() == NL_SYSTEM_ERROR, nlGetError());
     return isOpen();
+}
+
+void Socket::open(BlockingMode b, SocketType t, uint16_t port) throw (OpenError) {
+    if (!tryOpen(b, t, port))
+        throw OpenError(t, port);
 }    
 
-void Socket::close() {
+void Socket::close() throw () {
     nAssert(isOpen());
-    nlClose(NLS);
+    if (!nlClose(NLS))
+        nAssert(0);
     NLS = NL_INVALID;
     connected = false;
 }
 
-void Socket::closeIfOpen() {
+void Socket::closeIfOpen() throw () {
     if (isOpen())
         close();
 }
 
-bool Socket::isOpen() const {
+bool Socket::isOpen() const throw () {
     nAssert(NLS != NL_INVALID || !connected);
     return NLS != NL_INVALID;
 }
 
-Address Socket::getLocalAddress() const {
+Address Socket::getLocalAddress() const throw (Error) {
     Address a;
     if (!nlGetLocalAddr(NLS, &a.NLA))
-        nAssert(0); //#fix? system error possible, throw?
+        throw Error();
     return a;
 }
 
-Address Socket::getRemoteAddress() const {
+Address Socket::getRemoteAddress() const throw (Error) {
     Address a;
     if (!nlGetRemoteAddr(NLS, &a.NLA))
-        nAssert(0); //#fix? system error possible, throw?
+        throw Error();
     return a;
 }
 
-int Socket::getStat(NLenum type) const {
+int Socket::getStat(NLenum type) const throw () {
     return nlGetSocketStat(NLS, type); // can't verify result, because 0 can mean two things and we've no real way to clear what nlGetError returns, either (we could force it to an error value never returned by nlGetSocketStat, but that would be too funny)
 }
 
-bool Socket::connect(const Address& a) {
+void Socket::connect(const Address& a) throw (ConnectError) {
     nAssert(isOpen() && !connected);
-    if (nlConnect(NLS, &a.NLA)) {
-        connected = true;
-        return true;
+    if (!nlConnect(NLS, &a.NLA)) {
+        numAssert(nlGetError() == NL_SYSTEM_ERROR || nlGetError() == NL_CON_REFUSED, nlGetError());
+        throw ConnectError(a.toString());
     }
-    const NLenum err = nlGetError();
-    numAssert(err == NL_SYSTEM_ERROR || err == NL_CON_REFUSED, err);
-    return false;
+    connected = true;
 }
 
-bool Socket::listen() {
+void Socket::listen() throw (ListenError) {
     nAssert(isOpen() && !connected);
-    if (nlListen(NLS))
-        return true;
-    nAssert(nlGetError() == NL_SYSTEM_ERROR);
-    return false;
+    if (!nlListen(NLS)) {
+        numAssert(nlGetError() == NL_SYSTEM_ERROR, nlGetError());
+        throw ListenError();
+    }
 }
 
-bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) {
+bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) throw () {
     nAssert(!isOpen() && listenerSock.isOpen());
     Lock ml(nlOpenMutex);
     if (b == Blocking)
@@ -251,41 +309,37 @@ bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) {
         connected = true;
         return true;
     }
-    const NLenum err = nlGetError();
-    numAssert(err == NL_NO_PENDING, err);
+    numAssert(nlGetError() == NL_NO_PENDING, nlGetError());
     return false;
 }
 
-void Socket::setRemoteAddress(const Address& a) {
+void Socket::setRemoteAddress(const Address& a) throw (Error) {
     if (!nlSetRemoteAddr(NLS, &a.NLA))
-        nAssert(0); //#fix? system error possible, throw?
+        throw Error();
 }
 
-int Socket::read(void* buffer, int bufSize) {
+int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
     nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && buffer);
     const NLint val = nlRead(NLS, buffer, bufSize);
     if (val != NL_INVALID)
         return val;
     const NLenum err = nlGetError();
     numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
-    return Error;
+    throw ReadWriteError(true);
 }
 
-bool Socket::write(const void* data, int size, int* writtenSize) {
+void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWriteError) {
     nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data);
     const NLint val = nlWrite(NLS, data, size);
-    if (val != NL_INVALID) {
-        if (writtenSize)
-            *writtenSize = val;
-        else
-            numAssert2(val == size, val, size);
-        return true;
+    if (val == NL_INVALID) {
+        const NLenum err = nlGetError();
+        numAssert(err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+        throw ReadWriteError(false);
     }
     if (writtenSize)
-        *writtenSize = 0;
-    const NLenum err = nlGetError();
-    numAssert(err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
-    return false;
+        *writtenSize = val;
+    else
+        numAssert2(val == size, val, size);
 }
 
 vector<Address> Network::getAllLocalAddresses() {
@@ -309,13 +363,6 @@ Address Network::getDefaultLocalAddress() {
         addr.setPort(0);
     }
     return addr;
-}
-
-const char* getNlErrorString() {
-    if (nlGetError() == NL_SYSTEM_ERROR)
-        return nlGetSystemErrorStr(nlGetSystemError());
-    else
-        return nlGetErrorStr(nlGetError());
 }
 
 bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
