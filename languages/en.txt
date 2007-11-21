@@ -6,6 +6,9 @@
 ; Language of the translation, in the target language.
 English
 
+; Locale to decide the correct decimal separator (e.g. fi_FI or pt_BR).
+locale
+
 
 ; You should not modify en.txt, it is the English reference file. Outgun uses
 ; it (only) to index the translated strings. To make a new translation, copy
@@ -165,7 +168,7 @@ Controls
 Keyboard layout
 Use keypad for moving
 Arrow keys in statistics
-Use arrow keys to edit text input
+Use arrow keys to edit message input
 Preferrably aim with
 With mouse aim move relative to
 Keyboard turning speed
@@ -217,7 +220,7 @@ Show flag disappearance positions
 Highlight self after spawn
 Markers for nearby players and flags in game
 Markers for nearby players and flags in replay
-Box visible rooms on map in game
+Box visible area on map in game
 Let view follow over map border
 Allow parts of map to repeat on screen
 Stats screen alpha
