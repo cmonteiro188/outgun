@@ -97,8 +97,8 @@ class AssertMutex : private NoCopying, public Lockable {
 
 public:
     AssertMutex() : mutex(Mutex::NoLogging), locked(false) { }
-    void lock() { Lock ml(mutex); numAssert(!locked, *reinterpret_cast<const int*>(&owner)); locked = true; owner = pthread_self(); }
-    void unlock() { Lock ml(mutex); nAssert(locked && owner == pthread_self()); locked = false; }
+    void lock();
+    void unlock();
 };
 
 #else
