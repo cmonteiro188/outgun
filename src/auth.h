@@ -121,9 +121,9 @@ private:
 public:
     AuthorizationDatabase(LogSet logs) : log(logs) { }
 
-    const AccessDescriptor& defaultAccess() const { return map_get(classes, std::string("user")); }
-    const AccessDescriptor& shellAccess() const { return map_get(classes, std::string("shell")); }
-    const AccessDescriptor& localAccess() const { return map_get(classes, std::string("local")); }
+    const AccessDescriptor& defaultAccess() const { return map_get_assert(classes, std::string("user")); }
+    const AccessDescriptor& shellAccess() const { return map_get_assert(classes, std::string("shell")); }
+    const AccessDescriptor& localAccess() const { return map_get_assert(classes, std::string("local")); }
     AccessDescriptor nameAccess(const std::string& name) const;
 
     bool checkNamePassword(const std::string& name, const std::string& password) const;
