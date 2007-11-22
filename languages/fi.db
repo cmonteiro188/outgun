@@ -108,7 +108,7 @@ $1/$2p $3k/s v$4 port:$5##$1/$2p $3k/s v$4 portti:$5
 <no themes found>##<teemoja ei ole>
 Active controls##Aktiviiset ohjaimet
 Active joystick buttons##Aktiiviset joystick-napit
-Active mouse buttons##Aktiiviset hiirinapit
+Active mouse buttons##Aktiiviset hiirennapit
 Add server##Lisää palvelin
 Add to favorite list##Lisää suosikkilistaan
 Add to public serverlist##Lisää julkiseen palvelinlistaan
@@ -118,7 +118,7 @@ Admin shell: Can't set socket to listen mode.##Ylläpitoyhteys: Soketin asetus ku
 Admin shell: read failed. Reason: $1##Ylläpitoyhteys: luku epäonnistui. Syy: $1
 Admin shell: sending response failed. Reason: $1##Ylläpitoyhteys: vastauksen lähetys epäonnistui. Syy: $1
 Admin shell: unprintable characters, message ignored.##Ylläpitoyhteys: virheellisiä merkkejä, viesti ohitettu.
-Allow parts of map to repeat on screen##Salli kentän osien toistua ruudulla
+Allow parts of map to repeat on screen##Salli kentän osien toistua näytölla
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alfakuvien täytyy olla 8-bittisiä harmaasävykuvia; $1 on $2-bittinen.
 Alternative page flipping method##Vaihtoehtoinen page flipping -tapa
 Antialiasing##Reunanpehmennys
@@ -130,7 +130,7 @@ Automatic bug reporting##Automaattinen bugiraportointi
 BLUE TEAM WINS##SININEN JOUKKUE VOITTI
 Background theme##Taustakuva teemasta
 Balance teams##Joukkueiden tasoitus
-Bandwidth for out-of-room players (cps)##Kaista pelaajille eri huoneessa (pelaajaa/s)
+Bandwidth for out-of-room players (cps)##Kaista pelaajille eri huoneessa (t/s)
 Belgium##Belgia
 Blue Team##Sininen
 Box visible area on map in game##Reunusta näkyvä alue kartalla
@@ -175,12 +175,12 @@ Connection to the server closed: $1##Yhteys palvelimeen katkesi: $1
 Contacting the servers...##Kyselen palvelimilta...
 Continuous textures between rooms##Tekstuurien jatkuvuus huoneesta toiseen
 Controls##Ohjaimet
-Could not open replay file $1.##Uusintaa "$1" ei voi avata.
+Could not open replay file $1.##Uusinta "$1" ei aukea.
 Could not save map pictures to the directory 'mappic'.##Karttakuvat eivät tallentuneet hakemistoon "mappic".
 Could not save screenshot to $1.##Virhe kuvankaappauksen tallennuksessa tiedostoon $1.
 Could not send init data to the relay: $1##Yhteys välipalvelimelle epäonnistui: $1
 Could not set address to spectate socket.##Osoitteen asetus katselusoketille epäonnistui.
-Could not start spectating.##Katselua ei voinut aloittaa.
+Could not start spectating.##Katselun aloitus epäonnistui.
 Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.##Näyttötila $1×$2×$3 ei alustu tilassa "$4"; käytössä $5.
 Couldn't initialize resolution $1×$2×$3 in any mode.##Näyttötila $1×$2×$3 ei alustu.
 Critical error##Vakava virhe
@@ -220,7 +220,7 @@ Flags returned##Palautetut liput
 Flags taken##Otetut liput
 Font##Fontti
 Format error in data received from the server.##Palvelimelta tuli virheellistä dataa.
-Format error in replay file.##Rakennevirhe uusintatiedostossa.
+Format error in replay file.##Virhe uusintatiedostossa.
 France##Ranska
 Friendly fire##Omiin osuminen
 GAME TIED##TASAPELI
@@ -349,13 +349,13 @@ Refresh servers##Päivitä palvelimet
 Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
-Replay $1 can't be read.##Uusintaa $1 ei voi avata.
+Replay $1 can't be read.##Uusintaa $1 ei voi lukea.
 Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
 Replay on $1##Uusinta - $1
 Replays##Uusinnat
 Room line not allowed in label block: $1##Huoneriviä ei saa olla nimilohkossa: $1
-Rooms on screen in each direction in game##Näkyviä huoneita vaakasuunnassa pelin aikana
-Rooms on screen in each direction in replay##Näkyviä huoneita vaakasuunnassa uusinnan aikana
+Rooms on screen in each direction in game##Näkyviä huoneita/suunta pelissä
+Rooms on screen in each direction in replay##Näkyviä huoneita/suunta uusinnassa
 Run   ##Juokseminen 
 Running##Päivitän
 Russia##Venäjä
@@ -565,7 +565,7 @@ special##erikoinen
 strafe##sivusiirtymä
 taken dropped returned   killed    time##otetut pudot. palaut.   kantajat   aika
 teams##joukkueet
-two positive integers and optionally a real number between 0 and 1, separated by spaces##kaksi positiivista kokonaislukua ja valinnaisesti reaaliluku 0 - 1 väleillä erotettuina
+two positive integers and optionally a real number between 0 and 1, separated by spaces##kaksi positiivista kokonaislukua ja valinnaisesti reaaliluku väliltä 0 - 1 väleillä erotettuina
 unknown##tuntematon
 unknown ($1)##tuntematon ($1)
 up##ylös
