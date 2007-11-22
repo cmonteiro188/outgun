@@ -27,12 +27,12 @@ ifdef LINUX
  ALLEGRO_CONFIG ?= allegro-config
  ifdef DEBUGLIBS
   COMMON_LIBS := -lNL_debug
-  ALLEG_LIBS := $(shell $(ALLEGRO_CONFIG) --libs debug)
-  ALLEG_CFLAGS := $(shell $(ALLEGRO_CONFIG) --cflags debug)
+  ALLEG_LIBS := `$(ALLEGRO_CONFIG) --libs debug`
+  ALLEG_CFLAGS := `$(ALLEGRO_CONFIG) --cflags debug`
  else
   COMMON_LIBS := -lNL
-  ALLEG_LIBS := $(shell $(ALLEGRO_CONFIG) --libs)
-  ALLEG_CFLAGS := $(shell $(ALLEGRO_CONFIG) --cflags)
+  ALLEG_LIBS := `$(ALLEGRO_CONFIG) --libs`
+  ALLEG_CFLAGS := `$(ALLEGRO_CONFIG) --cflags`
  endif
  PNG_LIBS := -lz -lpng
  PNG_CFLAGS := -DWITH_PNG
