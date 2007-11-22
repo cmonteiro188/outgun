@@ -14,6 +14,8 @@ CXXFLAGS ?= $(CFLAGS)
 CC ?= gcc
 CXX ?= g++
 
+OBJDIR ?= obj
+
 .DELETE_ON_ERROR:
 
 ifdef LINUX
@@ -59,7 +61,7 @@ else
  MON_LDFLAGS := -mconsole
  RELAY_LDFLAGS := -mconsole
 
- obj/gui/%.res: %.rc
+ $(OBJDIR)/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
 
 endif
@@ -80,14 +82,14 @@ MAKEDEP_OBJ_NAMES := tools/makedep.o
 WRITEIFDIFFERENT_OBJ_NAMES := tools/writeifdifferent.o
 MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o version.o debug.o mutex.o $(PLATFORM_OBJ_NAMES)
 
-LEETNET_OBJS := $(patsubst %,obj/leetnet/%,$(LEETNET_OBJ_NAMES))
-OUTGUN_CLIENT_OBJS := $(patsubst %,obj/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
-OUTGUN_DEDSERV_OBJS := $(patsubst %,obj/text/%,$(OUTGUN_COMMON_OBJ_NAMES)) $(LEETNET_OBJS)
+LEETNET_OBJS := $(patsubst %,$(OBJDIR)/leetnet/%,$(LEETNET_OBJ_NAMES))
+OUTGUN_CLIENT_OBJS := $(patsubst %,$(OBJDIR)/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
+OUTGUN_DEDSERV_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(OUTGUN_COMMON_OBJ_NAMES)) $(LEETNET_OBJS)
 
-RELAY_OBJS := $(patsubst %,obj/text/%,$(RELAY_OBJ_NAMES))
-MAKEDEP_OBJS := $(patsubst %,obj/text/%,$(MAKEDEP_OBJ_NAMES))
-WRITEIFDIFFERENT_OBJS := $(patsubst %,obj/text/%,$(WRITEIFDIFFERENT_OBJ_NAMES))
-MON_OBJS := $(patsubst %,obj/text/%,$(MON_OBJ_NAMES))
+RELAY_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(RELAY_OBJ_NAMES))
+MAKEDEP_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(MAKEDEP_OBJ_NAMES))
+WRITEIFDIFFERENT_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(WRITEIFDIFFERENT_OBJ_NAMES))
+MON_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(MON_OBJ_NAMES))
 
 BUILDTOOL_LIBS :=
 MON_LIBS := $(COMMON_LIBS)
@@ -136,33 +138,33 @@ TAGS: $(SRC_FILES)
 
 # directories for generated files
 
-dep dep/generated dep/leetnet dep/loadpng dep/tools generated obj obj/gui obj/gui/loadpng obj/leetnet obj/text obj/text/tools:
+dep dep/generated dep/leetnet dep/loadpng dep/tools generated $(OBJDIR) $(OBJDIR)/gui $(OBJDIR)/gui/loadpng $(OBJDIR)/leetnet $(OBJDIR)/text $(OBJDIR)/text/tools:
 	-$(MKDIR) $@
 
 dep/generated dep/leetnet dep/loadpng dep/tools: | dep
-obj/gui obj/text obj/leetnet: | obj
-obj/text/tools: | obj/text
-obj/gui/loadpng: | obj/gui
+$(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet: | $(OBJDIR)
+$(OBJDIR)/text/tools: | $(OBJDIR)/text
+$(OBJDIR)/gui/loadpng: | $(OBJDIR)/gui
 
 # make-directories-dummy must exist and is not generated anywhere (because its date should stay old).
 # It is used to work around a gmake bug.
-make-directories-dummy: | dep generated obj dep/generated dep/leetnet dep/loadpng dep/tools obj/gui obj/text obj/leetnet obj/text/tools obj/gui/loadpng
+make-directories-dummy: | dep generated $(OBJDIR) dep/generated dep/leetnet dep/loadpng dep/tools $(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet $(OBJDIR)/text/tools $(OBJDIR)/gui/loadpng
 
 # file dependency lists
 
 MAKEDEP := tools/makedep$(EXE_SUFFIX)
 
 dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-dummy
-	@$(MAKEDEP) -O obj $< > $@
+	@$(MAKEDEP) -O $(OBJDIR) $< > $@
 
 dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-dummy
-	@$(MAKEDEP) -O obj/gui $< > $@
+	@$(MAKEDEP) -O $(OBJDIR)/gui $< > $@
 
 dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-dummy
-	@$(MAKEDEP) -O obj/text $< > $@
+	@$(MAKEDEP) -O $(OBJDIR)/text $< > $@
 
 dep/%.d: % $(MAKEDEP) | make-directories-dummy
-	@$(MAKEDEP) -O obj/gui -O obj/text $< > $@
+	@$(MAKEDEP) -O $(OBJDIR)/gui -O $(OBJDIR)/text $< > $@
 
 -include $(DEPENDENCY_FILES)
 
@@ -177,19 +179,19 @@ generated/svnrevision.inc ::
 
 # object files
 
-obj/gui/%.o: %.cpp | make-directories-dummy
+$(OBJDIR)/gui/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
 
-obj/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
+$(OBJDIR)/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
 
-obj/text/%.o: %.cpp | make-directories-dummy
+$(OBJDIR)/text/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
 
-obj/text/nassert_simple.o: obj/text/nassert.o | make-directories-dummy
+$(OBJDIR)/text/nassert_simple.o: $(OBJDIR)/text/nassert.o | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
 
-obj/leetnet/%.o: leetnet/%.cpp | make-directories-dummy
+$(OBJDIR)/leetnet/%.o: leetnet/%.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
 # binaries
