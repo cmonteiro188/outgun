@@ -429,7 +429,7 @@ public:
     class A : public HookFunctionBase1<void, ArgT&> {
     public:
         A(CallClassT* host_) : host(host_) { }
-        void operator()(ArgT& obj) { (host->*memFun)(obj); }
+        void operator()(ArgT& obj) const { (host->*memFun)(obj); }
         A* clone() const { return new A(host); }
 
     private:
@@ -440,7 +440,7 @@ public:
     class N : public HookFunctionBase1<void, ArgT&> {
     public:
         N(CallClassT* host_) : host(host_) { }
-        void operator()(ArgT&) { (host->*memFun)(); }
+        void operator()(ArgT&) const { (host->*memFun)(); }
         N* clone() const { return new N(host); }
 
     private:
@@ -455,7 +455,7 @@ public:
     class A : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
     public:
         A(CallClassT* host_) : host(host_) { }
-        bool operator()(ArgT& obj, char scan, unsigned char chr) { return (host->*memFun)(obj, scan, chr); }
+        bool operator()(ArgT& obj, char scan, unsigned char chr) const { return (host->*memFun)(obj, scan, chr); }
         A* clone() const { return new A(host); }
 
     private:
@@ -466,7 +466,7 @@ public:
     class N : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
     public:
         N(CallClassT* host_) : host(host_) { }
-        bool operator()(ArgT&, char scan, unsigned char chr) { return (host->*memFun)(scan, chr); }
+        bool operator()(ArgT&, char scan, unsigned char chr) const { return (host->*memFun)(scan, chr); }
         N* clone() const { return new N(host); }
 
     private:
