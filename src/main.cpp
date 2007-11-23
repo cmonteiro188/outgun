@@ -182,7 +182,7 @@ int main(int argc, const char* argv[]) {
 END_OF_MAIN()
 #endif
 
-int wrappedMain(int argc, const char* argv[]) throw () {
+static int wrappedMain(int argc, const char* argv[]) throw () {
     g_timeCounter.setZero();
 
     check_utf8_mode();
@@ -226,7 +226,7 @@ int wrappedMain(int argc, const char* argv[]) throw () {
     return err;
 }
 
-void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) throw () {
+static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) throw () {
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING.c_str(), GAME_PROTOCOL.c_str(), getVersionString().c_str());
 
     bool showFirstTimeSplash = true;
