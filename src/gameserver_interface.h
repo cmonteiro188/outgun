@@ -28,6 +28,7 @@
 
 #include <string>
 #include "commont.h"
+#include "function_utility.h"
 #include "utility.h"
 
 class Server;
@@ -49,8 +50,8 @@ public:
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads; all must be set properly when used
     bool threadLock;    // disable all concurrency?
 
-    typedef void StatusOutputFnT(const std::string& str);
-    StatusOutputFnT* statusOutput;  // must be set properly (non-null) when used
+    typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+    StatusOutputFnT statusOutput;  // must be set properly (non-null) when used
     bool showErrorCount;
     bool ownScreen;
 

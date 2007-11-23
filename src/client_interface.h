@@ -29,6 +29,8 @@
 
 #include <nl.h>
 
+#include "function_utility.h"
+
 class Client;
 class ServerExternalSettings;
 class Log;
@@ -48,10 +50,10 @@ public:
     std::string autoReplay;
     std::string autoSpectate;
 
-    typedef void StatusOutputFnT(const std::string& str);
-    StatusOutputFnT* statusOutput;
+    typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+    StatusOutputFnT statusOutput;
 
-    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0) { }
+    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
 };
 
 class ClientInterface {

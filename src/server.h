@@ -240,7 +240,7 @@ class Server : private NoCopying {
         void set_balance_bot(bool val) { balance_bot = val; }
 
         bool ownScreen() const { return extConfig.ownScreen; }
-        ServerExternalSettings::StatusOutputFnT* statusOutput() const { return extConfig.statusOutput; }
+        ServerExternalSettings::StatusOutputFnT statusOutput() const { return extConfig.statusOutput; }
         bool showErrorCount() const { return extConfig.showErrorCount; }
         int lowerPriority() const { return extConfig.lowerPriority; }
         int networkPriority() const { return extConfig.networkPriority; }

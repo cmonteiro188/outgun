@@ -53,8 +53,8 @@ public:
     public:
         virtual ~Settings() { }
 
-        typedef void StatusOutputFnT(const std::string& str);
-        virtual StatusOutputFnT* statusOutput() const = 0;
+        typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+        virtual StatusOutputFnT statusOutput() const = 0;
         virtual bool showErrorCount() const = 0;
         virtual int lowerPriority() const = 0;
         virtual int networkPriority() const = 0;

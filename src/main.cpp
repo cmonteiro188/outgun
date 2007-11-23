@@ -564,14 +564,16 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     // run dedicated server
     if (serverCfg.dedserver) {
-        if (textserver)
-            serverCfg.statusOutput = statusOutputText;
-        #ifndef DEDICATED_SERVER_ONLY
+        #ifdef DEDICATED_SERVER_ONLY
+        serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
+        #else
+        bool withGraphics = false;
+        if (textserver || !set_shitty_mode(log)) // if 320×240 mode can't be set, use textserver
+            serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
         else {
-            if (!set_shitty_mode(log))  // if 320×240 mode can't be set, use textserver
-                serverCfg.statusOutput = statusOutputText;
-            else
-                serverCfg.statusOutput = statusOutputWindow;
+            serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+            serverCfg.ownScreen = true;
+            withGraphics = true;
         }
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
@@ -583,10 +585,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else
             log("Switch_backamnesia set ok.");
 
-        if (serverCfg.statusOutput == statusOutputWindow) {
+        if (withGraphics)
             GlobalDisplaySwitchHook::install();
-            serverCfg.ownScreen = true;
-        }
         #endif
 
         if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
@@ -623,8 +623,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             return;
 
         // run client
-        clientCfg.statusOutput = statusOutputWindow;
-        serverCfg.statusOutput = statusOutputWindow;
+        clientCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+        serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
         log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
         ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);
