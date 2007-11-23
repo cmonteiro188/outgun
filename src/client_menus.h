@@ -105,16 +105,16 @@ enum ClientCfgSetting {
 
 class SettingCollector {
 public:
-    virtual ~SettingCollector() { }
+    virtual ~SettingCollector() throw () { }
 
     class SaverLoader {
     public:
-        virtual ~SaverLoader() { }
-        virtual void save(std::ostream& o) const = 0;
-        virtual void load(const std::string& s) = 0;
+        virtual ~SaverLoader() throw () { }
+        virtual void save(std::ostream& o) const throw () = 0;
+        virtual void load(const std::string& s) throw () = 0;
     };
 
-    virtual void add(ClientCfgSetting key, SaverLoader* sl) = 0; // ownership of sl is transferred
+    virtual void add(ClientCfgSetting key, SaverLoader* sl) throw () = 0; // ownership of sl is transferred
 };
 
 class Menu_addServer {
@@ -124,8 +124,8 @@ public:
 
     Menu menu;
 
-    Menu_addServer();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_addServer() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_serverList {
@@ -143,13 +143,13 @@ public:
 
     Menu menu;
 
-    Menu_serverList();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_serverList() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void add(const Network::Address& address, const std::string& serverInfo);
-    void reset();
-    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook);
-    Network::Address getAddress(const Textarea& target);
+    void add(const Network::Address& address, const std::string& serverInfo) throw ();
+    void reset() throw ();
+    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) throw ();
+    Network::Address getAddress(const Textarea& target) throw ();
 };
 
 class Menu_player {
@@ -164,8 +164,8 @@ public:
 
     Menu menu;
 
-    Menu_player();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_player() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_game {
@@ -197,8 +197,8 @@ public:
 
     Menu menu;
 
-    Menu_game();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_game() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_controls {
@@ -233,8 +233,8 @@ public:
 
     Menu menu;
 
-    Menu_controls();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_controls() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_screenMode {
@@ -242,7 +242,7 @@ class Menu_screenMode {
     int oldDepth;
     bool oldWin, oldFlip;
 
-    void reloadChoices(const Graphics& gfx);
+    void reloadChoices(const Graphics& gfx) throw ();
 
 public:
     Select<int>         colorDepth;
@@ -256,16 +256,16 @@ public:
 
     Menu menu;
 
-    Menu_screenMode();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_screenMode() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void init(const Graphics& gfx);   // call just once, before calling update
-    void update(const Graphics& gfx); // tries to keep the selected resolution
-    bool newMode(); // returns true if the current selection differs from the one at last call
+    void init(const Graphics& gfx) throw ();   // call just once, before calling update
+    void update(const Graphics& gfx) throw (); // tries to keep the selected resolution
+    bool newMode() throw (); // returns true if the current selection differs from the one at last call
 };
 
 class Menu_theme {
-    void reloadChoices(const Graphics& gfx);
+    void reloadChoices(const Graphics& gfx) throw ();
 
 public:
     Select<std::string> theme;
@@ -277,11 +277,11 @@ public:
 
     Menu menu;
 
-    Menu_theme();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_theme() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void init(const Graphics& gfx); // call just once, before calling update
-    void update(const Graphics& gfx);   // tries to keep the selected choices
+    void init(const Graphics& gfx) throw (); // call just once, before calling update
+    void update(const Graphics& gfx) throw ();   // tries to keep the selected choices
 };
 
 class Menu_graphics {
@@ -315,12 +315,12 @@ public:
 
     Menu menu;
 
-    Menu_graphics();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_graphics() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    bool showName(bool sameRoom) const { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
-    bool emphasizeFlag(double visible_rooms) const { return emphasizeFlags() != FE_Never && (visible_rooms >= 2. || emphasizeFlags() == FE_Always); }
-    bool showNeighborMarkers(bool replaying, double visible_rooms) const;
+    bool showName(bool sameRoom) const throw () { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
+    bool emphasizeFlag(double visible_rooms) const throw () { return emphasizeFlags() != FE_Never && (visible_rooms >= 2. || emphasizeFlags() == FE_Always); }
+    bool showNeighborMarkers(bool replaying, double visible_rooms) const throw ();
 };
 
 class Menu_sounds {
@@ -331,11 +331,11 @@ public:
 
     Menu menu;
 
-    Menu_sounds();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_sounds() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void init(const Sounds& snd);
-    void update(const Sounds& snd); // tries to keep the selected theme
+    void init(const Sounds& snd) throw ();
+    void update(const Sounds& snd) throw (); // tries to keep the selected theme
 };
 
 class Menu_language {
@@ -344,25 +344,25 @@ public:
 
     Menu menu;
 
-    Menu_language();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_language() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_bugReportPolicy {
     std::vector<std::string> lines;
 
-    void init();
+    void init() throw ();
 
 public:
     Textobject text;
     Select<AutoBugReporting> policy;
 
     Menu menu;
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    Menu_bugReportPolicy();
-    void clear() { lines.clear(); }
-    void addLine(const std::string& line);
+    Menu_bugReportPolicy() throw ();
+    void clear() throw () { lines.clear(); }
+    void addLine(const std::string& line) throw ();
 };
 
 class Menu_options {
@@ -379,8 +379,8 @@ public:
 
     Menu menu;
 
-    Menu_options();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_options() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_help {
@@ -391,11 +391,11 @@ public:
 
     Menu menu;
 
-    Menu_help();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_help() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void clear() { lines.clear(); }
-    void addLine(const std::string& line);
+    void clear() throw () { lines.clear(); }
+    void addLine(const std::string& line) throw ();
 };
 
 class Menu_ownServer {
@@ -410,12 +410,12 @@ public:
 
     Menu menu;
 
-    Menu_ownServer();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_ownServer() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void init(const std::string& detectedAddress);
-    void refreshCaption(bool serverRunning);
-    void refreshEnables(bool serverRunning, bool connected);
+    void init(const std::string& detectedAddress) throw ();
+    void refreshCaption(bool serverRunning) throw ();
+    void refreshEnables(bool serverRunning, bool connected) throw ();
 
 private:
     std::string detectedIP;
@@ -428,13 +428,13 @@ public:
 
     Menu menu;
 
-    Menu_replays();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_replays() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void add(const std::string& replay, const std::string& text);
-    void reset();
-    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook);
-    const std::string& getFile(const Textarea& target);
+    void add(const std::string& replay, const std::string& text) throw ();
+    void reset() throw ();
+    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw ();
+    const std::string& getFile(const Textarea& target) throw ();
 };
 
 class Menu_main {
@@ -450,8 +450,8 @@ public:
 
     Menu menu;
 
-    Menu_main();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_main() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
 class Menu_text {
@@ -464,13 +464,13 @@ public:
 
     Menu menu;
 
-    Menu_text();
-    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector);
+    Menu_text() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void clear() { lines.clear(); }
-    void addLine(const std::string& line, bool cancelable = false);
-    void addLine(const std::string& caption, const std::string& value, bool cancelable = false, bool passive = false); // passive means neither accept nor cancel is used
-    void wrapLine(const std::string& line, bool cancelable = false, int wrapPos = 68);
+    void clear() throw () { lines.clear(); }
+    void addLine(const std::string& line, bool cancelable = false) throw ();
+    void addLine(const std::string& caption, const std::string& value, bool cancelable = false, bool passive = false) throw (); // passive means neither accept nor cancel is used
+    void wrapLine(const std::string& line, bool cancelable = false, int wrapPos = 68) throw ();
 };
 
 class Menu_playerPassword {
@@ -480,8 +480,8 @@ public:
 
     Menu menu;
 
-    Menu_playerPassword();
-    void setup(const std::string& plyName, bool saveChecked);
+    Menu_playerPassword() throw ();
+    void setup(const std::string& plyName, bool saveChecked) throw ();
 };
 
 class Menu_serverPassword {
@@ -490,7 +490,7 @@ public:
 
     Menu menu;
 
-    Menu_serverPassword();
+    Menu_serverPassword() throw ();
 };
 
 #endif  // CLIENT_MENUS_H_INC

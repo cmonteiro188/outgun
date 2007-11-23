@@ -60,11 +60,11 @@ public:
     bool        next_participation;
     bool        participation_info_received;
 
-    ClientData() {
+    ClientData() throw () {
         reset();
     }
 
-    void reset() {
+    void reset() throw () {
         delta_score = 0;
         neg_delta_score = 0;
         fdp = 0.0;
@@ -112,8 +112,8 @@ class Server : private NoCopying {
     bool check_bots;
     bool bot_ping_changed;
 
-    void init_bots();
-    void run_bot_thread();
+    void init_bots() throw ();
+    void run_bot_thread() throw ();
 
     // world
     ServerWorld     world;
@@ -177,123 +177,123 @@ class Server : private NoCopying {
 
         class DisposerBase {
         public:
-            virtual ~DisposerBase() { }
-            virtual void dispose() = 0;
+            virtual ~DisposerBase() throw () { }
+            virtual void dispose() throw () = 0;
         };
 
         template<class T> class Disposer : public DisposerBase {
             T* ptr;
         public:
-            Disposer(T* ptr_) : ptr(ptr_) { }
-            void dispose() { delete ptr; }
+            Disposer(T* ptr_) throw () : ptr(ptr_) { }
+            void dispose() throw () { delete ptr; }
         };
 
         std::vector<DisposerBase*> redirectFnDisposers;
 
-        template<class T> T* addFn(T* ptr) { redirectFnDisposers.push_back(new Disposer<T>(ptr)); return ptr; }
+        template<class T> T* addFn(T* ptr) throw () { redirectFnDisposers.push_back(new Disposer<T>(ptr)); return ptr; }
 
         struct Category { // no pointers contained are owned by this object
             const char* identifier;
             const char* descriptiveName;
             std::vector<GamemodSetting*> settings;
 
-            Category(const char* id, const char* name) : identifier(id), descriptiveName(name) { }
-            void add(GamemodSetting* setting) { settings.push_back(setting); }
+            Category(const char* id, const char* name) throw () : identifier(id), descriptiveName(name) { }
+            void add(GamemodSetting* setting) throw () { settings.push_back(setting); }
         };
         std::vector<Category> categories;
         bool built, builtForReload;
 
-        static bool checkMaxplayerSetting(int val) { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }
-        static bool checkForceIpValue(const std::string& val);
-        static std::string returnEmptyString() { return std::string(); }
-        bool trySetMaxplayers(int val);
-        bool setForceIP(const std::string& val);
-        void setRandomMaprot(int val);
-        const std::string& getForceIP() const;
-        int getMaxplayers() const;
-        int getRandomMaprot() const;
+        static bool checkMaxplayerSetting(int val) throw () { return (val >= 2 && val <= MAX_PLAYERS && val % 2 == 0); }
+        static bool checkForceIpValue(const std::string& val) throw ();
+        static std::string returnEmptyString() throw () { return std::string(); }
+        bool trySetMaxplayers(int val) throw ();
+        bool setForceIP(const std::string& val) throw ();
+        void setRandomMaprot(int val) throw ();
+        const std::string& getForceIP() const throw ();
+        int getMaxplayers() const throw ();
+        int getRandomMaprot() const throw ();
 
-        void free();
-        void build(bool reload);
-        void commit(bool reload);
-        void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const;
+        void free() throw ();
+        void build(bool reload) throw ();
+        void commit(bool reload) throw ();
+        void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const throw ();
 
     public:
-        SettingManager(Server& server_, const ServerExternalSettings& extConfig_) : server(server_), network(server_.network), world(server_.world),
+        SettingManager(Server& server_, const ServerExternalSettings& extConfig_) throw () : server(server_), network(server_.network), world(server_.world),
                 extConfig(extConfig_), ipAddress(extConfig.ipAddress), port(extConfig.port), built(false) { }
-        ~SettingManager() { free(); }
+        ~SettingManager() throw () { free(); }
 
-        std::vector<std::string> listSettings(const GamemodAccessDescriptor& access);
-        std::vector<std::string> executeLine(const std::string& line, const GamemodAccessDescriptor& access);
-        void loadGamemod(bool reload);
+        std::vector<std::string> listSettings(const GamemodAccessDescriptor& access) throw ();
+        std::vector<std::string> executeLine(const std::string& line, const GamemodAccessDescriptor& access) throw ();
+        void loadGamemod(bool reload) throw ();
 
-        bool isGamemodCommand(const std::string& cmd, bool includeCategories); // can't be const because might need to build()
+        bool isGamemodCommand(const std::string& cmd, bool includeCategories) throw (); // can't be const because might need to build()
 
-        bool isGamemodCommand(const std::string& cmd) { return isGamemodCommand(cmd, false); }
-        bool isGamemodCommandOrCategory(const std::string& cmd) { return isGamemodCommand(cmd, true); }
+        bool isGamemodCommand(const std::string& cmd) throw () { return isGamemodCommand(cmd, false); }
+        bool isGamemodCommandOrCategory(const std::string& cmd) throw () { return isGamemodCommand(cmd, true); }
 
-        void reset();
+        void reset() throw ();
 
-        void set_min_bots(int val) { min_bots = val; }
-        void set_bots_fill(int val) { bots_fill = val; }
-        void set_bot_ping(int val) { bot_ping = val; }
-        void set_balance_bot(bool val) { balance_bot = val; }
+        void set_min_bots(int val) throw () { min_bots = val; }
+        void set_bots_fill(int val) throw () { bots_fill = val; }
+        void set_bot_ping(int val) throw () { bot_ping = val; }
+        void set_balance_bot(bool val) throw () { balance_bot = val; }
 
-        bool ownScreen() const { return extConfig.ownScreen; }
-        ServerExternalSettings::StatusOutputFnT statusOutput() const { return extConfig.statusOutput; }
-        bool showErrorCount() const { return extConfig.showErrorCount; }
-        int lowerPriority() const { return extConfig.lowerPriority; }
-        int networkPriority() const { return extConfig.networkPriority; }
-        int minLocalPort() const { return extConfig.minLocalPort; }
-        int maxLocalPort() const { return extConfig.maxLocalPort; }
-        bool dedicated() const { return extConfig.dedserver; }
+        bool ownScreen() const throw () { return extConfig.ownScreen; }
+        ServerExternalSettings::StatusOutputFnT statusOutput() const throw () { return extConfig.statusOutput; }
+        bool showErrorCount() const throw () { return extConfig.showErrorCount; }
+        int lowerPriority() const throw () { return extConfig.lowerPriority; }
+        int networkPriority() const throw () { return extConfig.networkPriority; }
+        int minLocalPort() const throw () { return extConfig.minLocalPort; }
+        int maxLocalPort() const throw () { return extConfig.maxLocalPort; }
+        bool dedicated() const throw () { return extConfig.dedserver; }
 
-        bool privateServer() const { return privateserver; }
-        const std::string& ip() const { return ipAddress; }
-        int get_port() const { return port; }
-        int get_srvmonit_port() const { return srvmonit_port; }
+        bool privateServer() const throw () { return privateserver; }
+        const std::string& ip() const throw () { return ipAddress; }
+        int get_port() const throw () { return port; }
+        int get_srvmonit_port() const throw () { return srvmonit_port; }
 
-        int minimapSendLimit() const { return minimap_send_limit; }
+        int minimapSendLimit() const throw () { return minimap_send_limit; }
 
-        int  get_game_end_delay() const { return game_end_delay; }
-        int  get_vote_block_time() const { return vote_block_time; }
-        bool get_require_specific_map_vote() const { return require_specific_map_vote; }
+        int  get_game_end_delay() const throw () { return game_end_delay; }
+        int  get_vote_block_time() const throw () { return vote_block_time; }
+        bool get_require_specific_map_vote() const throw () { return require_specific_map_vote; }
 
-        const std::vector<std::string>& get_welcome_message() const { return welcome_message; }
-        const std::vector<std::string>& get_info_message() const { return info_message; }
-        const std::string& get_sayadmin_comment() const { return sayadmin_comment; }
-        bool get_sayadmin_enabled() const { return sayadmin_enabled; }
+        const std::vector<std::string>& get_welcome_message() const throw () { return welcome_message; }
+        const std::vector<std::string>& get_info_message() const throw () { return info_message; }
+        const std::string& get_sayadmin_comment() const throw () { return sayadmin_comment; }
+        bool get_sayadmin_enabled() const throw () { return sayadmin_enabled; }
 
-        int  get_idlekick_time() const { return idlekick_time; }
-        int  get_idlekick_playerlimit() const { return idlekick_playerlimit; }
+        int  get_idlekick_time() const throw () { return idlekick_time; }
+        int  get_idlekick_playerlimit() const throw () { return idlekick_playerlimit; }
 
-        int  get_min_bots() const { return min_bots; }
-        int  get_bots_fill() const { return bots_fill; }
-        int  get_bot_ping() const { return bot_ping; }
-        bool get_balance_bot() const { return balance_bot; }
-        const std::string& get_bot_name_lang() const { return bot_name_lang; }
+        int  get_min_bots() const throw () { return min_bots; }
+        int  get_bots_fill() const throw () { return bots_fill; }
+        int  get_bot_ping() const throw () { return bot_ping; }
+        bool get_balance_bot() const throw () { return balance_bot; }
+        const std::string& get_bot_name_lang() const throw () { return bot_name_lang; }
 
-        bool get_tournament() const { return tournament; }
-        int  get_save_stats() const { return save_stats; }
+        bool get_tournament() const throw () { return tournament; }
+        int  get_save_stats() const throw () { return save_stats; }
 
-        bool get_random_maprot() const { return random_maprot; }
-        bool get_random_first_map() const { return random_first_map; }
+        bool get_random_maprot() const throw () { return random_maprot; }
+        bool get_random_first_map() const throw () { return random_first_map; }
 
-        const std::string& get_server_website_url() const { return server_website_url; }
+        const std::string& get_server_website_url() const throw () { return server_website_url; }
 
-        int  get_recording() const { return recording; }
+        int  get_recording() const throw () { return recording; }
 
-        int get_join_start() const { return join_start; }
-        int get_join_end() const { return join_end; }
-        const std::string& get_join_limit_message() const { return join_limit_message; }
+        int get_join_start() const throw () { return join_start; }
+        int get_join_end() const throw () { return join_end; }
+        const std::string& get_join_limit_message() const throw () { return join_limit_message; }
 
-        const std::vector<std::string>& get_web_servers() const { return web_servers; }
-        const std::string& get_web_script() const { return web_script; }
-        const std::string& get_web_auth() const { return web_auth; }
-        int get_web_refresh() const { return web_refresh; }
+        const std::vector<std::string>& get_web_servers() const throw () { return web_servers; }
+        const std::string& get_web_script() const throw () { return web_script; }
+        const std::string& get_web_auth() const throw () { return web_auth; }
+        int get_web_refresh() const throw () { return web_refresh; }
 
-        const std::string& get_hostname() const { return hostname; }
-        const std::string& get_server_password() const { return server_password; }
+        const std::string& get_hostname() const throw () { return hostname; }
+        const std::string& get_server_password() const throw () { return server_password; }
     };
 
     SettingManager settings;
@@ -311,93 +311,93 @@ class Server : private NoCopying {
     std::string record_map;
     int end_game_human_count;  // used for deciding whether to keep the record file
 
-    bool loadAuthorizations();
-    void saveAuthorizations() const;
+    bool loadAuthorizations() throw ();
+    void saveAuthorizations() const throw ();
 
-    AuthorizationDatabase::AccessDescriptor getAccess(int pid);
+    AuthorizationDatabase::AccessDescriptor getAccess(int pid) throw ();
 
-    void doKickPlayer(int pid, int admin, int minutes);   // if minutes > 0, it's really a ban
+    void doKickPlayer(int pid, int admin, int minutes) throw ();   // if minutes > 0, it's really a ban
 
-    bool trySetMaxplayers(int val); // checks that no players are connected, if that fails, logs an error and returns false
-    void setMaxPlayers(int num) { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
+    bool trySetMaxplayers(int val) throw (); // checks that no players are connected, if that fails, logs an error and returns false
+    void setMaxPlayers(int num) throw () { maxplayers = num; world.setMaxPlayers(num); network.setMaxPlayers(num); }
 
-    void start_recording();
-    void stop_recording();
-    void delete_recording();
-    void record_init_data();
+    void start_recording() throw ();
+    void stop_recording() throw ();
+    void delete_recording() throw ();
+    void record_init_data() throw ();
 
 public:
-    Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
-    virtual ~Server();
+    Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix) throw ();  // externalErrorLog must outlive the Server object
+    virtual ~Server() throw ();
 
-    bool start(int target_maxplayers);
-    void loop(volatile bool *quitFlag, bool quitOnEsc);
-    void stop();
+    bool start(int target_maxplayers) throw ();
+    void loop(volatile bool *quitFlag, bool quitOnEsc) throw ();
+    void stop() throw ();
 
-    void ctf_game_restart();
-    void simulate_and_broadcast_frame();
-    void server_think_after_broadcast();
-    bool game_running() const { return !gameover; }
+    void ctf_game_restart() throw ();
+    void simulate_and_broadcast_frame() throw ();
+    void server_think_after_broadcast() throw ();
+    bool game_running() const throw () { return !gameover; }
 
-    int get_player_count() const { return network.get_player_count(); }
-    void mutePlayer(int pid, int mode, int admin);
-    void kickPlayer(int pid, int admin);
-    void banPlayer(int pid, int admin, int minutes);
-    bool isBanned(int cid) const { return authorizations.isBanned(network.get_client_address(cid)); }
-    bool check_name_password(const std::string& name, const std::string& password) const;
-    void disconnectPlayer(int pid, Disconnect_reason reason);
-    void sendMessage(int pid, Message_type type, const std::string& msg);
+    int get_player_count() const throw () { return network.get_player_count(); }
+    void mutePlayer(int pid, int mode, int admin) throw ();
+    void kickPlayer(int pid, int admin) throw ();
+    void banPlayer(int pid, int admin, int minutes) throw ();
+    bool isBanned(int cid) const throw () { return authorizations.isBanned(network.get_client_address(cid)); }
+    bool check_name_password(const std::string& name, const std::string& password) const throw ();
+    void disconnectPlayer(int pid, Disconnect_reason reason) throw ();
+    void sendMessage(int pid, Message_type type, const std::string& msg) throw ();
 
-    void remove_bot();
-    void set_check_bots() { check_bots = true; }
+    void remove_bot() throw ();
+    void set_check_bots() throw () { check_bots = true; }
 
-    void logAdminAction(int admin, const std::string& action, int target = pid_none);
+    void logAdminAction(int admin, const std::string& action, int target = pid_none) throw ();
 
-    void balance_teams();
-    void shuffle_teams();
-    void check_team_changes();
-    void check_player_change_teams(int pid);
-    void move_player(int f, int t);
-    void swap_players(int a, int b);
-    void game_remove_player(int pid, bool removeClient);
-    void check_fav_colors(int pid);
-    void set_fav_colors(int pid, const std::vector<char>& colors);
+    void balance_teams() throw ();
+    void shuffle_teams() throw ();
+    void check_team_changes() throw ();
+    void check_player_change_teams(int pid) throw ();
+    void move_player(int f, int t) throw ();
+    void swap_players(int a, int b) throw ();
+    void game_remove_player(int pid, bool removeClient) throw ();
+    void check_fav_colors(int pid) throw ();
+    void set_fav_colors(int pid, const std::vector<char>& colors) throw ();
 
-    void nameChange(int id, int pid, std::string name, const std::string& password);
-    void chat(int pid, const std::string& sbuf);   //#fix: separate console handling
+    void nameChange(int id, int pid, std::string name, const std::string& password) throw ();
+    void chat(int pid, const std::string& sbuf) throw ();   //#fix: separate console handling
 
-    const ClientData& getClientData(int cid) const { return client[cid]; }
-          ClientData& getClientData(int cid)       { return client[cid]; }
-    bool changeRegistration(int id, const std::string& token);  // returns true if the token is different from before and non-empty
-    void resetClient(int cid) { client[cid].reset(); }
-    void refresh_team_score_modifiers();
-    void check_map_exit();
-    bool specific_map_vote_required() const { return settings.get_require_specific_map_vote(); } //#fix
-    void score_frag(int p, int amount, bool forTournament = true);
-    void score_neg(int p, int amount, bool forTournament = true);
-    int getLessScoredTeam() const;  // using team_smul ; call refresh_team_score_modifiers before calling this
-    bool isLocallyAuthorized(int pid) const;
-    bool isAdmin(int pid) const;
+    const ClientData& getClientData(int cid) const throw () { return client[cid]; }
+          ClientData& getClientData(int cid) throw ()       { return client[cid]; }
+    bool changeRegistration(int id, const std::string& token) throw ();  // returns true if the token is different from before and non-empty
+    void resetClient(int cid) throw () { client[cid].reset(); }
+    void refresh_team_score_modifiers() throw ();
+    void check_map_exit() throw ();
+    bool specific_map_vote_required() const throw () { return settings.get_require_specific_map_vote(); } //#fix
+    void score_frag(int p, int amount, bool forTournament = true) throw ();
+    void score_neg(int p, int amount, bool forTournament = true) throw ();
+    int getLessScoredTeam() const throw ();  // using team_smul ; call refresh_team_score_modifiers before calling this
+    bool isLocallyAuthorized(int pid) const throw ();
+    bool isAdmin(int pid) const throw ();
 
-    bool load_rotation_map(int pos);
-    bool server_next_map(int reason, const std::string& currmap_title_override = std::string());
-    const MapInfo& current_map() const { return maprot[currmap]; }
-    int current_map_nr() const { return currmap; }
-    const std::string& getCurrentMapFile() const { return maprot[currmap].file; }
-    const std::vector<MapInfo>& maplist() const { return maprot; }
-    std::vector<MapInfo>& maplist() { return maprot; }
+    bool load_rotation_map(int pos) throw ();
+    bool server_next_map(int reason, const std::string& currmap_title_override = std::string()) throw ();
+    const MapInfo& current_map() const throw () { return maprot[currmap]; }
+    int current_map_nr() const throw () { return currmap; }
+    const std::string& getCurrentMapFile() const throw () { return maprot[currmap].file; }
+    const std::vector<MapInfo>& maplist() const throw () { return maprot; }
+    std::vector<MapInfo>& maplist() throw () { return maprot; }
 
-    const std::vector<std::string>& getWelcomeMessage() const { return settings.get_welcome_message(); } //#fix?
+    const std::vector<std::string>& getWelcomeMessage() const throw () { return settings.get_welcome_message(); } //#fix?
 
-    const std::string& server_website() const { return settings.get_server_website_url(); } //#fix?
+    const std::string& server_website() const throw () { return settings.get_server_website_url(); } //#fix?
 
-    bool tournament_active() const { return settings.get_tournament(); }
+    bool tournament_active() const throw () { return settings.get_tournament(); }
 
-    bool reset_settings(bool reload);   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
+    bool reset_settings(bool reload) throw ();   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
-    bool recording_active() const;
-    std::ostream& record_stream() const { return record_frame; }
-    const std::string& record_map_data() const { return record_map; }
+    bool recording_active() const throw ();
+    std::ostream& record_stream() const throw () { return record_frame; }
+    const std::string& record_map_data() const throw () { return record_map; }
 };
 
 #endif

@@ -43,10 +43,10 @@ const int S_W = plw;
 const int S_H = plh;
 const int FADEOUT = 50;
 
-inline GunDirection inv_dir(GunDirection dir) { return dir.adjust(4); }
-inline int inv_dir(int dir) { return dir ^ 4; }
+inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
+inline int inv_dir(int dir) throw () { return dir ^ 4; }
 
-bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
+bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const throw () {
     const double tx = mex + dx;
     const double ty = mey + dy;
     const double dist = sqrt(sqr(dx) + sqr(dy));
@@ -77,7 +77,7 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const {
     return false;
 }
 
-double Client::ScanDir(double mex, double mey, GunDirection dir) const {
+double Client::ScanDir(double mex, double mey, GunDirection dir) const throw () {
     const double deg = dir.toRad();
 
     const double sx = cos(deg) * 2 * SCAN_RADIUS;
@@ -106,7 +106,7 @@ double Client::ScanDir(double mex, double mey, GunDirection dir) const {
     return sqrt((tx - mex) * (tx - mex) + (ty - mey) * (ty - mey));
 }
 
-int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+int Client::IsAimed(double mex, double mey, int i) const throw () { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     nAssert(!fx.physics.allowFreeTurning);
 
     // XXX?
@@ -146,11 +146,11 @@ int Client::IsAimed(double mex, double mey, int i) const { // return 2 if in hit
     return fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2) ? 2 : 1;
 }
 
-GunDirection Client::GetDir(double dx, double dy) const {
+GunDirection Client::GetDir(double dx, double dy) const throw () {
     return GunDirection().fromRad(atan2(dy, dx));
 }
 
-int Client::GetDangerousRocket() const {
+int Client::GetDangerousRocket() const throw () {
     static const int thinkAheadFrames = 10;
     static const double safetyRoomMul = 4., framesAfterBounce = .5;
 
@@ -184,7 +184,7 @@ int Client::GetDangerousRocket() const {
     return nearRocket;
 }
 
-int Client::GetEasyEnemy(double mex, double mey) const {
+int Client::GetEasyEnemy(double mex, double mey) const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -230,7 +230,7 @@ int Client::GetEasyEnemy(double mex, double mey) const {
     return target;
 }
 
-int Client::GetDangerousEnemy(double mex, double mey) const {
+int Client::GetDangerousEnemy(double mex, double mey) const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -290,7 +290,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const {
     return target;
 }
 
-int Client::GetNearestEnemy(double mex, double mey) const {
+int Client::GetNearestEnemy(double mex, double mey) const throw () {
     int target = -1;
     double mdist = 0;
 
@@ -320,7 +320,7 @@ int Client::GetNearestEnemy(double mex, double mey) const {
     return target;
 }
 
-pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) const {
+pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
     const double ttx = fx.player[target].lx + averageLag * fx.player[target].sx;
@@ -341,7 +341,7 @@ pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) cons
     return make_pair(!IsBehindWall(mex, mey, dx, dy), GetDir(dx, dy));
 }
 
-double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const {
+double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw () {
     const ClientPlayer& target = fx.player[iTarget];
 
     if (!target.onscreen || target.dead)
@@ -368,7 +368,7 @@ double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int i
     return sqrt(sqr(dx) + sqr(dy)) < 3 * PLAYER_RADIUS ? hitTime : 1e100;
 }
 
-double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const {
+double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw () {
     double hitTime = 1e100;
     if (fx.physics.friendly_fire == 0)
         return hitTime;
@@ -378,7 +378,7 @@ double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& di
     return hitTime;
 }
 
-pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDirection& defaultDir) {
+pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw () {
     const ClientPlayer& player = fx.player[me];
 
     vector<int> tryOrder;
@@ -417,7 +417,7 @@ pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDire
     return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
-ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
+ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
     const double sdx = rocket.x + averageLag * rocket.sx - mex;
     const double sdy = rocket.y + averageLag * rocket.sy - mey;
@@ -467,7 +467,7 @@ ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const {
     return ctrl;
 }
 
-ClientControls Client::Aim(double mex, double mey, int i) const {
+ClientControls Client::Aim(double mex, double mey, int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
@@ -511,7 +511,7 @@ ClientControls Client::Aim(double mex, double mey, int i) const {
     return ctrl;
 }
 
-int Client::FreeDir(double mex, double mey) const {
+int Client::FreeDir(double mex, double mey) const throw () {
     int mdir = 0;
     double mdist = 0;
 
@@ -529,7 +529,7 @@ int Client::FreeDir(double mex, double mey) const {
     return mdir;
 }
 
-ClientControls Client::MoveDirNoAggregate(int dir) const {
+ClientControls Client::MoveDirNoAggregate(int dir) const throw () {
     double sdx = 0;
     double sdy = 0;
 
@@ -604,7 +604,7 @@ ClientControls Client::MoveDirNoAggregate(int dir) const {
     return ctrl;
 }
 
-ClientControls Client::MoveDir(int dir) const {
+ClientControls Client::MoveDir(int dir) const throw () {
     ClientControls ctrl;
     ctrl.setRun();
     switch(dir) {
@@ -640,11 +640,11 @@ ClientControls Client::MoveDir(int dir) const {
     return ctrl;
 }
 
-ClientControls Client::FreeWalk(double mex, double mey) const {
+ClientControls Client::FreeWalk(double mex, double mey) const throw () {
     return MoveDirNoAggregate(FreeDir(mex, mey));
 }
 
-ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const {
+ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const throw () {
     if (IsBehindWall(mex, mey, dx, dy)) { //walking
         const int mdir = FreeDir(mex, mey);
         return MoveDir(mdir);
@@ -656,7 +656,7 @@ ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, doub
 }
 
 
-ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) const {
+ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) const throw () {
     int mdir;
     if (IsBehindWall(mex, mey, dx, dy))//walking
         mdir = FreeDir(mex, mey);
@@ -665,7 +665,7 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) cons
     return MoveDir(mdir);
 }
 
-ClientControls Client::GetPowerup(double mex, double mey) const {
+ClientControls Client::GetPowerup(double mex, double mey) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (fx.item[i].kind == Powerup::pup_unused || fx.item[i].kind == Powerup::pup_respawning ||
             fx.item[i].px != fx.player[me].roomx || fx.item[i].py != fx.player[me].roomy)
@@ -675,7 +675,7 @@ ClientControls Client::GetPowerup(double mex, double mey) const {
     return ClientControls();
 }
 
-ClientControls Client::GetFlag(double mex, double mey) const {
+ClientControls Client::GetFlag(double mex, double mey) const throw () {
     const int myTeam = fx.player[me].team();
 
     if (HaveFlag(me)) {
@@ -710,7 +710,7 @@ ClientControls Client::GetFlag(double mex, double mey) const {
     return ClientControls();
 }
 
-int Client::Teams(int x, int y, int& en, int& fr) const {
+int Client::Teams(int x, int y, int& en, int& fr) const throw () {
     int me_nr = -1;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
@@ -738,7 +738,7 @@ int Client::Teams(int x, int y, int& en, int& fr) const {
     return me_nr;
 }
 
-bool Client::AmILast() const {
+bool Client::AmILast() const throw () {
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || !pl.onscreen || pl.dead)
@@ -749,7 +749,7 @@ bool Client::AmILast() const {
     return true;
 }
 
-ClientControls Client::Escape(double mex, double mey) const {
+ClientControls Client::Escape(double mex, double mey) const throw () {
     if (!HaveFlag(me))
         return ClientControls();
 
@@ -776,7 +776,7 @@ ClientControls Client::Escape(double mex, double mey) const {
     return ClientControls();
 }
 
-ClientControls Client::FollowFlag(double mex, double mey) const {
+ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     double dx = 0;
     double dy = 0;
     double sx = 0;
@@ -809,7 +809,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
-bool Client::scan_door(Room& room, int x, int y, int dx, int dy, int len) const {
+bool Client::scan_door(Room& room, int x, int y, int dx, int dy, int len) const throw () {
     const int nr = len / PLAYER_RADIUS;
     for (int i = 0; i < nr; i++) {
         if (!room.fall_on_wall(x, y, PLAYER_RADIUS))
@@ -820,7 +820,7 @@ bool Client::scan_door(Room& room, int x, int y, int dx, int dy, int len) const 
     return false;
 }
 
-void Client::BuildMap() {
+void Client::BuildMap() throw () {
     last_seen = -1;
     myGundir = -1;
 
@@ -849,7 +849,7 @@ void Client::BuildMap() {
     }
 }
 
-void Client::next_room(int& x, int& y, int i) const {
+void Client::next_room(int& x, int& y, int i) const throw () {
     switch (i) {
         case 0:
             --y;
@@ -874,7 +874,7 @@ void Client::next_room(int& x, int& y, int i) const {
     }
 }
 
-int Client::route_room(int& x, int& y, RouteTable num) {
+int Client::route_room(int& x, int& y, RouteTable num) throw () {
     int label = fx.map.room[x][y].label[num];
     if (label == -1) // not labeled
         return 0;
@@ -899,11 +899,11 @@ int Client::route_room(int& x, int& y, RouteTable num) {
     return route_nr;
 }
 
-void Client::BuildRouteTable(int mex, int mey, RouteTable num) {
+void Client::BuildRouteTable(int mex, int mey, RouteTable num) throw () {
     return BuildRouteTable(vector<RoomCoords>(1, RoomCoords(mex, mey)), num);
 }
 
-void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable num) {
+void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable num) throw () {
     const int w = fx.map.w;
     const int h = fx.map.h;
 
@@ -951,7 +951,7 @@ void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable n
     #endif
 }
 
-int Client::BuildRoute(int tox, int toy, RouteTable num) {
+int Client::BuildRoute(int tox, int toy, RouteTable num) throw () {
     #ifdef BOTDEBUG
     static int tox_old = -1, toy_old = -1;
     if (tox != tox_old || toy != toy_old) {
@@ -999,7 +999,7 @@ int Client::BuildRoute(int tox, int toy, RouteTable num) {
     return i;
 }
 
-ClientControls Client::Route(double melx, double mely, RouteTable num) const {
+ClientControls Client::Route(double melx, double mely, RouteTable num) const throw () {
     if (routing[num] == Route_None)
         return ClientControls();
 
@@ -1040,7 +1040,7 @@ ClientControls Client::Route(double melx, double mely, RouteTable num) const {
     return MoveToDoor(melx, mely, dir);
 }
 
-ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const {
+ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const throw () {
     const int mex = int(dmex), mey = int(dmey);
     int fixedBorder, fixedTarget;
     bool xFixed;
@@ -1100,7 +1100,7 @@ ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const {
         return MoveToNoAggregate(mex, mey, 0, fixedTarget - mey);
 }
 
-int Client::GetPlayers(int team) const {
+int Client::GetPlayers(int team) const throw () {
     int npl = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
@@ -1110,7 +1110,7 @@ int Client::GetPlayers(int team) const {
     return npl;
 }
 
-bool Client::IsDefender() {
+bool Client::IsDefender() throw () {
     // get flag base
     const int team = fx.player[me].team();
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
@@ -1141,7 +1141,7 @@ bool Client::IsDefender() {
     return false;
 }
 
-bool Client::RouteLogic(RouteTable num) { // NEED rewrite
+bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
     const int flag = HaveFlag(me);
     routing[num] = Route_None;
 
@@ -1234,7 +1234,7 @@ bool Client::RouteLogic(RouteTable num) { // NEED rewrite
     return routing[num] != Route_None;
 }
 
-bool Client::IsMassive() const {
+bool Client::IsMassive() const throw () {
     double dx = 0, dy = 0;
     int n = 0;
     for (int i = 0; i < maxplayers; ++i) {
@@ -1257,7 +1257,7 @@ bool Client::IsMassive() const {
     return dist <= 2 * PLAYER_RADIUS;
 }
 
-int Client::HaveFlag(int n) const {
+int Client::HaveFlag(int n) const throw () {
     const int t = 1 - fx.player[n].team();
     nAssert(t == 0 || t == 1);
 
@@ -1274,7 +1274,7 @@ int Client::HaveFlag(int n) const {
     return 0;
 }
 
-bool Client::IsFlagAtBase(const Flag& f, int team) const {
+bool Client::IsFlagAtBase(const Flag& f, int team) const throw () {
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
         if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - f.position().x) <= 5. && fabs(bi->y - f.position().y) <= 5.)
@@ -1282,7 +1282,7 @@ bool Client::IsFlagAtBase(const Flag& f, int team) const {
     return false;
 }
 
-int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num) {
+int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num) throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
 
@@ -1301,7 +1301,7 @@ int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable
     return 0;
 }
 
-int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num) {
+int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num) throw () {
     // looking for soldiers
     const bool enemy = (fx.player[me].team() != team);
 
@@ -1337,7 +1337,7 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
     return 0;
 }
 
-bool Client::IsCarriersDef(int team) {
+bool Client::IsCarriersDef(int team) throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     vector<RoomCoords> carrierRooms;
@@ -1367,7 +1367,7 @@ bool Client::IsCarriersDef(int team) {
     return nearer >= teammates / 2;
 }
 
-bool Client::IsHome(int mex, int mey) const {
+bool Client::IsHome(int mex, int mey) const throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
     // our bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
@@ -1376,7 +1376,7 @@ bool Client::IsHome(int mex, int mey) const {
     return false;
 }
 
-bool Client::IsFlagsAtBases(int team) const {
+bool Client::IsFlagsAtBases(int team) const throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
@@ -1395,7 +1395,7 @@ bool Client::IsFlagsAtBases(int team) const {
     return true;
 }
 
-int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num) {
+int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num) throw () {
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
     const bool wantCarried = state == 2 || state == 3;
@@ -1446,7 +1446,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
     return 0; // build route to nearest target
 }
 
-int Client::TargetFog(RouteTable num) {
+int Client::TargetFog(RouteTable num) throw () {
     int roomx = fx.player[me].roomx;
     int roomy = fx.player[me].roomy;
     double delta = 0;
@@ -1496,7 +1496,7 @@ int Client::TargetRoute(int efb, int efd, int efc,
                         int wfb, int wfd, int wfce, int wfcf,
                         int en,  int fr,
                         int eb,  int fb, int wb,
-                        RouteTable num) {
+                        RouteTable num) throw () {
     int m_label = -1;
     int x = -1, y = -1;
     const int t = fx.player[me].team();
@@ -1561,7 +1561,7 @@ int Client::TargetRoute(int efb, int efd, int efc,
     return BuildRoute(x, y, num);
 }
 
-bool Client::IsMission(RouteTable num) const {
+bool Client::IsMission(RouteTable num) const throw () {
     const int to_home = IsHome(route_x[num], route_y[num]);
     // if we are looking for flag or going to our base for something
     if (fx.player[me].roomx == route_x[num] && fx.player[me].roomy == route_y[num])
@@ -1569,7 +1569,7 @@ bool Client::IsMission(RouteTable num) const {
     return HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base;
 }
 
-ClientControls Client::getRobotControls() {
+ClientControls Client::getRobotControls() throw () {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
 
@@ -1634,7 +1634,7 @@ ClientControls Client::getRobotControls() {
     return ctrl;
 }
 
-ClientControls Client::Robot() {
+ClientControls Client::Robot() throw () {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||

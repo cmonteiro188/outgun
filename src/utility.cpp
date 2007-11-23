@@ -55,17 +55,17 @@ using std::setw;
 using std::string;
 using std::vector;
 
-int atoi(const string& str) {
+int atoi(const string& str) throw () {
     return std::atoi(str.c_str());
 }
 
-string itoa(int val) {
+string itoa(int val) throw () {
     ostringstream ss;
     ss << val;
     return ss.str();
 }
 
-string itoa_w(int val, int width, bool left) {
+string itoa_w(int val, int width, bool left) throw () {
     ostringstream ss;
     if (left)
         ss << left;
@@ -73,13 +73,13 @@ string itoa_w(int val, int width, bool left) {
     return ss.str();
 }
 
-string fcvt(double val) {
+string fcvt(double val) throw () {
     ostringstream ss;
     ss << std::fixed << val;
     return ss.str();
 }
 
-string fcvt(double val, int precision) {
+string fcvt(double val, int precision) throw () {
     ostringstream ss;
     locale loc(language.locale().c_str());
     ss.imbue(loc);
@@ -87,14 +87,14 @@ string fcvt(double val, int precision) {
     return ss.str();
 }
 
-int iround(double value) {
+int iround(double value) throw () {
     if (value >= 0)
         return static_cast<int>(value + 0.5);
     else
         return static_cast<int>(value - 0.5);
 }
 
-int iround_bound(double value) {
+int iround_bound(double value) throw () {
     if (value <= numeric_limits<int>::min())
         return numeric_limits<int>::min();
     else if (value >= numeric_limits<int>::max())
@@ -103,39 +103,39 @@ int iround_bound(double value) {
         return iround(value);
 }
 
-int numberWidth(int num) {
+int numberWidth(int num) throw () {
     if (num == 0)
         return 1;
     int absw = static_cast<int>(floor(std::log10(double(abs(num))))) + 1;
     return (num < 0) ? absw + 1 : absw;
 }
 
-double positiveFmod(double val, double modulus) {
+double positiveFmod(double val, double modulus) throw () {
     nAssert(modulus > 0);
     return val >= 0 ? fmod(val, modulus) : modulus - fmod(-val, modulus);
 }
 
 bool utf8_mode = false;
 
-void check_utf8_mode() {
+void check_utf8_mode() throw () {
     char* s;
     if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && strstr(s, "UTF-8"))
         utf8_mode = true;
 }
 
-string toupper(string str) {
+string toupper(string str) throw () {
     for (string::iterator s = str.begin(); s != str.end(); ++s)
         *s = latin1_toupper(*s);
     return str;
 }
 
-string tolower(string str) {
+string tolower(string str) throw () {
     for (string::iterator s = str.begin(); s != str.end(); ++s)
         *s = latin1_tolower(*s);
     return str;
 }
 
-unsigned char latin1_toupper(unsigned char c) {
+unsigned char latin1_toupper(unsigned char c) throw () {
     if (c <= 31 || (c >= 128 && c <= 159))
         return c;
     // Latin 1 characters 32 - 127 and 160 - 255
@@ -148,7 +148,7 @@ unsigned char latin1_toupper(unsigned char c) {
     return upper[c];
 }
 
-unsigned char latin1_tolower(unsigned char c) {
+unsigned char latin1_tolower(unsigned char c) throw () {
     if (c <= 31 || (c >= 128 && c <= 159))
         return c;
     // Latin 1 characters 32 - 127 and 160 - 255
@@ -161,7 +161,7 @@ unsigned char latin1_tolower(unsigned char c) {
     return lower[c];
 }
 
-string latin1_to_utf8(unsigned char c) {
+string latin1_to_utf8(unsigned char c) throw () {
     string result;
     if (c < 0x80)
         result += c;
@@ -172,14 +172,14 @@ string latin1_to_utf8(unsigned char c) {
     return result;
 }
 
-string latin1_to_utf8(const string& str) {
+string latin1_to_utf8(const string& str) throw () {
     string result;
     for (string::const_iterator s = str.begin(); s != str.end(); ++s)
         result += latin1_to_utf8(*s);
     return result;
 }
 
-string utf8_to_latin1(const string& str) {
+string utf8_to_latin1(const string& str) throw () {
     // U-00000000 - U-0000007F:     0xxxxxxx
     // U-00000080 - U-000007FF:     110xxxxx 10xxxxxx
     // U-00000800 - U-0000FFFF:     1110xxxx 10xxxxxx 10xxxxxx
@@ -219,11 +219,11 @@ string utf8_to_latin1(const string& str) {
     return latin1;
 }
 
-bool cmp_case_ins(const string& a, const string& b) {
+bool cmp_case_ins(const string& a, const string& b) throw () {
     return toupper(a) < toupper(b);
 }
 
-string trim(string str) {
+string trim(string str) throw () {
     str.erase(0, str.find_first_not_of(" \t\n\r\xA0"));
     const string::size_type lastGood = str.find_last_not_of(" \t\n\r\xA0");
     if (lastGood == string::npos)
@@ -233,11 +233,11 @@ string trim(string str) {
     return str;
 }
 
-string replace_all(string text, const string& s1, const string& s2) {
+string replace_all(string text, const string& s1, const string& s2) throw () {
     return replace_all_in_place(text, s1, s2);
 }
 
-string& replace_all_in_place(string& text, const string& s1, const string& s2) {
+string& replace_all_in_place(string& text, const string& s1, const string& s2) throw () {
     string::size_type pos = 0;
     while ((pos = text.find(s1, pos)) != string::npos) {
         text.replace(pos, s1.length(), s2);
@@ -246,14 +246,14 @@ string& replace_all_in_place(string& text, const string& s1, const string& s2) {
     return text;
 }
 
-string& replace_all_in_place(string& text, char c1, char c2) {
+string& replace_all_in_place(string& text, char c1, char c2) throw () {
     for (string::size_type pos = 0; pos < text.length(); ++pos)
         if (text[pos] == c1)
             text[pos] = c2;
     return text;
 }
 
-string escape_for_html(string text) {
+string escape_for_html(string text) throw () {
     text = replace_all(text, "&", "&amp;"); // this must be first because entities contain '&'
     text = replace_all(text, "<", "&lt;");
     text = replace_all(text, ">", "&gt;");
@@ -262,32 +262,32 @@ string escape_for_html(string text) {
     return text;
 }
 
-string pad_to_size_left (string text, int size, char pad) {
+string pad_to_size_left (string text, int size, char pad) throw () {
     const int add = size - text.length();
     if (add > 0)
         text.insert(0, string(add, pad));
     return text;
 }
 
-string pad_to_size_right(string text, int size, char pad) {
+string pad_to_size_right(string text, int size, char pad) throw () {
     const int add = size - text.length();
     if (add > 0)
         text.append(add, pad);
     return text;
 }
 
-bool find_nonprintable_char(const string& str) {
+bool find_nonprintable_char(const string& str) throw () {
     for (string::const_iterator s = str.begin(); s != str.end(); ++s)
         if (is_nonprintable_char(*s))
             return true;
     return false;
 }
 
-bool is_nonprintable_char(unsigned char c) {
+bool is_nonprintable_char(unsigned char c) throw () {
     return c < 32 || (c >= 128 && c <= 159);
 }
 
-string formatForLogging(const string& str) {
+string formatForLogging(const string& str) throw () {
     ostringstream result;
     for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
         if (is_nonprintable_char(*s)) {
@@ -309,7 +309,7 @@ string formatForLogging(const string& str) {
 }
 
 // Split string to lines, but only at whitespaces.
-vector<string> split_to_lines(const string& source, int lineLength, int indent, bool keep_spaces) {
+vector<string> split_to_lines(const string& source, int lineLength, int indent, bool keep_spaces) throw () {
     vector<string> lines;
     if (source.empty())
         return lines;
@@ -344,25 +344,25 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
     return lines;
 }
 
-char* strspnp(char* str, const char* charset) {
+char* strspnp(char* str, const char* charset) throw () {
     for (; *str; ++str)
         if (strchr(charset, *str)==NULL)
             return str;
     return NULL;
 }
 
-const char* strspnp(const char* str, const char* charset) {
+const char* strspnp(const char* str, const char* charset) throw () {
     return strspnp(const_cast<char*>(str), charset);
 }
 
-LogSet& LogSet::operator()(const string& msg   ) { if (  normalLog) {                                        normalLog->put(msg)  ;               } return *this; }
-LogSet& LogSet::operator()(const char* fmt, ...) { if (  normalLog) { va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); } return *this; }
-LogSet& LogSet::error     (const string& msg   ) { if (   errorLog) {                                         errorLog->put(msg)  ;               } return *this; }
-LogSet& LogSet::security  (const char* fmt, ...) { if (securityLog) { va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); } return *this; }
+LogSet& LogSet::operator()(const string& msg   ) throw () { if (  normalLog) {                                        normalLog->put(msg)  ;               } return *this; }
+LogSet& LogSet::operator()(const char* fmt, ...) throw () { if (  normalLog) { va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); } return *this; }
+LogSet& LogSet::error     (const string& msg   ) throw () { if (   errorLog) {                                         errorLog->put(msg)  ;               } return *this; }
+LogSet& LogSet::security  (const char* fmt, ...) throw () { if (securityLog) { va_list args; va_start(args, fmt); (*securityLog)(fmt, args); va_end(args); } return *this; }
 
 bool g_allowBlockingMessages = true;
 
-void messageBox(const string& heading, const string& msg, bool blocking) {
+void messageBox(const string& heading, const string& msg, bool blocking) throw () {
     #ifndef DEDICATED_SERVER_ONLY
     if (g_allowBlockingMessages) {
         platMessageBox(heading, msg, blocking);
@@ -377,12 +377,12 @@ void messageBox(const string& heading, const string& msg, bool blocking) {
     os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
 }
 
-void criticalError(const string& msg) {
+void criticalError(const string& msg) throw () {
     messageBox(_("Critical error"), msg, true);
     _Exit(-1);
 }
 
-void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) {
+void errorMessage(const string& heading, MemoryLog& errorLog, const string& footer) throw () {
     int errors = errorLog.size();
     if (errors) {
         ostringstream msg;
@@ -399,7 +399,7 @@ void errorMessage(const string& heading, MemoryLog& errorLog, const string& foot
     }
 }
 
-void rotate_angle(double& angle, double shift) {
+void rotate_angle(double& angle, double shift) throw () {
     angle += shift;
     if (angle < 0)
         angle += 360;
@@ -407,7 +407,7 @@ void rotate_angle(double& angle, double shift) {
         angle -= 360;
 }
 
-string date_and_time() {
+string date_and_time() throw () {
     const time_t tt = time(0);
     const tm* tmb = localtime(&tt);
     const int time_w = 20;
@@ -416,7 +416,7 @@ string date_and_time() {
     return time_str;
 }
 
-string approxTime(int seconds) {
+string approxTime(int seconds) throw () {
     int time = seconds;
     string timeUnit;
     if (time == 0 || (time % 60 != 0 && time <= 200))
@@ -449,7 +449,7 @@ string approxTime(int seconds) {
     return str;
 }
 
-FileName::FileName(const string& fullName) {
+FileName::FileName(const string& fullName) throw () {
     string::size_type pathSep = fullName.find_last_of(directory_separator);
     if (pathSep != string::npos) {
         path = fullName.substr(0, pathSep);
@@ -466,7 +466,7 @@ FileName::FileName(const string& fullName) {
         base = fullName.substr(pathSep);
 }
 
-string FileName::getFull() const {
+string FileName::getFull() const throw () {
     return path + directory_separator + base + ext;
 }
 
@@ -475,7 +475,7 @@ string FileName::getFull() const {
 #ifndef DEDICATED_SERVER_ONLY
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
     text_mode(bg);
     va_list argptr;
     char xbuf[16384];
@@ -484,7 +484,7 @@ void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color
     va_end(argptr);
     textout(bmp, f, xbuf, x, y, color);
 }
-void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
     text_mode(bg);
     va_list argptr;
     char xbuf[16384];
@@ -493,7 +493,7 @@ void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, in
     va_end(argptr);
     textout_centre(bmp, f, xbuf, x, y, color);
 }
-void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) {
+void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
     text_mode(bg);
     va_list argptr;
     char xbuf[16384];
@@ -502,21 +502,21 @@ void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int
     va_end(argptr);
     textout_right(bmp, f, xbuf, x, y, color);
 }
-void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
     text_mode(bg);
     textout(bmp, f, text, x, y, color);
 }
-void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
     text_mode(bg);
     textout_centre(bmp, f, text, x, y, color);
 }
-void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) {
+void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
     text_mode(bg);
     textout_right(bmp, f, text, x, y, color);
 }
 #endif // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 
-void set_trans_mode(int alpha) {
+void set_trans_mode(int alpha) throw () {
     nAssert(alpha >= 0 && alpha <= 255);
     if (alpha != 255) {
         set_trans_blender(0, 0, 0, alpha);
@@ -526,7 +526,7 @@ void set_trans_mode(int alpha) {
         solid_mode();
 }
 
-int makecolBounded(int r, int g, int b) {
+int makecolBounded(int r, int g, int b) throw () {
     return makecol(bound(r, 0, 255), bound(g, 0, 255), bound(b, 0, 255));
 }
 

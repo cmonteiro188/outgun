@@ -38,14 +38,14 @@ using std::string;
 
 Language language;
 
-string Language::get_text(const string& text) const {
+string Language::get_text(const string& text) const throw () {
     const map<string, string>::const_iterator translation = texts.find(text);
     if (translation == texts.end())
         return text;
     return translation->second;
 }
 
-bool Language::load(const string& lang, LogSet& log) {
+bool Language::load(const string& lang, LogSet& log) throw () {
     texts.clear();
     lang_code = "en";
     loc = "C";
@@ -88,11 +88,11 @@ bool Language::load(const string& lang, LogSet& log) {
     return true;
 }
 
-string _(const string& text) {
+string _(const string& text) throw () {
     return language.get_text(text);
 }
 
-string _(string text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) {
+string _(string text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) throw () {
     text = _(text);
     const int nReplacements = 5;
     const string* const replacement[nReplacements] = { &t1, &t2, &t3, &t4, &t5 };

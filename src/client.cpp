@@ -89,26 +89,26 @@ class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
     Client& c;
 
 public:
-    ClientPhysicsCallbacks(Client& c_) : c(c_) { }
+    ClientPhysicsCallbacks(Client& c_) throw () : c(c_) { }
 
-    bool collideToRockets() const { return false; }
-    bool collidesToRockets(int) const { return false; }
-    bool collidesToPlayers(int) const { return true; }
-    bool gatherMovementDistance() const { return false; }
-    bool allowRoomChange() const { return false; }
-    void addMovementDistance(int, double) { }
-    void playerScreenChange(int) { }
-    void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
-    bool rocketHitPlayer(int, int) { return false; }
-    void playerHitWall(int pid) { c.playerHitWallCallback(pid); }
-    PlayerHitResult playerHitPlayer(int pid1, int pid2, double) { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }
-    void rocketOutOfBounds(int rid) { c.rocketOutOfBoundsCallback(rid); }
-    bool shouldApplyPhysicsToPlayer(int pid) { return c.shouldApplyPhysicsToPlayerCallback(pid); }
+    bool collideToRockets() const throw () { return false; }
+    bool collidesToRockets(int) const throw () { return false; }
+    bool collidesToPlayers(int) const throw () { return true; }
+    bool gatherMovementDistance() const throw () { return false; }
+    bool allowRoomChange() const throw () { return false; }
+    void addMovementDistance(int, double) throw () { }
+    void playerScreenChange(int) throw () { }
+    void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) throw () { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
+    bool rocketHitPlayer(int, int) throw () { return false; }
+    void playerHitWall(int pid) throw () { c.playerHitWallCallback(pid); }
+    PlayerHitResult playerHitPlayer(int pid1, int pid2, double) throw () { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }
+    void rocketOutOfBounds(int rid) throw () { c.rocketOutOfBoundsCallback(rid); }
+    bool shouldApplyPhysicsToPlayer(int pid) throw () { return c.shouldApplyPhysicsToPlayerCallback(pid); }
 };
 
 class TM_DoDisconnect : public ThreadMessage {
 public:
-    void execute(Client* cl) const { cl->disconnect_command(); }
+    void execute(Client* cl) const throw () { cl->disconnect_command(); }
 };
 
 class TM_Text : public ThreadMessage {
@@ -117,9 +117,9 @@ class TM_Text : public ThreadMessage {
     int team;   // -1 for non-team messages
 
 public:
-    TM_Text(Message_type type_, const string& text_, int team_ = -1) : type(type_), text(text_), team(team_) { }
-    ~TM_Text() { }
-    void execute(Client* cl) const {
+    TM_Text(Message_type type_, const string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
+    ~TM_Text() throw () { }
+    void execute(Client* cl) const throw () {
         #ifndef DEDICATED_SERVER_ONLY
         cl->print_message(type, text, team);
         #else
@@ -132,8 +132,8 @@ class TM_Sound : public ThreadMessage {
     int sample;
 
 public:
-    TM_Sound(int sample_) : sample(sample_) { }
-    void execute(Client* cl) const {
+    TM_Sound(int sample_) throw () : sample(sample_) { }
+    void execute(Client* cl) const throw () {
         #ifndef DEDICATED_SERVER_ONLY
         cl->play_sound(sample);
         #else
@@ -147,15 +147,15 @@ class TM_MapChange : public ThreadMessage {
     NLushort crc;
 
 public:
-    TM_MapChange(const string& name_, NLushort crc_) : name(name_), crc(crc_) { }
-    ~TM_MapChange() { }
-    void execute(Client* cl) const { cl->server_map_command(name, crc); }
+    TM_MapChange(const string& name_, NLushort crc_) throw () : name(name_), crc(crc_) { }
+    ~TM_MapChange() throw () { }
+    void execute(Client* cl) const throw () { cl->server_map_command(name, crc); }
 };
 
 #ifndef DEDICATED_SERVER_ONLY
 class TM_NameAuthorizationRequest : public ThreadMessage {
 public:
-    void execute(Client* cl) const { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
+    void execute(Client* cl) const throw () { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
 };
 
 class TM_GunexploEffect : public ThreadMessage {
@@ -164,8 +164,8 @@ class TM_GunexploEffect : public ThreadMessage {
     double time;
 
 public:
-    TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const { cl->graphics.create_gunexplo(pos, team, time); }
+    TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) throw () : team(team_), pos(pos_), time(time_) { }
+    void execute(Client* cl) const throw () { cl->graphics.create_gunexplo(pos, team, time); }
 };
 
 class TM_ServerSettings : public ThreadMessage {
@@ -173,14 +173,14 @@ class TM_ServerSettings : public ThreadMessage {
     NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
-    void addLine(Client* cl, const string& caption, const string& value) const;
+    void addLine(Client* cl, const string& caption, const string& value) const throw ();
 
 public:
     TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
-                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, int flag_return_delay_) :
+                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, int flag_return_delay_) throw () :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
-    void execute(Client* cl) const;
+    void execute(Client* cl) const throw ();
 };
 #endif
 
@@ -190,13 +190,13 @@ class TM_ConnectionUpdate : public ThreadMessage {
     int length;
 
 public:
-    TM_ConnectionUpdate(int code_, const void* data_, int length_);
-    ~TM_ConnectionUpdate() { if (data) delete[] data; }
-    void execute(Client* cl) const;
+    TM_ConnectionUpdate(int code_, const void* data_, int length_) throw ();
+    ~TM_ConnectionUpdate() throw () { if (data) delete[] data; }
+    void execute(Client* cl) const throw ();
 };
 
 #ifndef DEDICATED_SERVER_ONLY
-void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
+void ServerThreadOwner::threadFn(const ServerExternalSettings& config) throw () {
     GameserverInterface gameserver(log, config, *log.accessError(), _("(server)") + ' ');
     if (!gameserver.start(config.server_maxplayers)) {
         log.error(_("Can't start listen server."));
@@ -214,7 +214,7 @@ void ServerThreadOwner::threadFn(const ServerExternalSettings& config) {
     }
 }
 
-void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
+void ServerThreadOwner::start(int port, const ServerExternalSettings& config) throw () {
     nAssert(quitFlag && !threadFlag);
     runPort = port;
     quitFlag = false;
@@ -223,28 +223,28 @@ void ServerThreadOwner::start(int port, const ServerExternalSettings& config) {
     serverThread.start_assert("ServerThreadOwner::threadFn", rmf, config, config.priority);
 }
 
-void ServerThreadOwner::stop() {
+void ServerThreadOwner::stop() throw () {
     nAssert(threadFlag);
     quitFlag = true;
     threadFlag = false;
     serverThread.join();
 }
 
-void TournamentPasswordManager::start() {
+void TournamentPasswordManager::start() throw () {
     quitThread = false;
     thread.start_assert("TournamentPasswordManager::threadFn",
                         RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn),
                         priority);
 }
 
-void TournamentPasswordManager::setToken(const string& newToken) {
+void TournamentPasswordManager::setToken(const string& newToken) throw () {
     if (token.read() != newToken) {
         token = newToken;
         tokenCallback(newToken);
     }
 }
 
-TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) :
+TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) throw () :
     log(logs),
     tokenCallback(tokenCallbackFunction),
     quitThread(true),
@@ -254,7 +254,7 @@ TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT
     token("TournamentPasswordManager::token")
 { }
 
-void TournamentPasswordManager::stop() {
+void TournamentPasswordManager::stop() throw () {
     if (!quitThread) {
         log("Joining password-token thread");
         quitThread = true;
@@ -262,7 +262,7 @@ void TournamentPasswordManager::stop() {
     }
 }
 
-void TournamentPasswordManager::changeData(const string& newName, const string& newPass) {
+void TournamentPasswordManager::changeData(const string& newName, const string& newPass) throw () {
     if (newName == name && newPass == password)
         return;
 
@@ -278,7 +278,7 @@ void TournamentPasswordManager::changeData(const string& newName, const string& 
     start();
 }
 
-string TournamentPasswordManager::statusAsString() const {
+string TournamentPasswordManager::statusAsString() const throw () {
     switch (status()) {
     /*break;*/ case PS_noPassword:      return _("No password set");
         break; case PS_starting:        return _("Initializing...");
@@ -298,7 +298,7 @@ string TournamentPasswordManager::statusAsString() const {
     }
 }
 
-void TournamentPasswordManager::threadFn() {
+void TournamentPasswordManager::threadFn() throw () {
     bool newToken = true;
     int delay = 0;  // given a value in MS before each continue: this time will be waited before next round
 
@@ -426,7 +426,7 @@ void TournamentPasswordManager::threadFn() {
     }
 }
 
-bool ServerListEntry::setAddress(const string& address) {
+bool ServerListEntry::setAddress(const string& address) throw () {
     if (!isValidIP(address, true, 1))
         return false;
     addr.fromValidIP(address);
@@ -435,13 +435,13 @@ bool ServerListEntry::setAddress(const string& address) {
     return true;
 }
 
-void ServerListEntry::setAddress(const Network::Address& address) {
+void ServerListEntry::setAddress(const Network::Address& address) throw () {
     addr = address;
     if (addr.getPort() == 0)
         addr.setPort(DEFAULT_UDP_PORT);
 }
 
-string ServerListEntry::addressString() const {
+string ServerListEntry::addressString() const throw () {
     if (addr.getPort() != DEFAULT_UDP_PORT)
         return addr.toString();
     else {
@@ -451,48 +451,48 @@ string ServerListEntry::addressString() const {
     }
 }
 
-FileDownload::FileDownload(const string& type, const string& name, const string& filename) :
+FileDownload::FileDownload(const string& type, const string& name, const string& filename) throw () :
     fileType(type),
     shortName(name),
     fullName(filename),
     fp(0)
 { }
 
-FileDownload::~FileDownload() {
+FileDownload::~FileDownload() throw () {
     if (fp) {
         fclose(fp);
         remove(fullName.c_str());
     }
 }
 
-int FileDownload::progress() const {
+int FileDownload::progress() const throw () {
     nAssert(fp);
     return ftell(fp);
 }
 
-bool FileDownload::start() {
+bool FileDownload::start() throw () {
     nAssert(!fp);
     fp = fopen(fullName.c_str(), "wb");
     return (fp != 0);
 }
 
-bool FileDownload::save(const char* buf, unsigned len) {
+bool FileDownload::save(const char* buf, unsigned len) throw () {
     nAssert(fp);
     return (fwrite(buf, sizeof(char), len, fp) == len);
 }
 
-void FileDownload::finish() {
+void FileDownload::finish() throw () {
     nAssert(fp);
     fclose(fp);
     fp = 0;
 }
 
-void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const {
+void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const throw () {
     const int capWidth = 25;
     cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth), value);
 }
 
-void TM_ServerSettings::execute(Client* cl) const {
+void TM_ServerSettings::execute(Client* cl) const throw () {
     cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
@@ -536,7 +536,7 @@ void TM_ServerSettings::execute(Client* cl) const {
 }
 #endif
 
-TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int length_) :
+TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int length_) throw () :
     code(code_),
     length(length_)
 {
@@ -548,7 +548,7 @@ TM_ConnectionUpdate::TM_ConnectionUpdate(int code_, const void* data_, int lengt
         data = 0;
 }
 
-void TM_ConnectionUpdate::execute(Client* cl) const {
+void TM_ConnectionUpdate::execute(Client* cl) const throw () {
     switch (code) {
     /*break;*/ case 0: cl->client_connected(data, length);
         break; case 1: cl->client_disconnected(data, length);
@@ -567,7 +567,7 @@ void TM_ConnectionUpdate::execute(Client* cl) const {
         cl->stop();
 }
 
-void Client::ConstDisappearedFlagIterator::findValid() {
+void Client::ConstDisappearedFlagIterator::findValid() throw () {
     for (; valid(); next()) {
         const Flag& fl = flag();
         if (!fl.carried())
@@ -580,7 +580,7 @@ void Client::ConstDisappearedFlagIterator::findValid() {
     }
 }
 
-Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) :
+Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -657,7 +657,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     Thread::setCallerPriority(config.priority);
 }
 
-Client::~Client() {
+Client::~Client() throw () {
     log("Exiting client: destructor");
 
     abortThreads = true;
@@ -676,7 +676,7 @@ Client::~Client() {
     log("Exiting client: destructor exiting");
 }
 
-bool Client::start() {
+bool Client::start() throw () {
     #ifndef DEDICATED_SERVER_ONLY
     if (!botmode) {
         extConfig.statusOutput(_("Outgun client"));
@@ -900,7 +900,7 @@ bool Client::start() {
     return true;
 }
 
-void Client::bot_start(const Network::Address& addr, int ping, const string& name_lang, int bot_id) {
+void Client::bot_start(const Network::Address& addr, int ping, const string& name_lang, int bot_id) throw () {
     Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
@@ -921,14 +921,14 @@ void Client::bot_start(const Network::Address& addr, int ping, const string& nam
     connect_command(false);
 }
 
-void Client::set_ping(int ping) {
+void Client::set_ping(int ping) throw () {
     while (client->decreasePacketDelay());
     for (int i = 0; i < ping / 10; ++i)
         client->increasePacketDelay();
 }
 
 //send "client ready" message to server (when map load and/or download completes)
-void Client::send_client_ready() {
+void Client::send_client_ready() throw () {
     char lebuf[256]; int count = 0;
     writeByte(lebuf, count, data_client_ready);
     client->send_message(lebuf, count);
@@ -936,7 +936,7 @@ void Client::send_client_ready() {
 
 #ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
-void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
+void Client::process_udp_download_chunk(const char* buf, int len, bool last) throw () {
     Lock ml(downloadMutex);
     if (downloads.empty() || !downloads.front().isActive()) {
         log.error("Server sent a file we aren't expecting");
@@ -981,7 +981,7 @@ void Client::process_udp_download_chunk(const char* buf, int len, bool last) {
 /* check_download: if there is a download pending, and nothing is downloading, activate it
  * call with downloadMutex locked
  */
-void Client::check_download() { // call with downloadMutex locked
+void Client::check_download() throw () { // call with downloadMutex locked
     if (downloads.empty())
         return;
     FileDownload& dl = downloads.front();
@@ -1000,7 +1000,7 @@ void Client::check_download() { // call with downloadMutex locked
     client->send_message(lebuf, count);
 }
 
-void Client::download_server_file(const string& type, const string& name) {
+void Client::download_server_file(const string& type, const string& name) throw () {
     nAssert(type == "map");
     if (name.find_first_of("./:\\") != string::npos) {
         log.error("Illegal file download request: map \"" + name + "\"");
@@ -1018,7 +1018,7 @@ void Client::download_server_file(const string& type, const string& name) {
 // Server tells client of current map / map change.
 // Client checks from the "cmaps" and "maps" directory.
 // If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
-void Client::server_map_command(const string& mapname, NLushort server_crc) {
+void Client::server_map_command(const string& mapname, NLushort server_crc) throw () {
     log("Received map change: '%s'", mapname.c_str());
 
     servermap = mapname;
@@ -1046,7 +1046,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) {
     #endif
 }
 
-bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) {
+bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) throw () {
     LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
 
     const bool ok =
@@ -1065,7 +1065,7 @@ bool Client::load_map(const string& directory, const string& mapname, NLushort s
     return false;
 }
 
-void Client::sendMinimapBandwidthAny(int players) {
+void Client::sendMinimapBandwidthAny(int players) throw () {
     if (protocolExtensionsC2S >= 0) {
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_set_minimap_player_bandwidth);
@@ -1075,7 +1075,7 @@ void Client::sendMinimapBandwidthAny(int players) {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::sendFavoriteColors() {
+void Client::sendFavoriteColors() throw () {
     if (menu.options.player.favoriteColors.values().empty())
         return;
     char lebuf[256]; int count = 0;
@@ -1092,17 +1092,17 @@ void Client::sendFavoriteColors() {
     client->send_message(lebuf, count);
 }
 
-void Client::sendMinimapBandwidth() {
+void Client::sendMinimapBandwidth() throw () {
     sendMinimapBandwidthAny(menu.options.game.minimapBandwidth() / 20);
 }
 #endif // DEDICATED_SERVER_ONLY
 
-void Client::disconnect_command() { // do not call from a network thread
+void Client::disconnect_command() throw () { // do not call from a network thread
     //disconnect the client here if was connected, else does nothing
     client->connect(false);
 }
 
-void Client::client_connected(const char* data, int length) {   // call with frameMutex locked
+void Client::client_connected(const char* data, int length) throw () {   // call with frameMutex locked
     log("Connection successful");
 
     connected = true;
@@ -1269,7 +1269,7 @@ void Client::client_connected(const char* data, int length) {   // call with fra
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::send_tournament_participation() {
+void Client::send_tournament_participation() throw () {
     char lebuf[8]; int count = 0;
     writeByte(lebuf, count, data_tournament_participation);
     writeByte(lebuf, count, menu.options.player.tournament() ? 1 : 0);
@@ -1277,7 +1277,7 @@ void Client::send_tournament_participation() {
 }
 #endif
 
-void Client::client_disconnected(const char* data, int length) {
+void Client::client_disconnected(const char* data, int length) throw () {
     if (!connected)
         return;
 
@@ -1329,7 +1329,7 @@ void Client::client_disconnected(const char* data, int length) {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::connect_failed_denied(const char* data, int length) {
+void Client::connect_failed_denied(const char* data, int length) throw () {
     string message;
     bool userHandled = false;
     if (length > 1) {
@@ -1390,19 +1390,19 @@ void Client::connect_failed_denied(const char* data, int length) {
     }
 }
 
-void Client::connect_failed_unreachable() {
+void Client::connect_failed_unreachable() throw () {
     m_connectProgress.wrapLine(_("No response from server."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-void Client::connect_failed_socket() {
+void Client::connect_failed_socket() throw () {
     m_connectProgress.wrapLine(_("Can't open socket."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-string Client::load_player_password(const string& name, const string& address) const {
+string Client::load_player_password(const string& name, const string& address) const throw () {
     ifstream in(password_file.c_str());
     while (in) {
         string load_name, load_address, load_password;
@@ -1415,7 +1415,7 @@ string Client::load_player_password(const string& name, const string& address) c
     return string();
 }
 
-vector<vector<string> > Client::load_all_player_passwords() const {
+vector<vector<string> > Client::load_all_player_passwords() const throw () {
     vector<vector<string> > passwords;
     ifstream in(password_file.c_str());
     while (1) {
@@ -1436,7 +1436,7 @@ vector<vector<string> > Client::load_all_player_passwords() const {
     return passwords;
 }
 
-void Client::save_player_password(const string& name, const string& address, const string& password) const {
+void Client::save_player_password(const string& name, const string& address, const string& password) const throw () {
     nAssert(!name.empty() && !address.empty() && !password.empty());    // empty lines cause trouble
     vector<vector<string> > passwd_list = load_all_player_passwords();
     // check if player already has a password
@@ -1466,7 +1466,7 @@ void Client::save_player_password(const string& name, const string& address, con
     }
 }
 
-void Client::remove_player_password(const string& name, const string& address) const {
+void Client::remove_player_password(const string& name, const string& address) const throw () {
     // check if player has a password
     const string test = load_player_password(name, address);
     if (test.empty())
@@ -1483,7 +1483,7 @@ void Client::remove_player_password(const string& name, const string& address) c
                 out << (*item)[i] << '\n';
 }
 
-int Client::remove_player_passwords(const string& name) const {
+int Client::remove_player_passwords(const string& name) const throw () {
     vector<vector<string> > passwd_list = load_all_player_passwords();
     ofstream out(password_file.c_str());
     if (!out)
@@ -1500,7 +1500,7 @@ int Client::remove_player_passwords(const string& name) const {
 }
 #endif
 
-void Client::connect_command(bool loadPassword) {   // call with frameMutex locked
+void Client::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
     const bool alreadyConnected = connected;
 
     // disconnect
@@ -1561,7 +1561,7 @@ void Client::connect_command(bool loadPassword) {   // call with frameMutex lock
     #endif
 }
 
-void Client::issue_change_name_command() {
+void Client::issue_change_name_command() throw () {
     if (!connected)
         return;
     //regular change name
@@ -1577,7 +1577,7 @@ void Client::issue_change_name_command() {
     client->send_message(lebuf, count);
 }
 
-void Client::bot_send_frame(ClientControls controls) {
+void Client::bot_send_frame(ClientControls controls) throw () {
     ++clFrameSent;
     controlHistory[clFrameSent] = sentControls = controls;
     svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
@@ -1590,7 +1590,7 @@ void Client::bot_send_frame(ClientControls controls) {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::change_name_command() {
+void Client::change_name_command() throw () {
     //set new name, close menu
     menu.options.player.name.set(trim(menu.options.player.name()));
     const string& newName = menu.options.player.name();
@@ -1604,7 +1604,7 @@ void Client::change_name_command() {
     tournamentPassword.changeData(playername, menu.options.player.password());
 }
 
-ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const {
+ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
     ClientControls ctrl;
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
@@ -1614,7 +1614,7 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const
     return ctrl;
 }
 
-ClientControls Client::readControlsInGame() const {
+ClientControls Client::readControlsInGame() const throw () {
     if (!openMenus.empty()) // don't move at all when a real menu is open
         return ClientControls();
     const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
@@ -1625,7 +1625,7 @@ ClientControls Client::readControlsInGame() const {
     return ctrl;
 }
 
-bool Client::firePressed() {
+bool Client::firePressed() throw () {
     static double checkTime = 0;
     if (get_time() > checkTime + 1.)
         mouseClicked.clear();
@@ -1636,7 +1636,7 @@ bool Client::firePressed() {
 }
 
 //send the client's frame to server (keypresses)
-void Client::send_frame(bool newFrame, bool forceSend) {
+void Client::send_frame(bool newFrame, bool forceSend) throw () {
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls = readControlsInGame();
@@ -1689,7 +1689,7 @@ void Client::send_frame(bool newFrame, bool forceSend) {
     client->send_frame(lebuf, count);
 }
 
-void Client::refreshGunDir() {
+void Client::refreshGunDir() throw () {
     if (!fx.physics.allowFreeTurning)
         return;
     if (menu.options.controls.aimMode() == Menu_controls::AM_Mouse) {
@@ -1715,7 +1715,7 @@ void Client::refreshGunDir() {
 
 #endif // DEDICATED_SERVER_ONLY
 
-void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
+void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) throw () {
     NLubyte whox, whoy;
     readByte(data, count, whox);
     readByte(data, count, whoy);
@@ -1743,7 +1743,7 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) {
     }
 }
 
-bool Client::process_live_frame_data(const char* data, int length) { // returns false if an error occured that requires disconnecting
+bool Client::process_live_frame_data(const char* data, int length) throw () { // returns false if an error occured that requires disconnecting
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
@@ -1986,7 +1986,7 @@ bool Client::process_live_frame_data(const char* data, int length) { // returns 
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-int Client::process_replay_frame_data(const char* data) { // returns number of bytes read
+int Client::process_replay_frame_data(const char* data) throw () { // returns number of bytes read
     int count = 0;
     NLulong svframe;    //server's frame
     readLong(data, count, svframe);
@@ -2071,7 +2071,7 @@ int Client::process_replay_frame_data(const char* data) { // returns number of b
 #endif
 
 // process a message (update fx, and add the non frame-related messages to messageQueue)
-bool Client::process_message(const char* const lebuf, int msglen) {
+bool Client::process_message(const char* const lebuf, int msglen) throw () {
     const double time = fx.frame / 10;
 
     int count = 0;
@@ -3534,7 +3534,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
     return true;
 }
 
-void Client::process_incoming_data(const char* data, int length) {
+void Client::process_incoming_data(const char* data, int length) throw () {
     Lock ml(frameMutex);
 
     if (!connected && !replaying) // means that the connection notification is still in the thread message queue
@@ -3580,7 +3580,7 @@ void Client::process_incoming_data(const char* data, int length) {
 
 #ifndef DEDICATED_SERVER_ONLY
 //send chat message
-void Client::send_chat(const string& msg) {
+void Client::send_chat(const string& msg) throw () {
     if (msg.empty() || msg == "." || isFlood(msg))
         return;
     char lebuf[256]; int count = 0;
@@ -3590,7 +3590,7 @@ void Client::send_chat(const string& msg) {
 }
 
 //print message to "console"
-void Client::print_message(Message_type type, const string& msg, int sender_team) {
+void Client::print_message(Message_type type, const string& msg, int sender_team) throw () {
     if (botmode)
         return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
@@ -3618,7 +3618,7 @@ void Client::print_message(Message_type type, const string& msg, int sender_team
     }
 }
 
-void Client::save_screenshot() {
+void Client::save_screenshot() throw () {
     string filename;
     for (int i = 0; i < 1000; i++) {
         // filename: screens/outgxxx.ext
@@ -3640,7 +3640,7 @@ void Client::save_screenshot() {
 }
 
 //toggle help screen
-void Client::toggle_help() {
+void Client::toggle_help() throw () {
     if (openMenus.safeTop() == &menu.help.menu)
         openMenus.close();
     else
@@ -3648,7 +3648,7 @@ void Client::toggle_help() {
 }
 #endif
 
-void Client::handlePendingThreadMessages() {    // should only be called by the main thread
+void Client::handlePendingThreadMessages() throw () {    // should only be called by the main thread
     while (!messageQueue.empty()) {
         ThreadMessage* msg = messageQueue.front();
         messageQueue.pop_front();
@@ -3658,7 +3658,7 @@ void Client::handlePendingThreadMessages() {    // should only be called by the 
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-string Client::refreshStatusAsString() const {
+string Client::refreshStatusAsString() const throw () {
     switch (refreshStatus) {
     /*break;*/ case RS_none:       return _("Inactive");
         break; case RS_running:    return _("Running");
@@ -3671,7 +3671,7 @@ string Client::refreshStatusAsString() const {
     nAssert(0); return 0;
 }
 
-void Client::getServerListThread() {
+void Client::getServerListThread() throw () {
     nAssert(refreshStatus == RS_running);
 
     // get server list and refresh
@@ -3685,7 +3685,7 @@ void Client::getServerListThread() {
     refreshStatus = ok ? RS_none : RS_failed;
 }
 
-void Client::refreshThread() {
+void Client::refreshThread() throw () {
     nAssert(refreshStatus == RS_running);
     refreshStatus = refresh_all_servers() ? RS_none : RS_failed;
 }
@@ -3696,14 +3696,14 @@ class TempPingData {    // internal to Client::refresh_all_servers
     double rt;      // sum of pings (for averaging)
 
 public:
-    TempPingData() : rc(0), rt(0) { }
-    void send(int pack) { g_timeCounter.refresh(); st[pack] = get_time(); }
-    void receive(int pack) { g_timeCounter.refresh(); ++rc; rt += get_time() - st[pack]; }
-    int received() const { return rc; }
-    int ping() const { return static_cast<int>(1000 * rt / rc); }
+    TempPingData() throw () : rc(0), rt(0) { }
+    void send(int pack) throw () { g_timeCounter.refresh(); st[pack] = get_time(); }
+    void receive(int pack) throw () { g_timeCounter.refresh(); ++rc; rt += get_time() - st[pack]; }
+    int received() const throw () { return rc; }
+    int ping() const throw () { return static_cast<int>(1000 * rt / rc); }
 };
 
-bool Client::refresh_all_servers() {
+bool Client::refresh_all_servers() throw () {
     refreshStatus = RS_contacting;
 
     serverListMutex.lock();
@@ -3818,7 +3818,7 @@ bool Client::refresh_all_servers() {
     return true;
 }
 
-bool Client::getServerList() {
+bool Client::getServerList() throw () {
     if (!g_masterSettings.address().valid())
         return false;
 
@@ -3873,7 +3873,7 @@ bool Client::getServerList() {
     }
 }
 
-bool Client::get_local_servers() {
+bool Client::get_local_servers() throw () {
     refreshStatus = RS_connecting;
 
     Network::Socket sock(Network::NonBlocking, Network::Broadcast, 0);
@@ -3915,7 +3915,7 @@ bool Client::get_local_servers() {
     return true;
 }
 
-bool Client::parseServerList(istream& response) {
+bool Client::parseServerList(istream& response) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 
     string line, empty;
@@ -3995,7 +3995,7 @@ bool Client::parseServerList(istream& response) {
     return true;
 }
 
-void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
@@ -4098,7 +4098,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     handleGameKeypress(sc, ch, withControl, alt_sequence);
 }
 
-bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     (void)(withControl & alt_sequence);
     if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
         return false;
@@ -4173,7 +4173,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
     }
 }
 
-void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) {  // sc = scancode, ch = character, as returned by readkey
+void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     if (key[KEY_P] && !replaying)         // ping setting
         if (sc == KEY_PLUS_PAD) {
             print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
@@ -4311,7 +4311,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
     }
 }
 
-void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
+void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     nAssert(quitFlag);
     quitCommand = false;
 
@@ -4621,7 +4621,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void Client::start_replay(const std::string& filename) {
+void Client::start_replay(const std::string& filename) throw () {
     disconnect_command();
     stop_replay();
     replay.clear();
@@ -4632,7 +4632,7 @@ void Client::start_replay(const std::string& filename) {
         replay.close();
 }
 
-bool Client::start_replay(istream& replay) {
+bool Client::start_replay(istream& replay) throw () {
     string identification;
     read(replay, identification, REPLAY_IDENTIFICATION.length());
     log("Identification: %s", identification.c_str());
@@ -4731,14 +4731,14 @@ bool Client::start_replay(istream& replay) {
     return true;
 }
 
-void Client::continue_replay() {
+void Client::continue_replay() throw () {
     if (spectating)
         continue_replay(spectate_buffer);
     else
         continue_replay(replay);
 }
 
-void Client::continue_replay(istream& in) {
+void Client::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
     unsigned length;
     if (read(in, length)) {
@@ -4761,7 +4761,7 @@ void Client::continue_replay(istream& in) {
     }
 }
 
-void Client::stop_replay() {
+void Client::stop_replay() throw () {
     if (!replaying)
         return;
 
@@ -4780,7 +4780,7 @@ void Client::stop_replay() {
     menusel = menu_none;
 }
 
-void Client::start_spectating(const Network::Address& address) {
+void Client::start_spectating(const Network::Address& address) throw () {
     disconnect_command();
     stop_replay();
 
@@ -4815,7 +4815,7 @@ void Client::start_spectating(const Network::Address& address) {
     showMenu(m_connectProgress);
 }
 
-void Client::continue_spectating() {
+void Client::continue_spectating() throw () {
     if (!spectate_socket.isOpen()) {
         log.error(_("Connection to the server closed."));
         openMenus.close(&m_connectProgress.menu);
@@ -4853,7 +4853,7 @@ void Client::continue_spectating() {
 }
 #endif // !DEDICATED_SERVER_ONLY
 
-void Client::bot_loop() {
+void Client::bot_loop() throw () {
     Lock ml(frameMutex);
 
     handlePendingThreadMessages();
@@ -4880,7 +4880,7 @@ void Client::bot_loop() {
     bot_send_frame(controls);
 }
 
-void Client::stop() {
+void Client::stop() throw () {
     log("Client exiting: stop() called");
 
     abortThreads = true;
@@ -4976,7 +4976,7 @@ void Client::stop() {
     #endif
 }
 
-void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) {
+void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
@@ -4999,14 +4999,14 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     #endif
 }
 
-void Client::rocketOutOfBoundsCallback(int rid) {
+void Client::rocketOutOfBoundsCallback(int rid) throw () {
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
     #endif
 }
 
-void Client::playerHitWallCallback(int pid) {
+void Client::playerHitWallCallback(int pid) throw () {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
@@ -5019,7 +5019,7 @@ void Client::playerHitWallCallback(int pid) {
     #endif
 }
 
-void Client::playerHitPlayerCallback(int pid1, int pid2) {
+void Client::playerHitPlayerCallback(int pid1, int pid2) throw () {
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
@@ -5033,11 +5033,11 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) {
     #endif
 }
 
-bool Client::shouldApplyPhysicsToPlayerCallback(int pid) {
+bool Client::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
     return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
 }
 
-void Client::remove_useless_flags() {
+void Client::remove_useless_flags() throw () {
     for (int i = 0; i < 3; i++)
         if (remove_flags & (0x01 << i)) {
             fx.remove_team_flags(i);
@@ -5048,7 +5048,7 @@ void Client::remove_useless_flags() {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::play_sound(int sample) {
+void Client::play_sound(int sample) throw () {
     int freq = 1000;
     if (replaying) {
         if (replay_rate > 10)
@@ -5058,7 +5058,7 @@ void Client::play_sound(int sample) {
     client_sounds.play(sample, freq);
 }
 
-WorldCoords Client::playerPos(int pid) const {
+WorldCoords Client::playerPos(int pid) const throw () {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
     return WorldCoords(world.player[pid].roomx,
                        world.player[pid].roomy,
@@ -5066,7 +5066,7 @@ WorldCoords Client::playerPos(int pid) const {
                        world.player[pid].ly);
 }
 
-static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) {
+static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) throw () {
     double coordBase = 0;
     if (visibleRooms >= mapSize) {
         coordBase = - (visibleRooms - mapSize) * .5; // as this is added to the view start coordinates, effectively that position then starts the map sized region in the middle of the screen
@@ -5085,12 +5085,12 @@ static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int ma
     return coordBase + center - halfw;
 }
 
-static pair<int, double> splitCompositeCoord(double comp, int roomSize, int mapSize) {
+static pair<int, double> splitCompositeCoord(double comp, int roomSize, int mapSize) throw () {
     const double local = positiveFmod(comp, 1.);
     return pair<int, double>(positiveModulo(iround(comp - local), mapSize), local * roomSize); // iround because of inaccuracies; it should be very close to integral really
 }
 
-WorldCoords Client::viewTopLeft() const {
+WorldCoords Client::viewTopLeft() const throw () {
     if (!map_ready)
         return WorldCoords(0, 0, 0, 0);
     else if (me < 0)
@@ -5107,13 +5107,13 @@ WorldCoords Client::viewTopLeft() const {
     }
 }
 
-pair<int, int> Client::topLeftRoom() const {
+pair<int, int> Client::topLeftRoom() const throw () {
     const WorldCoords c = viewTopLeft();
     return pair<int, int>(c.px, c.py);
 }
 
 //draw the whole game screen
-void Client::draw_game_frame() {    // call with frameMutex locked
+void Client::draw_game_frame() throw () {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0;
 
@@ -5241,13 +5241,13 @@ void Client::draw_game_frame() {    // call with frameMutex locked
     }
 }
 
-bool Client::on_screen(int x, int y) const {
+bool Client::on_screen(int x, int y) const throw () {
     const WorldCoords topLeft = viewTopLeft();
     return positiveModulo(x - topLeft.px, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
            positiveModulo(y - topLeft.py, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
 }
 
-bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const {
+bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
     const int mapw = fx.map.w * plw,
               maph = fx.map.h * plh;
     const double x = rx * plw + lx,
@@ -5260,20 +5260,20 @@ bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const
     return relX < graphics.get_visible_rooms_x() * plw + 2 * fudge && relY < graphics.get_visible_rooms_y() * plh + 2 * fudge;
 }
 
-bool Client::on_screen_exact(int x, int y) const {
+bool Client::on_screen_exact(int x, int y) const throw () {
     if (replaying)
         return on_screen(x, y);
     else
         return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
-bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const {
+bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
     if (!on_screen(rx, ry, lx, ly, fudge))
         return false;
     return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
 }
 
-bool Client::player_on_screen(int pid) const {
+bool Client::player_on_screen(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (fx.player[pid].posUpdated >= fx.frame - 20 || fx.player[pid].dead && fx.player[pid].posUpdated >= 0)
@@ -5282,7 +5282,7 @@ bool Client::player_on_screen(int pid) const {
         return false;
 }
 
-bool Client::player_on_screen_exact(int pid) const {
+bool Client::player_on_screen_exact(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (replaying)
@@ -5291,7 +5291,7 @@ bool Client::player_on_screen_exact(int pid) const {
         return fx.player[pid].onscreen;
 }
 
-void Client::draw_map(const VisibilityMap& roomVis) {
+void Client::draw_map(const VisibilityMap& roomVis) throw () {
     const double time = fd.frame / 10;
 
     // paint fog of war in all invisible rooms
@@ -5338,7 +5338,7 @@ void Client::draw_map(const VisibilityMap& roomVis) {
         }
 }
 
-void Client::draw_playfield() {
+void Client::draw_playfield() throw () {
     const double time = fd.frame / 10;
     const bool live = !replaying || !replay_paused && !replay_stopped;
 
@@ -5498,7 +5498,7 @@ void Client::draw_playfield() {
     graphics.endPlayfieldDraw();
 }
 
-Client::VisibilityMap Client::calculateVisibilities() {
+Client::VisibilityMap Client::calculateVisibilities() throw () {
     const double time = fd.frame / 10;
 
     VisibilityMap roomVis(fx.map.w);
@@ -5532,7 +5532,7 @@ Client::VisibilityMap Client::calculateVisibilities() {
     return roomVis;
 }
 
-int Client::calculatePlayerAlpha(int pid) const {
+int Client::calculatePlayerAlpha(int pid) const throw () {
     static const int min_alpha_friends = 128;
     const int baseAlpha = fd.player[pid].visibility;
     if ((replaying || fx.player[pid].team() == fx.player[me].team()) && baseAlpha < min_alpha_friends)
@@ -5541,7 +5541,7 @@ int Client::calculatePlayerAlpha(int pid) const {
         return baseAlpha;
 }
 
-void Client::draw_player(int pid, double time, bool live) {
+void Client::draw_player(int pid, double time, bool live) throw () {
     ClientPlayer& player = fx.player[pid];
     const bool fullyVisible = player_on_screen_exact(pid);
     const int alpha = fullyVisible ? calculatePlayerAlpha(pid) : fx.player[pid].alpha * 2 / 3;
@@ -5584,14 +5584,14 @@ void Client::draw_player(int pid, double time, bool live) {
 
 class MapListSorter { // helper for draw_game_menu
 public:
-    MapListSorter(MapListSortKey key_) : key(key_) { }
-    bool operator()(const std::pair<const MapInfo*, int>& m1, const std::pair<const MapInfo*, int>& m2) const;
+    MapListSorter(MapListSortKey key_) throw () : key(key_) { }
+    bool operator()(const std::pair<const MapInfo*, int>& m1, const std::pair<const MapInfo*, int>& m2) const throw ();
 
 private:
     MapListSortKey key;
 };
 
-bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<const MapInfo*, int>& m2) const {
+bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<const MapInfo*, int>& m2) const throw () {
     const MapInfo& m1mi = *m1.first, &m2mi = *m2.first;
     switch (key) {
     /*break;*/ case MLSK_Votes: return m1mi.votes > m2mi.votes; // reverse: get high vote counts first
@@ -5608,7 +5608,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
 }
 
 //draws the game menu
-void Client::draw_game_menu() {
+void Client::draw_game_menu() throw () {
     switch (menusel) {
     /*break;*/ case menu_maps: {
             Lock ml(mapInfoMutex);
@@ -5637,7 +5637,7 @@ void Client::draw_game_menu() {
         openMenus.draw(graphics.drawbuffer(), graphics.colours());
 }
 
-void Client::initMenus() {
+void Client::initMenus() throw () {
     typedef MenuCallback<Client> MCB;
     typedef MenuKeyCallback<Client> MKC;
     menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
@@ -5741,59 +5741,59 @@ void Client::initMenus() {
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
-void Client::MCF_menuOpener(Menu& menu) {
+void Client::MCF_menuOpener(Menu& menu) throw () {
     openMenus.open(&menu);
 }
 
-void Client::MCF_menuCloser() {
+void Client::MCF_menuCloser() throw () {
     openMenus.close();
 }
 
-void Client::MCF_prepareMainMenu() {
+void Client::MCF_prepareMainMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.disconnect.setEnable(connected || spectating);
 }
 
-void Client::MCF_disconnect() {
+void Client::MCF_disconnect() throw () {
     disconnect_command();
     stop_replay();
 }
 
-void Client::MCF_exitOutgun() {
+void Client::MCF_exitOutgun() throw () {
     quitCommand = true;
 }
 
-void Client::MCF_cancelConnect() {
+void Client::MCF_cancelConnect() throw () {
     if (!connected)
         disconnect_command();   // will cancel the (probably) ongoing connect attempt
 }
 
-void Client::MCF_preparePlayerMenu() {
+void Client::MCF_preparePlayerMenu() throw () {
     menu.options.player.name.set(playername);
     menu.options.player.favoriteColors.setGraphicsCallBack(graphics);
 }
 
-void Client::MCF_prepareDrawPlayerMenu() {
+void Client::MCF_prepareDrawPlayerMenu() throw () {
     menu.options.player.namestatus.set(tournamentPassword.statusAsString());
 }
 
-void Client::MCF_playerMenuClose() {
+void Client::MCF_playerMenuClose() throw () {
     change_name_command();
     send_tournament_participation();
 }
 
-void Client::MCF_nameChange() { // only function to clear the password
+void Client::MCF_nameChange() throw () { // only function to clear the password
     menu.options.player.password.set("");
     tournamentPassword.changeData(playername, "");
 }
 
-void Client::MCF_randomName() {
+void Client::MCF_randomName() throw () {
     const string name = language.code() == "fi" ? finnish_name(maxPlayerNameLength) : RandomName();
     menu.options.player.name.set(name);
     MCF_nameChange();
 }
 
-void Client::MCF_removePasswords() {
+void Client::MCF_removePasswords() throw () {
     const int removed = remove_player_passwords(menu.options.player.name());
     string dialog;
     if (removed == 1)
@@ -5807,10 +5807,10 @@ void Client::MCF_removePasswords() {
     showMenu(m_dialog);
 }
 
-void Client::MCF_prepareGameMenu() {
+void Client::MCF_prepareGameMenu() throw () {
 }
 
-void Client::MCF_prepareControlsMenu() {
+void Client::MCF_prepareControlsMenu() throw () {
     ClientControls ctrl = readControls(true, true);
     string active;
     if (ctrl.isUp())
@@ -5842,60 +5842,60 @@ void Client::MCF_prepareControlsMenu() {
     menu.options.controls.activeMouse.set(active);
 }
 
-void Client::MCF_keyboardLayout() {
+void Client::MCF_keyboardLayout() throw () {
     const string cfg = string("[system]\nkeyboard=") + menu.options.controls.keyboardLayout() + '\n';
     remove_keyboard();
     override_config_data(cfg.data(), cfg.length());
     install_keyboard();
 }
 
-void Client::MCF_joystick() {
+void Client::MCF_joystick() throw () {
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
     else
         remove_joystick();
 }
 
-void Client::MCF_messageLogging() {
+void Client::MCF_messageLogging() throw () {
     if (menu.options.game.messageLogging() != Menu_game::ML_none)
         openMessageLog();
     else
         closeMessageLog();
 }
 
-void Client::MCF_prepareScrModeMenu() {
+void Client::MCF_prepareScrModeMenu() throw () {
     menu.options.screenMode.update(graphics);
 }
 
-void Client::MCF_prepareDrawScrModeMenu() {
+void Client::MCF_prepareDrawScrModeMenu() throw () {
     menu.options.screenMode.flipping.setEnable(!menu.options.screenMode.windowed());
     menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
 }
 
-void Client::MCF_prepareGfxThemeMenu() {
+void Client::MCF_prepareGfxThemeMenu() throw () {
     menu.options.theme.update(graphics);
 }
 
-void Client::MCF_gfxThemeChange() {
+void Client::MCF_gfxThemeChange() throw () {
     graphics.select_theme(menu.options.theme.theme(),
                           menu.options.theme.background(), menu.options.theme.useThemeBackground(),
                           menu.options.theme.colours(), menu.options.theme.useThemeColours());
 }
 
-void Client::MCF_fontChange() {
+void Client::MCF_fontChange() throw () {
     graphics.select_font(menu.options.theme.font());
 }
 
-void Client::MCF_screenDepthChange() {
+void Client::MCF_screenDepthChange() throw () {
     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
 }
 
-void Client::MCF_screenModeChange() {   // used to lose the return value
+void Client::MCF_screenModeChange() throw () {   // used to lose the return value
     const bool ret = screenModeChange();
     nAssert(ret); // it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
 }
 
-bool Client::screenModeChange() {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
+bool Client::screenModeChange() throw () {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
     if (!menu.options.screenMode.newMode())
         return true;
 
@@ -5955,7 +5955,7 @@ bool Client::screenModeChange() {   // returns true whenever Graphics is usable 
     return true;
 }
 
-void Client::MCF_visibleRoomsPlayChange() {
+void Client::MCF_visibleRoomsPlayChange() throw () {
     if (!replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsPlay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5963,7 +5963,7 @@ void Client::MCF_visibleRoomsPlayChange() {
     }
 }
 
-void Client::MCF_visibleRoomsReplayChange() {
+void Client::MCF_visibleRoomsReplayChange() throw () {
     if (replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsReplay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5971,41 +5971,41 @@ void Client::MCF_visibleRoomsReplayChange() {
     }
 }
 
-void Client::MCF_antialiasChange() {
+void Client::MCF_antialiasChange() throw () {
     graphics.set_antialiasing(menu.options.graphics.antialiasing());
 }
 
-void Client::MCF_transpChange() {
+void Client::MCF_transpChange() throw () {
     graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
-void Client::MCF_statsBgChange() {
+void Client::MCF_statsBgChange() throw () {
     graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
-void Client::MCF_prepareSndMenu() {
+void Client::MCF_prepareSndMenu() throw () {
     menu.options.sounds.update(client_sounds);
 }
 
-void Client::MCF_sndEnableChange() {
+void Client::MCF_sndEnableChange() throw () {
     client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
-void Client::MCF_sndVolumeChange() {
+void Client::MCF_sndVolumeChange() throw () {
     client_sounds.setVolume(menu.options.sounds.volume());
     client_sounds.play(SAMPLE_POWER_FIRE, 1000);
 }
 
-void Client::MCF_sndThemeChange() {
+void Client::MCF_sndThemeChange() throw () {
     client_sounds.select_theme(menu.options.sounds.theme());
 }
 
-bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) {  // helper to MCF_refreshLanguages
+bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) throw () {  // helper to MCF_refreshLanguages
     // don't care about the language code (it isn't visible anyway), and use a case insensitive order
     return platStricmp(t1.first.c_str(), t2.first.c_str()) < 0;
 }
 
-void Client::MCF_refreshLanguages() {
+void Client::MCF_refreshLanguages() throw () {
     menu.options.language.language.clearOptions();
     menu.options.language.language.addOption("English", "en");   // global default when there's nothing in language.txt
 
@@ -6039,7 +6039,7 @@ void Client::MCF_refreshLanguages() {
         menu.options.language.language.set(lang); // ignore possible failure
 }
 
-void Client::MCF_acceptLanguage() {
+void Client::MCF_acceptLanguage() throw () {
     Language newLang;
     const string lang = menu.options.language.language();
     if (!newLang.load(lang, log))
@@ -6058,7 +6058,7 @@ void Client::MCF_acceptLanguage() {
         log.error(_("config/language.txt can't be written."));
 }
 
-void Client::MCF_acceptBugReporting() {
+void Client::MCF_acceptBugReporting() throw () {
     g_autoBugReporting = menu.options.bugReports.policy();
     const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
     ofstream os(main_cfg_file.c_str());
@@ -6075,7 +6075,7 @@ void Client::MCF_acceptBugReporting() {
         log.error(_("Can't open $1 for writing.", main_cfg_file));
 }
 
-void Client::MCF_playerPasswordAccept() {
+void Client::MCF_playerPasswordAccept() throw () {
     openMenus.close(&m_playerPassword.menu);
     if (m_playerPassword.save())
         save_player_password(playername, serverIP.toString(), m_playerPassword.password());
@@ -6085,18 +6085,18 @@ void Client::MCF_playerPasswordAccept() {
         connect_command(false);
 }
 
-void Client::MCF_serverPasswordAccept() {
+void Client::MCF_serverPasswordAccept() throw () {
     openMenus.close(&m_serverPassword.menu);
     nAssert(!connected);
     connect_command(false);
 }
 
-void Client::MCF_clearErrors() {
+void Client::MCF_clearErrors() throw () {
     openMenus.close(&m_errors.menu);
     m_errors.clear();
 }
 
-void Client::MCF_prepareServerMenu() {
+void Client::MCF_prepareServerMenu() throw () {
     const int oldSel = menu.connect.menu.selection();
 
     menu.connect.reset();
@@ -6155,12 +6155,12 @@ void Client::MCF_prepareServerMenu() {
     menu.connect.menu.setSelection(oldSel);
 }
 
-void Client::MCF_prepareAddServer() {
+void Client::MCF_prepareAddServer() throw () {
     menu.connect.addServer.save.set(menu.connect.favorites());
     menu.connect.addServer.address.set("");
 }
 
-void Client::MCF_addServer() {
+void Client::MCF_addServer() throw () {
     if (!menu.connect.addServer.address().empty()) {
         ServerListEntry spy;
         if (!spy.setAddress(menu.connect.addServer.address())) {
@@ -6177,7 +6177,7 @@ void Client::MCF_addServer() {
     MCF_menuCloser();
 }
 
-bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
+bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan != KEY_ENTER && scan != KEY_INSERT)
         return false;
@@ -6204,7 +6204,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) {
     return true;
 }
 
-bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) {
+bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan == KEY_DEL) {
         vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
@@ -6228,13 +6228,13 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
     return false;
 }
 
-void Client::MCF_connect(Textarea& target) {
+void Client::MCF_connect(Textarea& target) throw () {
     serverIP = menu.connect.getAddress(target);
     m_serverPassword.password.set("");
     connect_command(true);
 }
 
-void Client::MCF_updateServers() {
+void Client::MCF_updateServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
         Thread::startDetachedThread_assert("Client::getServerListThread",
@@ -6243,7 +6243,7 @@ void Client::MCF_updateServers() {
     }
 }
 
-void Client::MCF_refreshServers() {
+void Client::MCF_refreshServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
         Thread::startDetachedThread_assert("Client::refreshThread",
@@ -6252,12 +6252,12 @@ void Client::MCF_refreshServers() {
     }
 }
 
-void Client::MCF_prepareOwnServerMenu() {
+void Client::MCF_prepareOwnServerMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.ownServer.refreshEnables(listenServer.running(), connected);
 }
 
-void Client::MCF_startServer() {
+void Client::MCF_startServer() throw () {
     if (!listenServer.running()) {
         serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
         serverExtConfig.port = menu.ownServer.port();
@@ -6268,7 +6268,7 @@ void Client::MCF_startServer() {
     }
 }
 
-void Client::MCF_playServer() {
+void Client::MCF_playServer() throw () {
     if (listenServer.running()) {
         serverIP.fromValidIP("127.0.0.1");
         serverIP.setPort(listenServer.port());
@@ -6278,18 +6278,18 @@ void Client::MCF_playServer() {
     }
 }
 
-void Client::MCF_stopServer() {
+void Client::MCF_stopServer() throw () {
     if (listenServer.running())
         listenServer.stop();
 }
 
-void Client::MCF_replay(Textarea& target) {
+void Client::MCF_replay(Textarea& target) throw () {
     const string& replay_name = menu.replays.getFile(target);
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
 
-void Client::MCF_prepareReplayMenu() {
+void Client::MCF_prepareReplayMenu() throw () {
     menu.replays.reset();
     vector<pair<string, string> > replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
@@ -6332,7 +6332,7 @@ void Client::MCF_prepareReplayMenu() {
     menu.replays.addHooks(new MCB::A<Textarea, &Client::MCF_replay>(this));
 }
 
-void Client::load_highlight_texts() {
+void Client::load_highlight_texts() throw () {
     highlight_text.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "texts.txt";
     ifstream in(configFile.c_str());
@@ -6341,7 +6341,7 @@ void Client::load_highlight_texts() {
         highlight_text.push_back(toupper(trim(line)));
 }
 
-void Client::load_fav_maps() {
+void Client::load_fav_maps() throw () {
     fav_maps.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
@@ -6350,13 +6350,13 @@ void Client::load_fav_maps() {
         fav_maps.insert(toupper(trim(line)));
 }
 
-void Client::apply_fav_maps() {
+void Client::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
         mi->highlight = !!fav_maps.count(toupper(mi->title));
     mapListChangedAfterSort = true;
 }
 
-void Client::loadHelp() {
+void Client::loadHelp() throw () {
     menu.help.clear();
     const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
@@ -6369,13 +6369,13 @@ void Client::loadHelp() {
         menu.help.addLine(line);
 }
 
-void Client::addSplashLine(string line) { // internal to loadSplashScreen
+void Client::addSplashLine(string line) throw () { // internal to loadSplashScreen
     replace_all_in_place(line, "@VERSION@", getVersionString());
     replace_all_in_place(line, "@YEAR@", GAME_COPYRIGHT_YEAR);
     menu.options.bugReports.addLine(line);
 }
 
-void Client::loadSplashScreen() {
+void Client::loadSplashScreen() throw () {
     menu.options.bugReports.clear();
     const string splashFile = wheregamedir + "languages" + directory_separator + "splash." + language.code() + ".txt";
     ifstream in(splashFile.c_str());
@@ -6411,7 +6411,7 @@ void Client::loadSplashScreen() {
     }
 }
 
-void Client::openMessageLog() {
+void Client::openMessageLog() throw () {
     if (!messageLogOpen) {
         message_log.clear();    // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
         message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
@@ -6419,14 +6419,14 @@ void Client::openMessageLog() {
     }
 }
 
-void Client::closeMessageLog() {
+void Client::closeMessageLog() throw () {
     if (messageLogOpen) {
         message_log.close();
         messageLogOpen = false;
     }
 }
 
-void Client::CB_tournamentToken(string token) { // callback called by tournamentPassword from another thread
+void Client::CB_tournamentToken(string token) throw () { // callback called by tournamentPassword from another thread
     if (connected) {
         char lebuf[256]; int count = 0;
         writeByte(lebuf, count, data_registration_token);
@@ -6437,20 +6437,20 @@ void Client::CB_tournamentToken(string token) { // callback called by tournament
 }
 #endif
 
-void Client::cfunc_connection_update(void* customp, int connect_result, const char* data, int length) {
+void Client::cfunc_connection_update(void* customp, int connect_result, const char* data, int length) throw () {
     Client* cl = static_cast<Client*>(customp);
     cl->connection_update(connect_result, data, length);
 }
 
-void Client::connection_update(int connect_result, const char* data, int length) {
+void Client::connection_update(int connect_result, const char* data, int length) throw () {
     addThreadMessage(new TM_ConnectionUpdate(connect_result, data, length));
 }
 
-void Client::cfunc_server_data(void* customp, const char* data, int length) {
+void Client::cfunc_server_data(void* customp, const char* data, int length) throw () {
     Client* cl = static_cast<Client*>(customp);
     cl->process_incoming_data(data, length);
 }
 
-ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) {
+ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
     return new Client(config, serverConfig, clientLog, externalErrorLog_);
 }

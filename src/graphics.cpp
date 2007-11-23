@@ -73,7 +73,7 @@ const string Graphics::save_extension = ".png";
 const string Graphics::save_extension = ".pcx";
 #endif
 
-Graphics::Graphics(LogSet logs) :
+Graphics::Graphics(LogSet logs) throw () :
     roomLayout          (*this),
     background          (*this),
     show_chat_messages  (true),
@@ -95,11 +95,11 @@ Graphics::Graphics(LogSet logs) :
     #endif
 }
 
-Graphics::~Graphics() {
+Graphics::~Graphics() throw () {
     unload_bitmaps();
 }
 
-bool Graphics::init(int width, int height, int depth, bool windowed, bool flipping) {
+bool Graphics::init(int width, int height, int depth, bool windowed, bool flipping) throw () {
     unload_bitmaps();
 
     if (windowed)
@@ -147,7 +147,7 @@ bool Graphics::init(int width, int height, int depth, bool windowed, bool flippi
     return true;
 }
 
-void Graphics::make_layout() {
+void Graphics::make_layout() throw () {
     if (!show_minimap && !show_scoreboard)
         scr_mul = static_cast<double>(SCREEN_W) / plw;
     else
@@ -229,23 +229,23 @@ void Graphics::make_layout() {
     mapNeedsRedraw = true;
 }
 
-void Graphics::reload_playfield_pictures() {
+void Graphics::reload_playfield_pictures() throw () {
     needReloadPlayfieldPictures = false;
     unload_playfield_pictures();
     load_playfield_pictures();
     roomGraphicsChanged();
 }
 
-void Graphics::toggle_full_playfield() {
+void Graphics::toggle_full_playfield() throw () {
     show_minimap = show_scoreboard = !show_minimap;
     make_layout();
 }
 
-void Graphics::videoMemoryCorrupted() {
+void Graphics::videoMemoryCorrupted() throw () {
     roomGraphicsChanged();
 }
 
-void Graphics::unload_bitmaps() {
+void Graphics::unload_bitmaps() throw () {
     vidpage1  .free();
     vidpage2  .free();
     backbuf   .free();
@@ -256,23 +256,23 @@ void Graphics::unload_bitmaps() {
     unload_pictures();
 }
 
-void Graphics::startDraw() {
+void Graphics::startDraw() throw () {
     acquire_bitmap(drawbuf);
 }
 
-void Graphics::endDraw() {
+void Graphics::endDraw() throw () {
     release_bitmap(drawbuf);
 }
 
-void Graphics::startPlayfieldDraw() {
+void Graphics::startPlayfieldDraw() throw () {
     set_clip_rect(drawbuf, roomLayout.x0(), roomLayout.y0(), roomLayout.xMax(), roomLayout.yMax());
 }
 
-void Graphics::endPlayfieldDraw() {
+void Graphics::endPlayfieldDraw() throw () {
     set_clip_rect(drawbuf, 0, 0, drawbuf->w - 1, drawbuf->h - 1);
 }
 
-void Graphics::draw_screen(bool acquireWithFlipping) {
+void Graphics::draw_screen(bool acquireWithFlipping) throw () {
     if (page_flipping) {
         if (acquireWithFlipping)
             acquire_screen();
@@ -292,7 +292,7 @@ void Graphics::draw_screen(bool acquireWithFlipping) {
     }
 }
 
-void Graphics::setColors() {
+void Graphics::setColors() throw () {
     colour.init(colour_file);
 
     reset_playground_colors();
@@ -340,31 +340,31 @@ void Graphics::setColors() {
     mapNeedsRedraw = true;
 }
 
-void Graphics::reset_playground_colors() {
+void Graphics::reset_playground_colors() throw () {
     groundCol = colour[Colour::ground];
     wallCol   = colour[Colour::wall];
     roomGraphicsChanged();
 }
 
-void Graphics::random_playground_colors() {
+void Graphics::random_playground_colors() throw () {
     groundCol = Colour(rand() % 256, rand() % 256, rand() % 256);
     wallCol   = Colour(rand() % 256, rand() % 256, rand() % 256);
     roomGraphicsChanged();
 }
 
-int Graphics::chat_lines() const {
+int Graphics::chat_lines() const throw () {
     return max(1, roomLayout.y0() / (text_height(font) + 3));
 }
 
-int Graphics::chat_max_lines() const {
+int Graphics::chat_max_lines() const throw () {
     return max(1, (playfield_y + scale(plh)) / (text_height(font) + 3));
 }
 
-bool Graphics::depthAvailable(int depth) const {
+bool Graphics::depthAvailable(int depth) const throw () {
     return !getResolutions(depth, false).empty();   //#opt: no need to go through all modes or create a vector
 }
 
-vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) const {  // returns a sorted list of unique resolutions
+vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) const throw () {  // returns a sorted list of unique resolutions
     vector<ScreenMode> mvec;
 
     #ifdef ALLEGRO_WINDOWS
@@ -420,7 +420,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
     return mvec;
 }
 
-bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed, int pages) {
+bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed, int pages) throw () {
     log("Setting video mode: %d×%d×%d %s", width, height, depth, windowed ? "windowed" : "fullscreen");
     set_color_depth(depth);
 
@@ -471,16 +471,16 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     return true;
 }
 
-void Graphics::setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) {
+void Graphics::setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) throw () {
     if (roomLayout.set(map.w, map.h, visible_rooms, repeatMap))
         needReloadPlayfieldPictures = true;
 }
 
-void Graphics::draw_background(bool map_ready) {
+void Graphics::draw_background(bool map_ready) throw () {
     background.draw_background(drawbuf, map_ready && show_minimap, false);
 }
 
-void Graphics::draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) {
+void Graphics::draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) throw () {
     if (needReloadPlayfieldPictures)
         reload_playfield_pictures();
     roomLayout.setTopLeft(topLeft);
@@ -488,7 +488,7 @@ void Graphics::draw_background(const Map& map, const VisibilityMap& roomVis, con
     background.draw_playfield_background(drawbuf, map, roomVis, continuousTextures, mapInfoMode);
 }
 
-void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int roomy, int texRoomX, int texRoomY, bool mapInfoMode) {
+void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int roomy, int texRoomX, int texRoomY, bool mapInfoMode) throw () {
     const Room& room = map.room[roomx][roomy];
 
     // the room at top left is textured like it's the room at coordinates (texRoomX,texRoomY)
@@ -649,7 +649,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
                 putpixel(roombg, pf_scale(x), pf_scale(y), room.fall_on_wall(x, y, 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
 }
 
-void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_y) {
+void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_y) throw () {
     const int radius = pf_scale(flagpos_radius);
     const int step = 300 / radius;
     for (int y = flag_y - radius; y < flag_y + radius; y++)
@@ -666,17 +666,17 @@ void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_
     solid_mode();
 }
 
-void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale) {
+void Graphics::draw_room_ground(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale) throw () {
     for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
         draw_wall(buffer, *wi, x, y, texOffsetBaseX, texOffsetBaseY, scale, groundCol, get_floor_texture((*wi)->texture()));
 }
 
-void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale) {
+void Graphics::draw_room_walls(BITMAP* buffer, const Room& room, int x, int y, int texOffsetBaseX, int texOffsetBaseY, double scale) throw () {
     for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
         draw_wall(buffer, *wi, x, y, texOffsetBaseX, texOffsetBaseY, scale, wallCol, get_wall_texture((*wi)->texture()));
 }
 
-void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex) {
+void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* tex) throw () {
     if      (RectWall* rwp = dynamic_cast<RectWall*>(wall))
         draw_rect_wall(buffer, *rwp, x, y, texOffsetBaseX, texOffsetBaseY, scale, color, tex);
     else if (TriWall * twp = dynamic_cast<TriWall *>(wall))
@@ -687,7 +687,7 @@ void Graphics::draw_wall(BITMAP* buffer, WallBase* wall, double x, double y, int
         nAssert(0);
 }
 
-void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
+void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) throw () {
     if (texture)
         drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
     rectfill(buffer, iround(x0 + scale * wall.x1()    ), iround(y0 + scale * wall.y1()    ),
@@ -696,7 +696,7 @@ void Graphics::draw_rect_wall(BITMAP* buffer, const RectWall& wall, double x0, d
         solid_mode();
 }
 
-void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
+void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) throw () {
     if (texture)
         drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
     triangle(buffer,
@@ -707,7 +707,7 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, dou
         solid_mode();
 }
 
-void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) {
+void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) throw () {
     const double x = wall.X();
     const double y = wall.Y();
     const double ro = wall.radius();
@@ -811,7 +811,7 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
     solid_mode();
 }
 
-void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha, bool emphasize, double timeUnknown) {
+void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha, bool emphasize, double timeUnknown) throw () {
     set_trans_mode(alpha);
 
     ScaledCoordSet sc(pos, this);
@@ -863,7 +863,7 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
 
 // Minimap functions
 
-void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash, bool old) {
+void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash, bool old) throw () {
     if (!show_minimap)
         return;
     const double px = (flag.position().px * plw + flag.position().x) / (plw * map.w);
@@ -876,7 +876,7 @@ void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool f
     rectfn(drawbuf, pix + 1, piy - scl / 32, pix + scl / 32, piy - scl / 80, flash ? teamflashcol[team] : teamcol[team]);
 }
 
-void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
+void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) throw () {
     if (!show_minimap)
         return;
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
@@ -887,7 +887,7 @@ void Graphics::draw_minimap_player(const Map& map, const ClientPlayer& player) {
         rectfill(drawbuf, coords.first - b, coords.second - b, coords.first + b, coords.second + b, col[player.color()]);
 }
 
-void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) {
+void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, double time) throw () {
     if (!show_minimap)
         return;
     const pair<int, int> coords = calculate_minimap_coordinates(map, player);
@@ -899,7 +899,7 @@ void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, doubl
         circlefill(drawbuf, coords.first, coords.second, scale(2), colour[Colour::map_player_me_2]);
 }
 
-pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const {
+pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const throw () {
     const double px = (player.roomx * plw + player.lx) / static_cast<double>(plw * map.w);
     const double py = (player.roomy * plh + player.ly) / static_cast<double>(plh * map.h);
     const int x = static_cast<int>(px * minimap_w) + minimap_x;
@@ -907,7 +907,7 @@ pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const Cli
     return pair<int, int>(x, y);
 }
 
-void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibility) {
+void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibility) throw () {
     if (!show_minimap || visibility >= .99)
         return;
     const int x1 =  rx      * minimap_w / map.w;
@@ -926,7 +926,7 @@ void Graphics::draw_minimap_room(const Map& map, int rx, int ry, float visibilit
     }
 }
 
-void Graphics::highlight_minimap_rooms() {
+void Graphics::highlight_minimap_rooms() throw () {
     if (!show_minimap)
         return;
 
@@ -977,7 +977,7 @@ void Graphics::highlight_minimap_rooms() {
     }
 }
 
-void Graphics::update_minimap_background(const Map& map) {
+void Graphics::update_minimap_background(const Map& map) throw () {
     mapNeedsRedraw = false;
     update_minimap_background(minibg, map);
     if (minibg_fog) {
@@ -990,11 +990,11 @@ void Graphics::update_minimap_background(const Map& map) {
 
 class MinimapHelper {   // small helper solely for Graphics::update_minimap_background
 public:
-    MinimapHelper(BITMAP* buffer_, double x0_, double y0_, double plw_, double plh_, double scale_)
+    MinimapHelper(BITMAP* buffer_, double x0_, double y0_, double plw_, double plh_, double scale_) throw ()
         : buffer(buffer_), x0(x0_), y0(y0_), plw(plw_), plh(plh_), scale(scale_) { }
 
-    void paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint);
-    pair<int, int> flagCoords(const WorldCoords& coords) const;
+    void paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint) throw ();
+    pair<int, int> flagCoords(const WorldCoords& coords) const throw ();
 
 private:
     BITMAP* buffer;
@@ -1002,7 +1002,7 @@ private:
 };
 
 // Paint within room (rx,ry) every pixel already of the given colorToPaint with a team or background color according to which color flag or neither is nearest to it.
-void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint) {
+void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*>* teamFlags, int* teamColor, int backgroundColor, int colorToPaint) throw () {
     const int xmin = static_cast<int>(x0 + plw * scale *  rx         );
     const int xmax = static_cast<int>(x0 + plw * scale * (rx + 1) - 1);
     const int ymin = static_cast<int>(y0 + plh * scale *  ry         );
@@ -1029,14 +1029,14 @@ void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*
     }
 }
 
-pair<int, int> MinimapHelper::flagCoords(const WorldCoords& coords) const {
+pair<int, int> MinimapHelper::flagCoords(const WorldCoords& coords) const throw () {
     // the coords are not rounded because the max coord is already (minimap_w - small safety)
     const int x = static_cast<int>(x0 + (coords.px * plw + coords.x) * scale);
     const int y = static_cast<int>(y0 + (coords.py * plh + coords.y) * scale);
     return pair<int, int>(x, y);
 }
 
-void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) {
+void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool save_map_pic) throw () {
     if (map.w == 0 || map.h == 0)
         return;
 
@@ -1189,7 +1189,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     }
 }
 
-void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team, bool old) {
+void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team, bool old) throw () {
     static const int marginDist = 15;
     static const int flagSizeMax = 8, flagSizeMin = 5, playerRadMax = 10, playerRadMin = 5;
 
@@ -1241,7 +1241,7 @@ void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team,
 }
 
 //draws a basic player object
-void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) {
+void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) throw () {
     nAssert(colorId >= 0 && colorId <= MAX_PLAYERS / 2);
 
     if (alpha <= 0)
@@ -1311,14 +1311,14 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDir
     }
 }
 
-void Graphics::draw_me_highlight(const WorldCoords& pos, double size) {
+void Graphics::draw_me_highlight(const WorldCoords& pos, double size) throw () {
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         if (sc.x() >= roomLayout.x0() && sc.x() <= roomLayout.xMax() && sc.y() >= roomLayout.y0() && sc.y() <= roomLayout.yMax())
             circle(drawbuf, sc.x(), sc.y(), scale((8 * size + 1) * PLAYER_RADIUS), colour[Colour::spawn_highlight]);
 }
 
-void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) {
+void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) throw () {
     const double minDist = pf_scale(GUNPOINT_RADIUS);
     const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
     const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(pos.x, pos.y, gdx, gdy, ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
@@ -1342,7 +1342,7 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
     }
 }
 
-void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
+void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) throw () {
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
     if (alpha)
@@ -1352,7 +1352,7 @@ void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) {
     solid_mode();
 }
 
-void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) { // x,y are destination coords of the sprite center
+void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) throw () { // x,y are destination coords of the sprite center
     nAssert(sprite);
     nAssert(sprite->w == sprite->h);    // if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
     // make room so that rotating won't clip the corners off
@@ -1366,7 +1366,7 @@ void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
     solid_mode();
 }
 
-void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) {    // x,y are destination coords of the sprite center
+void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) throw () {    // x,y are destination coords of the sprite center
     nAssert(bitmap_color_depth(sprite) == 32);
     nAssert(sprite->w == sprite->h);    // if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
     // make room so that rotating won't clip the corners off
@@ -1381,7 +1381,7 @@ void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
     solid_mode();
 }
 
-void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay) {
+void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay) throw () {
     BITMAP* sprite = dead_sprite[player.team()];
     ScaledCoordSet sc(player.roomx, player.roomy, player.lx, player.ly, this);
     while (sc.next()) {
@@ -1406,7 +1406,7 @@ void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay
     }
 }
 
-void Graphics::draw_virou_sorvete(const WorldCoords& pos, double respawn_delay) {
+void Graphics::draw_virou_sorvete(const WorldCoords& pos, double respawn_delay) throw () {
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
@@ -1427,7 +1427,7 @@ void Graphics::draw_virou_sorvete(const WorldCoords& pos, double respawn_delay) 
     }
 }
 
-void Graphics::draw_gun_explosion(const WorldCoords& pos, int rad, int team) {
+void Graphics::draw_gun_explosion(const WorldCoords& pos, int rad, int team) throw () {
     const int r = getr(teamcol[team]);
     const int g = getg(teamcol[team]);
     const int b = getb(teamcol[team]);
@@ -1439,7 +1439,7 @@ void Graphics::draw_gun_explosion(const WorldCoords& pos, int rad, int team) {
         circle(drawbuf, sc.x(), sc.y(), pf_scale(rad), c);
 }
 
-void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha) {
+void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha) throw () {
     const int effAlpha = static_cast<int>((120 - time * 200.0) * alpha);
     if (effAlpha <= 0 || (min_transp && effAlpha <= 10))
         return;
@@ -1462,7 +1462,7 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
     solid_mode();
 }
 
-void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) {
+void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) throw () {
     const int radius = pf_scale(db.radius(frame));
     const WorldCoords& pos = db.position();
     RoomPosSet r(pos.px, pos.py, this);
@@ -1501,7 +1501,7 @@ void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) 
     }
 }
 
-void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha) {
+void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha) throw () {
     set_trans_mode(alpha / 2);
 
     ScaledCoordSet sc(pos, this);
@@ -1516,7 +1516,7 @@ void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int 
     solid_mode();
 }
 
-void Graphics::draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha) {
+void Graphics::draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha) throw () {
     if (min_transp)
         return;
     BITMAP* buffer;
@@ -1549,7 +1549,7 @@ void Graphics::draw_deathbringer_carrier_effect(const WorldCoords& pos, int alph
         destroy_bitmap(buffer);
 }
 
-void Graphics::draw_shield(const WorldCoords& pos, int r, bool live, int alpha, int team, GunDirection direction) {
+void Graphics::draw_shield(const WorldCoords& pos, int r, bool live, int alpha, int team, GunDirection direction) throw () {
     r = pf_scale(r);
     BITMAP* const sprite = team == 0 || team == 1 ? static_cast<BITMAP*>(shield_sprite[team]) : 0;
 
@@ -1590,7 +1590,7 @@ void Graphics::draw_shield(const WorldCoords& pos, int r, bool live, int alpha, 
     }
 }
 
-void Graphics::draw_player_name(const string& name, const WorldCoords& pos, int team, bool highlight) {
+void Graphics::draw_player_name(const string& name, const WorldCoords& pos, int team, bool highlight) throw () {
     const int c = highlight ? colour[Colour::name_highlight] : colour[Colour::name];
     ScaledCoordSet sc(pos, this);
     while (sc.next())
@@ -1600,7 +1600,7 @@ void Graphics::draw_player_name(const string& name, const WorldCoords& pos, int 
                                  c, teamdcol[team], -1);
 }
 
-void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
+void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) throw () {
     BITMAP* const sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
     ScaledCoordSet sc(rocket.px, rocket.py, rocket.x, rocket.y, this);
     while (sc.next()) {
@@ -1627,7 +1627,7 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) {
     }
 }
 
-void Graphics::draw_pup(const Powerup& pup, double time, bool live) {
+void Graphics::draw_pup(const Powerup& pup, double time, bool live) throw () {
     nAssert(pup.kind >= 0 && pup.kind < static_cast<int>(pup_sprite.size()));
     BITMAP* const sprite = pup_sprite[pup.kind];
     const WorldCoords pos(pup.px, pup.py, pup.x, pup.y);
@@ -1649,14 +1649,14 @@ void Graphics::draw_pup(const Powerup& pup, double time, bool live) {
         }
 }
 
-void Graphics::draw_pup_shield(const WorldCoords& pos, bool live) {
+void Graphics::draw_pup_shield(const WorldCoords& pos, bool live) throw () {
     draw_shield(pos, 14, live);
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         circlefill(drawbuf, sc.x(), sc.y(), pf_scale(12), colour[Colour::pup_shield]);
 }
 
-void Graphics::draw_pup_turbo(const WorldCoords& pos, bool live) {
+void Graphics::draw_pup_turbo(const WorldCoords& pos, bool live) throw () {
     const int r = pf_scale(12);
     static int rx[3] = { 0, 0, 0 }, ry[3] = { 0, 0, 0 }; // being static results in all turbos looking the same when !live, but that's not really serious
     if (live) {
@@ -1672,7 +1672,7 @@ void Graphics::draw_pup_turbo(const WorldCoords& pos, bool live) {
     }
 }
 
-void Graphics::draw_pup_shadow(const WorldCoords& pos, double time) {
+void Graphics::draw_pup_shadow(const WorldCoords& pos, double time) throw () {
     int alpha = static_cast<int>(fmod(time * 600.0, 400));
     if (alpha > 200)
         alpha = 400 - alpha;
@@ -1683,7 +1683,7 @@ void Graphics::draw_pup_shadow(const WorldCoords& pos, double time) {
     solid_mode();
 }
 
-void Graphics::draw_pup_power(const WorldCoords& pos, double time) {
+void Graphics::draw_pup_power(const WorldCoords& pos, double time) throw () {
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
         if (static_cast<int>(fmod(time * 30, 2)))
@@ -1693,7 +1693,7 @@ void Graphics::draw_pup_power(const WorldCoords& pos, double time) {
     }
 }
 
-void Graphics::draw_pup_weapon(const WorldCoords& pos, double time) {
+void Graphics::draw_pup_weapon(const WorldCoords& pos, double time) throw () {
     for (int b = 0; b < 4; b++) {
         // deg: 0..360
         double deg = static_cast<int>(fmod(time * 1000, 1000)) / 1000.;
@@ -1718,7 +1718,7 @@ void Graphics::draw_pup_weapon(const WorldCoords& pos, double time) {
     }
 }
 
-void Graphics::draw_pup_health(const WorldCoords& pos, double time) {
+void Graphics::draw_pup_health(const WorldCoords& pos, double time) throw () {
     int varia = static_cast<int>(fmod(time * 15, 10));
     if (varia > 5)
         varia = 10 - varia;
@@ -1739,7 +1739,7 @@ void Graphics::draw_pup_health(const WorldCoords& pos, double time) {
     }
 }
 
-void Graphics::draw_pup_deathbringer(const WorldCoords& pos, double time, bool live) {
+void Graphics::draw_pup_deathbringer(const WorldCoords& pos, double time, bool live) throw () {
     ScaledCoordSet sc(pos, this);
     while (sc.next())
         circlefill(drawbuf, sc.x(), sc.y(), pf_scale(12), colour[Colour::pup_deathbringer]);
@@ -1747,22 +1747,22 @@ void Graphics::draw_pup_deathbringer(const WorldCoords& pos, double time, bool l
         create_deathcarrier(pos, 255, time, true);
 }
 
-void Graphics::draw_waiting_map_message(const string& caption, const string& map) {
+void Graphics::draw_waiting_map_message(const string& caption, const string& map) throw () {
     print_text_border_centre_check_bg(caption, playfield_x + scale(plw) / 2, playfield_y + scale(plh / 2 + 20), colour[Colour::map_loading_1], colour[Colour::text_border], -1);
     print_text_border_centre_check_bg(map, playfield_x + scale(plw) / 2, playfield_y + scale(plh / 2 + 50), colour[Colour::map_loading_2], colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_loading_map_message(const string& text) {
+void Graphics::draw_loading_map_message(const string& text) throw () {
     print_text_border_centre_check_bg(text, playfield_x + scale(plw / 2), playfield_y + scale(plh / 2 + 70), colour[Colour::map_loading_1], colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_scores(const string& text, int team, int score1, int score2) {
+void Graphics::draw_scores(const string& text, int team, int score1, int score2) throw () {
     const int c = team == 0 || team == 1 ? teamlcol[team] : colour[Colour::game_draw];
     print_text_border_centre_check_bg(text, playfield_x + scale(plw / 2), playfield_y + scale(plh / 2 - 40), c, colour[Colour::text_border], -1);
     print_text_border_centre_check_bg(_("SCORE $1 - $2", itoa(score1), itoa(score2)), playfield_x + scale(plw / 2), playfield_y + scale(plh / 2 - 20), c, colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) {
+void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team* teams, int maxplayers, bool pings, bool underlineMasterAuthenticated, bool underlineServerAuthenticated) throw () {
     if (!show_scoreboard) {     // show only the team scores in full screen mode
         int c;
         if (teams[0].score() > teams[1].score())
@@ -1880,17 +1880,17 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
     }
 }
 
-void Graphics::draw_scoreboard_name(const FONT* sbfont, const string& name, int x, int y, int pcol, bool underline) {
+void Graphics::draw_scoreboard_name(const FONT* sbfont, const string& name, int x, int y, int pcol, bool underline) throw () {
     if (underline)
         hline(drawbuf, x, y + text_height(font), x + text_length(font, name) - 2, pcol);
     textout_ex(drawbuf, sbfont, name.c_str(), x, y, pcol, -1);
 }
 
-void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team) {
+void Graphics::draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team) throw () {
     textprintf_right_ex(drawbuf, sbfont, x, y, teamlcol[team], -1, "%d", points);
 }
 
-void Graphics::team_statistics(const Team* teams) {
+void Graphics::team_statistics(const Team* teams) throw () {
     const FONT* stfont = font;
     const int total_captures = static_cast<int>(teams[0].captures().size() + teams[1].captures().size());
     int line_height = text_height(stfont) + 4;
@@ -2014,7 +2014,7 @@ void Graphics::team_statistics(const Team* teams) {
     }
 }
 
-void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) {
+void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, int time, int maxplayers, int max_world_rank) throw () {
     // line usage: 1 blank, red team (2 captions, 1 blank, 1 for every player), 1 blank, blue team, 1 page num
     const int num_lines = maxplayers + 3 + 2 * 3;
     const FONT* stfont;
@@ -2097,7 +2097,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     textout_right_ex(drawbuf, stfont, page_num.str().c_str(), x2 - x_margin, pageNumY, colour[Colour::stats_highlight], -1);
 }
 
-void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time) {
+void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& player, int x, int y, int page, int time) throw () {
     ostringstream stats;
     stats << player.reg_status.strFlags() << ' ';
     stats << left << setw(17) << player.name << right;
@@ -2154,7 +2154,7 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
 }
 
 void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsin, int bpsout,
-                           const vector<vector<pair<int, int> > >& sticks, const vector<int>& buttons) {
+                           const vector<vector<pair<int, int> > >& sticks, const vector<int>& buttons) throw () {
     clear_to_color(drawbuf, colour[Colour::screen_background]);
 
     int line = 1;
@@ -2191,12 +2191,12 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     textout_ex(drawbuf, font, _("in $1 B/s, out $2 B/s", itoa_w(bpsin, 4), itoa_w(bpsout, 4)).c_str(), margin, line++ * line_h, colour[Colour::normal_message_unknown], -1);
 }
 
-void Graphics::draw_fps(double fps) {
+void Graphics::draw_fps(double fps) throw () {
     const string text = _("FPS:$1", itoa_w((int)fps, 3));
     print_text_border_check_bg(text, SCREEN_W - 2 - text_length(font, text), SCREEN_H - text_height(font) - 2, colour[Colour::fps], colour[Colour::text_border], -1);
 }
 
-void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current, int own_vote, const string& edit_vote) {
+void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapListSortKey sortedBy, int current, int own_vote, const string& edit_vote) throw () {
     const FONT* mlfont;
     if (text_length(font, "i") != text_length(font, "M"))   // map list works only with monospace font
         mlfont = default_font;
@@ -2293,30 +2293,30 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
     textout_ex(drawbuf, mlfont, vote.str().c_str(), x_left, y, colour[Colour::stats_highlight], -1);
 }
 
-void Graphics::draw_player_power(double val) {
+void Graphics::draw_player_power(double val) throw () {
     draw_powerup_time(0, _("Power"), val, colour[Colour::power]);
 }
 
-void Graphics::draw_player_turbo(double val) {
+void Graphics::draw_player_turbo(double val) throw () {
     draw_powerup_time(1, _("Turbo"), val, colour[Colour::turbo]);
 }
 
-void Graphics::draw_player_shadow(double val) {
+void Graphics::draw_player_shadow(double val) throw () {
     draw_powerup_time(2, _("Shadow"), val, colour[Colour::shadow]);
 }
 
-void Graphics::draw_powerup_time(int line, const string& caption, double val, int c) {
+void Graphics::draw_powerup_time(int line, const string& caption, double val, int c) throw () {
     const int y = indicators_y + line * (text_height(font) + 2);
     print_text_border_check_bg(caption, pups_x, y, c, colour[Colour::text_border], -1);
     const string value = itoa_w(iround(val), 3);
     print_text_border_check_bg(value, pups_val_x - text_length(font, value), y, c, colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_player_weapon(int level) {
+void Graphics::draw_player_weapon(int level) throw () {
     print_text_border_check_bg(_("Weapon $1", itoa(level)), weapon_x, indicators_y, colour[Colour::weapon], colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_map_time(int seconds, bool extra_time) {
+void Graphics::draw_map_time(int seconds, bool extra_time) throw () {
     ostringstream ost;
     if (extra_time)
         ost << _("ET") << ' ';
@@ -2324,7 +2324,7 @@ void Graphics::draw_map_time(int seconds, bool extra_time) {
     print_text_border_check_bg(ost.str(), time_x - text_length(font, ost.str()), time_y, colour[Colour::map_time], colour[Colour::text_border], -1);
 }
 
-void Graphics::draw_change_team_message(double time) {
+void Graphics::draw_change_team_message(double time) throw () {
     int c;
     if (static_cast<int>(fmod(time * 2.0, 2)))
         c = colour[Colour::change_message_1];
@@ -2334,7 +2334,7 @@ void Graphics::draw_change_team_message(double time) {
     textout_centre_ex(drawbuf, font, _("TEAMS" ).c_str(), playfield_x + scale(plw - 6 * 8 + 10), playfield_y + scale(plh -  9), c, -1);
 }
 
-void Graphics::draw_change_map_message(double time, bool delayed) {
+void Graphics::draw_change_map_message(double time, bool delayed) throw () {
     const int x = playfield_x + scale(plw - 64 - 6 * 8), y1 = playfield_y + scale(plh - 18), y2 = playfield_y + scale(plh - 9);
     const string text1 = _("EXIT"), text2 = _("MAP");
     if (delayed) {
@@ -2354,15 +2354,15 @@ void Graphics::draw_change_map_message(double time, bool delayed) {
     }
 }
 
-void Graphics::draw_player_health(int value) {
+void Graphics::draw_player_health(int value) throw () {
     draw_bar(health_x, _("Health"), value, colour[Colour::health_100], colour[Colour::health_200], colour[Colour::health_300]);
 }
 
-void Graphics::draw_player_energy(int value) {
+void Graphics::draw_player_energy(int value) throw () {
     draw_bar(energy_x, _("Energy"), value, colour[Colour::energy_100], colour[Colour::energy_200], colour[Colour::energy_300]);
 }
 
-void Graphics::draw_bar(int x, const string& caption, int value, int c100, int c200, int c300) {
+void Graphics::draw_bar(int x, const string& caption, int value, int c100, int c200, int c300) throw () {
     const int y = indicators_y;
     print_text_border_check_bg(caption, x, y, colour[Colour::bar_text], colour[Colour::text_border], -1);
     const string val_str = itoa_w(value, 3);
@@ -2389,7 +2389,7 @@ void Graphics::draw_bar(int x, const string& caption, int value, int c100, int c
         rectfill(drawbuf, x, bar_y1, x + targ, bar_y2, c300);
 }
 
-void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, bool stopped) {
+void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, bool stopped) throw () {
     int x = health_x;
     int y = indicators_y;
 
@@ -2442,7 +2442,7 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
     }
 }
 
-void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer, int cursor_pos) {
+void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list<Message>::const_iterator& end, const string& talkbuffer, int cursor_pos) throw () {
     if (!show_chat_messages)
         return;
     const int line_height = text_height(font) + 3;
@@ -2484,7 +2484,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
 }
 
-void Graphics::print_chat_message(Message_type type, const string& message, int team, int x, int y, bool highlight) {
+void Graphics::print_chat_message(Message_type type, const string& message, int team, int x, int y, bool highlight) throw () {
     int c;
     switch (type) {
         /*break;*/ case msg_warning: c = colour[Colour::message_warning];
@@ -2504,43 +2504,43 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
         print_text_border(message, x, y, c, colour[Colour::text_border], -1);
 }
 
-void Graphics::print_chat_input(const string& message, int x, int y, int cursor) {
+void Graphics::print_chat_input(const string& message, int x, int y, int cursor) throw () {
     print_text_border(message, x, y, colour[Colour::message_input], colour[Colour::text_border], -1);
     if (cursor >= 0 && static_cast<int>(fmod(get_time() * 2., 2)))
         vline(drawbuf, x + text_length(font, message.substr(0, cursor)), y, y + text_height(font), colour[Colour::message_input]);
 }
 
-void Graphics::print_text(const string& text, int x, int y, int textcol, int bgcol) {
+void Graphics::print_text(const string& text, int x, int y, int textcol, int bgcol) throw () {
     textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
-void Graphics::print_text_centre(const string& text, int x, int y, int textcol, int bgcol) {
+void Graphics::print_text_centre(const string& text, int x, int y, int textcol, int bgcol) throw () {
     textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
-void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol) throw () {
     print_text_border(text, x, y, textcol, bordercol, bgcol, false);
 }
 
-void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+void Graphics::print_text_border_centre(const string& text, int x, int y, int textcol, int bordercol, int bgcol) throw () {
     print_text_border(text, x, y, textcol, bordercol, bgcol, true);
 }
 
-void Graphics::print_text_border_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+void Graphics::print_text_border_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) throw () {
     if (bg_texture)
         print_text_border(text, x, y, textcol, bordercol, bgcol, false);
     else
         textout_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
-void Graphics::print_text_border_centre_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) {
+void Graphics::print_text_border_centre_check_bg(const string& text, int x, int y, int textcol, int bordercol, int bgcol) throw () {
     if (bg_texture)
         print_text_border(text, x, y, textcol, bordercol, bgcol, true);
     else
         textout_centre_ex(drawbuf, font, text.c_str(), x, y, textcol, bgcol);
 }
 
-void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring) {
+void Graphics::print_text_border(const string& text, int x, int y, int textcol, int bordercol, int bgcol, bool centring) throw () {
     void (*print)(BITMAP*, const FONT*, const char*, int, int, int, int);
     if (centring)
         print = textout_centre_ex;
@@ -2568,7 +2568,7 @@ void Graphics::print_text_border(const string& text, int x, int y, int textcol, 
     print(drawbuf, font, text.c_str(), x, y, textcol, -1);
 }
 
-void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2) {
+void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col1, int col2) throw () {
     const int width = 10;
     if (height > 0) {
         rectfill(drawbuf, x, y, x + width - 1, y + height - 1, col2);
@@ -2577,7 +2577,7 @@ void Graphics::scrollbar(int x, int y, int height, int bar_y, int bar_h, int col
     }
 }
 
-bool Graphics::save_screenshot(const string& filename) const {
+bool Graphics::save_screenshot(const string& filename) const throw () {
     PALETTE pal;
     get_palette(pal);
     BITMAP* current_screen;
@@ -2602,22 +2602,22 @@ bool Graphics::save_screenshot(const string& filename) const {
 // client side effects
 
 //clear clientside fx's
-void Graphics::clear_fx() {
+void Graphics::clear_fx() throw () {
     cfx.clear();
 }
 
 //create rocket explosion fx
-void Graphics::create_wallexplo(const WorldCoords& pos, int team, double time) {
+void Graphics::create_wallexplo(const WorldCoords& pos, int team, double time) throw () {
     cfx.push_back(GraphicsEffect(FX_WALL_EXPLOSION, pos, time, team));
 }
 
 //create power rocket explosion fx
-void Graphics::create_powerwallexplo(const WorldCoords& pos, int team, double time) {
+void Graphics::create_powerwallexplo(const WorldCoords& pos, int team, double time) throw () {
     cfx.push_back(GraphicsEffect(FX_POWER_WALL_EXPLOSION, pos, time, team));
 }
 
 //create deathbringer carrier trail fx
-void Graphics::create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item) {
+void Graphics::create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item) throw () {
     if (for_item) {
         pos.x += rand() % 30 - 15;
         pos.y += rand() % 30 - 5;
@@ -2629,16 +2629,16 @@ void Graphics::create_deathcarrier(WorldCoords pos, int alpha, double time, bool
     cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, pos, time, -1 /* no team */, alpha / 255., colour[Colour::deathbringer_smoke]));
 }
 
-void Graphics::create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time) {
+void Graphics::create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time) throw () {
     cfx.push_back(GraphicsEffect(FX_TURBO, pos, time, -1 /* team not used */, alpha / 255., col1, col2, gundir));
 }
 
 //create explosion fx
-void Graphics::create_gunexplo(const WorldCoords& pos, int team, double time) {
+void Graphics::create_gunexplo(const WorldCoords& pos, int team, double time) throw () {
     cfx.push_back(GraphicsEffect(FX_GUN_EXPLOSION, pos, time, team));
 }
 
-void Graphics::draw_effects(double time) {
+void Graphics::draw_effects(double time) throw () {
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
         if (!roomLayout.on_screen(fx->pos.px, fx->pos.py)) {
             ++fx;
@@ -2691,7 +2691,7 @@ void Graphics::draw_effects(double time) {
     }
 }
 
-void Graphics::draw_turbofx(double time) {
+void Graphics::draw_turbofx(double time) throw () {
     if (min_transp)
         return;
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
@@ -2710,7 +2710,7 @@ void Graphics::draw_turbofx(double time) {
     }
 }
 
-bool Graphics::save_map_picture(const string& filename, const Map& map) {
+bool Graphics::save_map_picture(const string& filename, const Map& map) throw () {
     const int old_minimap_p_w = minimap_place_w;
     const int old_minimap_p_h = minimap_place_h;
     minimap_place_w = map.w * 60;
@@ -2726,7 +2726,7 @@ bool Graphics::save_map_picture(const string& filename, const Map& map) {
     return !save_bitmap(filename.c_str(), buffer, pal);
 }
 
-void Graphics::make_db_effect() {
+void Graphics::make_db_effect() throw () {
     db_effect.free();
     const int size = max(1, 2 * pf_scale(2 * PLAYER_RADIUS));
     db_effect = create_bitmap_ex(32, size, size);
@@ -2752,7 +2752,7 @@ void Graphics::make_db_effect() {
 
 // Theme functions
 
-void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg, LineReceiver& dst_colours) const {
+void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg, LineReceiver& dst_colours) const throw () {
     dst_theme(_("<no theme>"));
     dst_bg(_("<no background>"));
     dst_colours(string() + '<' + _("default") + '>');
@@ -2789,7 +2789,7 @@ void Graphics::search_themes(LineReceiver& dst_theme, LineReceiver& dst_bg, Line
     }
 }
 
-void Graphics::select_theme(const string& theme_dir, const string& bg_dir, bool use_theme_bg, const string& colour_dir, bool use_theme_colours) {
+void Graphics::select_theme(const string& theme_dir, const string& bg_dir, bool use_theme_bg, const string& colour_dir, bool use_theme_colours) throw () {
     unload_pictures();
     if (theme_dir == _("<no theme>"))
         theme_path.clear();
@@ -2831,7 +2831,7 @@ void Graphics::select_theme(const string& theme_dir, const string& bg_dir, bool 
     mapNeedsRedraw = true;
 }
 
-void Graphics::load_generic_pictures() {
+void Graphics::load_generic_pictures() throw () {
     floor_texture.resize(8);
     wall_texture.resize(8);
     if (theme_path.empty())
@@ -2840,7 +2840,7 @@ void Graphics::load_generic_pictures() {
     load_wall_textures (theme_path);
 }
 
-void Graphics::load_playfield_pictures() {
+void Graphics::load_playfield_pictures() throw () {
     for (int t = 0; t < 2; t++)
         player_sprite[t].resize(MAX_PLAYERS / 2);
     pup_sprite.resize(Powerup::pup_last_real + 1);
@@ -2856,7 +2856,7 @@ void Graphics::load_playfield_pictures() {
     load_pup_sprites   (theme_path);
 }
 
-BITMAP* Graphics::load_bitmap(const string& file) const {
+BITMAP* Graphics::load_bitmap(const string& file) const throw () {
     for (vector<string>::const_iterator ei = file_extensions.begin(); ei != file_extensions.end(); ++ei) {
         BITMAP* buf = ::load_bitmap((file + *ei).c_str(), 0);
         if (buf)
@@ -2865,12 +2865,12 @@ BITMAP* Graphics::load_bitmap(const string& file) const {
     return 0;
 }
 
-void Graphics::load_background() {
+void Graphics::load_background() throw () {
     if (!bg_path.empty())
         bg_texture = load_bitmap(bg_path + "background");
 }
 
-void Graphics::load_floor_textures(const string& path) {
+void Graphics::load_floor_textures(const string& path) throw () {
     int t = 0;
     floor_texture[t++] = load_bitmap(path + "floor_normal1");
     floor_texture[t++] = load_bitmap(path + "floor_normal2");
@@ -2890,7 +2890,7 @@ void Graphics::load_floor_textures(const string& path) {
     }
 }
 
-void Graphics::load_wall_textures(const string& path) {
+void Graphics::load_wall_textures(const string& path) throw () {
     int t = 0;
     wall_texture[t++] = load_bitmap(path + "wall_normal1");
     wall_texture[t++] = load_bitmap(path + "wall_normal2");
@@ -2910,21 +2910,21 @@ void Graphics::load_wall_textures(const string& path) {
     }
 }
 
-BITMAP* Graphics::get_floor_texture(int texid) {
+BITMAP* Graphics::get_floor_texture(int texid) throw () {
     if (floor_texture[texid])
         return floor_texture[texid];
     else
         return floor_texture.front();
 }
 
-BITMAP* Graphics::get_wall_texture(int texid) {
+BITMAP* Graphics::get_wall_texture(int texid) throw () {
     if (wall_texture[texid])
         return wall_texture[texid];
     else
         return wall_texture.front();
 }
 
-void Graphics::load_player_sprites(const string& path) {
+void Graphics::load_player_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(player_max_size_in_world));
     const Bitmap common   = scale_sprite      (path + "player"         , size, size);
     const Bitmap team     = scale_alpha_sprite(path + "player_team"    , size, size);
@@ -2944,7 +2944,7 @@ void Graphics::load_player_sprites(const string& path) {
     }
 }
 
-void Graphics::overlayColor(BITMAP* bmp, BITMAP* alpha, int color) {    // alpha must be an 8-bit bitmap; give the color in same format as bmp
+void Graphics::overlayColor(BITMAP* bmp, BITMAP* alpha, int color) throw () {    // alpha must be an 8-bit bitmap; give the color in same format as bmp
     if (!alpha)
         return;
     nAssert(bmp);
@@ -2961,14 +2961,14 @@ void Graphics::overlayColor(BITMAP* bmp, BITMAP* alpha, int color) {    // alpha
     solid_mode();
 }
 
-void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) { // give the colors in same format as sprite
+void Graphics::combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) throw () { // give the colors in same format as sprite
     nAssert(sprite && common);
     blit(common, sprite, 0, 0, 0, 0, common->w, common->h);
     overlayColor(sprite, personal, pcol);
     overlayColor(sprite, team, tcol);
 }
 
-void Graphics::load_shield_sprites(const string& path) {
+void Graphics::load_shield_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(player_max_size_in_world));
     Bitmap picture = scale_sprite(path + "player_shield", size, size);
     if (!picture)
@@ -2981,7 +2981,7 @@ void Graphics::load_shield_sprites(const string& path) {
     }
 }
 
-void Graphics::load_dead_sprites(const string& path) {
+void Graphics::load_dead_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(player_max_size_in_world));
     ice_cream = scale_sprite(path + "ice_cream", size, size);
     Bitmap picture = scale_sprite(path + "dead", size, size);
@@ -2998,7 +2998,7 @@ void Graphics::load_dead_sprites(const string& path) {
 }
 
 // Make rocket sprites by combining rocket image with team colour.
-void Graphics::load_rocket_sprites(const string& path) {
+void Graphics::load_rocket_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(rocket_max_size_in_world));
     Bitmap normal = scale_sprite(path + "rocket", size, size);
     if (normal) {
@@ -3022,7 +3022,7 @@ void Graphics::load_rocket_sprites(const string& path) {
 }
 
 // Make flag sprites by combining flag image with team colour.
-void Graphics::load_flag_sprites(const string& path) {
+void Graphics::load_flag_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(flag_max_size_in_world));
     Bitmap flag = scale_sprite(path + "flag", size, size);
     if (flag) {
@@ -3037,7 +3037,7 @@ void Graphics::load_flag_sprites(const string& path) {
     }
 }
 
-void Graphics::load_pup_sprites(const string& path) {
+void Graphics::load_pup_sprites(const string& path) throw () {
     const int size = max(1, pf_scale(item_max_size_in_world));
     pup_sprite[Powerup::pup_shield      ] = scale_sprite(path + "shield"      , size, size);
     pup_sprite[Powerup::pup_turbo       ] = scale_sprite(path + "turbo"       , size, size);
@@ -3048,7 +3048,7 @@ void Graphics::load_pup_sprites(const string& path) {
     pup_sprite[Powerup::pup_deathbringer] = scale_sprite(path + "deathbringer", size, size);
 }
 
-BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
+BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const throw () {
     Bitmap temp = load_bitmap(filename);
     if (!temp)
         return 0;
@@ -3058,7 +3058,7 @@ BITMAP* Graphics::scale_sprite(const string& filename, int x, int y) const {
     return target;
 }
 
-BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const {
+BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const throw () {
     set_color_conversion(COLORCONV_NONE);
     Bitmap temp = load_bitmap(filename);
     set_color_conversion(COLORCONV_TOTAL);
@@ -3074,12 +3074,12 @@ BITMAP* Graphics::scale_alpha_sprite(const string& filename, int x, int y) const
     return target;
 }
 
-void Graphics::unload_generic_pictures() {
+void Graphics::unload_generic_pictures() throw () {
     unload_floor_textures();
     unload_wall_textures();
 }
 
-void Graphics::unload_playfield_pictures() {
+void Graphics::unload_playfield_pictures() throw () {
     unload_player_sprites();
     unload_shield_sprites();
     unload_dead_sprites();
@@ -3088,62 +3088,62 @@ void Graphics::unload_playfield_pictures() {
     unload_pup_sprites();
 }
 
-void Graphics::unload_pictures() {
+void Graphics::unload_pictures() throw () {
     unload_generic_pictures();
     unload_playfield_pictures();
     bg_texture.free();
 }
 
-void Graphics::unload_floor_textures() {
+void Graphics::unload_floor_textures() throw () {
     for (vector<Bitmap>::iterator pl = floor_texture.begin(); pl != floor_texture.end(); ++pl)
         pl->free();
 }
 
-void Graphics::unload_wall_textures() {
+void Graphics::unload_wall_textures() throw () {
     for (vector<Bitmap>::iterator pl = wall_texture.begin(); pl != wall_texture.end(); ++pl)
         pl->free();
 }
 
-void Graphics::unload_player_sprites() {
+void Graphics::unload_player_sprites() throw () {
     for (int t = 0; t < 2; t++)
         for (vector<Bitmap>::iterator pl = player_sprite[t].begin(); pl != player_sprite[t].end(); ++pl)
             pl->free();
     player_sprite_power.free();
 }
 
-void Graphics::unload_shield_sprites() {
+void Graphics::unload_shield_sprites() throw () {
     for (int i = 0; i < 2; i++)
         shield_sprite[i].free();
 }
 
-void Graphics::unload_dead_sprites() {
+void Graphics::unload_dead_sprites() throw () {
     for (int i = 0; i < 2; i++)
         dead_sprite[i].free();
     ice_cream.free();
 }
 
-void Graphics::unload_rocket_sprites() {
+void Graphics::unload_rocket_sprites() throw () {
     for (int i = 0; i < 2; i++) {
         rocket_sprite[i].free();
         power_rocket_sprite[i].free();
     }
 }
 
-void Graphics::unload_flag_sprites() {
+void Graphics::unload_flag_sprites() throw () {
     for (int i = 0; i < 3; i++) {
         flag_sprite[i].free();
         flag_flash_sprite[i].free();
     }
 }
 
-void Graphics::unload_pup_sprites() {
+void Graphics::unload_pup_sprites() throw () {
     for (vector<Bitmap>::iterator pup = pup_sprite.begin(); pup != pup_sprite.end(); ++pup)
         pup->free();
 }
 
 // Font functions
 
-void Graphics::search_fonts(LineReceiver& dst_font) const {
+void Graphics::search_fonts(LineReceiver& dst_font) const throw () {
     dst_font(string() + '<' + _("default") + '>');
 
     vector<string> fonts;
@@ -3156,7 +3156,7 @@ void Graphics::search_fonts(LineReceiver& dst_font) const {
         dst_font(*fi);
 }
 
-void Graphics::select_font(const string& file) {
+void Graphics::select_font(const string& file) throw () {
     if (file == string() + '<' + _("default") + '>') {
         font = default_font;
         border_font = 0;
@@ -3166,7 +3166,7 @@ void Graphics::select_font(const string& file) {
     make_layout();
 }
 
-void Graphics::load_font(const string& file) {
+void Graphics::load_font(const string& file) throw () {
     const string filename = wheregamedir + "fonts" + directory_separator + file + ".dat";
 
     static DATAFILE* font_data = 0;
@@ -3190,11 +3190,11 @@ void Graphics::load_font(const string& file) {
     log("Loaded font '%s'.", file.c_str());
 }
 
-int Graphics::scale(double value) const {
+int Graphics::scale(double value) const throw () {
     return iround(scr_mul * value);
 }
 
-TemporaryClipRect::TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) : b(bitmap) {
+TemporaryClipRect::TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) throw () : b(bitmap) {
     get_clip_rect(b, &x1, &y1, &x2, &y2);
     if (respectOld) {
         x1_ = max(x1_, x1);
@@ -3205,11 +3205,11 @@ TemporaryClipRect::TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, 
     set_clip_rect(b, x1_, y1_, x2_, y2_);
 }
 
-TemporaryClipRect::~TemporaryClipRect() {
+TemporaryClipRect::~TemporaryClipRect() throw () {
     set_clip_rect(b, x1, y1, x2, y2);
 }
 
-bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) {
+bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) throw () {
     const double oldScale = playfield_scale;
 
     map_w = mapWidth;
@@ -3253,15 +3253,15 @@ bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibl
     return fabs(playfield_scale - oldScale) > oldScale * 1e-8;
 }
 
-int Graphics::RoomLayoutManager::pf_scale(double value) const {
+int Graphics::RoomLayoutManager::pf_scale(double value) const throw () {
     return iround(playfield_scale * value);
 }
 
-double Graphics::RoomLayoutManager::pf_scaled(double value) const {
+double Graphics::RoomLayoutManager::pf_scaled(double value) const throw () {
     return playfield_scale * value;
 }
 
-vector<int> Graphics::RoomLayoutManager::scale_x(int roomx, double lx) const {
+vector<int> Graphics::RoomLayoutManager::scale_x(int roomx, double lx) const throw () {
     vector<int> pos = room_offset_x(roomx);
     const int delta = pf_scale(lx);
     for (vector<int>::iterator pi = pos.begin(); pi != pos.end(); ++pi)
@@ -3269,7 +3269,7 @@ vector<int> Graphics::RoomLayoutManager::scale_x(int roomx, double lx) const {
     return pos;
 }
 
-vector<int> Graphics::RoomLayoutManager::scale_y(int roomy, double ly) const {
+vector<int> Graphics::RoomLayoutManager::scale_y(int roomy, double ly) const throw () {
     vector<int> pos = room_offset_y(roomy);
     const int delta = pf_scale(ly);
     for (vector<int>::iterator pi = pos.begin(); pi != pos.end(); ++pi)
@@ -3277,7 +3277,7 @@ vector<int> Graphics::RoomLayoutManager::scale_y(int roomy, double ly) const {
     return pos;
 }
 
-static double calculateDistanceFromScreen(double coord, double viewStart, double viewSize, int mapSize) {
+static double calculateDistanceFromScreen(double coord, double viewStart, double viewSize, int mapSize) throw () {
     if (positiveFmod(coord - viewStart, mapSize) <= viewSize)
         return 0;
     const double diffFromViewCenter = positiveFmod(coord - (viewStart + viewSize / 2), mapSize);
@@ -3287,27 +3287,27 @@ static double calculateDistanceFromScreen(double coord, double viewStart, double
         return diffFromViewCenter - mapSize + viewSize / 2;
 }
 
-double Graphics::RoomLayoutManager::distanceFromScreenX(int rx, double lx) const {
+double Graphics::RoomLayoutManager::distanceFromScreenX(int rx, double lx) const throw () {
     return calculateDistanceFromScreen(rx + lx / plw, topLeft.px + topLeft.x / plw, visible_rooms_x, map_w);
 }
 
-double Graphics::RoomLayoutManager::distanceFromScreenY(int ry, double ly) const {
+double Graphics::RoomLayoutManager::distanceFromScreenY(int ry, double ly) const throw () {
     return calculateDistanceFromScreen(ry + ly / plh, topLeft.py + topLeft.y / plh, visible_rooms_y, map_h);
 }
 
-bool Graphics::RoomLayoutManager::on_screen(int rx, int ry) const {
+bool Graphics::RoomLayoutManager::on_screen(int rx, int ry) const throw () {
     return positiveModulo(rx - topLeft.px, map_w) <= visible_rooms_x &&
            positiveModulo(ry - topLeft.py, map_h) <= visible_rooms_y; // <= instead of <, because the first room may be visible only in part
 }
 
-vector<int> Graphics::RoomLayoutManager::room_offset_x(int rx) const {
+vector<int> Graphics::RoomLayoutManager::room_offset_x(int rx) const throw () {
     vector<int> pos;
     for (int x = ((rx - topLeft.px + map_w) % map_w) * room_w - pf_scale(topLeft.x); x < visible_rooms_x * room_w; x += map_w * room_w)
         pos.push_back(plx + x);
     return pos;
 }
 
-vector<int> Graphics::RoomLayoutManager::room_offset_y(int ry) const {
+vector<int> Graphics::RoomLayoutManager::room_offset_y(int ry) const throw () {
     vector<int> pos;
     for (int y = ((ry - topLeft.py + map_h) % map_h) * room_h - pf_scale(topLeft.y); y < visible_rooms_y * room_h; y += map_h * room_h)
         pos.push_back(ply + y);
@@ -3323,10 +3323,10 @@ public:
         typedef list<Section> SectionList;
         SectionList unmasked;
 
-        YSegment(int y0_, int y1_) : y0(y0_), y1(y1_) { unmasked.push_back(Section(0, SCREEN_W - 1)); }
-        YSegment(int y0_, int y1_, const SectionList& unmasked_) : y0(y0_), y1(y1_), unmasked(unmasked_) { }
+        YSegment(int y0_, int y1_) throw () : y0(y0_), y1(y1_) { unmasked.push_back(Section(0, SCREEN_W - 1)); }
+        YSegment(int y0_, int y1_, const SectionList& unmasked_) throw () : y0(y0_), y1(y1_), unmasked(unmasked_) { }
 
-        void addMask(int y0, int y1) {
+        void addMask(int y0, int y1) throw () {
             SectionList::iterator i = unmasked.begin();
             while (i != unmasked.end() && i->second < y0) // skip unmasked areas before the mask
                 ++i;
@@ -3349,9 +3349,9 @@ public:
     typedef list<YSegment> SegList;
     SegList ySeg;
 
-    BackgroundMasker() { ySeg.push_back(YSegment(0, SCREEN_H - 1)); }
+    BackgroundMasker() throw () { ySeg.push_back(YSegment(0, SCREEN_H - 1)); }
 
-    void addMask(int x0, int y0, int x1, int y1) {
+    void addMask(int x0, int y0, int x1, int y1) throw () {
         nAssert(x0 <= x1 && y0 <= y1 && x0 >= 0 && y0 >= 0 && x1 < SCREEN_W && y1 < SCREEN_H);
         SegList::iterator i = ySeg.begin();
         while (i->y1 < y0) // skip segments before the mask
@@ -3374,7 +3374,7 @@ public:
     }
 };
 
-static void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) {
+static void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw () {
     ++x2; ++y2; // makes calculating widths easier
     const int txs = x1 % tex->w; int ws = tex->w - txs, we = x2 % tex->w, xe = x2 - we;
     const int tys = y1 % tex->h; int hs = tex->h - tys, he = y2 % tex->h, ye = y2 - he;
@@ -3400,7 +3400,7 @@ static void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex
     }
 }
 
-void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map, bool reserve_playfield) {
+void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map, bool reserve_playfield) throw () {
     const int pfx0 = g.roomLayout.x0(), pfy0 = g.roomLayout.y0(), pfxm = g.roomLayout.xMax(), pfym = g.roomLayout.yMax();
 
     // calculate the area that needs to be filled with background (what ever is not fully drawn in the rest of the method or in draw_playfield_background if reserve_playfield is set)
@@ -3474,7 +3474,7 @@ void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map
         blit(g.minibg, drawbuf, 0, 0, g.minimap_x, g.minimap_y, g.minimap_w, g.minimap_h);
 }
 
-void Graphics::BackgroundManager::allocateRoomCache(int room_w, int room_h, int minRooms, int maxRooms) {
+void Graphics::BackgroundManager::allocateRoomCache(int room_w, int room_h, int minRooms, int maxRooms) throw () {
     nAssert(minRooms <= maxRooms);
     nAssert(roomCache.empty() && !roomCacheMemoryBitmap && roomCacheBitmap);
     const bool useB2 = (roomCacheBitmap->w / room_w) * (roomCacheBitmap->h / room_h) >= 2 * minRooms;
@@ -3509,7 +3509,7 @@ void Graphics::BackgroundManager::allocateRoomCache(int room_w, int room_h, int 
     }
 }
 
-void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, const Map& map, const VisibilityMap& roomVis, bool continuousTextures, bool mapInfoMode) {
+void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, const Map& map, const VisibilityMap& roomVis, bool continuousTextures, bool mapInfoMode) throw () {
     const WorldCoords& topLeft = g.roomLayout.topLeftCoords();
     const int room_w = g.roomLayout.roomWidth();
     const int room_h = g.roomLayout.roomHeight();
@@ -3565,7 +3565,7 @@ void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, con
     }
 }
 
-bool Graphics::BackgroundManager::allocate(bool videoMemory, int cachePages) {
+bool Graphics::BackgroundManager::allocate(bool videoMemory, int cachePages) throw () {
     nAssert(cachePages > 0);
     if (videoMemory)
         roomCacheBitmap = create_video_bitmap(SCREEN_W, cachePages * SCREEN_H);
@@ -3574,7 +3574,7 @@ bool Graphics::BackgroundManager::allocate(bool videoMemory, int cachePages) {
     return !!roomCacheBitmap;
 }
 
-void Graphics::BackgroundManager::cacheRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode) {
+void Graphics::BackgroundManager::cacheRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode) throw () {
     vector<CachedRoomGfx>::iterator ci, oldest;
     unsigned oldestTime = cacheTimestamp + 1;
     for (ci = roomCache.begin(); ci != roomCache.end() && ci->used(); ++ci)
@@ -3596,7 +3596,7 @@ void Graphics::BackgroundManager::cacheRoom(const Map& map, int roomx, int roomy
     release_bitmap(roombg);
 }
 
-void Graphics::BackgroundManager::drawRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode, bool fogged, BITMAP* target, int tx0, int ty0) {
+void Graphics::BackgroundManager::drawRoom(const Map& map, int roomx, int roomy, bool continuousTextures, bool mapInfoMode, bool fogged, BITMAP* target, int tx0, int ty0) throw () {
     if (!roomCacheIndex[roomx][roomy])
         cacheRoom(map, roomx, roomy, continuousTextures, mapInfoMode);
     const CachedRoomGfx& room = *roomCacheIndex[roomx][roomy];
@@ -3606,11 +3606,11 @@ void Graphics::BackgroundManager::drawRoom(const Map& map, int roomx, int roomy,
         room.drawUnfogged(target, tx0, ty0);
 }
 
-void Graphics::BackgroundManager::BitmapRegion::blitTo(BITMAP* target, int tx0, int ty0) const {
+void Graphics::BackgroundManager::BitmapRegion::blitTo(BITMAP* target, int tx0, int ty0) const throw () {
     blit(const_cast<BITMAP*>(b), target, x0, y0, tx0, ty0, w, h);
 }
 
-void Graphics::BackgroundManager::CachedRoomGfx::generateFogged(BITMAP* target, int tx0, int ty0, bool fastFog) const {
+void Graphics::BackgroundManager::CachedRoomGfx::generateFogged(BITMAP* target, int tx0, int ty0, bool fastFog) const throw () {
     baseArea.blitTo(target, tx0, ty0);
     if (fastFog) {
         const int ld = 3; // distance between lines
@@ -3624,7 +3624,7 @@ void Graphics::BackgroundManager::CachedRoomGfx::generateFogged(BITMAP* target, 
     }
 }
 
-void Graphics::BackgroundManager::CachedRoomGfx::drawFogged(BITMAP* target, int tx0, int ty0) const {
+void Graphics::BackgroundManager::CachedRoomGfx::drawFogged(BITMAP* target, int tx0, int ty0) const throw () {
     nAssert(baseGenerated);
     if (foggedGenerated)
         foggedArea.blitTo(target, tx0, ty0);

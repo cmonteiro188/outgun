@@ -8,7 +8,7 @@ class MapGenerator {
 
     class SimpleRoom {
     public:
-        SimpleRoom(bool walls = false) : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), mirror(false) { }
+        SimpleRoom(bool walls = false) throw () : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), mirror(false) { }
 
         bool top, bottom, left, right;  // walls
         bool visited;
@@ -19,26 +19,26 @@ class MapGenerator {
 
     class Node {
     public:
-        Node() : cost(INT_MAX), score(INT_MAX) { }
+        Node() throw () : cost(INT_MAX), score(INT_MAX) { }
         int cost, score;
     };
 
     struct Dist { std::pair<int, int> coords; int dist; };
 
 public:
-    void generate(int w, int h, bool allow_over_edge = false);
-    void draw(std::ostream& out) const;
-    void save_map(std::ostream& out, const std::string& title, const std::string& author) const;
+    void generate(int w, int h, bool allow_over_edge = false) throw ();
+    void draw(std::ostream& out) const throw ();
+    void save_map(std::ostream& out, const std::string& title, const std::string& author) const throw ();
 
 private:
-    bool remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror = false);
+    bool remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror = false) throw ();
 
-    std::pair<int, int> max_distance();
-    int distance(int sx, int sy, int gx, int gy);
-    const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open);
+    std::pair<int, int> max_distance() throw ();
+    int distance(int sx, int sy, int gx, int gy) throw ();
+    const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) throw ();
 
-    int width() const { return room.size(); }
-    int height() const { return room.front().size(); }
+    int width() const throw () { return room.size(); }
+    int height() const throw () { return room.front().size(); }
 
     std::vector<std::vector<SimpleRoom> > room; // accessible by room[x][y]
     Symmetry symmetry;

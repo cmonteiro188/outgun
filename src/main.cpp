@@ -46,7 +46,7 @@
 # ifdef WITH_PNG
 #  include "loadpng/loadpng.h"
 # else
-   static inline void register_png_file_type() { }
+   static inline void register_png_file_type() throw () { }
 # endif
 # include "client_interface.h"
 # include "colour.h"
@@ -60,7 +60,7 @@ using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
 
-static bool set_shitty_mode(LogSet log) {
+static bool set_shitty_mode(LogSet log) throw () {
     int DTC = desktop_color_depth();
 
     if (DTC == 0)   // no windowing supported
@@ -109,7 +109,7 @@ static bool set_shitty_mode(LogSet log) {
 #endif
 
 // Make directory if it does not already exist.
-static bool check_dir(const string& dir, LogSet& log) {
+static bool check_dir(const string& dir, LogSet& log) throw () {
     const string directory = wheregamedir + dir;
 
     if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
@@ -120,30 +120,30 @@ static bool check_dir(const string& dir, LogSet& log) {
 
 #ifndef DEDICATED_SERVER_ONLY
 
-static void GlobalCloseButtonHook__closeCallback();
+static void GlobalCloseButtonHook__closeCallback() throw ();
 
 class GlobalCloseButtonHook {
-    friend void GlobalCloseButtonHook__closeCallback();
+    friend void GlobalCloseButtonHook__closeCallback() throw ();
 
 public:
-    static void install() {
+    static void install() throw () {
         LOCK_VARIABLE(g_exitFlag);
         LOCK_FUNCTION(GlobalCloseButtonHook__closeCallback);
         set_close_button_callback(GlobalCloseButtonHook__closeCallback);
     }
 };
 
-static void GlobalCloseButtonHook__closeCallback() {
+static void GlobalCloseButtonHook__closeCallback() throw () {
     g_exitFlag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
-static void statusOutputWindow(const string& str) {
+static void statusOutputWindow(const string& str) throw () {
     set_window_title(str.c_str());
 }
 
 #endif // !DEDICATED_SERVER_ONLY
 
-static void statusOutputText(const string& str) {
+static void statusOutputText(const string& str) throw () {
     #ifndef ALLEGRO_WINDOWS
     std::cout << (utf8_mode ? latin1_to_utf8(str) : str) << '\n';
     #else
@@ -151,9 +151,9 @@ static void statusOutputText(const string& str) {
     #endif
 }
 
-static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
+static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) throw ();
 
-static int wrappedMain(int argc, const char* argv[]);
+static int wrappedMain(int argc, const char* argv[]) throw ();
 
 int main(int argc, const char* argv[]) {
     uint32_t stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
@@ -171,7 +171,7 @@ int main(int argc, const char* argv[]) {
 END_OF_MAIN()
 #endif
 
-int wrappedMain(int argc, const char* argv[]) {
+int wrappedMain(int argc, const char* argv[]) throw () {
     g_timeCounter.setZero();
 
     check_utf8_mode();
@@ -215,7 +215,7 @@ int wrappedMain(int argc, const char* argv[]) {
     return err;
 }
 
-void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) {
+void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog) throw () {
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING.c_str(), GAME_PROTOCOL.c_str(), getVersionString().c_str());
 
     bool showFirstTimeSplash = true;

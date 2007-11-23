@@ -34,12 +34,12 @@ using std::istream;
 using std::istringstream;
 using std::string;
 
-bool GamemodSetting::basicErrorMessage(LogSet& log, const string& value, const string& expect) {    // always returns false to provide easy returns
+bool GamemodSetting::basicErrorMessage(LogSet& log, const string& value, const string& expect) throw () {    // always returns false to provide easy returns
     log.error(_("Can't set $1 to '$2' - expecting $3.", name, value, expect));
     return false;
 }
 
-bool GS_Boolean::set(LogSet& log, const string& value) {
+bool GS_Boolean::set(LogSet& log, const string& value) throw () {
     const string tval = trim(value);
     if (tval == "1")
         *var = true;
@@ -50,14 +50,14 @@ bool GS_Boolean::set(LogSet& log, const string& value) {
     return true;
 }
 
-bool GS_String::set(LogSet& log, const std::string& value) {
+bool GS_String::set(LogSet& log, const std::string& value) throw () {
     if (!allowEmpty && value.find_first_not_of(" \t"))
         return basicErrorMessage(log, value, _("non-empty string"));
     *var = value;
     return true;
 }
 
-bool GS_CheckForwardInt::set(LogSet& log, const string& value) {
+bool GS_CheckForwardInt::set(LogSet& log, const string& value) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));
     int val;
@@ -67,11 +67,11 @@ bool GS_CheckForwardInt::set(LogSet& log, const string& value) {
     return setFn(val);
 }
 
-string GS_CheckForwardInt::get() {
+string GS_CheckForwardInt::get() throw () {
     return itoa(getFn());
 }
 
-bool GS_Map::set(LogSet& log, const string& value) {
+bool GS_Map::set(LogSet& log, const string& value) throw () {
     MapInfo mi;
     if (mi.load(log, trim(value))) {
         var->push_back(mi);
@@ -84,7 +84,7 @@ bool GS_Map::set(LogSet& log, const string& value) {
     }
 }
 
-bool GS_RandomMap::set(LogSet& log, const string& value) {
+bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
     istringstream ist(value);
     MapInfo mi;
     ist >> mi.width >> mi.height;
@@ -104,7 +104,7 @@ bool GS_RandomMap::set(LogSet& log, const string& value) {
         return basicErrorMessage(log, value, _("two positive integers and optionally a real number between 0 and 1, separated by spaces"));
 }
 
-bool GS_PowerupNum::set(LogSet& log, const string& value) {
+bool GS_PowerupNum::set(LogSet& log, const string& value) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));
     int val;
@@ -128,14 +128,14 @@ bool GS_PowerupNum::set(LogSet& log, const string& value) {
     return basicErrorMessage(log, value, _("an integer between 0 and $1, or 'n %' with n 0 or greater", itoa(MAX_POWERUPS)));
 }
 
-string GS_PowerupNum::get() {
+string GS_PowerupNum::get() throw () {
     if (*percentFlag)
         return itoa(*var) + " %";
     else
         return itoa(*var);
 }
 
-bool GS_Balance::set(LogSet& log, const string& value) {
+bool GS_Balance::set(LogSet& log, const string& value) throw () {
     const string tval = trim(value);
     if (tval == "no")
         *var = WorldSettings::TB_disabled;
@@ -148,7 +148,7 @@ bool GS_Balance::set(LogSet& log, const string& value) {
     return true;
 }
 
-string GS_Balance::get() {
+string GS_Balance::get() throw () {
     switch (*var) {
     /*break;*/ case WorldSettings::TB_disabled:            return "no";
         break; case WorldSettings::TB_balance:             return "balance";
@@ -157,7 +157,7 @@ string GS_Balance::get() {
     }
 }
 
-bool GS_Collisions::set(LogSet& log, const string& value) {
+bool GS_Collisions::set(LogSet& log, const string& value) throw () {
     const string tval = trim(value);
     if (tval == "no" || tval == "0")
         *var = PhysicalSettings::PC_none;
@@ -170,7 +170,7 @@ bool GS_Collisions::set(LogSet& log, const string& value) {
     return true;
 }
 
-string GS_Collisions::get() {
+string GS_Collisions::get() throw () {
     switch (*var) {
     /*break;*/ case PhysicalSettings::PC_none:    return "no";
         break; case PhysicalSettings::PC_normal:  return "normal";
@@ -179,7 +179,7 @@ string GS_Collisions::get() {
     }
 }
 
-bool GS_Percentage::set(LogSet& log, const string& value) {
+bool GS_Percentage::set(LogSet& log, const string& value) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
     istringstream rd(trim(value));
     double val;
@@ -201,7 +201,7 @@ bool GS_Percentage::set(LogSet& log, const string& value) {
     return basicErrorMessage(log, value, _("a real number or 'x %' with x 0 or greater"));
 }
 
-string GS_Percentage::get() {
+string GS_Percentage::get() throw () {
     const int perc = static_cast<int>(*var * 100. + .5);
     if (perc != 0 && fabs(*var * 100. - perc) < .01)
         return itoa(perc) + " %";

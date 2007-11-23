@@ -197,51 +197,51 @@ public:
     static Address getDefaultLocalAddress();
 };
 
-bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false);
-bool check_private_IP(const std::string& address, bool allowAnyExternal = false);   // with allowAnyExternal only (invalid and) loopback addresses are blocked
-std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false);    // with allowAnyExternal only (invalid and) loopback addresses are blocked
-bool isLocalIP(Network::Address address);  // returns true if address points to this machine (nothing to do with the address being private)
+bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false) throw ();
+bool check_private_IP(const std::string& address, bool allowAnyExternal = false) throw ();   // with allowAnyExternal only (invalid and) loopback addresses are blocked
+std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false) throw ();    // with allowAnyExternal only (invalid and) loopback addresses are blocked
+bool isLocalIP(Network::Address address) throw ();  // returns true if address points to this machine (nothing to do with the address being private)
 
-inline void readStr(const char* buf, int& count, std::string& dst) {
+inline void readStr(const char* buf, int& count, std::string& dst) throw () {
     dst.clear();
     while (buf[count])
         dst += buf[count++];
     ++count;
 }
-inline void writeStr(char* buf, int& count, const std::string& src) {
+inline void writeStr(char* buf, int& count, const std::string& src) throw () {
     memcpy(&buf[count], src.data(), src.length());
     count += src.length();
     buf[count++] = '\0';
 }
 
-inline double safeReadFloat(const char* buf, int& count) {
+inline double safeReadFloat(const char* buf, int& count) throw () {
     float val;
     readFloat(buf, count, val);
     return val;
 }
-inline void safeWriteFloat(char* buf, int& count, float val) {  // this adds type safety: val is ensured to be a float
+inline void safeWriteFloat(char* buf, int& count, float val) throw () {  // this adds type safety: val is ensured to be a float
     writeFloat(buf, count, val);
 }
 
 enum NetworkResult { NR_ok, NR_timeout, NR_nlError };   // timeout is also returned when abortFlag triggers the return
 
 NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length,
-                                const volatile bool* abortFlag, int timeout, int roundDelay = 500);
+                                const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw ();
 NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, std::ostream& out,
-                                const volatile bool* abortFlag, int timeout, int roundDelay = 500);
+                                const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw ();
 
-std::string format_http_parameters(const std::map<std::string, std::string>& parameters);
+std::string format_http_parameters(const std::map<std::string, std::string>& parameters) throw ();
 
-std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "");
+std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "") throw ();
 
 NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
-                             const std::string& script, const std::string& parameters, const std::string& auth = ""); // timeout in ms
+                             const std::string& script, const std::string& parameters, const std::string& auth = "") throw (); // timeout in ms
 
-NetworkResult save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout);   // timeout in ms
+NetworkResult save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) throw ();   // timeout in ms
 
-std::string url_encode(const std::string& str);
-void url_encode(char c, std::ostream& out);
-bool is_url_safe(char c);
-std::string base64_encode(const std::string& data);
+std::string url_encode(const std::string& str) throw ();
+void url_encode(char c, std::ostream& out) throw ();
+bool is_url_safe(char c) throw ();
+std::string base64_encode(const std::string& data) throw ();
 
 #endif

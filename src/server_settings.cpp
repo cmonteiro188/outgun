@@ -31,18 +31,18 @@ using std::istringstream;
 using std::string;
 using std::vector;
 
-bool Server::SettingManager::setForceIP(const string& val) { ipAddress = val; return true; }
-void Server::SettingManager::setRandomMaprot(int val) { random_maprot = (val == 1); random_first_map = (val == 2); }
+bool Server::SettingManager::setForceIP(const string& val) throw () { ipAddress = val; return true; }
+void Server::SettingManager::setRandomMaprot(int val) throw () { random_maprot = (val == 1); random_first_map = (val == 2); }
 
-const string& Server::SettingManager::getForceIP() const { return ipAddress; }
-int Server::SettingManager::getMaxplayers() const { return server.maxplayers; } //#fix?
-int Server::SettingManager::getRandomMaprot() const { return random_maprot ? 1 : random_first_map ? 2 : 0; }
+const string& Server::SettingManager::getForceIP() const throw () { return ipAddress; }
+int Server::SettingManager::getMaxplayers() const throw () { return server.maxplayers; } //#fix?
+int Server::SettingManager::getRandomMaprot() const throw () { return random_maprot ? 1 : random_first_map ? 2 : 0; }
 
-bool Server::SettingManager::checkForceIpValue(const string& val) {
+bool Server::SettingManager::checkForceIpValue(const string& val) throw () {
     return isValidIP(val);
 }
 
-bool Server::SettingManager::trySetMaxplayers(int val) {
+bool Server::SettingManager::trySetMaxplayers(int val) throw () {
     if (val != server.maxplayers && server.network.get_player_count() != 0) {
         server.log.error(_("Can't change max_players while players are connected."));
         return false;
@@ -51,7 +51,7 @@ bool Server::SettingManager::trySetMaxplayers(int val) {
     return true;
 }
 
-void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const {
+void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const throw () {
     string cmd, value;
     istringstream ist(line);
     ist >> cmd;
@@ -85,7 +85,7 @@ void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bo
     argLogs.error(_("Unrecognized gamemod setting: '$1'.", cmd));
 }
 
-void Server::SettingManager::free() {
+void Server::SettingManager::free() throw () {
     for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci)
         for (vector<GamemodSetting*>::const_iterator si = ci->settings.begin(); si != ci->settings.end(); ++si)
             delete *si;
@@ -97,7 +97,7 @@ void Server::SettingManager::free() {
     redirectFnDisposers.clear();
 }
 
-void Server::SettingManager::build(bool reload) {
+void Server::SettingManager::build(bool reload) throw () {
     if (built && builtForReload == reload)
         return;
     built = true;
@@ -324,7 +324,7 @@ void Server::SettingManager::build(bool reload) {
     categories.push_back(cat);
 }
 
-void Server::SettingManager::commit(bool reload) {
+void Server::SettingManager::commit(bool reload) throw () {
     if (srvmonit_port == -1) {
         srvmonit_port = port - 500;
         if (srvmonit_port < 1)
@@ -353,7 +353,7 @@ void Server::SettingManager::commit(bool reload) {
     network.send_map_time(pid_all);  // broadcast time to all, in case time limit has been changed
 }
 
-vector<string> Server::SettingManager::listSettings(const GamemodAccessDescriptor& access) {
+vector<string> Server::SettingManager::listSettings(const GamemodAccessDescriptor& access) throw () {
     vector<string> ret;
     for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci) {
         string categorySettings;
@@ -371,7 +371,7 @@ vector<string> Server::SettingManager::listSettings(const GamemodAccessDescripto
     return ret;
 }
 
-vector<string> Server::SettingManager::executeLine(const string& line, const GamemodAccessDescriptor& access) {
+vector<string> Server::SettingManager::executeLine(const string& line, const GamemodAccessDescriptor& access) throw () {
     static const bool reload = true;
     build(reload);
     MemoryLog tmpLog;
@@ -384,7 +384,7 @@ vector<string> Server::SettingManager::executeLine(const string& line, const Gam
     return ret;
 }
 
-void Server::SettingManager::loadGamemod(bool reload) {
+void Server::SettingManager::loadGamemod(bool reload) throw () {
     build(reload);
     const string filename = wheregamedir + "config" + directory_separator + "gamemod.txt";
     ifstream in(filename.c_str());
@@ -403,7 +403,7 @@ void Server::SettingManager::loadGamemod(bool reload) {
     commit(reload);
 }
 
-bool Server::SettingManager::isGamemodCommand(const string& cmd, bool includeCategoryNames) {
+bool Server::SettingManager::isGamemodCommand(const string& cmd, bool includeCategoryNames) throw () {
     build(true);
     for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci) {
         if (includeCategoryNames && cmd == ci->identifier)
@@ -415,7 +415,7 @@ bool Server::SettingManager::isGamemodCommand(const string& cmd, bool includeCat
     return false;
 }
 
-void Server::SettingManager::reset() {
+void Server::SettingManager::reset() throw () {
     pupConfig.reset();
     worldConfig.reset();
 

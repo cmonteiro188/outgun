@@ -34,12 +34,12 @@
 static Mutex g_randomSeedMutex("g_randomSeedMutex");
 static time_t g_randomSeed = time(0);
 
-void Thread::randomize() {
+void Thread::randomize() throw () {
     Lock ml(g_randomSeedMutex);
     srand(++g_randomSeed);
 }
 
-int Thread::doStart(pthread_t* pThread, const char* identity, void* (*function)(void*), void* argument, bool detached, int priority) {
+int Thread::doStart(pthread_t* pThread, const char* identity, void* (*function)(void*), void* argument, bool detached, int priority) throw () {
     pthread_attr_t attr;
     int val = pthread_attr_init(&attr);
     if (val != 0)
@@ -60,13 +60,13 @@ int Thread::doStart(pthread_t* pThread, const char* identity, void* (*function)(
     return val;
 }
 
-void Thread::assertStartSuccess(int returned) {
+void Thread::assertStartSuccess(int returned) throw () {
     if (returned == EAGAIN || returned == ENOMEM)
         criticalError(_("Can't create new thread. Insufficient system resources."));
     numAssert(returned == 0, returned);
 }
 
-void Thread::doSetPriority(pthread_t thread, int priority) {
+void Thread::doSetPriority(pthread_t thread, int priority) throw () {
     logEvent(thread, 'P', itoa(priority).c_str());
     int policy;
     sched_param param;
@@ -75,14 +75,14 @@ void Thread::doSetPriority(pthread_t thread, int priority) {
     nAssert(0 == pthread_setschedparam(thread, policy, &param));
 }
 
-int Thread::doGetPriority(pthread_t thread) {
+int Thread::doGetPriority(pthread_t thread) throw () {
     int policy;
     sched_param param;
     nAssert(0 == pthread_getschedparam(thread, &policy, &param));
     return param.sched_priority;
 }
 
-void Thread::logEvent(pthread_t thread, char event, const char* data) {
+void Thread::logEvent(pthread_t thread, char event, const char* data) throw () {
     if (!LOG_THREAD_ACTIONS)
         return;
     Lock ml(g_threadLogMutex());
@@ -94,7 +94,7 @@ void Thread::logEvent(pthread_t thread, char event, const char* data) {
         t.put(data);
 }
 
-void Thread::join(bool acceptRecursive) {
+void Thread::join(bool acceptRecursive) throw () {
     nAssert(running);
     running = false;
     int ret;
@@ -111,7 +111,7 @@ void Thread::join(bool acceptRecursive) {
     numAssert(ret == 0, ret);
 }
 
-void Thread::detach() {
+void Thread::detach() throw () {
     nAssert(running);
     running = false;
     logEvent(thread, 'D');

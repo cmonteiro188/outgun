@@ -55,7 +55,7 @@ public:
     bool showErrorCount;
     bool ownScreen;
 
-    ServerExternalSettings() : dedserver(false), port(DEFAULT_UDP_PORT), minLocalPort(0), maxLocalPort(0), privateserver(false),
+    ServerExternalSettings() throw () : dedserver(false), port(DEFAULT_UDP_PORT), minLocalPort(0), maxLocalPort(0), privateserver(false),
         portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), statusOutput(0), showErrorCount(true), ownScreen(false) { }
 };
 
@@ -63,11 +63,11 @@ class GameserverInterface {
     Server* host;
 
 public:
-    GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix);  // externalErrorLog must outlive the Server object
-    ~GameserverInterface();
-    bool start(int maxplayers);
-    void loop(volatile bool *quitFlag, bool quitOnEsc);
-    void stop();
+    GameserverInterface(LogSet& hostLog, const ServerExternalSettings& settings, Log& externalErrorLog, const std::string& errorPrefix) throw ();  // externalErrorLog must outlive the Server object
+    ~GameserverInterface() throw ();
+    bool start(int maxplayers) throw ();
+    void loop(volatile bool *quitFlag, bool quitOnEsc) throw ();
+    void stop() throw ();
 };
 
 // implementation is in server.cpp

@@ -48,7 +48,7 @@ struct GraphicsEffect {
     int col1, col2;
     GunDirection gundir;
 
-    GraphicsEffect(FX_TYPE type_, const WorldCoords& pos_, double time_, int team_, float alpha_ = 0, int col1_ = 0, int col2_ = 0, GunDirection gundir_ = GunDirection())
+    GraphicsEffect(FX_TYPE type_, const WorldCoords& pos_, double time_, int team_, float alpha_ = 0, int col1_ = 0, int col2_ = 0, GunDirection gundir_ = GunDirection()) throw ()
         : type(type_), pos(pos_), time(time_), team(team_), alpha(alpha_), col1(col1_), col2(col2_), gundir(gundir_) { }
 };
 

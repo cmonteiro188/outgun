@@ -42,12 +42,12 @@ class StrError {
     string str;
 
 public:
-    StrError(const string& s) : str(s) { }
-    StrError(const char* fmt, ...) __attribute__ ((format (printf, 2, 3)));
-    const string& description() const { return str; }
+    StrError(const string& s) throw () : str(s) { }
+    StrError(const char* fmt, ...) throw () __attribute__ ((format (printf, 2, 3)));
+    const string& description() const throw () { return str; }
 };
 
-StrError::StrError(const char* fmt, ...) {
+StrError::StrError(const char* fmt, ...) throw () {
     char buf[10000];
     va_list args;
     va_start(args, fmt);
@@ -56,7 +56,7 @@ StrError::StrError(const char* fmt, ...) {
     str = buf;
 }
 
-inline char getChar(FILE* src) {
+inline char getChar(FILE* src) throw (EOF_Hit) {
     char ch;
     fread(&ch, sizeof(char), 1, src);
     if (feof(src))
@@ -66,19 +66,19 @@ inline char getChar(FILE* src) {
 
 /** Replace all 'from' characters by 'to'.
  */
-void replaceChars(string& str, char from, char to) {
+void replaceChars(string& str, char from, char to) throw () {
     for (string::size_type i = 0; i < str.size(); ++i)
         if (str[i] == from)
             str[i] = to;
 }
 
-string makeId(string filename) {
+string makeId(string filename) throw () {
     replaceChars(filename, '/', '_');
     replaceChars(filename, '.', '_');
     return filename;
 }
 
-char readBack(FILE* src, long& pos) { // internal to skipToInclude
+char readBack(FILE* src, long& pos) throw (EOF_Hit) { // internal to skipToInclude
     for (;;) {
         if (pos <= 0)
             return '\n';
@@ -92,7 +92,7 @@ char readBack(FILE* src, long& pos) { // internal to skipToInclude
 /** Skip through source file until /^ *# *include +"/ is found.
  * @throws EOF_Hit End of file before encountering an #include.
  */
-void skipToInclude(FILE* src) {
+void skipToInclude(FILE* src) throw (EOF_Hit) {
     static const char matchStr[] = "include ";
     static const int matchLen = 8;
     // note: the first match character isn't repeated in the match string
@@ -127,7 +127,7 @@ void skipToInclude(FILE* src) {
     }
 }
 
-string readIncludeFileName(FILE* src) {
+string readIncludeFileName(FILE* src) throw (StrError) {
     string name;
     for (;;) {
         char ch = getChar(src);
@@ -143,7 +143,7 @@ string readIncludeFileName(FILE* src) {
 /** Translate the source file's #include directives into makefile format. Skip other lines.
  * @param dirbase The relative (to dir of Makefile) directory of the source file, empty if it is the same directory; no slash at the end in any case.
  */
-void handleFile(FILE* src, FILE* dst, const string& dirbase) {
+void handleFile(FILE* src, FILE* dst, const string& dirbase) throw (StrError) {
     for (;;) {
         try {
             skipToInclude(src);
@@ -170,7 +170,7 @@ void handleFile(FILE* src, FILE* dst, const string& dirbase) {
     }
 }
 
-void handleFile(string name, FILE* dst, const std::vector<string>& objPaths) {
+void handleFile(string name, FILE* dst, const std::vector<string>& objPaths) throw (StrError) {
     replaceChars(name, '\\', '/');  // for DOS users getting '\'s in their paths
 
     const string::size_type extsep = name.find_last_of('.');

@@ -34,7 +34,7 @@ using std::string;
 using std::sort;
 using std::vector;
 
-Sounds::Sounds(LogSet logs) :
+Sounds::Sounds(LogSet logs) throw () :
     log(logs),
     enabled(false),
     allegroSoundInitialized(false),
@@ -45,11 +45,11 @@ Sounds::Sounds(LogSet logs) :
         sample[i] = 0;
 }
 
-Sounds::~Sounds() {
+Sounds::~Sounds() throw () {
     unload_samples();
 }
 
-void Sounds::search_themes(LineReceiver& dst) const {
+void Sounds::search_themes(LineReceiver& dst) const throw () {
     vector<string> themes;
     FileFinder* themeDirs = platMakeFileFinder(wheregamedir + "sound", "", true);
     while (themeDirs->hasNext())
@@ -64,7 +64,7 @@ void Sounds::search_themes(LineReceiver& dst) const {
         dst(*ti);
 }
 
-void Sounds::select_theme(const string& dir) {
+void Sounds::select_theme(const string& dir) throw () {
     unload_samples();
 
     themedir = dir;
@@ -87,7 +87,7 @@ void Sounds::select_theme(const string& dir) {
     }
 }
 
-bool Sounds::setEnable(bool enable) {
+bool Sounds::setEnable(bool enable) throw () {
     if (enable == enabled)
         return true;
     if (enable) {
@@ -106,7 +106,7 @@ bool Sounds::setEnable(bool enable) {
     return true;
 }
 
-bool Sounds::try_init() {
+bool Sounds::try_init() throw () {
     if (allegroSoundInitialized)
         return true;
     log("Initializing sound.");
@@ -122,7 +122,7 @@ bool Sounds::try_init() {
     }
 }
 
-void Sounds::load_samples(const string& path) {
+void Sounds::load_samples(const string& path) throw () {
     if (!enabled)
         return;
     nAssert(allegroSoundInitialized);
@@ -173,7 +173,7 @@ void Sounds::load_samples(const string& path) {
     load_outgun_sample(path, "spree", SAMPLE_KILLING_SPREE);
 }
 
-SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) {
+SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) throw () {
     const string fileName = path + fname + ".wav";
 
     SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
@@ -194,7 +194,7 @@ SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int 
     return ret;
 }
 
-void Sounds::unload_samples() {
+void Sounds::unload_samples() throw () {
     if (!allegroSoundInitialized)
         return;
     for (int i = 0; i < NUM_OF_SAMPLES; i++)
@@ -204,7 +204,7 @@ void Sounds::unload_samples() {
         }
 }
 
-void Sounds::play(int s, int f) const {
+void Sounds::play(int s, int f) const throw () {
     nAssert(s >= 0 && s < NUM_OF_SAMPLES);
     if (enabled && sample[s]) {
         nAssert(allegroSoundInitialized);

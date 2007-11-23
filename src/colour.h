@@ -34,22 +34,22 @@
  */
 class Colour {
 public:
-    Colour() : r(0), g(0), b(0), col_value(0) { }
-    Colour(int r_, int g_, int b_) : r(r_), g(g_), b(b_) { update(); }
+    Colour() throw () : r(0), g(0), b(0), col_value(0) { }
+    Colour(int r_, int g_, int b_) throw () : r(r_), g(g_), b(b_) { update(); }
 
     /** Recalculate the colour index from the components.
      */
-    void update() { col_value = makecol(r, g, b); }
+    void update() throw () { col_value = makecol(r, g, b); }
 
-    int red  () const { return r; }
-    int green() const { return g; }
-    int blue () const { return b; }
+    int red  () const throw () { return r; }
+    int green() const throw () { return g; }
+    int blue () const throw () { return b; }
 
-    operator int() const { return col_value; }
+    operator int() const throw () { return col_value; }
 
     /** Get the colour as hexadecimal values in the RRGGBB format
      */
-    std::string triplet() const;
+    std::string triplet() const throw ();
 
     #define COL(key, r, g, b) key,
     #define SECTION(title)
@@ -69,7 +69,7 @@ private:
 
 class Colour_manager {
 public:
-    Colour_manager(LogSet logs) :
+    Colour_manager(LogSet logs) throw () :
         log(logs)
     { }
 
@@ -77,28 +77,28 @@ public:
      *  the default colour is used.
      *  @param file filename; if empty, use default colours
      */
-    void init(const std::string& file = "") {
+    void init(const std::string& file = "") throw () {
         init(file, false);
     }
 
     /** Create a colour file with default colours.
      *  @param file filename
      */
-    void create_default_file(const std::string& file) {
+    void create_default_file(const std::string& file) throw () {
         init(file, true);
     }
 
     /** Recalculate the colour values. Use when the graphics mode changes.
      */
-    void update();
+    void update() throw ();
 
     /** Get the colour value by key.
      *  @param key colour key
      */
-    const Colour& operator[](Colour::Col_id key) const;
+    const Colour& operator[](Colour::Col_id key) const throw ();
 
 private:
-    void init(const std::string& file, bool create_default_only);
+    void init(const std::string& file, bool create_default_only) throw ();
 
     std::vector<Colour> colour_set;
 

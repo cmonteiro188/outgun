@@ -35,16 +35,16 @@ class Mappic {
 public:
     class Save_error { };
 
-    Mappic(LogSet logs) : log(logs) { }
+    Mappic(LogSet logs) throw () : log(logs) { }
 
-    void run();
+    void run() throw (Save_error);
 
 private:
     mutable LogSet log;
     std::vector<std::string> smaps; // server maps
 
-    std::vector<std::string> load_maps(const std::string& dir);
-    void save_pictures() const;
+    std::vector<std::string> load_maps(const std::string& dir) throw ();
+    void save_pictures() const throw (Save_error);
 };
 
 #endif // MAPPIC_H_INC

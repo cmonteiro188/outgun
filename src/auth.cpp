@@ -41,7 +41,7 @@ using std::ostream;
 using std::string;
 using std::vector;
 
-bool AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::isAllowed(const string& category, const string& setting) const {
+bool AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::isAllowed(const string& category, const string& setting) const throw () {
     bool allow = defaultAllow;
     for (vector<ControlLine>::const_iterator li = lines.begin(); li != lines.end(); ++li)
         if (li->name == category || li->name == setting)
@@ -49,14 +49,14 @@ bool AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::isAllowed
     return allow;
 }
 
-ostream& AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::output(ostream& os) const {
+ostream& AuthorizationDatabase::AccessDescriptor::GamemodAccessDescriptor::output(ostream& os) const throw () {
     os << (defaultAllow ? '+' : '-') << "gamemod";
     for (vector<ControlLine>::const_iterator li = lines.begin(); li != lines.end(); ++li)
         os << ' ' << (li->allow ? '+' : '-') << li->name;
     return os;
 }
 
-void AuthorizationDatabase::AccessDescriptor::read(istream& in, SettingChecker& validityChecker) throw(FileError) {
+void AuthorizationDatabase::AccessDescriptor::read(istream& in, SettingChecker& validityChecker) throw (FileError) {
     for (;;) {
         string token;
         in >> token;
@@ -85,7 +85,7 @@ void AuthorizationDatabase::AccessDescriptor::read(istream& in, SettingChecker& 
     }
 }
 
-string AuthorizationDatabase::makeComparable(const string& name) {
+string AuthorizationDatabase::makeComparable(const string& name) throw () {
     string nameUpr;
     for (string::size_type i = 0; i < name.length(); ++i) {
         if (isalnum(name[i]))
@@ -99,13 +99,13 @@ string AuthorizationDatabase::makeComparable(const string& name) {
     return nameUpr.substr(0, endi + 1);
 }
 
-void AuthorizationDatabase::clear() {
+void AuthorizationDatabase::clear() throw () {
     classes.clear();
     names.clear();
     bans.clear();
 }
 
-void AuthorizationDatabase::load(SettingChecker& validityChecker) throw(FileError) {
+void AuthorizationDatabase::load(SettingChecker& validityChecker) throw (FileError) {
     clear();
     const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
     ifstream in(filename.c_str());
@@ -178,7 +178,7 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw(FileErro
         save();
 }
 
-void AuthorizationDatabase::save() const throw(FileError) {
+void AuthorizationDatabase::save() const throw (FileError) {
     const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
     ofstream out(filename.c_str());
     if (!out)
@@ -205,7 +205,7 @@ void AuthorizationDatabase::save() const throw(FileError) {
         throw FileError(_("Can't write '$1'.", filename));
 }
 
-int AuthorizationDatabase::identifyName(const string& name) const {
+int AuthorizationDatabase::identifyName(const string& name) const throw () {
     const string nameUpr = makeComparable(name);
     for (int idx = 0; idx < (int)names.size(); ++idx)
         if (nameUpr == names[idx].name)
@@ -213,19 +213,19 @@ int AuthorizationDatabase::identifyName(const string& name) const {
     return -1;
 }
 
-AuthorizationDatabase::AccessDescriptor AuthorizationDatabase::nameAccess(const string& name) const {
+AuthorizationDatabase::AccessDescriptor AuthorizationDatabase::nameAccess(const string& name) const throw () {
     const int idx = identifyName(name);
     if (idx == -1)
         return defaultAccess();
     return names[idx].access;
 }
 
-bool AuthorizationDatabase::checkNamePassword(const string& name, const string& password) const {
+bool AuthorizationDatabase::checkNamePassword(const string& name, const string& password) const throw () {
     const int idx = identifyName(name);
     return (idx == -1 || names[idx].password == password);
 }
 
-bool AuthorizationDatabase::isBanned(Network::Address addr) const {
+bool AuthorizationDatabase::isBanned(Network::Address addr) const throw () {
     addr.setPort(0);
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
         if (addr == bi->address && bi->endTime > time(0))
@@ -233,7 +233,7 @@ bool AuthorizationDatabase::isBanned(Network::Address addr) const {
     return false;
 }
 
-void AuthorizationDatabase::ban(Network::Address addr, const string& name, int minutes) {
+void AuthorizationDatabase::ban(Network::Address addr, const string& name, int minutes) throw () {
     addr.setPort(0);
     bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }

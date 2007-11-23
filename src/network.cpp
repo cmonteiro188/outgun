@@ -365,7 +365,7 @@ Address Network::getDefaultLocalAddress() {
     return addr;
 }
 
-bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
+bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) throw () {
     nAssert(!(!allowPort && requirePort));
     unsigned int i1, i2, i3, i4, port;
     char midChar, endChar;
@@ -383,7 +383,7 @@ bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, 
     return i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && i1 + i2 + i3 + i4 != 0;
 }
 
-bool check_private_IP(const string& address, bool allowAnyExternal) {
+bool check_private_IP(const string& address, bool allowAnyExternal) throw () {
     int i1, i2;
     const int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
     nAssert(n == 2);
@@ -402,7 +402,7 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
     return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
-string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
+string getPublicIP(LineReceiver& output, bool allowAnyExternal) throw () {
     const vector<Network::Address> locals = Network::getAllLocalAddresses();
     for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li) {
         const string addr = li->toString();
@@ -417,7 +417,7 @@ string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
     return string();
 }
 
-bool isLocalIP(Network::Address address) { // local doesn't mean private
+bool isLocalIP(Network::Address address) throw () { // local doesn't mean private
     address.setPort(0);
     if (address == Network::Address("127.0.0.1"))
         return true;
@@ -428,7 +428,7 @@ bool isLocalIP(Network::Address address) { // local doesn't mean private
     return false;
 }
 
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -449,7 +449,7 @@ NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, in
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
     const int buffer_size = 511;
     char lebuf[buffer_size + 1];
 
@@ -473,7 +473,7 @@ NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, co
     }
 }
 
-string format_http_parameters(const map<string, string>& parameters) {
+string format_http_parameters(const map<string, string>& parameters) throw () {
     // URL encode parameter values
     ostringstream param_line;
     for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
@@ -490,7 +490,7 @@ string format_http_parameters(const map<string, string>& parameters) {
     return param_line.str();
 }
 
-string build_http_request(bool post, const string& host, const string& script, const string& parameters, const string& auth) {
+string build_http_request(bool post, const string& host, const string& script, const string& parameters, const string& auth) throw () {
     ostringstream data;
 
     data << (post ? "POST" : "GET") << ' ' << script;
@@ -515,23 +515,23 @@ string build_http_request(bool post, const string& host, const string& script, c
 }
 
 NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
-                             const string& host, const string& script, const string& parameters, const string& auth) {
+                             const string& host, const string& script, const string& parameters, const string& auth) throw () {
     const string request = build_http_request(true, host, script, parameters, auth);
     return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) throw () {
     return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
-string url_encode(const string& str) {
+string url_encode(const string& str) throw () {
     ostringstream ost;
     for (string::const_iterator s = str.begin(); s != str.end(); s++)
         url_encode(*s, ost);
     return ost.str();
 }
 
-void url_encode(char c, ostream& out) {
+void url_encode(char c, ostream& out) throw () {
     if (is_url_safe(c)) // send safe characters as they are
         out << c;
     else if (c == ' ')  // spaces to + characters
@@ -544,7 +544,7 @@ void url_encode(char c, ostream& out) {
 // Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),",
 // and reserved characters used for their reserved purposes may be used
 // unencoded within a URL.
-bool is_url_safe(char c) {
+bool is_url_safe(char c) throw () {
     if (c >= 'a' && c <= 'z')
         return true;
     else if (c >= 'A' && c <= 'Z')
@@ -555,7 +555,7 @@ bool is_url_safe(char c) {
     return safe_characters.find(c) != string::npos;
 }
 
-string base64_encode(const string& data) {
+string base64_encode(const string& data) throw () {
     const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
     const char padding = '=';
     string result;

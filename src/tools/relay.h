@@ -33,10 +33,10 @@
 
 class Peer {
 public:
-    Peer(const Network::Address& addr, const Network::Socket& sock) : address(addr), socket(sock) { }
-    Peer(const Peer& peer);
+    Peer(const Network::Address& addr, const Network::Socket& sock) throw () : address(addr), socket(sock) { }
+    Peer(const Peer& peer) throw ();
 
-    Peer& operator=(const Peer& peer);
+    Peer& operator=(const Peer& peer) throw ();
 
     Network::Address address;
     Network::Socket  socket;
@@ -45,7 +45,7 @@ public:
 
 class Spectator {
 public:
-    Spectator(const Network::Address& addr, const Network::Socket& sock) :
+    Spectator(const Network::Address& addr, const Network::Socket& sock) throw () :
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -64,16 +64,16 @@ public:
 
 class Frame {
 public:
-    Frame(int l, const std::string& d, double t) : len(l), data_(d), time_(t) { }
+    Frame(int l, const std::string& d, double t) throw () : len(l), data_(d), time_(t) { }
 
-    void add(const std::string& d, double t) { data_.append(d); time_ = t; }
+    void add(const std::string& d, double t) throw () { data_.append(d); time_ = t; }
 
-    unsigned length() const { return len; }
-    unsigned used() const { return data_.length(); }
-    unsigned remaining() const { return length() - used(); }
-    bool full() const { return used() == length(); }
-    const std::string& data() const { return data_; }
-    double time() const { return time_; }
+    unsigned length() const throw () { return len; }
+    unsigned used() const throw () { return data_.length(); }
+    unsigned remaining() const throw () { return length() - used(); }
+    bool full() const throw () { return used() == length(); }
+    const std::string& data() const throw () { return data_; }
+    double time() const throw () { return time_; }
 
 private:
     unsigned    len;
@@ -83,17 +83,17 @@ private:
 
 class Game {
 public:
-    Game() : finished_(false) { }
+    Game() throw () : finished_(false) { }
 
-    void add(const Frame& f) { frames.push_back(f); }
-    void finish() { finished_ = true; }
+    void add(const Frame& f) throw () { frames.push_back(f); }
+    void finish() throw () { finished_ = true; }
 
-    unsigned size() const { return frames.size(); }
+    unsigned size() const throw () { return frames.size(); }
 
-    const Frame& frame(unsigned i) const { return frames[i]; }
-    std::vector<Frame>& buffer() { return frames; }
+    const Frame& frame(unsigned i) const throw () { return frames[i]; }
+    std::vector<Frame>& buffer() throw () { return frames; }
 
-    bool finished() const { return finished_; }
+    bool finished() const throw () { return finished_; }
 
 private:
     std::vector<Frame> frames;
@@ -102,38 +102,38 @@ private:
 
 class Relay {
 public:
-    Relay(unsigned short port, unsigned spectators);
-    ~Relay();
+    Relay(unsigned short port, unsigned spectators) throw ();
+    ~Relay() throw ();
 
-    void run();
+    void run() throw ();
 
 private:
     /// Listen for new connections
-    void listen();
+    void listen() throw ();
 
     /// Handle connections just opened
-    void check_new_connections();
+    void check_new_connections() throw ();
 
     /// Read game data from the Outgun server
-    void get_server_data();
+    void get_server_data() throw ();
 
     /// Add game data to buffer
-    bool add_data(std::istream& in);
+    bool add_data(std::istream& in) throw ();
 
     /// Send data to every spectator
-    void send_data();
+    void send_data() throw ();
 
     /// Send data to the socket
-    int send_data(Network::Socket& socket, const std::string& data) const;
+    int send_data(Network::Socket& socket, const std::string& data) const throw ();
 
     /// Remove the oldest game if it is not needed anymore
-    void remove_oldest_game();
+    void remove_oldest_game() throw ();
 
-    const Frame* get_frame(unsigned frame_nr) const;
-    std::string frame_data(unsigned frame_nr, unsigned pos) const;
+    const Frame* get_frame(unsigned frame_nr) const throw ();
+    std::string frame_data(unsigned frame_nr, unsigned pos) const throw ();
 
-    void load_master_settings();
-    void send_master_server();
+    void load_master_settings() throw ();
+    void send_master_server() throw ();
 
     Network::Socket listen_socket;     /// Socket for all incoming connections
     unsigned short listen_port; /// Port for all incoming connections

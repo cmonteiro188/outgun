@@ -40,17 +40,17 @@
 
 using std::string;
 
-int platStricmp(const char* s1, const char* s2) {
+int platStricmp(const char* s1, const char* s2) throw () {
     return strcasecmp(s1, s2);
 }
 
-int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
+int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) throw () {
     return vsnprintf(buf, count, fmt, arg);
 }
 
 class LinuxTimer : public SystemTimer {
 public:
-    double read() {
+    double read() throw () {
         timeval tv;
         if (gettimeofday(&tv, 0) != 0)
             nAssert(0);
@@ -58,7 +58,7 @@ public:
     }
 };
 
-void platSleep(unsigned ms) {
+void platSleep(unsigned ms) throw () {
     /* Here is an option between select and nanosleep. On my Linux system, when idle, both are very predictable in the time they sleep:
      * - nanosleep sleeps about 1.96 ms too long
      * - select sleeps about .05 ms too short
@@ -84,7 +84,7 @@ class LinuxFileFinder : public FileFinder {
     DIR* dir;
     struct dirent* ent;
 
-    void advance() {
+    void advance() throw () {
         for (;;) {
             ent = readdir(dir);
             if (!ent)
@@ -102,7 +102,7 @@ class LinuxFileFinder : public FileFinder {
     }
 
 public:
-    LinuxFileFinder(const string& path_, const string& extension_, bool directories_) : path(path_), extension(extension_), directories(directories_) {
+    LinuxFileFinder(const string& path_, const string& extension_, bool directories_) throw () : path(path_), extension(extension_), directories(directories_) {
         dir = opendir(path.c_str());
         if (dir)
             advance();
@@ -110,54 +110,54 @@ public:
             ent = 0;
     }
 
-    ~LinuxFileFinder() {
+    ~LinuxFileFinder() throw () {
         if (dir)
             closedir(dir);
     }
 
-    bool hasNext() const { return ent; }
+    bool hasNext() const throw () { return ent; }
 
-    string next() {
+    string next() throw () {
         string name = ent->d_name;
         advance();
         return name;
     }
 };
 
-FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) {
+FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
     return new LinuxFileFinder(path, extension, directories);
 }
 
-int platMkdir(const string& path) {
+int platMkdir(const string& path) throw () {
     return mkdir(path.c_str(), S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 }
 
-bool platIsFile(const string& name) {
+bool platIsFile(const string& name) throw () {
     struct stat s;
     if (stat(name.c_str(), &s) != 0)
         return false;
     return !S_ISDIR(s.st_mode);
 }
 
-bool platIsDirectory(const string& name) {
+bool platIsDirectory(const string& name) throw () {
     struct stat s;
     if (stat(name.c_str(), &s) != 0)
         return false;
     return S_ISDIR(s.st_mode);
 }
 
-void platInit() {
+void platInit() throw () {
     directory_separator = '/';
     g_systemTimer = new LinuxTimer();
 }
 
-static void closeSignalHandler(int) {
+static void closeSignalHandler(int) throw () {
     if (g_exitFlag)
         _exit(EXIT_FAILURE);
     g_exitFlag = true;
 }
 
-void platInitAfterAllegro() {
+void platInitAfterAllegro() throw () {
     // initialize wheregamedir
     static const int bufSize = 1000;
     char buf[bufSize];
@@ -189,14 +189,14 @@ void platInitAfterAllegro() {
     signal(SIGPIPE, SIG_IGN); // we don't want closed (TCP) sockets to kill us
 }
 
-void platUninit() {
+void platUninit() throw () {
     delete g_systemTimer;
     g_systemTimer = 0;
 }
 
 #ifndef DEDICATED_SERVER_ONLY
 
-void platMessageBox(const string& caption, const string& message, bool blocking) {
+void platMessageBox(const string& caption, const string& message, bool blocking) throw () {
     // The dialog tools may bug totally when given characters in wrong encoding.
     // At least UTF-8 gdialog can print out "All updates are complete." and completely disregard the given message. (some versions of it did that with normal input like '&' too, so it's no longer used at all)
     // When UTF-8 is not detected, we have no way to know which encoding they expect, so convert texts to 7-bit ASCII.
