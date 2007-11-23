@@ -36,16 +36,16 @@
 
 using std::string;
 
-int platStricmp(const char* s1, const char* s2) {
+int platStricmp(const char* s1, const char* s2) throw () {
     return stricmp(s1, s2);
 }
 
-int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) {
+int platVsnprintf(char* buf, size_t count, const char* fmt, va_list arg) throw () {
     return _vsnprintf(buf, count, fmt, arg);
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void platMessageBox(const string& caption, const string& msg, bool blocking) {
+void platMessageBox(const string& caption, const string& msg, bool blocking) throw () {
     (void)blocking; // can't produce nonblocking messages too easily
     MessageBox(NULL, msg.c_str(), caption.c_str(), MB_OK);
 }
@@ -55,7 +55,7 @@ class PerformanceCounterTimer : public SystemTimer {
     double mul;
 
 public:
-    bool init() { // returns false if performance counters are not available
+    bool init() throw () { // returns false if performance counters are not available
         LARGE_INTEGER freq;
         if (!QueryPerformanceFrequency(&freq))
             return false;
@@ -63,7 +63,7 @@ public:
         return true;
     }
 
-    double read() {
+    double read() throw () {
         LARGE_INTEGER value;
         if (!QueryPerformanceCounter(&value))
             nAssert(0);
@@ -78,12 +78,12 @@ class MMSystemTimer : public SystemTimer {
     Mutex readMutex; // read needs to be locked to avoid extra additions to base
 
 public:
-    MMSystemTimer() {
+    MMSystemTimer() throw () {
         base = 0;
         prev = static_cast<uint32_t>(timeGetTime());
     }
 
-    double read() {
+    double read() throw () {
         Lock ml(readMutex);
         uint32_t val = static_cast<uint32_t>(timeGetTime());
         if (val < prev) // check wrap-around
@@ -93,7 +93,7 @@ public:
     }
 };
 
-void platSleep(unsigned ms) {
+void platSleep(unsigned ms) throw () {
     Sleep(ms);
 }
 
@@ -103,7 +103,7 @@ class AllegroFileFinder : public FileFinder {
     al_ffblk ffblk;
     int findResult;
 
-    void skipUntilValid() {
+    void skipUntilValid() throw () {
         if (!directories)
             return;
         while (!(ffblk.attrib & FA_DIREC) || !strcmp(ffblk.name, ".") || !strcmp(ffblk.name, "..")) {
@@ -114,7 +114,7 @@ class AllegroFileFinder : public FileFinder {
     }
 
 public:
-    AllegroFileFinder(const string& path, const string& extension, bool directories_) : directories(directories_) {
+    AllegroFileFinder(const string& path, const string& extension, bool directories_) throw () : directories(directories_) {
         int attrib = FA_ARCH | FA_RDONLY;
         if (directories)
             attrib |= FA_DIREC;
@@ -122,13 +122,13 @@ public:
         skipUntilValid();
     }
 
-    ~AllegroFileFinder() {
+    ~AllegroFileFinder() throw () {
         al_findclose(&ffblk);
     }
 
-    bool hasNext() const { return findResult == 0; }
+    bool hasNext() const throw () { return findResult == 0; }
 
-    string next() {
+    string next() throw () {
         string name = ffblk.name;
         findResult = al_findnext(&ffblk);
         skipUntilValid();
@@ -136,29 +136,29 @@ public:
     }
 };
 
-FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) {
+FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
     return new AllegroFileFinder(path, extension, directories);
 }
 
-bool platIsFile(const string& name) {
+bool platIsFile(const string& name) throw () {
     return exists(name.c_str());
 }
 
-bool platIsDirectory(const string& name) {
+bool platIsDirectory(const string& name) throw () {
     int attr;
     if (!file_exists(name.c_str(), FA_DIREC | FA_ARCH | FA_RDONLY, &attr))
         return false;
     return (attr & FA_DIREC) != 0;
 }
 
-int platMkdir(const string& path) {
+int platMkdir(const string& path) throw () {
     return mkdir(path.c_str());
 }
 #endif // DEDICATED_SERVER_ONLY
 
 static UINT g_timerResolution;
 
-void platInit() {
+void platInit() throw () {
     directory_separator = '\\';
 
     // increase resolution of timers for the benefit of both Sleep (used by platSleep) and timeGetTime (used by MMSystemTimer)
@@ -179,7 +179,7 @@ void platInit() {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void platInitAfterAllegro() {
+void platInitAfterAllegro() throw () {
     static const int bufSize = 1000;
     char pathBuf[bufSize];
     get_executable_name(pathBuf, bufSize);
@@ -188,7 +188,7 @@ void platInitAfterAllegro() {
 }
 #endif
 
-void platUninit() {
+void platUninit() throw () {
     delete g_systemTimer;
     g_systemTimer = 0;
     timeEndPeriod(g_timerResolution);

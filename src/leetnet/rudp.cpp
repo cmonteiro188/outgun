@@ -65,7 +65,7 @@
 
 // gets the IP of this machine
 //
-void get_self_IP(NLaddress *addr) {
+void get_self_IP(NLaddress *addr) throw () {
     NLsocket s = nlOpen(0, NL_UNRELIABLE);
     nlGetLocalAddr(s, addr);
     nlSetAddrPort(addr, 0);
@@ -88,7 +88,7 @@ public:
     char buf[DATA_BUF_SIZE];
 
     //extend buffer to fit additional len
-    void extend(int len) {
+    void extend(int len) throw () {
         nAssert(len + ulen <= DATA_BUF_SIZE);
 
         // not allocated yet
@@ -110,7 +110,7 @@ public:
     }
 
     //add data
-    void add(const void* data, int len) {
+    void add(const void* data, int len) throw () {
         if (len == 0)
             return;
         extend(len);        // extend to fit
@@ -119,14 +119,14 @@ public:
     }
 
     //add long: watch endianess
-    void addlong(NLulong data) {
+    void addlong(NLulong data) throw () {
         extend(sizeof(NLulong)); // extend to fit
         writeLong(buf, ulen, data);
         //ulen += sizeof(NLulong);  //previous statemente already incs ulen
     }
 
     //set data
-    void set(const data_c *datac) {
+    void set(const data_c *datac) throw () {
         const data_ci* data = dynamic_cast<const data_ci*>(datac);
         nAssert(data);
         ulen = 0;       // reset my contents
@@ -136,7 +136,7 @@ public:
     }
 
     //set data
-    void set(const char *data, NLushort len) {
+    void set(const char *data, NLushort len) throw () {
         ulen = 0;
         extend(len);
         ulen = len;
@@ -144,27 +144,27 @@ public:
     }
 
     //clear
-    void clear() {
+    void clear() throw () {
         ulen = 0;
         //alen = ulen = 0;
         //if (buf) { delete buf; buf = 0; }
     }
 
     //get data: use buf/alen/ulen with HawkNL packet reading functions
-    char* getbuf() {
+    char* getbuf() throw () {
         return buf;
     }
-    const char* getbuf() const {
+    const char* getbuf() const throw () {
         return buf;
     }
 
     //get length (used)
-    int     getlen() const {
+    int     getlen() const throw () {
         return ulen;
     }
 
     //ctor
-    data_ci() {
+    data_ci() throw () {
         //alen = ulen = 0;
         //buf = 0;
         alen = DATA_BUF_SIZE;
@@ -172,7 +172,7 @@ public:
     }
 
     //dtor
-    virtual ~data_ci() {
+    virtual ~data_ci() throw () {
         //if (buf) {
         //  delete buf; buf = 0;
         //}
@@ -187,18 +187,18 @@ class msgrec {
     data_ci message_;   // the message's contents
 
 public:
-    msgrec() { clear(); }
+    msgrec() throw () { clear(); }
 
-    void clear() { id_ = -1; message_.clear(); }
-    void set(int id, const data_ci* msg) { nAssert(!used()); sent = 0; id_ = id; message_.set(msg); }
-    void set(int id, const char *data, NLushort len) { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
-    void send(NLulong frame) { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
+    void clear() throw () { id_ = -1; message_.clear(); }
+    void set(int id, const data_ci* msg) throw () { nAssert(!used()); sent = 0; id_ = id; message_.set(msg); }
+    void set(int id, const char *data, NLushort len) throw () { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
+    void send(NLulong frame) throw () { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
 
-    bool used() const { return id_ != -1; }
-    bool sentBefore(NLulong id) const { return sent != 0 && sent <= id; } // sent == 0 means not sent at all
-    int id() const { return id_; }
-    const data_ci& message() const { return message_; }
-    int msgSize() const { return message_.getlen(); }
+    bool used() const throw () { return id_ != -1; }
+    bool sentBefore(NLulong id) const throw () { return sent != 0 && sent <= id; } // sent == 0 means not sent at all
+    int id() const throw () { return id_; }
+    const data_ci& message() const throw () { return message_; }
+    int msgSize() const throw () { return message_.getlen(); }
 };
 
 // station class implementation
@@ -263,18 +263,18 @@ public:
     #ifdef EXTRA_RELIABLE_STORAGE
     NLulong reliable_size;  // total size of reliable messages in reliable[], plus 6 bytes extra for each
     std::queue<data_ci*> extra_reliables;
-    void erase_extra_reliables() {
+    void erase_extra_reliables() throw () {
         while (!extra_reliables.empty()) {
             delete extra_reliables.front();
             extra_reliables.pop();
         }
     }
-    bool can_add_reliable(NLulong msgsize) const { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
+    bool can_add_reliable(NLulong msgsize) const throw () { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
     #endif
 
     // resets the state of the object. so you don't have to delete and create a new one
     // every time you want to use it for a different client/server.
-    virtual void reset_state() {
+    virtual void reset_state() throw () {
 
         //disconnect the socket (if any)
         if (sendsock != NL_INVALID_SOCKET) {
@@ -311,13 +311,13 @@ public:
     }
 
     //ctor
-    station_ci() : relmsg_mutex("station_ci::relmsg_mutex") {
+    station_ci() throw () : relmsg_mutex("station_ci::relmsg_mutex") {
         sendsock = NL_INVALID_SOCKET;       //to avoid reset_state to close an invalid socket
         reset_state();
     }
 
     //dtor
-    virtual ~station_ci() {
+    virtual ~station_ci() throw () {
         #ifdef EXTRA_RELIABLE_STORAGE
         relmsg_mutex.lock();
         erase_extra_reliables();
@@ -337,7 +337,7 @@ public:
     // - discard duplicates and old messages
     // - implement "sliding window" for reliable message total ordering
     // messages are internally enqueued for later retrieval
-    void process_incoming_message(NLulong msgid, char* msgdata, int msgsize) {
+    void process_incoming_message(NLulong msgid, char* msgdata, int msgsize) throw () {
 DLOG_Scope s("UPIM");
         //printf("process_incoming_message id=%i cur=%i siz=%i\n", msgid, msg_current, msgsize);
 
@@ -368,14 +368,14 @@ DLOG_Scope s("UPIM");
     }
 
     // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(char* address, int localPortMin, int localPortMax) {
+    virtual int set_remote_address(char* address, int localPortMin, int localPortMax) throw () {
         NLaddress addr;
         nlStringToAddr(address, &addr);
         return set_remote_address(&addr, localPortMin, localPortMax);
     }
 
     // set the station's remote address for sending (IP:PORT)
-    virtual int set_remote_address(NLaddress *some_addr, int localPortMin, int localPortMax) {
+    virtual int set_remote_address(NLaddress *some_addr, int localPortMin, int localPortMax) throw () {
         memcpy(&netaddr, some_addr, sizeof(NLaddress));
 
         nlOpenMutex.lock();
@@ -401,14 +401,14 @@ DLOG_Scope s("UPIM");
         return 1;   // ok
     }
 
-    virtual int getLocalPort() const {
+    virtual int getLocalPort() const throw () {
         NLaddress addr;
         nlGetLocalAddr(sendsock, &addr);
         return nlGetPortFromAddr(&addr);
     }
 
     // read a reliable message from the queue
-    virtual data_c *read_reliable() {
+    virtual data_c *read_reliable() throw () {
 DLOG_Scope s("URR");
 
         //calc index of the message in the array
@@ -439,7 +439,7 @@ DLOG_Scope s("URR");
     }
 
     // sets UDP raw packet that arrived from network
-    virtual int set_incoming_packet(char *data, int size) {
+    virtual int set_incoming_packet(char *data, int size) throw () {
 DLOG_Scope s("USIP");
 
         // ok!
@@ -450,7 +450,7 @@ DLOG_Scope s("USIP");
         return 1; //ok
     }
 
-    virtual void enablePortSearch() {
+    virtual void enablePortSearch() throw () {
         nextPortChange = 30;    // try 3 seconds with the real port
     }
 
@@ -459,7 +459,7 @@ DLOG_Scope s("USIP");
     // data block of the packet
     // returns special == true if it's a "connection" packet (id == 0)
     // returns 0/length==-1 if called twice before calling set_incoming_packet again
-    virtual char* process_incoming_packet(int *size, bool *special) {
+    virtual char* process_incoming_packet(int *size, bool *special) throw () {
 DLOG_Scope s("UPIP");
 
         int i;
@@ -624,7 +624,7 @@ DLOG_Scope s("UPIP");
     }
 
     // append reliable message to the packet buffer
-    virtual int writer(const char *data, int length) {
+    virtual int writer(const char *data, int length) throw () {
 DLOG_Scope s("UWR");
         nAssert(length <= MAX_MESSAGE_SIZE);
 
@@ -663,7 +663,7 @@ DLOG_Scope s("UWR");
 
     // append unreliable data to the packet buffer
     //virtual int write(data_c* data) {
-    virtual int write(const char *data, int length) {
+    virtual int write(const char *data, int length) throw () {
 DLOG_Scope s("UW");
 
         //piece o'cake
@@ -676,7 +676,7 @@ DLOG_Scope s("UW");
 
     // flush the pending packet buffer as an UDP packet to the remote address, returns "id"
     // for the assigned packet id
-    virtual int send_packet(int& id, FILE* datalog) {
+    virtual int send_packet(int& id, FILE* datalog) throw () {
 DLOG_Scope s("USP");
 
         int i;
@@ -759,7 +759,7 @@ DLOG_Scope s("USP");
     }
 
     // send a raw UDP packet to the destination. returns 1 if ok, 0 if nlWrite failed
-    virtual int send_raw_packet(const data_c *data) {
+    virtual int send_raw_packet(const data_c *data) throw () {
 
         //fix remote addr (changed by reads)
         nlSetRemoteAddr(sendsock, &netaddr);
@@ -778,7 +778,7 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
         return 1;
     }
 
-    virtual int send_raw_packet_to_port(const data_c* data, int port) {
+    virtual int send_raw_packet_to_port(const data_c* data, int port) throw () {
         NLaddress addr = netaddr;
         nlSetAddrPort(&addr, port);
         nlSetRemoteAddr(sendsock, &addr);
@@ -789,7 +789,7 @@ result = nlWrite(sendsock, data->getbuf(), data->getlen());
     // non-blocking call: attempt to read data from the socket
     // buffer/bufsize: buffer given to the routine
     // int return: value of nlRead()... :-)
-    virtual int receive_packet(char *buffer, int bufsize) {
+    virtual int receive_packet(char *buffer, int bufsize) throw () {
 DLOG_Scope s("URPr");
 
         int fakek = nlRead(sendsock, buffer, bufsize);
@@ -797,12 +797,12 @@ DLOG_Scope s("URPr");
     }
 
     // return the socket for get_socket_stat purposes
-    virtual NLsocket get_nl_socket() {
+    virtual NLsocket get_nl_socket() throw () {
         return sendsock;
     }
 
     // get debug info
-    virtual char* debug_info() {
+    virtual char* debug_info() throw () {
 
         //address
         char ad[200];
@@ -825,12 +825,12 @@ DLOG_Scope s("URPr");
 
 // factory functions
 //
-data_c          *new_data_c() {
+data_c          *new_data_c() throw () {
     data_c* x = new data_ci();
     return x;
 }
 
-station_c       *new_station_c() {
+station_c       *new_station_c() throw () {
     station_c* x = new station_ci();
     return x;
 }

@@ -38,6 +38,6 @@ extern const std::string GAME_COPYRIGHT_YEAR;
  * @param hardLengthLimit  the maximum string length accepted (must be at least the length of VERSION_SHORT)
  * @param tryHardForSoft   don't return more than /softLengthLimit/ characters unless absolutely necessary
  */
-std::string getVersionString(bool allowSpaces = true, std::string::size_type softLengthLimit = 0, std::string::size_type hardLengthLimit = 0, bool tryHardForSoft = false);
+std::string getVersionString(bool allowSpaces = true, std::string::size_type softLengthLimit = 0, std::string::size_type hardLengthLimit = 0, bool tryHardForSoft = false) throw ();
 
 #endif // ! VERSION_H_INC

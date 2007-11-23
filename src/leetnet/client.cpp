@@ -58,46 +58,46 @@
 class client_ci;
 
 //connector thread function
-void thread_connect_f(client_ci* client);
-void thread_disconnect_f(client_ci* client);
+void thread_connect_f(client_ci* client) throw ();
+void thread_disconnect_f(client_ci* client) throw ();
 
 //reader thread function
-void thread_reader_f(client_ci* client);
+void thread_reader_f(client_ci* client) throw ();
 
 class QueueSendCommand {    // base class
 protected:
     data_c* data;
 
 public:
-    QueueSendCommand() : data(new_data_c()) { }
-    virtual ~QueueSendCommand() { delete data; }
-    virtual void execute(client_ci* client, station_c* station) = 0;
+    QueueSendCommand() throw () : data(new_data_c()) { }
+    virtual ~QueueSendCommand() throw () { delete data; }
+    virtual void execute(client_ci* client, station_c* station) throw () = 0;
 };
 
 class QWriter : public QueueSendCommand {
 public:
-    QWriter(char* data_, int length) { data->set(data_, length); }
-    void execute(client_ci*, station_c* station) { station->writer(data->getbuf(), data->getlen()); }
+    QWriter(char* data_, int length) throw () { data->set(data_, length); }
+    void execute(client_ci*, station_c* station) throw () { station->writer(data->getbuf(), data->getlen()); }
 };
 
 class QSendRawPacket : public QueueSendCommand {
 public:
-    QSendRawPacket(const data_c* data_) { data->set(data_); }
-    void execute(client_ci*, station_c* station) { station->send_raw_packet(data); }
+    QSendRawPacket(const data_c* data_) throw () { data->set(data_); }
+    void execute(client_ci*, station_c* station) throw () { station->send_raw_packet(data); }
 };
 
 class QSendRawPacketToPort : public QueueSendCommand {
     int port;
 
 public:
-    QSendRawPacketToPort(const data_c* data_, int port_) : port(port_) { data->set(data_); }
-    void execute(client_ci*, station_c* station) { station->send_raw_packet_to_port(data, port); }
+    QSendRawPacketToPort(const data_c* data_, int port_) throw () : port(port_) { data->set(data_); }
+    void execute(client_ci*, station_c* station) throw () { station->send_raw_packet_to_port(data, port); }
 };
 
 class QSendFrame : public QueueSendCommand {
 public:
-    QSendFrame(char* data_, int length) { data->set(data_, length); }
-    void execute(client_ci* client, station_c*);
+    QSendFrame(char* data_, int length) throw () { data->set(data_, length); }
+    void execute(client_ci* client, station_c*) throw ();
 };
 
 //the client class
@@ -160,19 +160,19 @@ public:
     //------------------------------
 
     //set a callback function.
-    virtual void setConnectionCallback(connectionCallbackT* fn) { connectionCallback = fn; }
-    virtual void setServerDataCallback(serverDataCallbackT* fn) { serverDataCallback = fn; }
+    virtual void setConnectionCallback(connectionCallbackT* fn) throw () { connectionCallback = fn; }
+    virtual void setServerDataCallback(serverDataCallbackT* fn) throw () { serverDataCallback = fn; }
 
-    virtual void setCallbackCustomPointer(void* ptr) { customp = ptr; }
+    virtual void setCallbackCustomPointer(void* ptr) throw () { customp = ptr; }
 
     //set the server's address. call before connect()
-    virtual void set_server_address(const char *address) {
+    virtual void set_server_address(const char *address) throw () {
         nlStringToAddr(address, &serveraddr);
     }
 
     //set the custom data sent with every connection packet
     //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(char *data, int length) {
+    virtual void set_connect_data(char *data, int length) throw () {
         connect_data_length = length;
         memcpy(connect_data, data, length);
     }
@@ -180,7 +180,7 @@ public:
     //set connection status. if set to TRUE, engine will try to estabilish connection
     //with the server. if set to FALSE, will stop trying to connect or will disconnect
     //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) {
+    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () {
         log("connect now=%i  set to=%i   constatus=%i", want_connect, yes, connect_status);
 
         //noop
@@ -236,12 +236,12 @@ public:
         }
     }
 
-    void queueSend(QueueSendCommand* qsc) {
+    void queueSend(QueueSendCommand* qsc) throw () {
         Lock ml(sendQueueMutex);
         sendQueue.push(std::pair<double, QueueSendCommand*>(get_time() + packetDelay, qsc));
     }
 
-    void probeSendQueue() {
+    void probeSendQueue() throw () {
         if (packetDelay == 0.)
             return;
         sendQueueMutex.lock();
@@ -260,7 +260,7 @@ public:
         sendQueueMutex.unlock();
     }
 
-    void clearSendQueue() {
+    void clearSendQueue() throw () {
         Lock ml(sendQueueMutex);
         while (!sendQueue.empty()) {
             delete sendQueue.front().second;
@@ -268,12 +268,12 @@ public:
         }
     }
 
-    double increasePacketDelay(double amount = 0.01) {
+    double increasePacketDelay(double amount = 0.01) throw () {
         packetDelay += amount;
         return packetDelay;
     }
 
-    double decreasePacketDelay(double amount = 0.01) {
+    double decreasePacketDelay(double amount = 0.01) throw () {
         packetDelay -= amount;
         if (packetDelay <= 0.) {
             packetDelay = 1e-5; // flag for probeSendQueue that the queue is still operational, but when it's empty, packetDelay is zeroed
@@ -283,21 +283,21 @@ public:
     }
 
     //send reliable message
-    virtual void send_message(char *data, int length) {
+    virtual void send_message(char *data, int length) throw () {
         if (packetDelay < .001)
             station->writer(data, length);
         else
             queueSend(new QWriter(data, length));
     }
 
-    void sendRawPacket(const data_c* data) {
+    void sendRawPacket(const data_c* data) throw () {
         if (packetDelay < .001)
             station->send_raw_packet(data);
         else
             queueSend(new QSendRawPacket(data));
     }
 
-    void sendRawPacketToPort(const data_c* data, int port) {
+    void sendRawPacketToPort(const data_c* data, int port) throw () {
         if (packetDelay < .001)
             station->send_raw_packet_to_port(data, port);
         else
@@ -306,14 +306,14 @@ public:
 
     //dispatches the packet with the given frame (unreliable data) and all the
     //protocol overload (reliable messages, acks...)
-    virtual void send_frame(char *data, int length) {
+    virtual void send_frame(char *data, int length) throw () {
         if (packetDelay < .001)
             doSendFrame(data, length);
         else
             queueSend(new QSendFrame(data, length));
     }
 
-    void doSendFrame(char* data, int length) {
+    void doSendFrame(char* data, int length) throw () {
         //do not send if not connected
         if (connect_status != 3)
             return;
@@ -340,7 +340,7 @@ public:
 
     //function to be called by the CFUNC_SERVER_DATA callback
     //gets the next reliable message avaliable from the server. null if no message pending
-    virtual char* receive_message(int *length) {
+    virtual char* receive_message(int *length) throw () {
         data_c  *msg = station->read_reliable();
 
         // no data
@@ -355,7 +355,7 @@ public:
     }
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
-    virtual int get_socket_stat(int stat) {
+    virtual int get_socket_stat(int stat) throw () {
         return nlGetSocketStat(station->get_nl_socket(), stat);
     }
 
@@ -364,7 +364,7 @@ public:
     //------------------------------
 
     //READER thread wants to read from the station
-    int read_station(char *buf, int bufsize) {
+    int read_station(char *buf, int bufsize) throw () {
         if (!station) {
             log("WOW REALLY FUCKED UP!!");
             return -666;
@@ -378,7 +378,7 @@ public:
     }
 
     //start disconnection sequence
-    void start_disconnect() {
+    void start_disconnect() throw () {
         log("start_disconnect()");
 
         //start thread
@@ -391,7 +391,7 @@ public:
     }
 
     //disconnect try - return TRUE to stop
-    bool disconnect_try() {
+    bool disconnect_try() throw () {
         log("client disconnect_try()");
 
         // check stopped trying to disconnect
@@ -417,7 +417,7 @@ public:
     }
 
     //disconnection done (timeout or reply received)
-    void nice_disconnect_done(char reason) {
+    void nice_disconnect_done(char reason) throw () {
         log("nice_disconnect_done() - delete station - connectstatus = 0");
 
         //connection callback w/ status = 1 (disconnected)
@@ -445,7 +445,7 @@ public:
     }
 
     //start connection sequence
-    void start_connect(int minLocalPort, int maxLocalPort) {
+    void start_connect(int minLocalPort, int maxLocalPort) throw () {
         //trying. this should be the FIRST THING!
         int old_status = connect_status;
         connect_status = 2;
@@ -498,7 +498,7 @@ public:
     }
 
     //cleanup connect sequence
-    void stop_connect() {
+    void stop_connect() throw () {
         //disconnected state -- THIS MUST BE THE FIRST THING
         connect_status = 0;
 
@@ -521,7 +521,7 @@ public:
     }
 
     //process datagram read by reader thread
-    void process_incoming_datagram(char *udp_data, int udp_length) {
+    void process_incoming_datagram(char *udp_data, int udp_length) throw () {
 DLOG_Scope s("CPIDg");
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
@@ -693,7 +693,7 @@ DLOG_Scope s("CPIDg");
     }
 
     //called by thread_connect - try to connect. return true if should stop trying
-    bool connect_try() {
+    bool connect_try() throw () {
 
         //send a "want to connect" packet
         //FIXME: game client must specify data to send in the connection packet
@@ -750,12 +750,12 @@ DLOG_Scope s("CPIDg");
     }
 
     //called by reader thread to check for quit condition
-    bool reader_thread_quit() {
+    bool reader_thread_quit() throw () {
         return quit_reader_thread;
     }
 
     //ctor
-    client_ci(int thread_priority, const std::string& logPostfix) :
+    client_ci(int thread_priority, const std::string& logPostfix) throw () :
         #ifdef LEETNET_LOG
         logp(g_leetnetLog ?
              static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetclientlog" + logPostfix + ".txt").c_str(), true)) :
@@ -795,7 +795,7 @@ DLOG_Scope s("CPIDg");
     }
 
     //dtor
-    virtual ~client_ci() {
+    virtual ~client_ci() throw () {
         //disconnect if connected
         connect(false);
 
@@ -818,7 +818,7 @@ DLOG_Scope s("CPIDg");
 };
 
 //connector thread function
-void thread_connect_f(client_ci* client) {
+void thread_connect_f(client_ci* client) throw () {
     for (;;) {
         if (client->connect_try())
             break;
@@ -828,7 +828,7 @@ void thread_connect_f(client_ci* client) {
 }
 
 //disconnector thread function
-void thread_disconnect_f(client_ci* client) {
+void thread_disconnect_f(client_ci* client) throw () {
     //repeat
     bool stop = false;
     while (!stop) {
@@ -846,7 +846,7 @@ void thread_disconnect_f(client_ci* client) {
 
 //reader thread function
 #define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
-void thread_reader_f(client_ci* client) {
+void thread_reader_f(client_ci* client) throw () {
 DLOG_ScopeNegStart("CTR");
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];
@@ -886,10 +886,10 @@ DLOG_ScopeNeg s("CTR");
 
 
 //factory
-client_c* new_client_c(int thread_priority, const std::string& logPostfix) {
+client_c* new_client_c(int thread_priority, const std::string& logPostfix) throw () {
     return new client_ci(thread_priority, logPostfix);
 }
 
-void QSendFrame::execute(client_ci* client, station_c*) {
+void QSendFrame::execute(client_ci* client, station_c*) throw () {
     client->doSendFrame(data->getbuf(), data->getlen());
 }

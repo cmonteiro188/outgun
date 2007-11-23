@@ -53,33 +53,33 @@ public:
     typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;
 
-    ClientExternalSettings() : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
+    ClientExternalSettings() throw () : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
 };
 
 class ClientInterface {
 protected:
-    ClientInterface() { }
+    ClientInterface() throw () { }
 
 public:
-    static ClientInterface* newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_);
+    static ClientInterface* newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
 
-    virtual ~ClientInterface() { }
+    virtual ~ClientInterface() throw () { }
 
-    virtual bool start() = 0;
+    virtual bool start() throw () = 0;
     #ifndef DEDICATED_SERVER_ONLY
-    virtual void loop(volatile bool* quitFlag, bool firstTimeSplash) = 0;
+    virtual void loop(volatile bool* quitFlag, bool firstTimeSplash) throw () = 0;
     #endif
-    virtual void stop() = 0;
+    virtual void stop() throw () = 0;
 
-    virtual void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId) = 0;
-    virtual void bot_loop() = 0;
-    virtual void set_ping(int ping) = 0;
-    virtual bool is_connected() const = 0;
-    virtual bool bot_finished() const = 0;
+    virtual void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId) throw () = 0;
+    virtual void bot_loop() throw () = 0;
+    virtual void set_ping(int ping) throw () = 0;
+    virtual bool is_connected() const throw () = 0;
+    virtual bool bot_finished() const throw () = 0;
 
-    virtual void set_bot_password(const std::string& pass) = 0;
+    virtual void set_bot_password(const std::string& pass) throw () = 0;
 
-    virtual int team() const = 0;
+    virtual int team() const throw () = 0;
 };
 
 #endif

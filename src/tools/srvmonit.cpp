@@ -39,13 +39,13 @@
 
 #include <windows.h>    // Sleep
 #include <conio.h>  // kbhit, getch
-void initKeyboard() { }
-void resetKeyboard() { }
+void initKeyboard() throw () { }
+void resetKeyboard() throw () { }
 
 #else   // WIN32
 
 #include <unistd.h> // usleep
-void Sleep(int msec) { usleep(msec * 1000); }
+void Sleep(int msec) throw () { usleep(msec * 1000); }
 
 #include <sys/termios.h>
 #include <sys/time.h>
@@ -53,7 +53,7 @@ void Sleep(int msec) { usleep(msec * 1000); }
 
 struct termios orig_termios;
 
-void initKeyboard() {
+void initKeyboard() throw () {
     const int fd = STDIN_FILENO;
     termios t;
     nAssert(tcgetattr(fd, &t) >= 0);
@@ -63,14 +63,14 @@ void initKeyboard() {
     setbuf(stdin, NULL);
 }
 
-void resetKeyboard() {
+void resetKeyboard() throw () {
     const int fd = STDIN_FILENO;
     nAssert(tcsetattr(fd, TCSANOW, &orig_termios) >= 0);
 }
 
-int getch() { return getc(stdin); }
+int getch() throw () { return getc(stdin); }
 
-bool kbhit() {
+bool kbhit() throw () {
     fd_set rfds;
     FD_ZERO(&rfds);
     FD_SET(STDIN_FILENO, &rfds);
@@ -92,23 +92,23 @@ class SendFail { };
 class ConnectFail { };
 class UserExit { };
 
-string encode(const string& str) {
+string encode(const string& str) throw () {
     return utf8_mode ? latin1_to_utf8(str) : str;
 }
 
-string decode(const string& str) {
+string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(NLsocket sock, const void* data, int len) {
+void send(NLsocket sock, const void* data, int len) throw (SendFail) {
     if (nlWrite(sock, data, len) != len)
         throw SendFail();
 }
 
 class IdleFunction {
 public:
-    virtual ~IdleFunction() { }
-    virtual void operator()() = 0;
+    virtual ~IdleFunction() throw () { }
+    virtual void operator()() throw (SendFail, UserExit) = 0;
 };
 
 class DelayHandler : public IdleFunction {
@@ -121,19 +121,19 @@ class DelayHandler : public IdleFunction {
     bool* messageBoxSetting;
 
 public:
-    DelayHandler(NLsocket socket, bool* messageBox) : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
-    void pauseSay() const {
+    DelayHandler(NLsocket socket, bool* messageBox) throw () : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
+    void pauseSay() const throw () {
         if (sayIdx != -1)
             printf("\r%79s\r", "");
     }
-    void resumeSay() const {
+    void resumeSay() const throw () {
         if (sayIdx != -1) {
             printf("say:   ");
             fwrite(sayBuf, 1, sayIdx, stdout);
             fflush(stdout);
         }
     }
-    void operator()() {
+    void operator()() throw (SendFail, UserExit) {
         while (kbhit()) {
             char buf[12 + sayBufLen];
             int idx = 0;
@@ -275,8 +275,8 @@ class DelaySocketReader {
     int rbufUsed, rbufRd;
 
 public:
-    DelaySocketReader(NLsocket socket, IdleFunction* handlerFn) : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
-    NLulong getLong() {
+    DelaySocketReader(NLsocket socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
+    NLulong getLong() throw (ReadFail, SendFail, UserExit) {
         NLulong val = 0;
         val =              getByte();
         val = (val << 8) | getByte();
@@ -284,7 +284,7 @@ public:
         val = (val << 8) | getByte();
         return val;
     }
-    uchar getByte() {
+    uchar getByte() throw (ReadFail, SendFail, UserExit) {
         for (;;) {
             if (rbufRd < rbufUsed)
                 return rbuf[rbufRd++];
@@ -302,9 +302,9 @@ public:
 
 FILE* outfile;
 
-void dualprintf(const char* fmt, ...) PRINTF_FORMAT(1, 2);
+void dualprintf(const char* fmt, ...) throw () PRINTF_FORMAT(1, 2);
 
-void dualprintf(const char* fmt, ...) {
+void dualprintf(const char* fmt, ...) throw () {
     time_t tt = time(0);
     tm* tmb = localtime(&tt);
 
@@ -320,13 +320,13 @@ void dualprintf(const char* fmt, ...) {
 }
 
 string plyNames[32];
-const char* plyName(int idx) {
+const char* plyName(int idx) throw () {
     static char buf[50];
     platSnprintf(buf, 50, "%s (%d)", encode(plyNames[idx]).c_str(), idx);
     return buf;
 }
 
-bool runMonitor(int port, bool messageBoxes) {
+bool runMonitor(int port, bool messageBoxes) throw () {
     NLsocket sock;
 
     nlDisable(NL_BLOCKING_IO);

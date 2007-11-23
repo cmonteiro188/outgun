@@ -43,11 +43,11 @@ extern uint32_t* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to
  #define numAssert4(expr, v1, v2, v3, v4) ((void)0)
 #else // NDEBUG
  #define ARGP const char*, int
- void nAssertFail(const char* expr, const char* file, int line) __attribute__ ((noreturn));
- void nAssertFail(const char* expr, ARGP, const char* file, int line) __attribute__ ((noreturn));
- void nAssertFail(const char* expr, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
- void nAssertFail(const char* expr, ARGP, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
- void nAssertFail(const char* expr, ARGP, ARGP, ARGP, ARGP, const char* file, int line) __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, const char* file, int line) throw () __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, ARGP, const char* file, int line) throw () __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, ARGP, ARGP, const char* file, int line) throw () __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, ARGP, ARGP, ARGP, const char* file, int line) throw () __attribute__ ((noreturn));
+ void nAssertFail(const char* expr, ARGP, ARGP, ARGP, ARGP, const char* file, int line) throw () __attribute__ ((noreturn));
  #undef ARGP
  #define nAssert(expr)                      ((expr)?(void)0:nAssertFail(#expr, __FILE__, __LINE__))
  #define numAssert(expr, v1)                ((expr)?(void)0:nAssertFail(#expr, #v1, v1, __FILE__, __LINE__))

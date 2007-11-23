@@ -47,7 +47,7 @@ using std::string;
 using std::uppercase;
 using std::vector;
 
-string Colour::triplet() const {
+string Colour::triplet() const throw () {
     ostringstream ost;
     ost.fill('0');
     ost << hex << uppercase << setw(2) << r;
@@ -57,14 +57,14 @@ string Colour::triplet() const {
 }
 
 struct Colour_setting_base {
-    Colour_setting_base(const string& n) : name(n) { }
-    virtual ~Colour_setting_base() { };
+    Colour_setting_base(const string& n) throw () : name(n) { }
+    virtual ~Colour_setting_base() throw () { };
     string name;
 };
 
 struct Colour_setting : public Colour_setting_base {
-    Colour_setting(const string& n, int k, const Colour& c) : Colour_setting_base(n), key(k), col(c) { }
-    Colour_setting(const string& n, int k, int r, int g, int b) : Colour_setting_base(n), key(k), col(r, g, b) { }
+    Colour_setting(const string& n, int k, const Colour& c) throw () : Colour_setting_base(n), key(k), col(c) { }
+    Colour_setting(const string& n, int k, int r, int g, int b) throw () : Colour_setting_base(n), key(k), col(r, g, b) { }
     int key;
     Colour col;
 };
@@ -72,14 +72,14 @@ struct Colour_setting : public Colour_setting_base {
 // Helper structs for commenting the colour file
 
 struct Colour_setting_comment : public Colour_setting_base {
-    Colour_setting_comment(const string& comment) : Colour_setting_base(comment) { }
+    Colour_setting_comment(const string& comment) throw () : Colour_setting_base(comment) { }
 };
 
 struct Colour_setting_section : public Colour_setting_comment {
-    Colour_setting_section(const string& title) : Colour_setting_comment(title) { }
+    Colour_setting_section(const string& title) throw () : Colour_setting_comment(title) { }
 };
 
-void Colour_manager::init(const string& file, bool create_default_only) {
+void Colour_manager::init(const string& file, bool create_default_only) throw () {
     typedef std::auto_ptr<Colour_setting_base> PT;
     PT hack(0); // avoid GCC bug http://gcc.gnu.org/bugzilla/show_bug.cgi?id=12883
 
@@ -164,12 +164,12 @@ void Colour_manager::init(const string& file, bool create_default_only) {
     }
 }
 
-void Colour_manager::update() {
+void Colour_manager::update() throw () {
     for (vector<Colour>::iterator ci = colour_set.begin(); ci != colour_set.end(); ++ci)
         ci->update();
 }
 
-const Colour& Colour_manager::operator[](Colour::Col_id key) const {
+const Colour& Colour_manager::operator[](Colour::Col_id key) const throw () {
     numAssert2(key >= 0 && key < int(colour_set.size()), key, colour_set.size());
     return colour_set[key];
 }

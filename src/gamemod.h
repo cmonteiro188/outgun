@@ -39,15 +39,15 @@ class MapInfo;
 
 class GamemodSetting {  // base class
 public:
-    virtual ~GamemodSetting() { }
-    virtual bool set(LogSet& log, const std::string& value) = 0;    // returns false if the value is not accepted
-    virtual std::string get() { return std::string(); }
-    bool matchCommand(const std::string& command) const { return command == name; }
-    const std::string& getName() const { return name; }
+    virtual ~GamemodSetting() throw () { }
+    virtual bool set(LogSet& log, const std::string& value) throw () = 0;    // returns false if the value is not accepted
+    virtual std::string get() throw () { return std::string(); }
+    bool matchCommand(const std::string& command) const throw () { return command == name; }
+    const std::string& getName() const throw () { return name; }
 
 protected:
-    GamemodSetting(std::string name_) : name(name_) { }
-    bool basicErrorMessage(LogSet& log, const std::string& value, const std::string& expect);   // always returns false to provide easy returns
+    GamemodSetting(std::string name_) throw () : name(name_) { }
+    bool basicErrorMessage(LogSet& log, const std::string& value, const std::string& expect) throw ();   // always returns false to provide easy returns
 
     std::string name;
 };
@@ -56,8 +56,8 @@ protected:
 
 class GS_Ignore : public GamemodSetting {
 public:
-    GS_Ignore(const std::string& name) : GamemodSetting(name) { }
-    bool set(LogSet&, const std::string&) { return true; }
+    GS_Ignore(const std::string& name) throw () : GamemodSetting(name) { }
+    bool set(LogSet&, const std::string&) throw () { return true; }
 };
 
 // at some time Visual C++ let these through (not sure anymore since they're already undefined in incalleg.h)
@@ -70,11 +70,11 @@ public:
     typedef std::numeric_limits<ValT> lim;  // can't be used on the constructor, avoid a VC feature
 
     GS_IntT(const std::string& name, ValT* pVar, ValT min_ = std::numeric_limits<ValT>::min(),
-            ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0_ = false)
+            ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0_ = false) throw ()
         : GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_), allow0(allow0_) { }
-    virtual ~GS_IntT() { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    virtual ~GS_IntT() throw () { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     ValT* var;
@@ -87,10 +87,10 @@ template<class ValT>
 class GS_ForwardIntT : public GS_IntT<ValT> {
 public:
     GS_ForwardIntT(const std::string& name, HookFunctionBase1<void, int>& setFn_, HookFunctionBase0<int>& getFn_, ValT min_ = std::numeric_limits<ValT>::min(),
-                   ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0 = false)
+                   ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0 = false) throw ()
             : GS_IntT<ValT>(name, &internalVal, min_, max_, mul_, add_, allow0), setFn(setFn_), getFn(getFn_) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     HookFunctionBase1<void, int>& setFn;
@@ -109,10 +109,10 @@ public:
     typedef std::numeric_limits<ValT> lim;  // can't be used on the constructor, avoid a VC feature
 
     GS_FloatT(const std::string& name, ValT* pVar, ValT min_ = -std::numeric_limits<ValT>::max(),
-            ValT max_ = std::numeric_limits<ValT>::max(), double mul_ = 1., double add_ = 0.)
+            ValT max_ = std::numeric_limits<ValT>::max(), double mul_ = 1., double add_ = 0.) throw ()
         : GamemodSetting(name), var(pVar), vmin(min_), vmax(max_), mul(mul_), add(add_) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     ValT* var;
@@ -125,9 +125,9 @@ typedef GS_FloatT<double> GS_Double;
 
 class GS_Boolean : public GamemodSetting {
 public:
-    GS_Boolean(const std::string& name, bool* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get() { return *var ? "1" : "0"; }
+    GS_Boolean(const std::string& name, bool* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw () { return *var ? "1" : "0"; }
 
 private:
     bool* var;
@@ -135,9 +135,9 @@ private:
 
 class GS_String : public GamemodSetting {
 public:
-    GS_String(const std::string& name, std::string* pVar, bool allowEmpty_ = true) : GamemodSetting(name), var(pVar), allowEmpty(allowEmpty_) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get() { return std::string() + '"' + *var + '"'; }
+    GS_String(const std::string& name, std::string* pVar, bool allowEmpty_ = true) throw () : GamemodSetting(name), var(pVar), allowEmpty(allowEmpty_) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw () { return std::string() + '"' + *var + '"'; }
 
 private:
     std::string* var;
@@ -146,8 +146,8 @@ private:
 
 class GS_AddString : public GamemodSetting {
 public:
-    GS_AddString(const std::string& name, std::vector<std::string>* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet&, const std::string& value) {
+    GS_AddString(const std::string& name, std::vector<std::string>* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet&, const std::string& value) throw () {
         var->push_back(value);
         return true;
     }
@@ -158,13 +158,13 @@ private:
 
 class GS_ForwardStr : public GamemodSetting {
 public:
-    GS_ForwardStr(const std::string& name, HookFunctionBase1<void, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_)
+    GS_ForwardStr(const std::string& name, HookFunctionBase1<void, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_) throw ()
             : GamemodSetting(name), setFn(setFn_), getFn(getFn_) { }
-    bool set(LogSet&, const std::string& value) {
+    bool set(LogSet&, const std::string& value) throw () {
         setFn(value);
         return true;
     }
-    std::string get() { return getFn(); }
+    std::string get() throw () { return getFn(); }
 
 private:
     HookFunctionBase1<void, const std::string&>& setFn;
@@ -174,15 +174,15 @@ private:
 class GS_CheckForwardStr : public GamemodSetting {
 public:
     GS_CheckForwardStr(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, const std::string&>& check_,
-                       HookFunctionBase1<bool, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_)
+                       HookFunctionBase1<bool, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_) throw ()
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
-    ~GS_CheckForwardStr() { }
-    bool set(LogSet& log, const std::string& value) {
+    ~GS_CheckForwardStr() throw () { }
+    bool set(LogSet& log, const std::string& value) throw () {
         if (!checkValue(value))
             return basicErrorMessage(log, value, expect);
         return setFn(value);
     }
-    std::string get() { return getFn(); }
+    std::string get() throw () { return getFn(); }
 
 private:
     const std::string expect;
@@ -194,11 +194,11 @@ private:
 class GS_CheckForwardInt : public GamemodSetting {
 public:
     GS_CheckForwardInt(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, int>& check_,
-                       HookFunctionBase1<bool, int>& setFn_, HookFunctionBase0<int>& getFn_)
+                       HookFunctionBase1<bool, int>& setFn_, HookFunctionBase0<int>& getFn_) throw ()
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
-    ~GS_CheckForwardInt() { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    ~GS_CheckForwardInt() throw () { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     const std::string expect;
@@ -211,8 +211,8 @@ private:
 
 class GS_DisallowRunning : public GamemodSetting {
 public:
-    GS_DisallowRunning(const std::string& name) : GamemodSetting(name) { }
-    bool set(LogSet& log, const std::string&) {
+    GS_DisallowRunning(const std::string& name) throw () : GamemodSetting(name) { }
+    bool set(LogSet& log, const std::string&) throw () {
         log("Skipping %s; restart server to make a change", name.c_str());
         return true;    // this is not really an error; the value might have not changed even
     }
@@ -220,8 +220,8 @@ public:
 
 class GS_Map : public GamemodSetting {
 public:
-    GS_Map(const std::string& name, std::vector<MapInfo>* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
+    GS_Map(const std::string& name, std::vector<MapInfo>* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
 
 protected:
     std::vector<MapInfo>* var;
@@ -229,15 +229,15 @@ protected:
 
 class GS_RandomMap : public GS_Map {
 public:
-    GS_RandomMap(const std::string& name, std::vector<MapInfo>* pVar) : GS_Map(name, pVar) { }
-    bool set(LogSet& log, const std::string& value);
+    GS_RandomMap(const std::string& name, std::vector<MapInfo>* pVar) throw () : GS_Map(name, pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
 };
 
 class GS_PowerupNum : public GamemodSetting {
 public:
-    GS_PowerupNum(const std::string& name, int* pVar, bool* pPercentFlag) : GamemodSetting(name), var(pVar), percentFlag(pPercentFlag) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    GS_PowerupNum(const std::string& name, int* pVar, bool* pPercentFlag) throw () : GamemodSetting(name), var(pVar), percentFlag(pPercentFlag) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     int* var;
@@ -246,9 +246,9 @@ private:
 
 class GS_Balance : public GamemodSetting {
 public:
-    GS_Balance(const std::string& name, WorldSettings::Team_balance* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    GS_Balance(const std::string& name, WorldSettings::Team_balance* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     WorldSettings::Team_balance* var;
@@ -256,9 +256,9 @@ private:
 
 class GS_Collisions : public GamemodSetting {
 public:
-    GS_Collisions(const std::string& name, PhysicalSettings::PlayerCollisions* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    GS_Collisions(const std::string& name, PhysicalSettings::PlayerCollisions* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     PhysicalSettings::PlayerCollisions* var;
@@ -266,9 +266,9 @@ private:
 
 class GS_Percentage : public GamemodSetting {
 public:
-    GS_Percentage(const std::string& name, double* pVar) : GamemodSetting(name), var(pVar) { }
-    bool set(LogSet& log, const std::string& value);
-    std::string get();
+    GS_Percentage(const std::string& name, double* pVar) throw () : GamemodSetting(name), var(pVar) { }
+    bool set(LogSet& log, const std::string& value) throw ();
+    std::string get() throw ();
 
 private:
     double* var;
@@ -277,7 +277,7 @@ private:
 // template implementation
 
 template<class ValT>
-bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
+bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) throw () {
     static const std::istream::traits_type::int_type eof_ch = std::istream::traits_type::eof();
     std::istringstream rd(trim(value));
     ValT val;
@@ -307,14 +307,14 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) {
 }
 
 template<class ValT>
-std::string GS_IntT<ValT>::get() {
+std::string GS_IntT<ValT>::get() throw () {
     std::ostringstream str;
     str << *var;
     return str.str();
 }
 
 template<class ValT>
-bool GS_ForwardIntT<ValT>::set(LogSet& log, const std::string& value) {
+bool GS_ForwardIntT<ValT>::set(LogSet& log, const std::string& value) throw () {
     if (!GS_IntT<ValT>::set(log, value))
         return false;
     setFn(internalVal);
@@ -322,13 +322,13 @@ bool GS_ForwardIntT<ValT>::set(LogSet& log, const std::string& value) {
 }
 
 template<class ValT>
-std::string GS_ForwardIntT<ValT>::get() {
+std::string GS_ForwardIntT<ValT>::get() throw () {
     internalVal = getFn();
     return GS_IntT<ValT>::get();
 }
 
 template<class ValT>
-bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
+bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) throw () {
     static const std::istream::traits_type::int_type eof_ch = std::istream::traits_type::eof();
     std::istringstream rd(trim(value));
     ValT val;
@@ -348,7 +348,7 @@ bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) {
 }
 
 template<class ValT>
-std::string GS_FloatT<ValT>::get() {
+std::string GS_FloatT<ValT>::get() throw () {
     std::ostringstream str;
     str << *var;
     return str.str();

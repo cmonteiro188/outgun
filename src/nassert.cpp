@@ -47,7 +47,7 @@
 uint32_t* stackGuardHackPtr;
 
 #ifndef DISABLE_ENHANCED_NASSERT
-void stackDump(FILE* dst) { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
+void stackDump(FILE* dst) throw () { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
     uint32_t unused;
     for (uint32_t* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
         uint32_t value = *stackPtr;
@@ -56,7 +56,7 @@ void stackDump(FILE* dst) { // makes heavy assumptions about processor architect
     }
 }
 
-int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
+int stackDump(char* buf, int bufCap) throw () {  // returns the size used; max bufCap
     uint32_t unused;
     bufCap -= 4;    // make it better work as a stopper
     int bufSize = 0;
@@ -68,9 +68,9 @@ int stackDump(char* buf, int bufCap) {  // returns the size used; max bufCap
 }
 #endif
 
-void nasprintf(const char* file, int line, const char* expr, ...) PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
+void nasprintf(const char* file, int line, const char* expr, ...) throw () PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
 
-void nasprintf(const char* file, int line, const char* expr, ...) {
+void nasprintf(const char* file, int line, const char* expr, ...) throw () {
     // display to console (should be safest, but rarely visible on Windows)
     fprintf(stderr, "Assertion failed: ");
     va_list argptr;
@@ -144,31 +144,31 @@ void nasprintf(const char* file, int line, const char* expr, ...) {
 
 #define ARGP(num) const char* name##num, int val##num
 
-void nAssertFail(const char* expr, const char* file, int line) {
+void nAssertFail(const char* expr, const char* file, int line) throw () {
     nasprintf(file, line, "%s",
               expr);
     abort();
 }
 
-void nAssertFail(const char* expr, ARGP(1), const char* file, int line) {
+void nAssertFail(const char* expr, ARGP(1), const char* file, int line) throw () {
     nasprintf(file, line, "%s (%s==%d)",
               expr, name1, val1);
     abort();
 }
 
-void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) {
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), const char* file, int line) throw () {
     nasprintf(file, line, "%s (%s==%d, %s==%d)",
               expr, name1, val1, name2, val2);
     abort();
 }
 
-void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) {
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), const char* file, int line) throw () {
     nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d)",
               expr, name1, val1, name2, val2, name3, val3);
     abort();
 }
 
-void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) {
+void nAssertFail(const char* expr, ARGP(1), ARGP(2), ARGP(3), ARGP(4), const char* file, int line) throw () {
     nasprintf(file, line, "%s (%s==%d, %s==%d, %s==%d, %s==%d)",
               expr, name1, val1, name2, val2, name3, val3, name4, val4);
     abort();

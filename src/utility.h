@@ -41,47 +41,47 @@
 
 // to be used as a base class when a class is needed to not have a copy constructor or copy assignment operator available
 class NoCopying {
-    NoCopying(const NoCopying&) { }
-    NoCopying& operator=(const NoCopying&) { return *this; }
+    NoCopying(const NoCopying&) throw () { }
+    NoCopying& operator=(const NoCopying&) throw () { return *this; }
 
 protected:
-    NoCopying() { }
+    NoCopying() throw () { }
 };
 
 class NoCopyConstruct {
-    NoCopyConstruct(const NoCopyConstruct&) { }
+    NoCopyConstruct(const NoCopyConstruct&) throw () { }
 
 protected:
-    NoCopyConstruct() { }
+    NoCopyConstruct() throw () { }
 };
 
 class NoCopyAssign {
-    NoCopyAssign& operator=(const NoCopyAssign&) { return *this; }
+    NoCopyAssign& operator=(const NoCopyAssign&) throw () { return *this; }
 
 protected:
-    NoCopyAssign() { }
+    NoCopyAssign() throw () { }
 };
 
 class Lockable {
 public:
-    virtual ~Lockable() { }
+    virtual ~Lockable() throw () { }
 
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
+    virtual void lock() throw () = 0;
+    virtual void unlock() throw () = 0;
 };
 
 /** Base class for lockable classes whose lock/unlock methods are const.
  * The apparent case is internal use of a mutable Lockable to provide locking.
  */
 class ConstLockable : public Lockable {
-    void lock  () { static_cast<const ConstLockable&>(*this).lock  (); }
-    void unlock() { static_cast<const ConstLockable&>(*this).unlock(); }
+    void lock  () throw () { static_cast<const ConstLockable&>(*this).lock  (); }
+    void unlock() throw () { static_cast<const ConstLockable&>(*this).unlock(); }
 
 public:
-    virtual ~ConstLockable() { }
+    virtual ~ConstLockable() throw () { }
 
-    virtual void lock() const = 0;
-    virtual void unlock() const = 0;
+    virtual void lock() const throw () = 0;
+    virtual void unlock() const throw () = 0;
 };
 
 /** Lock a Lockable for the lifetime of the object. */
@@ -89,8 +89,8 @@ class Lock : private NoCopying {
     Lockable& t;
 
 public:
-    Lock(Lockable& target) : t(target) { t.lock(); }
-    ~Lock() { t.unlock(); }
+    Lock(Lockable& target) throw () : t(target) { t.lock(); }
+    ~Lock() throw () { t.unlock(); }
 };
 
 /** Unlock a Lockable for the lifetime of the object. */
@@ -98,8 +98,8 @@ class Unlock : private NoCopying {
     Lockable& t;
 
 public:
-    Unlock(Lockable& target) : t(target) { t.unlock(); }
-    ~Unlock() { t.lock(); }
+    Unlock(Lockable& target) throw () : t(target) { t.unlock(); }
+    ~Unlock() throw () { t.lock(); }
 };
 
 /** Lock a ConstLockable for the lifetime of the object.
@@ -109,8 +109,8 @@ class ConstLock : private NoCopying {
     const ConstLockable& t;
 
 public:
-    ConstLock(const ConstLockable& target) : t(target) { t.lock(); }
-    ~ConstLock() { t.unlock(); }
+    ConstLock(const ConstLockable& target) throw () : t(target) { t.lock(); }
+    ~ConstLock() throw () { t.unlock(); }
 };
 
 /** Unlock a ConstLockable for the lifetime of the object.
@@ -120,124 +120,124 @@ class ConstUnlock : private NoCopying {
     const ConstLockable& t;
 
 public:
-    ConstUnlock(const ConstLockable& target) : t(target) { t.unlock(); }
-    ~ConstUnlock() { t.lock(); }
+    ConstUnlock(const ConstLockable& target) throw () : t(target) { t.unlock(); }
+    ~ConstUnlock() throw () { t.lock(); }
 };
 
-template<class T> T bound(T val, T lb, T hb) { return val <= lb ? lb : val >= hb ? hb : val; }
+template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 
-int atoi(const std::string& str);
-std::string itoa(int val);
-std::string itoa_w(int val, int width, bool left = false);
-std::string fcvt(double val);
-std::string fcvt(double val, int precision);
-int iround(double value);
-int iround_bound(double value); // if value is out of int range, nearest value is used
-int numberWidth(int num);   // how many characters num takes when printed
+int atoi(const std::string& str) throw ();
+std::string itoa(int val) throw ();
+std::string itoa_w(int val, int width, bool left = false) throw ();
+std::string fcvt(double val) throw ();
+std::string fcvt(double val, int precision) throw ();
+int iround(double value) throw ();
+int iround_bound(double value) throw (); // if value is out of int range, nearest value is used
+int numberWidth(int num) throw ();   // how many characters num takes when printed
 
-inline double sqr(double value) { // the square of the given value (just to keep the code readable)
+inline double sqr(double value) throw () { // the square of the given value (just to keep the code readable)
     return value * value;
 }
 
-inline int sqr(int value) {
+inline int sqr(int value) throw () {
     return value * value;
 }
 
-template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) {
+template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) throw () {
     nAssert(modulus > 0);
     return val >= 0 ? val % modulus : modulus - (-val % modulus);
 }
 
-double positiveFmod(double val, double modulus);
+double positiveFmod(double val, double modulus) throw ();
 
-template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits) {
+template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits) throw () {
     nAssert(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
     const unsigned typew = sizeof(UnsignedIntT) * CHAR_BIT;
     bits = positiveModulo(bits, typew);
     return (val >> bits) | (val << (typew - bits));
 }
 
-template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) { rotateRight(val, -bits); }
+template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) throw () { rotateRight(val, -bits); }
 
 /// Returns the current time in the standard format.
-std::string date_and_time();
+std::string date_and_time() throw ();
 
 /// Get a verbal approximation of the given time interval
-std::string approxTime(int seconds);
+std::string approxTime(int seconds) throw ();
 
 /// UTF-8 mode for Linux
 extern bool utf8_mode;
 
 /// Check if the command line is UTF-8
-void check_utf8_mode();
+void check_utf8_mode() throw ();
 
 /// Convert string to uppercase.
-std::string toupper(std::string str);
+std::string toupper(std::string str) throw ();
 
 /// Convert string to lowercase.
-std::string tolower(std::string str);
+std::string tolower(std::string str) throw ();
 
 /// Convert Latin 1 character to upper case.
-unsigned char latin1_toupper(unsigned char c);
+unsigned char latin1_toupper(unsigned char c) throw ();
 
 /// Convert Latin 1 character to lower case.
-unsigned char latin1_tolower(unsigned char c);
+unsigned char latin1_tolower(unsigned char c) throw ();
 
 /// Convert character from Latin 1 encoding to UTF-8 encoding
-std::string latin1_to_utf8(unsigned char c);
+std::string latin1_to_utf8(unsigned char c) throw ();
 
 /// Convert string from Latin 1 encoding to UTF-8 encoding
-std::string latin1_to_utf8(const std::string& str);
+std::string latin1_to_utf8(const std::string& str) throw ();
 
 /// Convert string from UTF-8 encoding to Latin 1 encoding
-std::string utf8_to_latin1(const std::string& str);
+std::string utf8_to_latin1(const std::string& str) throw ();
 
 /// Case insensitive Latin 1 encoded string comparison.
-bool cmp_case_ins(const std::string& a, const std::string& b);
+bool cmp_case_ins(const std::string& a, const std::string& b) throw ();
 
 /// Strip beginning and trailing whitespaces.
-std::string trim(std::string str);
+std::string trim(std::string str) throw ();
 
 /// Replace all occurences of /s1/ with /s2/ in /text/.
-std::string replace_all(std::string text, const std::string& s1, const std::string& s2);
+std::string replace_all(std::string text, const std::string& s1, const std::string& s2) throw ();
 
 /// Replace all occurences of /s1/ with /s2/ in /text/, modifying /text/.
-std::string& replace_all_in_place(std::string& text, const std::string& s1, const std::string& s2);
+std::string& replace_all_in_place(std::string& text, const std::string& s1, const std::string& s2) throw ();
 
 /// Replace all occurences of /c1/ with /c2/ in /text/, modifying /text/.
-std::string& replace_all_in_place(std::string& text, char c1, char c2);
+std::string& replace_all_in_place(std::string& text, char c1, char c2) throw ();
 
 /// Replace characters &<>"' with HTML entities or character references.
-std::string escape_for_html(std::string text);
+std::string escape_for_html(std::string text) throw ();
 
 /// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
-std::string pad_to_size_left (std::string text, int size, char pad = ' ');
+std::string pad_to_size_left (std::string text, int size, char pad = ' ') throw ();
 
 /// Pad /text/ with /pad/ from the given side until its length is /size/ characters. Do nothing if length >= /size/.
-std::string pad_to_size_right(std::string text, int size, char pad = ' ');
+std::string pad_to_size_right(std::string text, int size, char pad = ' ') throw ();
 
-bool find_nonprintable_char(const std::string& str);
-bool is_nonprintable_char(unsigned char c);
+bool find_nonprintable_char(const std::string& str) throw ();
+bool is_nonprintable_char(unsigned char c) throw ();
 
 /// Replace control characters with their C escape sequences (note: for readability, it doesn't convert \ to \\ so the result might be ambiguous)
-std::string formatForLogging(const std::string& str);
+std::string formatForLogging(const std::string& str) throw ();
 
 /// Split string to lines, but only at whitespaces.
-std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false);
+std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false) throw ();
 
 /// strspnp: (Watcom definition) find from str the first char not in charset
-char* strspnp(char* str, const char* charset);
+char* strspnp(char* str, const char* charset) throw ();
 
 /// strspnp: (Watcom definition) find from str the first char not in charset
-const char* strspnp(const char* str, const char* charset);
+const char* strspnp(const char* str, const char* charset) throw ();
 
 class LineReceiver {
 protected:
-    LineReceiver() { }
-    virtual ~LineReceiver() { }
+    LineReceiver() throw () { }
+    virtual ~LineReceiver() throw () { }
 
 public:
-    virtual LineReceiver& operator()(const std::string& str) = 0;
+    virtual LineReceiver& operator()(const std::string& str) throw () = 0;
 };
 
 class Log;
@@ -248,38 +248,38 @@ class LogSet : public LineReceiver {
     Log* securityLog;
 
 public:
-    LogSet(Log* normal, Log* error, Log* security) : normalLog(normal), errorLog(error), securityLog(security) { }  // null pointers are allowed
-    ~LogSet() { }
+    LogSet(Log* normal, Log* error, Log* security) throw () : normalLog(normal), errorLog(error), securityLog(security) { }  // null pointers are allowed
+    ~LogSet() throw () { }
 
-    LogSet& operator()(const std::string&);
-    LogSet& operator()(const char* fmt, ...) PRINTF_FORMAT(2, 3);
-    LogSet& error(const std::string&);
-    LogSet& security(const char* fmt, ...) PRINTF_FORMAT(2, 3);
+    LogSet& operator()(const std::string&) throw ();
+    LogSet& operator()(const char* fmt, ...) throw () PRINTF_FORMAT(2, 3);
+    LogSet& error(const std::string&) throw ();
+    LogSet& security(const char* fmt, ...) throw () PRINTF_FORMAT(2, 3);
 
-    Log* accessNormal() { return normalLog; }
-    Log* accessError() { return errorLog; }
-    Log* accessSecurity() { return securityLog; }
+    Log* accessNormal() throw () { return normalLog; }
+    Log* accessError() throw () { return errorLog; }
+    Log* accessSecurity() throw () { return securityLog; }
 };
 
 extern bool g_allowBlockingMessages;    // controls all messageBox calls; disable to suppress all external message boxes (assertions included)
 
-void messageBox(const std::string& heading, const std::string& msg, bool blocking = true); // blocking may not be controllable
+void messageBox(const std::string& heading, const std::string& msg, bool blocking = true) throw (); // blocking may not be controllable
 
-void criticalError(const std::string& msg) __attribute__ ((noreturn));
+void criticalError(const std::string& msg) throw () __attribute__ ((noreturn));
 
 class MemoryLog;
-void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer);
+void errorMessage(const std::string& heading, MemoryLog& errorLog, const std::string& footer) throw ();
 
-void rotate_angle(double& angle, double shift);
+void rotate_angle(double& angle, double shift) throw ();
 
 class FileName {
 public:
-    FileName(const std::string& fullName);
+    FileName(const std::string& fullName) throw ();
 
-    const std::string& getPath() const { return path; } // without trailing separator
-    const std::string& getBaseName() const { return base; }
-    const std::string& getExtension() const { return ext; } // with '.'
-    std::string getFull() const;
+    const std::string& getPath() const throw () { return path; } // without trailing separator
+    const std::string& getBaseName() const throw () { return base; }
+    const std::string& getExtension() const throw () { return ext; } // with '.'
+    std::string getFull() const throw ();
 
 private:
     std::string path, base, ext;
@@ -290,8 +290,8 @@ class CartesianProductIterator {
     int val1, val2;
 
 public:
-    CartesianProductIterator(int n1, int n2) : N1(n1), N2(n1 ? n2 : 0), val1(n1 - 1), val2(-1) { }
-    bool next() {
+    CartesianProductIterator(int n1, int n2) throw () : N1(n1), N2(n1 ? n2 : 0), val1(n1 - 1), val2(-1) { }
+    bool next() throw () {
         if (++val1 == N1) {
             if (++val2 == N2)
                 return false;
@@ -299,9 +299,9 @@ public:
         }
         return true;
     }
-    std::pair<int, int> operator()() const { return std::pair<int, int>(val1, val2); } // only valid after next() returning true
-    int i1() const { return val1; }
-    int i2() const { return val2; }
+    std::pair<int, int> operator()() const throw () { return std::pair<int, int>(val1, val2); } // only valid after next() returning true
+    int i1() const throw () { return val1; }
+    int i2() const throw () { return val2; }
 };
 
 #endif

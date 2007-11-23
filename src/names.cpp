@@ -32,11 +32,11 @@
 using std::string;
 using std::vector;
 
-static int Random(int velho) {
+static int Random(int velho) throw () {
   return rand() % velho;
 }
 
-static string Vog() {
+static string Vog() throw () {
     int prob = Random(100);
     if (prob>=0 && prob<=30)
       return "a";
@@ -59,7 +59,7 @@ static string Vog() {
         return "";//never happens
 }
 
-static string ConsProlSemiVog() {
+static string ConsProlSemiVog() throw () {
     if (Random(100)<20)
     {
         if (Random(100)<30)
@@ -93,7 +93,7 @@ static string ConsProlSemiVog() {
     return "";
 }
 
-static string PreVog() {
+static string PreVog() throw () {
     string prevog;
 
     if (Random(101)<87)
@@ -147,7 +147,7 @@ static string PreVog() {
     return prevog;
 }
 
-static string PosSemiVog() {
+static string PosSemiVog() throw () {
     if (Random(101)<13)
     {
         int prob = Random(100);
@@ -164,7 +164,7 @@ static string PosSemiVog() {
     return "";
 }
 
-static string PosConsProl() {
+static string PosConsProl() throw () {
     if (Random(100)<18)
     {
         int prob = Random(169);
@@ -213,7 +213,7 @@ static string PosConsProl() {
     return "";
 }
 
-static string Silaba() {
+static string Silaba() throw () {
     string retorno;
 
     retorno = PreVog() + Vog() + PosSemiVog() + PosConsProl();
@@ -221,7 +221,7 @@ static string Silaba() {
     return retorno;
 }
 
-static string Palavra() {
+static string Palavra() throw () {
     int nsil;
 
     string palavra;
@@ -248,7 +248,7 @@ static string Palavra() {
     return palavra;
 }
 
-string RandomName(int npal) {
+string RandomName(int npal) throw () {
   int prob;
 
     if (npal<1)
@@ -269,17 +269,17 @@ string RandomName(int npal) {
     return trim(nome.substr(0, maxPlayerNameLength));
 }
 
-static string::value_type str_rand(const string& str) {
+static string::value_type str_rand(const string& str) throw () {
     if (str.empty())
         return 0;
     return str[rand() % str.length()];
 }
 
-static string::value_type consonant() {
+static string::value_type consonant() throw () {
     return str_rand("hjklmnprstv");
 }
 
-static string::value_type start_consonant(string::value_type last_cons) {
+static string::value_type start_consonant(string::value_type last_cons) throw () {
     switch (last_cons) {
     /*break;*/ case 'h': return str_rand("jklmnrtv");   // kahjo, rahka, kahle, kuhmu, vehnä, tahra, tahto, kahva
         break; case 'k': return str_rand("krs");        // takki, vuokra, suksi
@@ -294,7 +294,7 @@ static string::value_type start_consonant(string::value_type last_cons) {
     return consonant();
 }
 
-static string::value_type end_consonant(string::value_type last_cons) {
+static string::value_type end_consonant(string::value_type last_cons) throw () {
     switch (last_cons) {
     /*break;*/ case 'l': return str_rand("kpst");       // kelkka, tolppa, valssi, valtti
         break; case 'm': return str_rand("p");          // kamppi
@@ -306,7 +306,7 @@ static string::value_type end_consonant(string::value_type last_cons) {
 
 enum Vow_type { any, back, front };
 
-static string::value_type vowel(Vow_type type) {
+static string::value_type vowel(Vow_type type) throw () {
     if (type == back)
         return str_rand("aaeiiou");
     else if (type == front)
@@ -315,7 +315,7 @@ static string::value_type vowel(Vow_type type) {
         return str_rand("aaaeiiioouuyäö");
 }
 
-static string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
+static string::value_type start_vowel(string::value_type last_vowel, Vow_type type) throw () {
     string::value_type vow;
     do {
         vow = vowel(type);
@@ -323,7 +323,7 @@ static string::value_type start_vowel(string::value_type last_vowel, Vow_type ty
     return vow;
 }
 
-static string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
+static string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) throw () {
     if (type == any)
         switch (last_vowel) {
         /*break;*/ case 'a': return str_rand("aaiu");
@@ -356,7 +356,7 @@ static string::value_type cont_vowel(string::value_type last_vowel, Vow_type typ
 
 enum Type { a, aa, aat, at, att, ta, taa, taat, tat, tatt, total_types };
 
-static string make_name() {
+static string make_name() throw () {
     Type type;
     for (int i = 0; i < 5; ++i) {        // Better chances for a type beginning with 't'.
         type = static_cast<Type>(rand() % total_types);
@@ -465,7 +465,7 @@ static string make_name() {
     return name;
 }
 
-string finnish_name(string::size_type max_length) {
+string finnish_name(string::size_type max_length) throw () {
     string name;
     do {
         name = make_name();

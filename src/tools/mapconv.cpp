@@ -5,7 +5,7 @@
 #include <cstdarg>
 #include <cassert>
 
-static int mapconv_stricmp(const char* s1, const char* s2) {
+static int mapconv_stricmp(const char* s1, const char* s2) throw () {
     for (;; ++s1, ++s2) {
         if (toupper(*s1) != toupper(*s2))
             return int(toupper(*s1)) - int(toupper(*s2));
@@ -23,11 +23,11 @@ bool compatible = false, verbose = false, pack = false, duplicateRooms = false;
 
 class MapObject {
 public:
-    virtual ~MapObject() { }
-    virtual void write(FILE* dst, int rx, int ry, float xscale, float yscale) const = 0;
+    virtual ~MapObject() throw () { }
+    virtual void write(FILE* dst, int rx, int ry, float xscale, float yscale) const throw () = 0;
 };
 
-char* fmtFloat(float value, bool forceFloat = true) {
+char* fmtFloat(float value, bool forceFloat = true) throw () {
     static char buf[5][10];
     static int bufi = 0;
     if (value < 0 || value > 999)
@@ -66,8 +66,8 @@ class Flag : public MapObject {
     float x, y;
 
 public:
-    Flag(int team_, float x_, float y_) : team(team_), x(x_), y(y_) { }
-    void write(FILE* dst, int rx, int ry, float xscale, float yscale) const { fprintf(dst, "flag  %d %2d %2d %s %s\n", team, rx, ry, fmtFloat(x * xscale), fmtFloat(y * yscale)); }
+    Flag(int team_, float x_, float y_) throw () : team(team_), x(x_), y(y_) { }
+    void write(FILE* dst, int rx, int ry, float xscale, float yscale) const throw () { fprintf(dst, "flag  %d %2d %2d %s %s\n", team, rx, ry, fmtFloat(x * xscale), fmtFloat(y * yscale)); }
 };
 
 class Spawn : public MapObject {
@@ -75,20 +75,20 @@ class Spawn : public MapObject {
     float x, y;
 
 public:
-    Spawn(int team_, float x_, float y_) : team(team_), x(x_), y(y_) { }
-    void write(FILE* dst, int rx, int ry, float xscale, float yscale) const { fprintf(dst, "spawn %d %2d %2d %s %s\n", team, rx, ry, fmtFloat(x * xscale), fmtFloat(y * yscale)); }
+    Spawn(int team_, float x_, float y_) throw () : team(team_), x(x_), y(y_) { }
+    void write(FILE* dst, int rx, int ry, float xscale, float yscale) const throw () { fprintf(dst, "spawn %d %2d %2d %s %s\n", team, rx, ry, fmtFloat(x * xscale), fmtFloat(y * yscale)); }
 };
 
 class Wall {
     float x0, y0, x1, y1;
 
 public:
-    Wall(float x0_, float y0_, float x1_, float y1_) : x0(x0_), y0(y0_), x1(x1_), y1(y1_) { }
-    void scale(float xs, float ys) { x0 /= xs; y0 /= ys; x1 /= xs; y1 /= ys; }
-    void write(FILE* dst) const { fprintf(dst, "W %s %s %s %s\n", fmtFloat(x0, false), fmtFloat(y0, false), fmtFloat(x1, false), fmtFloat(y1, false)); }
+    Wall(float x0_, float y0_, float x1_, float y1_) throw () : x0(x0_), y0(y0_), x1(x1_), y1(y1_) { }
+    void scale(float xs, float ys) throw () { x0 /= xs; y0 /= ys; x1 /= xs; y1 /= ys; }
+    void write(FILE* dst) const throw () { fprintf(dst, "W %s %s %s %s\n", fmtFloat(x0, false), fmtFloat(y0, false), fmtFloat(x1, false), fmtFloat(y1, false)); }
 };
 
-void debugMem(void* ptr) {
+void debugMem(void* ptr) throw () {
     printf("%p  ", ptr);
     const unsigned char* cp = static_cast<const unsigned char*>(ptr);
     for (int i = 0; i < 16; ++i)
@@ -98,7 +98,7 @@ void debugMem(void* ptr) {
     printf("\n");
 }
 
-void delObject(MapObject* ptr) { delete ptr; }
+void delObject(MapObject* ptr) throw () { delete ptr; }
 
 class Room {
     int scalex, scaley;
@@ -106,13 +106,13 @@ class Room {
     vector<MapObject*> objects;
 
 public:
-    Room() { }
-    void setScaling(int sx, int sy) { scalex = sx; scaley = sy; }
-    void addWall(Wall wall) { if (compatible) wall.scale(scalex, scaley); walls.push_back(wall); }
-    bool empty() const { return walls.empty(); } // don't care about objects
-    void addObject(MapObject* obj) { objects.push_back(obj); }
-    void freeObjects() { for_each(objects.begin(), objects.end(), delObject); }
-    void writeObjects(FILE* dst, int rx, int ry, bool writeScale) const {
+    Room() throw () { }
+    void setScaling(int sx, int sy) throw () { scalex = sx; scaley = sy; }
+    void addWall(Wall wall) throw () { if (compatible) wall.scale(scalex, scaley); walls.push_back(wall); }
+    bool empty() const throw () { return walls.empty(); } // don't care about objects
+    void addObject(MapObject* obj) throw () { objects.push_back(obj); }
+    void freeObjects() throw () { for_each(objects.begin(), objects.end(), delObject); }
+    void writeObjects(FILE* dst, int rx, int ry, bool writeScale) const throw () {
         if (objects.empty())
             return;
         float objScaleX, objScaleY;
@@ -127,17 +127,17 @@ public:
         for (vector<MapObject*>::const_iterator oi = objects.begin(); oi != objects.end(); ++oi)
             (*oi)->write(dst, rx, ry, objScaleX, objScaleY);
     }
-    void writeWalls(FILE* dst, int rx, int ry, bool writeScale) const {
+    void writeWalls(FILE* dst, int rx, int ry, bool writeScale) const throw () {
         fprintf(dst, "R %2d %2d\n", rx, ry);
         writeWalls(dst, writeScale);
     }
-    void writeWalls(FILE* dst, bool writeScale) const {
+    void writeWalls(FILE* dst, bool writeScale) const throw () {
         if (!compatible && writeScale)
             fprintf(dst, "S %2d %2d\n", scalex, scaley);
         for (vector<Wall>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
             wi->write(dst);
     }
-    void writeBoth(FILE* dst, int rx, int ry, bool writeScale) const {
+    void writeBoth(FILE* dst, int rx, int ry, bool writeScale) const throw () {
         writeWalls(dst, rx, ry, writeScale); // writes both R and S lines
         writeObjects(dst, rx, ry, false);
     }
@@ -151,12 +151,12 @@ class Map {
     vector< vector<int> > roomIndices;
 
 public:
-    ~Map() { for_each(roomTemplates.begin(), roomTemplates.end(), mem_fun_ref(&Room::freeObjects)); }
-    const char* load085(FILE* src); // returns error message or 0 for success
-    void write050(FILE* dst) const;
+    ~Map() throw () { for_each(roomTemplates.begin(), roomTemplates.end(), mem_fun_ref(&Room::freeObjects)); }
+    const char* load085(FILE* src) throw (); // returns error message or 0 for success
+    void write050(FILE* dst) const throw ();
 };
 
-void optPrintf(const char* fmt, ...) {
+void optPrintf(const char* fmt, ...) throw () {
     if (!verbose)
         return;
     va_list arglist;
@@ -165,7 +165,7 @@ void optPrintf(const char* fmt, ...) {
     va_end(arglist);
 }
 
-const char* Map::load085(FILE* src) {
+const char* Map::load085(FILE* src) throw () {
     int lastRoom = -1;
     width = height = 0;
     roomw = -1, roomh = -1;
@@ -344,7 +344,7 @@ const char* Map::load085(FILE* src) {
     }
 }
 
-void Map::write050(FILE* dst) const {
+void Map::write050(FILE* dst) const throw () {
     const bool uniformScale = roomw > 0;
     fprintf(dst, "; This map has been automatically converted from 0.8.5 format\n");
     fprintf(dst, "; with Mapconv (http://koti.mbnet.fi/outgun/tools/mapconv.html)\n");

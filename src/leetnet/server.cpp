@@ -105,18 +105,18 @@ struct client_t {
     //thread must quit flag
     volatile bool       quitflag;
 
-    client_t() : station_mutex("client_t::station_mutex"), station_cond_hasdata("client_t::station_cond_hasdata") { }
+    client_t() throw () : station_mutex("client_t::station_mutex"), station_cond_hasdata("client_t::station_cond_hasdata") { }
 };
 
 
 // server thread (master)
-void thread_master_f(server_ci* server);
+void thread_master_f(server_ci* server) throw ();
 
 //client message processor (slaves)
-void thread_slave_f(client_t* mydata);
+void thread_slave_f(client_t* mydata) throw ();
 
 //client disconnectors
-void thread_disconnector_f(client_t* mydata);
+void thread_disconnector_f(client_t* mydata) throw ();
 
 //server_c implementation
 class server_ci : public server_c {
@@ -176,13 +176,13 @@ public:
     //------------------------
 
     //set a callback. you must set all the callbacks before calling start()
-    virtual void setHelloCallback(helloCallbackT* fn) { helloCallback = fn; }
-    virtual void setConnectedCallback(connectedCallbackT* fn) { connectedCallback = fn; }
-    virtual void setDisconnectedCallback(disconnectedCallbackT* fn) { disconnectedCallback = fn; }
-    virtual void setDataCallback(dataCallbackT* fn) { dataCallback = fn; }
-    virtual void setLagStatusCallback(lagStatusCallbackT* fn) { lagStatusCallback = fn; }
-    virtual void setPingResultCallback(pingResultCallbackT* fn) { pingResultCallback = fn; }
-    virtual void setCallbackCustomPointer(void* ptr) { customp = ptr; }
+    virtual void setHelloCallback(helloCallbackT* fn) throw () { helloCallback = fn; }
+    virtual void setConnectedCallback(connectedCallbackT* fn) throw () { connectedCallback = fn; }
+    virtual void setDisconnectedCallback(disconnectedCallbackT* fn) throw () { disconnectedCallback = fn; }
+    virtual void setDataCallback(dataCallbackT* fn) throw () { dataCallback = fn; }
+    virtual void setLagStatusCallback(lagStatusCallbackT* fn) throw () { lagStatusCallback = fn; }
+    virtual void setPingResultCallback(pingResultCallbackT* fn) throw () { pingResultCallback = fn; }
+    virtual void setCallbackCustomPointer(void* ptr) throw () { customp = ptr; }
 
     //set the client timeouts in seconds. lagtime = time in secs without receiving packets that generates
     // SFUNC_CLIENT_LAG_STATUS callbacks. droptime = time in secs w/o recv. packets that before kicking the client
@@ -190,19 +190,19 @@ public:
     // OBS: make sure your app has the client sending packets regularly or else he might be dropped without
     //      being really unreachable. 10 times faster than the droptime is a good lower bound. if there is no
     //          frame data, just send some kind of "no-op" packet.
-    virtual int set_client_timeout(int lagtime, int droptime) {
+    virtual int set_client_timeout(int lagtime, int droptime) throw () {
         lagtimeout = lagtime;
         droptimeout = droptime;
         return 0;
     }
 
     //set serverinfo string
-    virtual void set_server_info(const char *info) {
+    virtual void set_server_info(const char *info) throw () {
         strcpy(serverinfo, info);
     }
 
     //start up the server at given port
-    virtual int start(int port) {
+    virtual int start(int port) throw () {
         //if not stopped, quit
         if (!server_stopped) {
             log("SERVER NOT STOPPED: CANT START SERVER_CI");
@@ -261,7 +261,7 @@ public:
     }
 
     //stops the server. parameter is number of seconds to wait for all clients to gently disconnect
-    virtual int stop(int disconnect_clients_timeout) {
+    virtual int stop(int disconnect_clients_timeout) throw () {
         int i;
 
         log("server_ci::stop()");
@@ -333,7 +333,7 @@ public:
     }
 
     //disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-    virtual int disconnect_client(int client_id, int timeout, NLubyte reason, bool fromUserThread) { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
+    virtual int disconnect_client(int client_id, int timeout, NLubyte reason, bool fromUserThread) throw () { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
         log("disconnect_client(%d, %d, %d, %d)", client_id, timeout, reason, fromUserThread);
 
         //call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
@@ -386,7 +386,7 @@ public:
     //like say 100ms for a 10Hz (update freq.) server. do not load too much shit in the packet, a 300-byte
     //packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
     //protocol that introduces it's own shitload). optimize your foken data, every byte saved counts!
-    virtual int broadcast_frame(const char* data, int length) {
+    virtual int broadcast_frame(const char* data, int length) throw () {
         #ifdef LEETNET_DATA_LOG
         if (datalog)
             Lock ml(datalogMutex);
@@ -418,7 +418,7 @@ public:
     }
 
         //send frame method - when broadcast_frame doesn't quite cut it
-    virtual int send_frame(int client_id, const char* data, int length) {
+    virtual int send_frame(int client_id, const char* data, int length) throw () {
         if (!client[client_id].used)
             return 0;   // client not used (?)
 
@@ -449,7 +449,7 @@ public:
     //world update data. use for gamestate changes, talk messages and other stuff the client can't miss, or
     //stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
     //it's worth it.
-    virtual int send_message(int client_id, const char* data, int length) {
+    virtual int send_message(int client_id, const char* data, int length) throw () {
         //FIXME 1. assert here: client[client_id].used == true
         //          2. use station mutex ?
 
@@ -463,7 +463,7 @@ public:
 
     //broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
     /* disabled in Outgun to prevent problems
-    virtual int broadcast_message(const char* data, int length) {
+    virtual int broadcast_message(const char* data, int length) throw () {
 
         for (int i=0;i<MAX_CLIENTS;i++)
         if (client[i].used)
@@ -476,7 +476,7 @@ public:
 
     //function to be called by the SFUNC_CLIENT_DATA callback
     //gets the next reliable message avaliable from the given client. null if no message pending
-    virtual char* receive_message(int client_id, int *length) {
+    virtual char* receive_message(int client_id, int *length) throw () {
         data_c *data = client[client_id].station->read_reliable();
 
         if (data == 0)  // no messages
@@ -490,7 +490,7 @@ public:
     }
 
     //ping a client. results come in the SFUNC_PING_RESULT callback
-    virtual int ping_client(int client_id) {
+    virtual int ping_client(int client_id) throw () {
 
         data_c  *dat = new_data_c();
 
@@ -510,7 +510,7 @@ public:
     //get a statistic from sockets. stat = HawkNL socket-stats id
     //this function returns the sum of all sockets active in the server. no per-client
     //results available for now.
-    virtual int get_socket_stat(int stat) {
+    virtual int get_socket_stat(int stat) throw () {
 
         int thestat = 0;
 
@@ -536,7 +536,7 @@ public:
     //------------------------
     // server slave-disconnector thread API (temp thread that sends disconnection packets to the client
     //------------------------
-    bool try_send_disconnect(int id) {
+    bool try_send_disconnect(int id) throw () {
 
         //check client not used for whatever reason -- this is PARANOIA
         if (!client[id].used)
@@ -569,7 +569,7 @@ public:
     //------------------------
 
     //incoming datagram from UDP socket
-    virtual int process_incoming_datagram(char* packet, int length) {
+    virtual int process_incoming_datagram(char* packet, int length) throw () {
         //MAKEIT
         //
         //o que pode acontecer
@@ -787,7 +787,7 @@ public:
     }
 
     //HACK (a better one): called by reader thread to do some thinking for the server
-    void server_think() {
+    void server_think() throw () {
         //FIXME: THIS (was) JUST PLAIN WASTE OF CPU!
         //          but we can do better....
         double curr_time = get_time();
@@ -835,7 +835,7 @@ public:
     }
 
     //returns the serversocket
-    NLsocket get_server_socket() {
+    NLsocket get_server_socket() throw () {
         return servsock;
     }
 
@@ -844,7 +844,7 @@ public:
     //------------------------
 
     //process data from a client (on the client's station)
-    virtual int process_client_data(int cid) {
+    virtual int process_client_data(int cid) throw () {
         //FIXME: no futuro: READ, UNLOCK, PROCESS e nao READ, PROCESS, UNLOCK
 
         //FIXME: read and process all the stuff from the station
@@ -1076,14 +1076,14 @@ public:
         return 1;
     }
 
-    NLaddress get_client_address(int client_id) const {
+    NLaddress get_client_address(int client_id) const throw () {
         return client[client_id].addr;
     }
 
     //-------- internal functions --------
 
     //free slave thread
-    void free_slave(int id) {
+    void free_slave(int id) throw () {
         //if disconnector alive, join with it
         if (client[id].discthread.isRunning()) {
             client[id].discleft = 0;    //paranoia
@@ -1121,7 +1121,7 @@ public:
     //------------------------
 
     //ctor
-    server_ci(int thread_priority, int minLocalPort_, int maxLocalPort_) :
+    server_ci(int thread_priority, int minLocalPort_, int maxLocalPort_) throw () :
         #ifdef LEETNET_LOG
         logp(g_leetnetLog ?
              static_cast<Log*>(new FileLog((wheregamedir + "log" + directory_separator + "leetserverlog.txt").c_str(), true)) :
@@ -1159,7 +1159,7 @@ public:
     }
 
     //dtor
-    virtual ~server_ci() {
+    virtual ~server_ci() throw () {
         //stop if was running - isso deve garantir que nao tem mais nenhuma
         //thread maluca mexendo com os objetos tipo client[i].station
         stop(3);
@@ -1180,7 +1180,7 @@ public:
 
 //reader (master) thread - one per server
 #define THREAD_READER_BUFSIZE 1024 // to protect bad code in later stages from too long packets, packets this long won't be sent anyway
-void thread_master_f(server_ci* server)
+void thread_master_f(server_ci* server) throw ()
 {
     //get socket to read from
     NLsocket servsock = server->get_server_socket();
@@ -1220,7 +1220,7 @@ void thread_master_f(server_ci* server)
 
 //client message processor (slave) thread - one for each client
 //arg: pointer to thread_client_arg_t
-void thread_slave_f(client_t* mydata)
+void thread_slave_f(client_t* mydata) throw ()
 {
     //server
     server_ci *server = mydata->server;
@@ -1268,7 +1268,7 @@ void thread_slave_f(client_t* mydata)
 
 //client disconnector auxiliary thread. bombards
 // client with "disconnect now!" packets
-void thread_disconnector_f(client_t* mydata) {
+void thread_disconnector_f(client_t* mydata) throw () {
     //server
     server_ci *server = mydata->server;
 
@@ -1286,7 +1286,7 @@ void thread_disconnector_f(client_t* mydata) {
 
 
 // server factory
-server_c *new_server_c(int thread_priority, int minLocalPort, int maxLocalPort) {
+server_c *new_server_c(int thread_priority, int minLocalPort, int maxLocalPort) throw () {
     return new server_ci(thread_priority, minLocalPort, maxLocalPort);
 }
 

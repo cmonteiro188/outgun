@@ -43,14 +43,14 @@ using std::setfill;
 using std::setw;
 using std::string;
 
-const char* getNlErrorString() {
+const char* getNlErrorString() throw () {
     if (nlGetError() == NL_SYSTEM_ERROR)
         return nlGetSystemErrorStr(nlGetSystemError());
     else
         return nlGetErrorStr(nlGetError());
 }
 
-bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) {
+bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, bool requirePort) throw () {
     unsigned int i1, i2, i3, i4, port;
     char midChar, endChar;
     const int n = sscanf(address.c_str(), "%u.%u.%u.%u%c%u%c", &i1, &i2, &i3, &i4, &midChar, &port, &endChar);
@@ -65,7 +65,7 @@ bool isValidIP(const string& address, bool allowPort, unsigned int minimumPort, 
     return (i1 < 256 && i2 < 256 && i3 < 256 && i4 < 256 && (i1 + i2 + i3 + i4 != 0));
 }
 
-bool check_private_IP(const string& address, bool allowAnyExternal) {
+bool check_private_IP(const string& address, bool allowAnyExternal) throw () {
     int i1, i2;
     const int n = sscanf(address.c_str(), "%d.%d.", &i1, &i2);
     nAssert(n == 2);
@@ -84,7 +84,7 @@ bool check_private_IP(const string& address, bool allowAnyExternal) {
     return (i1 == 10 || (i1 == 172 && i2 >= 16 && i2 <= 31) || (i1 == 192 && i2 == 168) || (i1 == 169 && i2 == 254));
 }
 
-string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
+string getPublicIP(LineReceiver& output, bool allowAnyExternal) throw () {
     NLint nLocals;
     NLaddress* locals = nlGetAllLocalAddr(&nLocals);
     for (int i = 0; i < nLocals; ++i) {
@@ -100,7 +100,7 @@ string getPublicIP(LineReceiver& output, bool allowAnyExternal) {
     return string();
 }
 
-bool isLocalIP(NLaddress address) { // local doesn't mean private
+bool isLocalIP(NLaddress address) throw () { // local doesn't mean private
     nlSetAddrPort(&address, 0);
     NLaddress loopback;
     nAssert(nlStringToAddr("127.0.0.1", &loopback));
@@ -115,14 +115,14 @@ bool isLocalIP(NLaddress address) { // local doesn't mean private
     return false;
 }
 
-string addressToString(const NLaddress& address) {
+string addressToString(const NLaddress& address) throw () {
     nAssert(address.valid);
     char buf[NL_MAX_STRING_LENGTH];
     nlAddrToString(&address, buf);
     return buf;
 }
 
-NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -143,7 +143,7 @@ NetworkResult writeToUnblockingTCP(NLsocket& socket, const char* data, int lengt
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) {
+NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
     const int buffer_size = 511;
     char lebuf[buffer_size + 1];
 
@@ -167,7 +167,7 @@ NetworkResult saveAllFromUnblockingTCP(NLsocket& socket, ostream& out, const vol
     }
 }
 
-string format_http_parameters(const map<string, string>& parameters) {
+string format_http_parameters(const map<string, string>& parameters) throw () {
     // URL encode parameter values
     ostringstream param_line;
     for (map<string, string>::const_iterator i = parameters.begin(); i != parameters.end(); i++) {
@@ -184,7 +184,7 @@ string format_http_parameters(const map<string, string>& parameters) {
     return param_line.str();
 }
 
-string build_http_request(bool post, const string& host, const string& script, const string& parameters, const string& auth) {
+string build_http_request(bool post, const string& host, const string& script, const string& parameters, const string& auth) throw () {
     ostringstream data;
 
     data << (post ? "POST" : "GET") << ' ' << script;
@@ -209,23 +209,23 @@ string build_http_request(bool post, const string& host, const string& script, c
 }
 
 NetworkResult post_http_data(NLsocket& socket, const volatile bool* abortFlag, int timeout,
-                             const string& host, const string& script, const string& parameters, const string& auth) {
+                             const string& host, const string& script, const string& parameters, const string& auth) throw () {
     const string request = build_http_request(true, host, script, parameters, auth);
     return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) {
+NetworkResult save_http_response(NLsocket& socket, ostream& out, const volatile bool* abortFlag, int timeout) throw () {
     return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
 }
 
-string url_encode(const string& str) {
+string url_encode(const string& str) throw () {
     ostringstream ost;
     for (string::const_iterator s = str.begin(); s != str.end(); s++)
         url_encode(*s, ost);
     return ost.str();
 }
 
-void url_encode(char c, ostream& out) {
+void url_encode(char c, ostream& out) throw () {
     if (is_url_safe(c)) // send safe characters as they are
         out << c;
     else if (c == ' ')  // spaces to + characters
@@ -238,7 +238,7 @@ void url_encode(char c, ostream& out) {
 // Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),",
 // and reserved characters used for their reserved purposes may be used
 // unencoded within a URL.
-bool is_url_safe(char c) {
+bool is_url_safe(char c) throw () {
     if (c >= 'a' && c <= 'z')
         return true;
     else if (c >= 'A' && c <= 'Z')
@@ -249,7 +249,7 @@ bool is_url_safe(char c) {
     return safe_characters.find(c) != string::npos;
 }
 
-string base64_encode(const string& data) {
+string base64_encode(const string& data) throw () {
     const string conversion_table("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
     const char padding = '=';
     string result;

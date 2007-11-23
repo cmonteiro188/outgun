@@ -87,17 +87,17 @@ int main(int argc, const char* argv[]) {
     nlShutdown();
 }
 
-string itoa(int val) {
+string itoa(int val) throw () {
     ostringstream ss;
     ss << val;
     return ss.str();
 }
 
-Peer::Peer(const Peer& peer) {
+Peer::Peer(const Peer& peer) throw () {
     *this = peer;
 }
 
-Peer& Peer::operator=(const Peer& peer) {
+Peer& Peer::operator=(const Peer& peer) throw () {
     address = peer.address;
     socket = peer.socket;
     buffer.str("");
@@ -105,7 +105,7 @@ Peer& Peer::operator=(const Peer& peer) {
     return *this;
 }
 
-Relay::Relay(unsigned short port, unsigned spectators) :
+Relay::Relay(unsigned short port, unsigned spectators) throw () :
     listen_port(port),
     server_socket(NL_INVALID),
     bandwidth_limit(20000),
@@ -115,7 +115,7 @@ Relay::Relay(unsigned short port, unsigned spectators) :
     master_talk_time(0)
 { }
 
-Relay::~Relay() {
+Relay::~Relay() throw () {
     cout << "Closing sockets\n";
     nlClose(listen_socket);
     nlClose(server_socket);
@@ -125,7 +125,7 @@ Relay::~Relay() {
         nlClose(si->socket);
 }
 
-void Relay::run() {
+void Relay::run() throw () {
     nlDisable(NL_BLOCKING_IO);
     listen_socket = nlOpen(listen_port, NL_RELIABLE);
 
@@ -155,7 +155,7 @@ void Relay::run() {
 }
 
 // FIX: getline_skip_comments
-void Relay::load_master_settings() {
+void Relay::load_master_settings() throw () {
     ifstream in("config/master.txt");
     string line;
     if (!getline(in, master_name))
@@ -167,7 +167,7 @@ void Relay::load_master_settings() {
         master_submit = "/outgun/servers/submit.php";
 }
 
-void Relay::listen() {
+void Relay::listen() throw () {
     while (listen_socket != NL_INVALID) {
         nlDisable(NL_BLOCKING_IO);
         NLsocket new_socket = nlAcceptConnection(listen_socket);
@@ -188,7 +188,7 @@ void Relay::listen() {
     }
 }
 
-void Relay::check_new_connections() {
+void Relay::check_new_connections() throw () {
     for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
         const unsigned max_buffer_size = 2000;
         NLbyte buffer[max_buffer_size];
@@ -314,7 +314,7 @@ void Relay::check_new_connections() {
     }
 }
 
-void Relay::get_server_data() {
+void Relay::get_server_data() throw () {
     stringstream data;
     data << waiting_data;
     waiting_data.clear();
@@ -347,7 +347,7 @@ void Relay::get_server_data() {
     }
 }
 
-bool Relay::add_data(istream& in) {
+bool Relay::add_data(istream& in) throw () {
     if (games.empty())
         games.push_back(Game());
     vector<Frame>* data_buffer = &games.back().buffer();
@@ -385,7 +385,7 @@ bool Relay::add_data(istream& in) {
     return true;
 }
 
-void Relay::send_data() {
+void Relay::send_data() throw () {
     for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
         const unsigned temp_buffer_size = 10;
         NLbyte temp[temp_buffer_size];
@@ -448,7 +448,7 @@ void Relay::send_data() {
     }
 }
 
-int Relay::send_data(NLsocket& socket, const string& data) const {
+int Relay::send_data(NLsocket& socket, const string& data) const throw () {
     if (socket == NL_INVALID) {
         cout << "Invalid spectator socket in send_data().\n";
         return NL_INVALID;
@@ -456,7 +456,7 @@ int Relay::send_data(NLsocket& socket, const string& data) const {
     return nlWrite(socket, data.data(), data.length());
 }
 
-void Relay::remove_oldest_game() {
+void Relay::remove_oldest_game() throw () {
     if (!games.front().finished())
         return;
     bool transmissions_needed = false;
@@ -471,7 +471,7 @@ void Relay::remove_oldest_game() {
     }
 }
 
-const Frame* Relay::get_frame(unsigned frame_nr) const {
+const Frame* Relay::get_frame(unsigned frame_nr) const throw () {
     const Frame* frame = 0;
     unsigned game_start_buffer = buffer_first_frame;
     for (deque<Game>::const_iterator gi = games.begin(); gi != games.end(); gi++) {
@@ -484,7 +484,7 @@ const Frame* Relay::get_frame(unsigned frame_nr) const {
     return frame;
 }
 
-string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
+string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
     const Frame* frame = 0;
     unsigned game_start_buffer = buffer_first_frame;
     bool current_game_finished = false;
@@ -508,7 +508,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const {
     return ost.str();
 }
 
-void Relay::send_master_server() {
+void Relay::send_master_server() throw () {
     if (get_time() < master_talk_time)
         return;
 

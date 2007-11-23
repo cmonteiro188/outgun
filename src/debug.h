@@ -30,46 +30,46 @@
 class ThreadLog {
     FILE* file;
 
-    void beginEntry();
-    void endEntry();
+    void beginEntry() throw ();
+    void endEntry() throw ();
 
     typedef uint32_t ThreadId;
     typedef uint64_t ObjectId;
-    static ThreadId idThread(pthread_t t) { return static_cast<ThreadId>(t); }
-    static ObjectId idObject(void* p)     { return static_cast<ObjectId>(reinterpret_cast<intptr_t>(p)); }
+    static ThreadId idThread(pthread_t t) throw () { return static_cast<ThreadId>(t); }
+    static ObjectId idObject(void* p)     throw () { return static_cast<ObjectId>(reinterpret_cast<intptr_t>(p)); }
 
     friend class ThreadLogWriter;
 
 public:
-    ThreadLog() : file(0) { }
-    ~ThreadLog() { if (file) fclose(file); }
+    ThreadLog() throw () : file(0) { }
+    ~ThreadLog() throw () { if (file) fclose(file); }
 };
 
 class ThreadLogWriter : private NoCopying {
     ThreadLog& host;
 
 public:
-    ThreadLogWriter(ThreadLog& host_) : host(host_) {
+    ThreadLogWriter(ThreadLog& host_) throw () : host(host_) {
         host.beginEntry();
         putThreadId(pthread_self());
     }
-    ~ThreadLogWriter() { host.endEntry(); }
+    ~ThreadLogWriter() throw () { host.endEntry(); }
 
-    template<class Type> void put(Type t) { fwrite(&t, sizeof(t), 1, host.file); }
-    void put(const char* str) { fputs(str, host.file); fputc('\0', host.file); }
-    void putThreadId(pthread_t t) { put(ThreadLog::idThread(t)); }
-    void putObjectId(void* p) { put(ThreadLog::idObject(p)); }
+    template<class Type> void put(Type t) throw () { fwrite(&t, sizeof(t), 1, host.file); }
+    void put(const char* str) throw () { fputs(str, host.file); fputc('\0', host.file); }
+    void putThreadId(pthread_t t) throw () { put(ThreadLog::idThread(t)); }
+    void putObjectId(void* p) throw () { put(ThreadLog::idObject(p)); }
 };
 
 // access global objects; protected this way because these are used in initialization of global Mutexes etc. and must be initialized on use
-ThreadLog& g_threadLog();
-BareMutex& g_threadLogMutex();
+ThreadLog& g_threadLog() throw ();
+BareMutex& g_threadLogMutex() throw ();
 
 #ifdef NDEBUG
 
 class ValidityChecker {
 public:
-    void checkValidity() const { }
+    void checkValidity() const throw () { }
 };
 
 typedef ValidityChecker PointerLeakBuffer;
@@ -85,9 +85,9 @@ class ValidityChecker {
     int check;
 
   public:
-    ValidityChecker() : check(0xC044EC7) { }
-    void checkValidity() const { nAssert(this != 0); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
-    ~ValidityChecker() { checkValidity(); check=0xDE7E7ED; }
+    ValidityChecker() throw () : check(0xC044EC7) { }
+    void checkValidity() const throw () { nAssert(this != 0); nAssert(check!=0xDE7E7ED); nAssert(check==0xC044EC7); }
+    ~ValidityChecker() throw () { checkValidity(); check=0xDE7E7ED; }
 };
 
 #pragma pack(push, 1)
@@ -95,11 +95,11 @@ template<int size> class PointerLeakBuffer : private ValidityChecker {
     unsigned char buffer[size];
 
   public:
-    PointerLeakBuffer() {
+    PointerLeakBuffer() throw () {
         for (int i=0; i<size; i++)
             buffer[i]=0x11;
     }
-    void checkValidity() const {
+    void checkValidity() const throw () {
         for (int i=0; i<size; i++)
             if (buffer[i]!=0x11) {
                 printf("Leak buffer (@%p-%p) changed at %d (%p), data: ", &buffer[0], &buffer[size-1], i, &buffer[i]);
@@ -112,7 +112,7 @@ template<int size> class PointerLeakBuffer : private ValidityChecker {
             }
         ValidityChecker::checkValidity();
     }
-    ~PointerLeakBuffer() {
+    ~PointerLeakBuffer() throw () {
         checkValidity();
     }
 };

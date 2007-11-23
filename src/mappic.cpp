@@ -33,12 +33,12 @@
 using std::string;
 using std::vector;
 
-void Mappic::run() {
+void Mappic::run() throw (Save_error) {
     smaps = load_maps(SERVER_MAPS_DIR);
     save_pictures();
 }
 
-vector<string> Mappic::load_maps(const string& dir) {
+vector<string> Mappic::load_maps(const string& dir) throw () {
     vector<string> maps;
     FileFinder* mapFiles = platMakeFileFinder(wheregamedir + dir, ".txt", false);
     while (mapFiles->hasNext())
@@ -48,7 +48,7 @@ vector<string> Mappic::load_maps(const string& dir) {
     return maps;
 }
 
-void Mappic::save_pictures() const {
+void Mappic::save_pictures() const throw (Save_error) {
     set_color_depth(16);
     Graphics graphics(log);
     graphics.setColors();

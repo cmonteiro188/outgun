@@ -45,18 +45,18 @@ const string CLIENT_MAPS_DIR = "cmaps";
 
 #ifndef DEDICATED_SERVER_ONLY
 
-bool readJoystickButton(int button) {
+bool readJoystickButton(int button) throw () {
     return (button > 0 && !poll_joystick() && button <= joy[0].num_buttons && joy[0].button[button - 1].b);
 }
 
-bool is_keypad(int sc) {
+bool is_keypad(int sc) throw () {
     switch (sc) {
     /*break;*/ case KEY_1_PAD: case KEY_2_PAD: case KEY_3_PAD: case KEY_4_PAD: case KEY_5_PAD: case KEY_6_PAD: case KEY_7_PAD: case KEY_8_PAD: case KEY_9_PAD: return true;
         break; default: return false;
     }
 }
 
-void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) {
+void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) throw () {
     if (use_cursor_keys) {
         if (key[KEY_UP])
             data |= up;
@@ -91,7 +91,7 @@ void ClientControls::fromKeyboard(bool use_pad, bool use_cursor_keys) {
         data |= strafe;
 }
 
-void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_button) {
+void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_button) throw () {
     if (poll_joystick())
         return;     // failure
     const JOYSTICK_INFO& joystick = joy[0];
@@ -115,7 +115,7 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
 
 #endif // DEDICATED_SERVER_ONLY
 
-int ClientControls::getDirection() const {
+int ClientControls::getDirection() const throw () {
     // left
     if (isLeft() && !isRight()) {
         if (isUp() && !isDown())  // + up
@@ -145,7 +145,7 @@ int ClientControls::getDirection() const {
     }
 }
 
-istream& getline_smart(istream& in, string& str) {
+istream& getline_smart(istream& in, string& str) throw () {
     str.clear();
     while (1) {
         const char c = in.get();
@@ -164,14 +164,14 @@ istream& getline_smart(istream& in, string& str) {
     }
 }
 
-istream& getline_skip_comments(istream& in, string& str) {
+istream& getline_skip_comments(istream& in, string& str) throw () {
     while (getline_smart(in, str))
         if (str[0] != ';')  // str is never empty when getline_smart succeeds
             return in;
     return in;
 }
 
-bool check_name(const string& name) {
+bool check_name(const string& name) throw () {
     if (name.length() > maxPlayerNameLength)
         return false;
     if (name.find_first_not_of(" \xA0") == string::npos)    // Name with only spaces and no-brake spaces not allowed.
@@ -183,7 +183,7 @@ bool check_name(const string& name) {
     return true;
 }
 
-bool isFlood(const string& message) {
+bool isFlood(const string& message) throw () {
     int count = 0;
     string::value_type chr = 0;
     for (string::const_iterator s = message.begin(); s != message.end(); ++s) {
@@ -201,21 +201,21 @@ bool isFlood(const string& message) {
 
 volatile bool GlobalDisplaySwitchHook::flag = false;
 
-void GlobalDisplaySwitchHook__callback() {
+void GlobalDisplaySwitchHook__callback() throw () {
     GlobalDisplaySwitchHook::flag = true;
 } END_OF_FUNCTION(GlobalDisplaySwitchHook__callback)
 
-void GlobalDisplaySwitchHook::init() {
+void GlobalDisplaySwitchHook::init() throw () {
     LOCK_VARIABLE(flag);
     LOCK_FUNCTION(GlobalDisplaySwitchHook__callback);
     flag = false;
 }
 
-void GlobalDisplaySwitchHook::install() {
+void GlobalDisplaySwitchHook::install() throw () {
     set_display_switch_callback(SWITCH_IN, GlobalDisplaySwitchHook__callback);
 }
 
-bool GlobalDisplaySwitchHook::readAndClear() {
+bool GlobalDisplaySwitchHook::readAndClear() throw () {
     const bool f = flag;
     if (f)
         flag = false;
@@ -225,14 +225,14 @@ bool GlobalDisplaySwitchHook::readAndClear() {
 
 volatile unsigned GlobalMouseHook::buttonActivityCount[16];
 
-void GlobalMouseHook__callback(int) {
+void GlobalMouseHook__callback(int) throw () {
     if (mouse_b & 0xFFFF)
         for (int i = 0; i < 16; ++i)
             if (mouse_b & (1 << i))
                 ++GlobalMouseHook::buttonActivityCount[i];
 } END_OF_FUNCTION(GlobalMouseHook::closeCallback)
 
-void GlobalMouseHook::install() {
+void GlobalMouseHook::install() throw () {
     for (int i = 0; i < 16; ++i)
         buttonActivityCount[i] = 0;
     LOCK_VARIABLE(buttonActivityCount);
@@ -240,12 +240,12 @@ void GlobalMouseHook::install() {
     mouse_callback = GlobalMouseHook__callback;
 }
 
-void RegisterMouseClicks::clear() {
+void RegisterMouseClicks::clear() throw () {
     for (int i = 0; i < 16; ++i)
         readCounts[i] = GlobalMouseHook::read(i);
 }
 
-bool RegisterMouseClicks::wasClicked(int button) {
+bool RegisterMouseClicks::wasClicked(int button) throw () {
     const unsigned count = GlobalMouseHook::read(button);
     const bool changed = count != readCounts[button];
     readCounts[button] = count;
@@ -254,7 +254,7 @@ bool RegisterMouseClicks::wasClicked(int button) {
 
 #endif // DEDICATED_SERVER_ONLY
 
-void MasterSettings::load(LogSet& log) {
+void MasterSettings::load(LogSet& log) throw () {
     static const char* defaultName = "koti.mbnet.fi";
     static const char* defaultIP = "194.100.161.5";
     static const int defaultPort = 80;

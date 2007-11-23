@@ -26,17 +26,17 @@
 #include "debug.h"
 #include "debugconfig.h"
 
-ThreadLog& g_threadLog() { static ThreadLog tl; return tl; }
-BareMutex& g_threadLogMutex() { static BareMutex tlm(BareMutex::NoLogging); return tlm; }
+ThreadLog& g_threadLog() throw () { static ThreadLog tl; return tl; }
+BareMutex& g_threadLogMutex() throw () { static BareMutex tlm(BareMutex::NoLogging); return tlm; }
 
-void ThreadLog::beginEntry() {
+void ThreadLog::beginEntry() throw () {
     if (!file) {
         file = fopen("threadlog.bin", "wb");
         nAssert(file); // no fancy handling in developer-only code
     }
 }
 
-void ThreadLog::endEntry() {
+void ThreadLog::endEntry() throw () {
     if (FLUSH_THREAD_LOG)
         fflush(file);
 }

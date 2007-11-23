@@ -37,23 +37,23 @@
 #include <nl.h>
 
 // Reads a line, stops to \n or \r and skips empty lines.
-std::istream& getline_smart(std::istream& in, std::string& str);
+std::istream& getline_smart(std::istream& in, std::string& str) throw ();
 
 // Read a line like getline_smart, but additionally skip lines that begin with a ;
-std::istream& getline_skip_comments(std::istream& in, std::string& str);
+std::istream& getline_skip_comments(std::istream& in, std::string& str) throw ();
 
-inline std::ostream& write_string(std::ostream& out, const std::string& str) {
+inline std::ostream& write_string(std::ostream& out, const std::string& str) throw () {
     out << str;
     return out.put('\0');
 }
 
-inline std::ostream& write_string(std::ostream& out, const char* str, int size) {
+inline std::ostream& write_string(std::ostream& out, const char* str, int size) throw () {
     out.write(str, size);
     return out.put('\0');
 }
 
 template<typename T>
-std::ostream& write(std::ostream& out, const T& val) {
+std::ostream& write(std::ostream& out, const T& val) throw () {
     const char* mem = reinterpret_cast<const char*>(&val);
     #ifdef NL_BIG_ENDIAN
     return out.write(mem, sizeof(T));
@@ -64,11 +64,11 @@ std::ostream& write(std::ostream& out, const T& val) {
     return out;
 }
 
-inline std::istream& read_string(std::istream& in, std::string& target) {
+inline std::istream& read_string(std::istream& in, std::string& target) throw () {
     return getline(in, target, '\0');
 }
 
-inline std::istream& read(std::istream& in, std::string& target, std::string::size_type length) {
+inline std::istream& read(std::istream& in, std::string& target, std::string::size_type length) throw () {
     target.clear();
     for (std::string::size_type i = 0; in && i < length; ++i)
         target += in.get();
@@ -76,7 +76,7 @@ inline std::istream& read(std::istream& in, std::string& target, std::string::si
 }
 
 template<typename T>
-std::istream& read(std::istream& in, T& val) {
+std::istream& read(std::istream& in, T& val) throw () {
     char* mem = reinterpret_cast<char*>(&val);
     #ifdef NL_BIG_ENDIAN
     return in.read(mem, sizeof(T));
@@ -88,9 +88,9 @@ std::istream& read(std::istream& in, T& val) {
 }
 
 // Check player name validity.
-bool check_name(const std::string& name);
+bool check_name(const std::string& name) throw ();
 
-bool isFlood(const std::string& message);
+bool isFlood(const std::string& message) throw ();
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
 
@@ -101,48 +101,48 @@ enum DamageType { DT_rocket, DT_deathbringer, DT_collision };
 
 enum AccelerationMode { AM_World, AM_Gun };
 
-bool readJoystickButton(int button);    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
+bool readJoystickButton(int button) throw ();    // operates on pseudo button ids that are Allegro button id + 1; returns false on all non-button-mapped indices
 
-bool is_keypad(int sc);
+bool is_keypad(int sc) throw ();
 
 class ClientControls {
 public:
-    ClientControls() : data(0) { }
+    ClientControls() throw () : data(0) { }
 
-    NLubyte toNetwork(bool server) const { if (server) return data & 31; else return data; }
-    void fromNetwork(NLubyte d, bool server) { data = d; if (server) data &= 31; }
-    void fromKeyboard(bool use_pad, bool use_cursor_keys);
-    void fromJoystick(int moving_stick, int run_button, int strafe_button); // uses pseudo button ids like readJoystickButton
+    NLubyte toNetwork(bool server) const throw () { if (server) return data & 31; else return data; }
+    void fromNetwork(NLubyte d, bool server) throw () { data = d; if (server) data &= 31; }
+    void fromKeyboard(bool use_pad, bool use_cursor_keys) throw ();
+    void fromJoystick(int moving_stick, int run_button, int strafe_button) throw (); // uses pseudo button ids like readJoystickButton
 
-    bool isUp    () const { return (data & up    ) != 0; }
-    bool isDown  () const { return (data & down  ) != 0; }
-    bool isLeft  () const { return (data & left  ) != 0; }
-    bool isRight () const { return (data & right ) != 0; }
-    bool isRun   () const { return (data & run   ) != 0; }
-    bool isStrafe() const { return (data & strafe) != 0; }
-    bool idle    () const { return  data           == 0; }
+    bool isUp    () const throw () { return (data & up    ) != 0; }
+    bool isDown  () const throw () { return (data & down  ) != 0; }
+    bool isLeft  () const throw () { return (data & left  ) != 0; }
+    bool isRight () const throw () { return (data & right ) != 0; }
+    bool isRun   () const throw () { return (data & run   ) != 0; }
+    bool isStrafe() const throw () { return (data & strafe) != 0; }
+    bool idle    () const throw () { return  data           == 0; }
 
-    ClientControls& setUp    () { data |= up;     return *this; }
-    ClientControls& setDown  () { data |= down;   return *this; }
-    ClientControls& setLeft  () { data |= left;   return *this; }
-    ClientControls& setRight () { data |= right;  return *this; }
-    ClientControls& setRun   () { data |= run;    return *this; }
-    ClientControls& setStrafe() { data |= strafe; return *this; }
+    ClientControls& setUp    () throw () { data |= up;     return *this; }
+    ClientControls& setDown  () throw () { data |= down;   return *this; }
+    ClientControls& setLeft  () throw () { data |= left;   return *this; }
+    ClientControls& setRight () throw () { data |= right;  return *this; }
+    ClientControls& setRun   () throw () { data |= run;    return *this; }
+    ClientControls& setStrafe() throw () { data |= strafe; return *this; }
 
-    void clearLeft () { data &= ~left; }
-    void clearRight() { data &= ~right; }
+    void clearLeft () throw () { data &= ~left; }
+    void clearRight() throw () { data &= ~right; }
 
-    void clearRun  () { data &= ~run; }
+    void clearRun  () throw () { data &= ~run; }
 
-    bool isUpDown   () const { return isUp  () != isDown (); }
-    bool isLeftRight() const { return isLeft() != isRight(); }
+    bool isUpDown   () const throw () { return isUp  () != isDown (); }
+    bool isLeftRight() const throw () { return isLeft() != isRight(); }
 
-    bool operator==(const ClientControls& o) const { return data == o.data; }
-    bool operator!=(const ClientControls& o) const { return data != o.data; }
+    bool operator==(const ClientControls& o) const throw () { return data == o.data; }
+    bool operator!=(const ClientControls& o) const throw () { return data != o.data; }
 
-    void clearModifiersIfIdle() { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
+    void clearModifiersIfIdle() throw () { if (!isUpDown() && !isLeftRight()) data &= ~(run | strafe); }
 
-    int getDirection() const; // returns -1 for no direction, else between 0..7
+    int getDirection() const throw (); // returns -1 for no direction, else between 0..7
 
 private:
     NLubyte data;
@@ -159,12 +159,12 @@ private:
 
 class ClientLoginStatus {
 public:
-    ClientLoginStatus() : data(0) { }
+    ClientLoginStatus() throw () : data(0) { }
 
-    NLubyte toNetwork() const { return data; }
-    void fromNetwork(NLubyte byte) { data = byte; }
+    NLubyte toNetwork() const throw () { return data; }
+    void fromNetwork(NLubyte byte) throw () { data = byte; }
 
-    std::string strFlags() const {
+    std::string strFlags() const throw () {
         std::string s;
         s += token     () ? (masterAuth() ? 'M' : '?') : ' ';
         s += tournament() ? (masterAuth() ? 'T' : '?') : ' ';
@@ -173,20 +173,20 @@ public:
         return s;
     }
 
-    bool token     () const { return (data & SB_token     ) != 0; } // client has reported a token
-    bool masterAuth() const { return (data & SB_masterAuth) != 0; } // client's token has been authorized by master
-    bool tournament() const { return (data & SB_tournament) != 0; } // client's score is being recorded for tournament scoring
-    bool localAuth () const { return (data & SB_localAuth ) != 0; } // client has been authorized by the server's auth.txt
-    bool admin     () const { return (data & SB_admin     ) != 0; } // client is an admin on this server
+    bool token     () const throw () { return (data & SB_token     ) != 0; } // client has reported a token
+    bool masterAuth() const throw () { return (data & SB_masterAuth) != 0; } // client's token has been authorized by master
+    bool tournament() const throw () { return (data & SB_tournament) != 0; } // client's score is being recorded for tournament scoring
+    bool localAuth () const throw () { return (data & SB_localAuth ) != 0; } // client has been authorized by the server's auth.txt
+    bool admin     () const throw () { return (data & SB_admin     ) != 0; } // client is an admin on this server
 
-    void setToken     (bool b) { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }
-    void setMasterAuth(bool b) { data = (data & (~SB_masterAuth)) | (b ? SB_masterAuth : 0); }
-    void setTournament(bool b) { data = (data & (~SB_tournament)) | (b ? SB_tournament : 0); }
-    void setLocalAuth (bool b) { data = (data & (~SB_localAuth )) | (b ? SB_localAuth  : 0); }
-    void setAdmin     (bool b) { data = (data & (~SB_admin     )) | (b ? SB_admin      : 0); }
+    void setToken     (bool b) throw () { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }
+    void setMasterAuth(bool b) throw () { data = (data & (~SB_masterAuth)) | (b ? SB_masterAuth : 0); }
+    void setTournament(bool b) throw () { data = (data & (~SB_tournament)) | (b ? SB_tournament : 0); }
+    void setLocalAuth (bool b) throw () { data = (data & (~SB_localAuth )) | (b ? SB_localAuth  : 0); }
+    void setAdmin     (bool b) throw () { data = (data & (~SB_admin     )) | (b ? SB_admin      : 0); }
 
-    bool operator==(const ClientLoginStatus& o) const { return data == o.data; }
-    bool operator!=(const ClientLoginStatus& o) const { return data != o.data; }
+    bool operator==(const ClientLoginStatus& o) const throw () { return data == o.data; }
+    bool operator!=(const ClientLoginStatus& o) const throw () { return data != o.data; }
 
 private:
     enum StatusBit {
@@ -202,31 +202,31 @@ private:
 
 class GlobalDisplaySwitchHook {
     static volatile bool flag;
-    friend void GlobalDisplaySwitchHook__callback();
+    friend void GlobalDisplaySwitchHook__callback() throw ();
 
 public:
-    static void init();
-    static void install();
-    static bool readAndClear();
+    static void init() throw ();
+    static void install() throw ();
+    static bool readAndClear() throw ();
 };
 
 #ifndef DEDICATED_SERVER_ONLY
 
 class GlobalMouseHook {
     static volatile unsigned buttonActivityCount[16];
-    friend void GlobalMouseHook__callback(int);
+    friend void GlobalMouseHook__callback(int) throw ();
 
 public:
-    static void install();
-    static int read(int button) { return buttonActivityCount[button]; }
+    static void install() throw ();
+    static int read(int button) throw () { return buttonActivityCount[button]; }
 };
 
 class RegisterMouseClicks {
     unsigned readCounts[16];
 
 public:
-    void clear();
-    bool wasClicked(int button);
+    void clear() throw ();
+    bool wasClicked(int button) throw ();
 };
 
 #endif
@@ -242,15 +242,15 @@ class MasterSettings {
     int configCRC;
 
 public:
-    MasterSettings() : configCRC(0) { masterAddress.valid = bugAddress.valid = NL_FALSE; }
-    const NLaddress& address() const { return masterAddress; }
-    const std::string& host() const { return hostName; }
-    const std::string& query() const { return queryScript; }
-    const std::string& submit() const { return submitScript; }
-    const NLaddress& bugReportAddress() const { return bugAddress; }
-    int crc() const { return configCRC; }
+    MasterSettings() throw () : configCRC(0) { masterAddress.valid = bugAddress.valid = NL_FALSE; }
+    const NLaddress& address() const throw () { return masterAddress; }
+    const std::string& host() const throw () { return hostName; }
+    const std::string& query() const throw () { return queryScript; }
+    const std::string& submit() const throw () { return submitScript; }
+    const NLaddress& bugReportAddress() const throw () { return bugAddress; }
+    int crc() const throw () { return configCRC; }
 
-    void load(LogSet& log);
+    void load(LogSet& log) throw ();
 };
 
 extern MasterSettings g_masterSettings;
@@ -262,7 +262,7 @@ public:
     enum { mantissaBits = 8 - 1 - expBits,  // bits in byte - sign bit - exponent bits
            mantissaLimit = 1 << mantissaBits };
 
-    static unsigned char toByte(double v) {
+    static unsigned char toByte(double v) throw () {
         const unsigned char sign = (v < 0. ? 0x80 : 0);
 
         int iVal = static_cast<int>(ldexp(fabs(v), -expBias) + .5);
@@ -282,7 +282,7 @@ public:
         else
             return sign | (exp << mantissaBits) | (iVal - mantissaLimit);
     }
-    static double toDouble(unsigned char b) {
+    static double toDouble(unsigned char b) throw () {
         double val = b & (mantissaLimit - 1);   // use double so that val = -val makes 0 -> -0, it may be useful and otherwise byte 128 is redundant
         const int exp = (b & 0x7F) >> (8 - 1 - expBits);
         if (exp == 0) {
