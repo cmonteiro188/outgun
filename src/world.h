@@ -485,6 +485,7 @@ public:
     unsigned uniqueId;
 
     ServerPlayer() { clear(false, 0, 0, "", 0, 0); }
+    ~ServerPlayer() { }
 
     bool under_deathbringer_effect(double curr_time) const { return deathbringer_end >= curr_time; }
 
@@ -1014,6 +1015,7 @@ public:
         for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
     }
+    ~ServerWorld() { }
 
     void setConfig(const WorldSettings& ws, const PowerupSettings& ps) { config = ws; pupConfig = ps; }
 
@@ -1084,6 +1086,7 @@ public:
         for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
     }
+    ~ClientWorld() { }
     double get_frame() const { return frame; }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,

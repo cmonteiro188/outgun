@@ -99,6 +99,7 @@ class Menu : public Component, public MenuHookable<Menu> {
 public:
     // visible_items to 20 is there to prevent scrollbar when starting the game and pressing down arrow same time
     Menu(const std::string& caption_, bool useShortcuts) : Component(caption_), start(0), selected_item(0), visible_items(20), shortcuts(useShortcuts) { }
+    ~Menu() { }
 
     void clear_components() { selected_item = 0; components.clear(); }
     void add_component(Component* comp) { components.push_back(comp); }
@@ -221,6 +222,7 @@ private:
 class IPfield : public TextfieldBase, public MenuHookable<IPfield>, public KeyHookable<IPfield> {
 public:
     IPfield(const std::string& caption_, bool acceptPort_, bool printUnknown_);
+    ~IPfield() { }
     void set(const std::string& text) { TextfieldBase::set(text); updateTail(); }
     void setFixedPortString(const std::string& text) { portStr = text; updateTail(); } // this is intended for :port, space for 6 characters is allocated (only if !acceptPort)
     const std::string& operator()() const { return TextfieldBase::operator()(); }
@@ -268,6 +270,7 @@ template<class ValueT>
 class Select : public SelectBase, public MenuHookable< Select<ValueT> > {
 public:
     Select(const std::string caption_) : SelectBase(caption_) { }
+    ~Select() { }
     void clearOptions() { options.clear(); values.clear(); selected = 0; open = false; }
     void addOption(const std::string& text, const ValueT& value) { options.push_back(text); values.push_back(value); }
     bool set(const ValueT& value);  // returns false if there is no value in the options
@@ -282,6 +285,7 @@ private:
 class Colorselect : public Component, public MenuHookable<Colorselect> {
 public:
     Colorselect(const std::string caption_) : Component(caption_), selected(0), graphics(0) { }
+    ~Colorselect() { }
     void setGraphicsCallBack(const Graphics& graph) { graphics = &graph; }
     void clearOptions() { options.clear(); selected = 0; }
     void addOption(int col) { options.push_back(col); }
@@ -382,6 +386,7 @@ public:
 class StaticText : public Component {
 public:
     StaticText(const std::string& caption_, const std::string& text_ = std::string()) : Component(caption_), text(text_) { }
+    ~StaticText() { }
     void set(const std::string& val) { text = val; }
 
     // inherited interface
@@ -398,6 +403,7 @@ private:
 class Textobject : public Component {
 public:
     Textobject() : Component(""), start(0), visible_lines(0), old_linew(-1) { }
+    ~Textobject() { }
     void addLine(const std::string& text) { lines.push_back(text); }
 
     // inherited interface

@@ -179,6 +179,7 @@ template<class ObjT> class Threadsafe : private NoCopying, public ConstLockable 
 public:
     Threadsafe(const char* identifier) : mutex(identifier) { }
     Threadsafe(const ObjT& o) : obj(o) { }
+    ~Threadsafe() { }
 
     Threadsafe& operator=(const ObjT& o) { mutex.lock(); obj = o; mutex.unlock(); return *this; }
     ObjT read() const { mutex.lock(); ObjT o = obj; mutex.unlock(); return o; }  // Get a *copy* of the object
