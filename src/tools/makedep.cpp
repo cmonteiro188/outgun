@@ -128,16 +128,22 @@ void skipToInclude(FILE* src) throw (EOF_Hit) {
 }
 
 string readIncludeFileName(FILE* src) throw (StrError) {
-    string name;
-    for (;;) {
-        char ch = getChar(src);
-        if (ch == '"')
-            break;
-        name += ch;
+    try {
+        string name;
+        for (;;) {
+            char ch = getChar(src);
+            if (ch == '"')
+                break;
+            if (ch == '\n')
+                throw StrError("#include missing terminating '\"'");
+            name += ch;
+        }
+        if (name.empty())
+            throw StrError("'#include \"\"' not allowed");
+        return name;
+    } catch (EOF_Hit) {
+        throw StrError("end of file in the middle of an #include");
     }
-    if (name.empty())
-        throw StrError("'#include \"\"' not allowed");
-    return name;
 }
 
 /** Translate the source file's #include directives into makefile format. Skip other lines.
