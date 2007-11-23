@@ -154,8 +154,20 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
 
 static int wrappedMain(int argc, const char* argv[]) throw ();
 
+static void terminateHandler() throw () {
+    nAssert(0);
+}
+
+static void outOfMemory() throw () {
+    criticalError(_("Out of memory."));
+}
+
 int main(int argc, const char* argv[]) {
     uint32_t stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
+
+    std::set_terminate(terminateHandler);
+    std::set_unexpected(terminateHandler);
+    std::set_new_handler(outOfMemory);
 
     Thread::logCallerIdentity("main");
     srand((unsigned)time(0));
