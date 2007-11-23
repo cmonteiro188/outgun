@@ -39,7 +39,7 @@ Mutex::Mutex(LoggingDisabler) throw () : logging(false), locked(false), nWaiters
 }
 
 Mutex::Mutex(const char* identifier, bool logging_) throw () : logging(logging_), locked(false), nWaiters(0) {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     nAssert(identifier);
     logId(identifier);
     logAction('C');
@@ -47,7 +47,7 @@ Mutex::Mutex(const char* identifier, bool logging_) throw () : logging(logging_)
 }
 
 Mutex::~Mutex() throw () {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     logAction('D');
     nAssert(!locked && nWaiters == 0);
     nAssert(0 == pthread_mutex_destroy(&mutex));
@@ -55,14 +55,14 @@ Mutex::~Mutex() throw () {
 
 void Mutex::lock() throw () {
     {
-        Lock ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex);
         logAction('L');
         nAssert(!locked || owner != pthread_self());
         ++nWaiters;
     }
     nAssert(0 == pthread_mutex_lock(&mutex));
     {
-        Lock ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex);
         --nWaiters;
         nAssert(!locked);
         locked = true;
@@ -73,7 +73,7 @@ void Mutex::lock() throw () {
 
 void Mutex::unlock() throw () {
     {
-        Lock ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex);
         logAction('U');
         nAssert(locked && owner == pthread_self());
         locked = false;
@@ -84,7 +84,7 @@ void Mutex::unlock() throw () {
 void Mutex::logId(const char* identifier) throw () {
     if (!LOG_MUTEX_ACTIONS || !logging)
         return;
-    ThreadLogWriter t(g_threadLog());
+    ThreadLogWriter t(g_threadLog);
     t.put('M');
     t.putObjectId(this);
     t.put('I');
@@ -94,7 +94,7 @@ void Mutex::logId(const char* identifier) throw () {
 void Mutex::logAction(char operation) throw () {
     if (!LOG_MUTEX_ACTIONS || !logging)
         return;
-    ThreadLogWriter t(g_threadLog());
+    ThreadLogWriter t(g_threadLog);
     t.put('M');
     t.putObjectId(this);
     t.put(operation);
@@ -105,7 +105,7 @@ ConditionVariable::ConditionVariable(LoggingDisabler) throw () : logging(false),
 }
 
 ConditionVariable::ConditionVariable(const char* identifier, bool logging_) throw () : logging(logging_), nWaiting(0) {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     nAssert(identifier);
     logId(identifier);
     logAction('C');
@@ -113,7 +113,7 @@ ConditionVariable::ConditionVariable(const char* identifier, bool logging_) thro
 }
 
 ConditionVariable::~ConditionVariable() throw () {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     logAction('D');
     nAssert(nWaiting == 0);
     nAssert(0 == pthread_cond_destroy(&cond));
@@ -135,7 +135,7 @@ bool ConditionVariable::timedWait(Mutex& mutex, const struct timespec& abstime) 
 
 void ConditionVariable::signal() throw () {
     {
-        Lock ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex);
         logAction('S');
     }
     nAssert(0 == pthread_cond_signal(&cond));
@@ -143,14 +143,14 @@ void ConditionVariable::signal() throw () {
 
 void ConditionVariable::broadcast() throw () {
     {
-        Lock ml(g_threadLogMutex());
+        Lock ml(g_threadLogMutex);
         logAction('B');
     }
     nAssert(0 == pthread_cond_broadcast(&cond));
 }
 
 void ConditionVariable::debugPreWait(Mutex& mutex) throw () {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     mutex.logAction('W');
     logAction('W');
     nAssert(nWaiting == 0 || waitingMutex == &mutex);
@@ -161,7 +161,7 @@ void ConditionVariable::debugPreWait(Mutex& mutex) throw () {
 }
 
 void ConditionVariable::debugPostWait(Mutex& mutex) throw () {
-    Lock ml(g_threadLogMutex());
+    Lock ml(g_threadLogMutex);
     nAssert(!mutex.locked);
     mutex.locked = true;
     mutex.owner = pthread_self();
@@ -173,7 +173,7 @@ void ConditionVariable::debugPostWait(Mutex& mutex) throw () {
 void ConditionVariable::logId(const char* identifier) throw () {
     if (!LOG_CONDVAR_ACTIONS || !logging)
         return;
-    ThreadLogWriter t(g_threadLog());
+    ThreadLogWriter t(g_threadLog);
     t.put('C');
     t.putObjectId(this);
     t.put('I');
@@ -183,7 +183,7 @@ void ConditionVariable::logId(const char* identifier) throw () {
 void ConditionVariable::logAction(char operation) throw () {
     if (!LOG_CONDVAR_ACTIONS || !logging)
         return;
-    ThreadLogWriter t(g_threadLog());
+    ThreadLogWriter t(g_threadLog);
     t.put('C');
     t.putObjectId(this);
     t.put(operation);

@@ -8,12 +8,13 @@ ifdef XAUTHORITY
  endif
 endif
 
-CFLAGS ?= -W -Wall -O3 -ffast-math
+CFLAGS ?= -W -Wall -O3 -ffast-math -fno-enforce-eh-specs
 CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
 CXX ?= g++
 
+DEPDIR ?= dep
 OBJDIR ?= obj
 
 .DELETE_ON_ERROR:
@@ -114,7 +115,7 @@ SRC_SUFFIXES := .h .inc .cpp .c
 SRC_FILE_PATTERNS := $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
 GENERATED_HEADER_FILES := generated/svnrevision.inc
 SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
-DEPENDENCY_FILES := $(patsubst %,dep/%.d,$(SRC_FILES))
+DEPENDENCY_FILES := $(patsubst %,$(DEPDIR)/%.d,$(SRC_FILES))
 
 # shorthand target names
 
@@ -138,32 +139,32 @@ TAGS: $(SRC_FILES)
 
 # directories for generated files
 
-dep dep/generated dep/leetnet dep/loadpng dep/tools generated $(OBJDIR) $(OBJDIR)/gui $(OBJDIR)/gui/loadpng $(OBJDIR)/leetnet $(OBJDIR)/text $(OBJDIR)/text/tools:
+$(DEPDIR) $(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools generated $(OBJDIR) $(OBJDIR)/gui $(OBJDIR)/gui/loadpng $(OBJDIR)/leetnet $(OBJDIR)/text $(OBJDIR)/text/tools:
 	-$(MKDIR) $@
 
-dep/generated dep/leetnet dep/loadpng dep/tools: | dep
+$(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools: | $(DEPDIR)
 $(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet: | $(OBJDIR)
 $(OBJDIR)/text/tools: | $(OBJDIR)/text
 $(OBJDIR)/gui/loadpng: | $(OBJDIR)/gui
 
 # make-directories-dummy must exist and is not generated anywhere (because its date should stay old).
 # It is used to work around a gmake bug.
-make-directories-dummy: | dep generated $(OBJDIR) dep/generated dep/leetnet dep/loadpng dep/tools $(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet $(OBJDIR)/text/tools $(OBJDIR)/gui/loadpng
+make-directories-dummy: | $(DEPDIR) generated $(OBJDIR) $(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools $(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet $(OBJDIR)/text/tools $(OBJDIR)/gui/loadpng
 
 # file dependency lists
 
 MAKEDEP := tools/makedep$(EXE_SUFFIX)
 
-dep/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-dummy
+$(DEPDIR)/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR) $< > $@
 
-dep/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-dummy
+$(DEPDIR)/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR)/gui $< > $@
 
-dep/tools/%.d: tools/% $(MAKEDEP) | make-directories-dummy
+$(DEPDIR)/tools/%.d: tools/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR)/text $< > $@
 
-dep/%.d: % $(MAKEDEP) | make-directories-dummy
+$(DEPDIR)/%.d: % $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR)/gui -O $(OBJDIR)/text $< > $@
 
 -include $(DEPENDENCY_FILES)

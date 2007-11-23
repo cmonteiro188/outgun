@@ -23,7 +23,9 @@
  */
 
 #include "commont.h"
+#include "debug.h"
 #include "debugconfig.h"
+#include "mutex.h"
 #include "protocol.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
@@ -42,3 +44,10 @@ bool g_leetnetDataLog = false;
 const std::string GAME_STRING = "Outgun";
 const std::string GAME_PROTOCOL = "1.0";
 const std::string REPLAY_IDENTIFICATION = "OUTGUNREPLAY";
+
+// global objects whose construction/destruction relies on each other, and therefore need to be in one compilation unit to be constructed in the correct order
+BareMutex g_threadLogMutex(BareMutex::NoLogging); // from debug.h
+ThreadLog g_threadLog; // from debug.h
+// Mutexes and ConditionVariables depend on the above
+Mutex g_threadRandomSeedMutex("g_threadRandomSeedMutex"); // from thread.cpp
+Mutex nlOpenMutex("network.cpp:nlOpenMutex"); // from network.cpp

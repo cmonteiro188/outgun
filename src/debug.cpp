@@ -26,9 +26,6 @@
 #include "debug.h"
 #include "debugconfig.h"
 
-ThreadLog& g_threadLog() throw () { static ThreadLog tl; return tl; }
-BareMutex& g_threadLogMutex() throw () { static BareMutex tlm(BareMutex::NoLogging); return tlm; }
-
 void ThreadLog::beginEntry() throw () {
     if (!file) {
         file = fopen("threadlog.bin", "wb");

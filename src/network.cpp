@@ -46,7 +46,7 @@ using std::setw;
 using std::string;
 using std::vector;
 
-static Mutex nlOpenMutex("network.cpp:nlOpenMutex");
+extern Mutex nlOpenMutex;
 
 typedef Network::Address Address;
 typedef Network::Socket Socket;

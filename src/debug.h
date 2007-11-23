@@ -61,9 +61,8 @@ public:
     void putObjectId(void* p) throw () { put(ThreadLog::idObject(p)); }
 };
 
-// access global objects; protected this way because these are used in initialization of global Mutexes etc. and must be initialized on use
-ThreadLog& g_threadLog() throw ();
-BareMutex& g_threadLogMutex() throw ();
+extern ThreadLog g_threadLog;
+extern BareMutex g_threadLogMutex;
 
 #ifdef NDEBUG
 
