@@ -50,84 +50,84 @@ public:
     protected:
         int nlError;
 
-        Error();
+        Error() throw ();
         friend class Network;
 
-        std::string basicStr() const;
+        std::string basicStr() const throw ();
 
     public:
-        virtual ~Error() { }
+        virtual ~Error() throw () { }
 
-        virtual std::string str() const;
+        virtual std::string str() const throw ();
     };
 
     class BadIP : public Error {
         std::string ip;
 
-        BadIP(const std::string& ip_) : ip(ip_) { }
+        BadIP(const std::string& ip_) throw () : ip(ip_) { }
 
         friend class Address;
 
     public:
-        virtual std::string str() const;
+        virtual std::string str() const throw ();
     };
 
     class ResolveError : public Error {
         std::string name;
 
-        ResolveError(const std::string& hostname) : name(hostname) { }
+        ResolveError(const std::string& hostname) throw () : name(hostname) { }
 
         friend class Address;
 
     public:
-        ResolveError();
+        ResolveError() throw ();
 
-        virtual std::string str() const;
+        virtual std::string str() const throw ();
     };
 
     class OpenError : public Error {
         SocketType type;
         uint16_t port;
 
-        OpenError(SocketType t, uint16_t port_) : type(t), port(port_) { }
+        OpenError(SocketType t, uint16_t port_) throw () : type(t), port(port_) { }
 
         friend class Socket;
 
     public:
-        virtual std::string str() const;
+        virtual std::string str() const throw ();
     };
 
     class ConnectError : public Error {
         std::string addr;
 
-        ConnectError(const std::string& addr_) : addr(addr_) { }
+        ConnectError(const std::string& addr_) throw () : addr(addr_) { }
 
         friend class Socket;
 
     public:
-        bool connectionRefused() const;
-        virtual std::string str() const;
+        bool connectionRefused() const throw ();
+        virtual std::string str() const throw ();
     };
 
     class ListenError : public Error {
-        ListenError() { }
+        ListenError() throw () { }
         friend class Socket;
 
     public:
-        virtual std::string str() const;
+        virtual std::string str() const throw ();
     };
 
     class ReadWriteError : public Error {
         bool inRead;
-        ReadWriteError(bool read) : inRead(read) { }
+        ReadWriteError(bool read) throw () : inRead(read) { }
 
         friend class Socket;
 
     public:
-        bool connectionRefused() const;
-        bool connectionPending() const;
-        bool disconnected() const;
-        virtual std::string str() const;
+        bool connectionRefused() const throw ();
+        bool connectionPending() const throw ();
+        bool disconnected() const throw ();
+        virtual std::string str() const throw ();
     };
 
     class Address {
@@ -193,8 +193,8 @@ public:
     };
 
     // static members only
-    static std::vector<Address> getAllLocalAddresses();
-    static Address getDefaultLocalAddress();
+    static std::vector<Address> getAllLocalAddresses() throw ();
+    static Address getDefaultLocalAddress() throw ();
 };
 
 bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false) throw ();

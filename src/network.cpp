@@ -51,14 +51,14 @@ static Mutex nlOpenMutex("network.cpp:nlOpenMutex");
 typedef Network::Address Address;
 typedef Network::Socket Socket;
 
-Network::Error::Error() :
+Network::Error::Error() throw () :
     nlError(nlGetError())
 {
     if (nlError == NL_SYSTEM_ERROR)
         sysError = nlGetSystemError();
 }
 
-string Network::Error::basicStr() const {
+string Network::Error::basicStr() const throw () {
     nAssert(nlError != NL_NO_ERROR);
     if (nlError == NL_SYSTEM_ERROR)
         return nlGetSystemErrorStr(sysError);
@@ -66,36 +66,36 @@ string Network::Error::basicStr() const {
         return nlGetErrorStr(nlError);
 }
 
-Network::ResolveError::ResolveError() {
+Network::ResolveError::ResolveError() throw () {
     nlError = NL_NO_ERROR;
 }
 
-string Network::Error       ::str() const { return _("Network error: $1", basicStr()); }
-string Network::BadIP       ::str() const { return _("\"$1\" is not a valid IP address", ip); }
-string Network::ResolveError::str() const { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
-string Network::ConnectError::str() const { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
-string Network::ListenError ::str() const { return _("Error setting socket to listen mode: $1", basicStr()); }
+string Network::Error       ::str() const throw () { return _("Network error: $1", basicStr()); }
+string Network::BadIP       ::str() const throw () { return _("\"$1\" is not a valid IP address", ip); }
+string Network::ResolveError::str() const throw () { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
+string Network::ConnectError::str() const throw () { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
+string Network::ListenError ::str() const throw () { return _("Error setting socket to listen mode: $1", basicStr()); }
 
-string Network::ReadWriteError::str() const {
+string Network::ReadWriteError::str() const throw () {
     if (inRead)
         return _("Error reading from socket: $1", basicStr());
     else
         return _("Error writing to socket: $1", basicStr());
 }
 
-bool Network::ConnectError  ::connectionRefused() const { return nlError == NL_CON_REFUSED; }
+bool Network::ConnectError  ::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
 
-bool Network::ReadWriteError::connectionRefused() const { return nlError == NL_CON_REFUSED; }
-bool Network::ReadWriteError::connectionPending() const { return nlError == NL_CON_PENDING; }
-bool Network::ReadWriteError::disconnected()      const { return nlError == NL_MESSAGE_END; }
+bool Network::ReadWriteError::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
+bool Network::ReadWriteError::connectionPending() const throw () { return nlError == NL_CON_PENDING; }
+bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END; }
 
 class Address::HiddenData {
 public:
     NLaddress nla;
     // Everything else is in the Address class itself. This class is used only to avoid including nl.h in network.h.
 
-    HiddenData() { }
-    HiddenData(const NLaddress& n) : nla(n) { }
+    HiddenData() throw () { }
+    HiddenData(const NLaddress& n) throw () : nla(n) { }
 };
 
 class Socket::HiddenData {
@@ -103,7 +103,7 @@ public:
     NLsocket nls;
     // Everything else is in the Socket class itself. This class is used only to avoid including nl.h in network.h.
 
-    HiddenData(NLsocket n) : nls(n) { }
+    HiddenData(NLsocket n) throw () : nls(n) { }
 };
 
 // shortcuts for accessing raw NLaddresses and NLsockets within Address and Socket classes, used throughout this file
@@ -342,7 +342,7 @@ void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWrit
         numAssert2(val == size, val, size);
 }
 
-vector<Address> Network::getAllLocalAddresses() {
+vector<Address> Network::getAllLocalAddresses() throw () {
     NLint count;
     NLaddress* addressList = nlGetAllLocalAddr(&count);
     vector<Address> a;
@@ -354,7 +354,7 @@ vector<Address> Network::getAllLocalAddresses() {
     return a;
 }
 
-Address Network::getDefaultLocalAddress() {
+Address Network::getDefaultLocalAddress() throw () {
     Socket s(NonBlocking, UDP, 0);
     Address addr;
     if (s.isOpen()) {
