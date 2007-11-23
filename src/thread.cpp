@@ -31,11 +31,11 @@
 #include "thread.h"
 #include "utility.h"
 
-static Mutex g_randomSeedMutex("g_randomSeedMutex");
+extern Mutex g_threadRandomSeedMutex;
 static time_t g_randomSeed = time(0);
 
 void Thread::randomize() throw () {
-    Lock ml(g_randomSeedMutex);
+    Lock ml(g_threadRandomSeedMutex);
     srand(++g_randomSeed);
 }
 
@@ -85,8 +85,8 @@ int Thread::doGetPriority(pthread_t thread) throw () {
 void Thread::logEvent(pthread_t thread, char event, const char* data) throw () {
     if (!LOG_THREAD_ACTIONS)
         return;
-    Lock ml(g_threadLogMutex());
-    ThreadLogWriter t(g_threadLog());
+    Lock ml(g_threadLogMutex);
+    ThreadLogWriter t(g_threadLog);
     t.put('T');
     t.putThreadId(thread);
     t.put(event);
