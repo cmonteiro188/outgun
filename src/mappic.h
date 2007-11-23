@@ -32,20 +32,19 @@
 class Map;
 
 class Mappic {
-    mutable LogSet log;
-
-    std::vector<std::string> smaps; // server maps
-
-    std::vector<std::string> load_maps(const std::string& dir);
-
-    void save_pictures() const;
-
 public:
+    class Save_error { };
+
     Mappic(LogSet logs) : log(logs) { }
 
     void run();
 
-    class Save_error { };
+private:
+    mutable LogSet log;
+    std::vector<std::string> smaps; // server maps
+
+    std::vector<std::string> load_maps(const std::string& dir);
+    void save_pictures() const;
 };
 
 #endif // MAPPIC_H_INC
