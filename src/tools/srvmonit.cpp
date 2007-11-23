@@ -99,7 +99,7 @@ string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::Socket& sock, const void* data, int len) throw () {
+void send(Network::Socket& sock, const void* data, int len) throw (SendFail) {
     int written;
     if (!sock.write(data, len, &written) || written != len)
         throw SendFail();

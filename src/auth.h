@@ -127,7 +127,7 @@ public:
 
     bool checkNamePassword(const std::string& name, const std::string& password) const throw ();
 
-    bool isBanned(Network::Address addr) const throw () ;
+    bool isBanned(Network::Address addr) const throw ();
     void ban(Network::Address addr, const std::string& name, int minutes) throw ();
 };
 
