@@ -432,7 +432,7 @@ void TextfieldBase::unblink() {
     blinkTime = get_time();
 }
 
-IPfield::IPfield(const string& caption_, bool acceptPort_, bool printUnknown_):
+IPfield::IPfield(const string& caption_, bool acceptPort_, bool printUnknown_) :
     TextfieldBase(caption_, "", acceptPort_ ? 21 : 15, 0, acceptPort_ ? 14 : 20), // max. IP address 123.123.123.123 = 15 chars, :port 6 chars either in address or tail; reserve 14 extra characters in tail for comment
     acceptPort(acceptPort_),
     printUnknown(printUnknown_)

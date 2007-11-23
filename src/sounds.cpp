@@ -34,7 +34,7 @@ using std::string;
 using std::sort;
 using std::vector;
 
-Sounds::Sounds(LogSet logs):
+Sounds::Sounds(LogSet logs) :
     log(logs),
     enabled(false),
     allegroSoundInitialized(false),

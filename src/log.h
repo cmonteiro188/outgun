@@ -39,7 +39,7 @@ class Log : public NoCopying, protected ConstLockable { // base class
     mutable Mutex m;
     int nLines;
 
-    virtual void add(const std::string& str) =0;
+    virtual void add(const std::string& str) = 0;
 
 protected:
     // note: operator()() and put() lock the mutex automatically, so it is already locked on an add() call

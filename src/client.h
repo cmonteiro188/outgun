@@ -137,10 +137,10 @@ public:
     std::string statusAsString() const;
     std::string getToken() const { return token.read(); }
 
-    void serverProcessingToken()    { servStatus = PS_tokenSent;        }
-    void serverAcceptsToken()       { servStatus = PS_tokenAccepted;    }
-    void serverRejectsToken()       { servStatus = PS_tokenRejected;    }
-    void disconnectedFromServer()   { servStatus = PS_noPassword;       }   // actually, no server
+    void serverProcessingToken()  { servStatus = PS_tokenSent;        }
+    void serverAcceptsToken()     { servStatus = PS_tokenAccepted;    }
+    void serverRejectsToken()     { servStatus = PS_tokenRejected;    }
+    void disconnectedFromServer() { servStatus = PS_noPassword;       }   // actually, no server
 
 private:
     LogSet log;

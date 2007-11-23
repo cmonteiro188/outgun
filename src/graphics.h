@@ -94,8 +94,8 @@ enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Autho
 
 class Message {
 public:
-    Message(Message_type type_, const std::string& txt, int time_, int team_ = -1):
-        msg_type(type_), msg_text(txt), msg_time(time_), sender_team(team_), is_highlighted(false) { }
+    Message(Message_type type_, const std::string& txt, int time_, int team_ = -1)
+        : msg_type(type_), msg_text(txt), msg_time(time_), sender_team(team_), is_highlighted(false) { }
 
     void highlight() { is_highlighted = true; }
 

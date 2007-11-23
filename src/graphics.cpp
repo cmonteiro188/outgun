@@ -73,7 +73,7 @@ const string Graphics::save_extension = ".png";
 const string Graphics::save_extension = ".pcx";
 #endif
 
-Graphics::Graphics(LogSet logs):
+Graphics::Graphics(LogSet logs) :
     roomLayout          (*this),
     background          (*this),
     show_chat_messages  (true),

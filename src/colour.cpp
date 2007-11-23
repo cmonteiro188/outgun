@@ -57,14 +57,14 @@ string Colour::triplet() const {
 }
 
 struct Colour_setting_base {
-    Colour_setting_base(const string& n): name(n) { }
+    Colour_setting_base(const string& n) : name(n) { }
     virtual ~Colour_setting_base() { };
     string name;
 };
 
 struct Colour_setting : public Colour_setting_base {
-    Colour_setting(const string& n, int k, const Colour& c): Colour_setting_base(n), key(k), col(c) { }
-    Colour_setting(const string& n, int k, int r, int g, int b): Colour_setting_base(n), key(k), col(r, g, b) { }
+    Colour_setting(const string& n, int k, const Colour& c) : Colour_setting_base(n), key(k), col(c) { }
+    Colour_setting(const string& n, int k, int r, int g, int b) : Colour_setting_base(n), key(k), col(r, g, b) { }
     int key;
     Colour col;
 };
@@ -72,11 +72,11 @@ struct Colour_setting : public Colour_setting_base {
 // Helper structs for commenting the colour file
 
 struct Colour_setting_comment : public Colour_setting_base {
-    Colour_setting_comment(const string& comment): Colour_setting_base(comment) { }
+    Colour_setting_comment(const string& comment) : Colour_setting_base(comment) { }
 };
 
 struct Colour_setting_section : public Colour_setting_comment {
-    Colour_setting_section(const string& title): Colour_setting_comment(title) { }
+    Colour_setting_section(const string& title) : Colour_setting_comment(title) { }
 };
 
 void Colour_manager::init(const string& file, bool create_default_only) {

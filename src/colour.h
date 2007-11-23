@@ -34,8 +34,8 @@
  */
 class Colour {
 public:
-    Colour(): r(0), g(0), b(0), col_value(0) { }
-    Colour(int r_, int g_, int b_): r(r_), g(g_), b(b_) { update(); }
+    Colour() : r(0), g(0), b(0), col_value(0) { }
+    Colour(int r_, int g_, int b_) : r(r_), g(g_), b(b_) { update(); }
 
     /** Recalculate the colour index from the components.
      */
@@ -69,7 +69,7 @@ private:
 
 class Colour_manager {
 public:
-    Colour_manager(LogSet logs):
+    Colour_manager(LogSet logs) :
         log(logs)
     { }
 

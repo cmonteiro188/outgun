@@ -154,8 +154,8 @@ private:
 
 //entity locale
 struct WorldCoords {
-    WorldCoords(int px_, int py_, double x_, double y_): px(px_), py(py_), x(x_), y(y_) { }
-    WorldCoords(): px(-1), py(-1) { }
+    WorldCoords(int px_, int py_, double x_, double y_) : px(px_), py(py_), x(x_), y(y_) { }
+    WorldCoords() : px(-1), py(-1) { }
 
     bool unknown() const { return px == -1 && py == -1; }
 
@@ -422,7 +422,7 @@ public:
     bool item_shadow() const { return visibility < 255; }
     int team() const { return team_nr; }
     int color() const { return personal_color; }
-    virtual bool under_deathbringer_effect(double curr_time) const =0;
+    virtual bool under_deathbringer_effect(double curr_time) const = 0;
 };
 
 bool compare_players(const PlayerBase* a, const PlayerBase* b);
@@ -701,7 +701,7 @@ public:
     int x;  //position
     int y;
 
-    Powerup(): kind(pup_unused) { }
+    Powerup() : kind(pup_unused) { }
 };
 
 class DeathbringerExplosion {
@@ -769,19 +769,19 @@ public:
     };
 
     virtual ~PhysicsCallbacksBase() { }
-    virtual bool collideToRockets() const =0; // should player to rocket collisions be checked at all
-    virtual bool collidesToRockets(int pid) const =0; // should player to rocket collisions be checked for player pid (if collideToRockets())
-    virtual bool collidesToPlayers(int pid) const =0; // should player to player collisions be checked for player pid (with other players who collideToPlayers)
-    virtual bool gatherMovementDistance() const =0; // should addMovementDistance be called with player movements
-    virtual bool allowRoomChange() const =0;
-    virtual void addMovementDistance(int pid, double dist) =0; // player pid has moved the distance dist
-    virtual void playerScreenChange(int pid) =0; // player pid has moved to a new room (called max. once per frame per player)
-    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) =0; // caller doesn't remove the rocket
-    virtual bool rocketHitPlayer(int rid, int pid) =0; // returns true if player dies (to be removed from further simulation)
-    virtual void playerHitWall(int pid) =0;
-    virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) =0;
-    virtual void rocketOutOfBounds(int rid) =0; // caller doesn't remove the rocket
-    virtual bool shouldApplyPhysicsToPlayer(int pid) =0; // returns true if physics should be run to player pid
+    virtual bool collideToRockets() const = 0; // should player to rocket collisions be checked at all
+    virtual bool collidesToRockets(int pid) const = 0; // should player to rocket collisions be checked for player pid (if collideToRockets())
+    virtual bool collidesToPlayers(int pid) const = 0; // should player to player collisions be checked for player pid (with other players who collideToPlayers)
+    virtual bool gatherMovementDistance() const = 0; // should addMovementDistance be called with player movements
+    virtual bool allowRoomChange() const = 0;
+    virtual void addMovementDistance(int pid, double dist) = 0; // player pid has moved the distance dist
+    virtual void playerScreenChange(int pid) = 0; // player pid has moved to a new room (called max. once per frame per player)
+    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) = 0; // caller doesn't remove the rocket
+    virtual bool rocketHitPlayer(int rid, int pid) = 0; // returns true if player dies (to be removed from further simulation)
+    virtual void playerHitWall(int pid) = 0;
+    virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) = 0;
+    virtual void rocketOutOfBounds(int rid) = 0; // caller doesn't remove the rocket
+    virtual bool shouldApplyPhysicsToPlayer(int pid) = 0; // returns true if physics should be run to player pid
 };
 
 class WorldBase {
@@ -808,7 +808,7 @@ private:
     void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const;
 
 protected:
-    WorldBase(): player(MAX_PLAYERS) { }
+    WorldBase() : player(MAX_PLAYERS) { }
 
 public:
     virtual void reset();
@@ -1009,7 +1009,8 @@ public:
     ServerPlayer player[MAX_PLAYERS];
 
     ServerWorld(Server* hostp, ServerNetworking* netp, LogSet logset) :
-                    host(hostp), net(netp), log(logset), frame(0), map_start_time(0) {
+        host(hostp), net(netp), log(logset), frame(0), map_start_time(0)
+    {
         for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
     }

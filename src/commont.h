@@ -132,7 +132,7 @@ public:
     void clearLeft () { data &= ~left; }
     void clearRight() { data &= ~right; }
 
-    void clearRun () { data &= ~run; }
+    void clearRun  () { data &= ~run; }
 
     bool isUpDown   () const { return isUp  () != isDown (); }
     bool isLeftRight() const { return isLeft() != isRight(); }
@@ -159,7 +159,7 @@ private:
 
 class ClientLoginStatus {
 public:
-    ClientLoginStatus(): data(0) { }
+    ClientLoginStatus() : data(0) { }
 
     NLubyte toNetwork() const { return data; }
     void fromNetwork(NLubyte byte) { data = byte; }

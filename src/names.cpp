@@ -32,13 +32,11 @@
 using std::string;
 using std::vector;
 
-int Random(int velho)
-{
-  return rand()%velho;
+static int Random(int velho) {
+  return rand() % velho;
 }
 
-string Vog()
-{
+static string Vog() {
     int prob = Random(100);
     if (prob>=0 && prob<=30)
       return "a";
@@ -61,9 +59,7 @@ string Vog()
         return "";//never happens
 }
 
-
-string ConsProlSemiVog()
-{
+static string ConsProlSemiVog() {
     if (Random(100)<20)
     {
         if (Random(100)<30)
@@ -97,9 +93,7 @@ string ConsProlSemiVog()
     return "";
 }
 
-
-string PreVog()
-{
+static string PreVog() {
     string prevog;
 
     if (Random(101)<87)
@@ -153,8 +147,7 @@ string PreVog()
     return prevog;
 }
 
-string PosSemiVog()
-{
+static string PosSemiVog() {
     if (Random(101)<13)
     {
         int prob = Random(100);
@@ -171,8 +164,7 @@ string PosSemiVog()
     return "";
 }
 
-string PosConsProl()
-{
+static string PosConsProl() {
     if (Random(100)<18)
     {
         int prob = Random(169);
@@ -221,8 +213,7 @@ string PosConsProl()
     return "";
 }
 
-string Silaba()
-{
+static string Silaba() {
     string retorno;
 
     retorno = PreVog() + Vog() + PosSemiVog() + PosConsProl();
@@ -230,9 +221,7 @@ string Silaba()
     return retorno;
 }
 
-
-string Palavra()
-{
+static string Palavra() {
     int nsil;
 
     string palavra;
@@ -259,8 +248,7 @@ string Palavra()
     return palavra;
 }
 
-string RandomName(int npal)
-{
+string RandomName(int npal) {
   int prob;
 
     if (npal<1)
@@ -281,17 +269,17 @@ string RandomName(int npal)
     return trim(nome.substr(0, maxPlayerNameLength));
 }
 
-string::value_type str_rand(const string& str) {
+static string::value_type str_rand(const string& str) {
     if (str.empty())
         return 0;
     return str[rand() % str.length()];
 }
 
-string::value_type consonant() {
+static string::value_type consonant() {
     return str_rand("hjklmnprstv");
 }
 
-string::value_type start_consonant(string::value_type last_cons) {
+static string::value_type start_consonant(string::value_type last_cons) {
     switch (last_cons) {
     /*break;*/ case 'h': return str_rand("jklmnrtv");   // kahjo, rahka, kahle, kuhmu, vehnä, tahra, tahto, kahva
         break; case 'k': return str_rand("krs");        // takki, vuokra, suksi
@@ -306,7 +294,7 @@ string::value_type start_consonant(string::value_type last_cons) {
     return consonant();
 }
 
-string::value_type end_consonant(string::value_type last_cons) {
+static string::value_type end_consonant(string::value_type last_cons) {
     switch (last_cons) {
     /*break;*/ case 'l': return str_rand("kpst");       // kelkka, tolppa, valssi, valtti
         break; case 'm': return str_rand("p");          // kamppi
@@ -318,7 +306,7 @@ string::value_type end_consonant(string::value_type last_cons) {
 
 enum Vow_type { any, back, front };
 
-string::value_type vowel(Vow_type type) {
+static string::value_type vowel(Vow_type type) {
     if (type == back)
         return str_rand("aaeiiou");
     else if (type == front)
@@ -327,7 +315,7 @@ string::value_type vowel(Vow_type type) {
         return str_rand("aaaeiiioouuyäö");
 }
 
-string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
+static string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
     string::value_type vow;
     do {
         vow = vowel(type);
@@ -335,7 +323,7 @@ string::value_type start_vowel(string::value_type last_vowel, Vow_type type) {
     return vow;
 }
 
-string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
+static string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
     if (type == any)
         switch (last_vowel) {
         /*break;*/ case 'a': return str_rand("aaiu");
@@ -368,7 +356,7 @@ string::value_type cont_vowel(string::value_type last_vowel, Vow_type type) {
 
 enum Type { a, aa, aat, at, att, ta, taa, taat, tat, tatt, total_types };
 
-string make_name() {
+static string make_name() {
     Type type;
     for (int i = 0; i < 5; ++i) {        // Better chances for a type beginning with 't'.
         type = static_cast<Type>(rand() % total_types);

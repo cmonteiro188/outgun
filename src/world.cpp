@@ -81,8 +81,8 @@ bool compare_players(const PlayerBase* a, const PlayerBase* b) {
  */
 bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx1, double ry1,  double rx2, double ry2,
                 double rectx1, double recty1, double rectx2, double recty2) {
-    nAssert(ly1<=ly2 && ry1<=ry2);
-    double miny = max(max(ly1, ry1), recty1), maxy=min(min(ly2, ry2), recty2);
+    nAssert(ly1 <= ly2 && ry1 <= ry2);
+    double miny = max(max(ly1, ry1), recty1), maxy = min(min(ly2, ry2), recty2);
     if (maxy < miny)
         return false;
     // first narrow the range by lx(y) <= rectx2
@@ -143,7 +143,8 @@ bool RectWall::intersects_circ(double x, double y, double r) const {
 }
 
 TriWall::TriWall(double x1, double y1, double x2, double y2, double x3, double y3, int tex_, int alpha_)
-        : WallBase(tex_, alpha_), p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3) {
+        : WallBase(tex_, alpha_), p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3)
+{
     if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }  // 1, 2 sorted
     if (p3y < p2y) {
         swap(p2x, p3x); swap(p2y, p3y); // 1, 3 and 2, 3 sorted
@@ -3487,7 +3488,7 @@ void ServerWorld::team_gets_carrying_point(int team, bool forTournament) {
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                        ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) {
+                              ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) {
     if (source.skipped) {
         skipped = true;
         return;
@@ -3747,7 +3748,7 @@ double Team::accuracy() const {
 
 // Flag
 
-Flag::Flag(const WorldCoords& pos_):
+Flag::Flag(const WorldCoords& pos_) :
     status(status_at_base),
     carrier_id(-1),
     return_t(-1e10),
@@ -3792,7 +3793,7 @@ void Flag::add_carrying_time(int team) {
 
 // Statistics
 
-Statistics::Statistics():
+Statistics::Statistics() :
     total_frags(0),
     total_kills(0),
     total_deaths(0),

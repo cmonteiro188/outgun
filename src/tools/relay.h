@@ -33,7 +33,7 @@
 
 class Peer {
 public:
-    Peer(const NLaddress& addr, const NLsocket& sock): address(addr), socket(sock) { }
+    Peer(const NLaddress& addr, const NLsocket& sock) : address(addr), socket(sock) { }
     Peer(const Peer& peer);
 
     Peer& operator=(const Peer& peer);
@@ -45,7 +45,7 @@ public:
 
 class Spectator {
 public:
-    Spectator(const NLaddress& addr, const NLsocket& sock):
+    Spectator(const NLaddress& addr, const NLsocket& sock) :
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -64,7 +64,7 @@ public:
 
 class Frame {
 public:
-    Frame(int l, const std::string& d, double t): len(l), data_(d), time_(t) { }
+    Frame(int l, const std::string& d, double t) : len(l), data_(d), time_(t) { }
 
     void add(const std::string& d, double t) { data_.append(d); time_ = t; }
 
@@ -83,7 +83,7 @@ private:
 
 class Game {
 public:
-    Game(): finished_(false) { }
+    Game() : finished_(false) { }
 
     void add(const Frame& f) { frames.push_back(f); }
     void finish() { finished_ = true; }

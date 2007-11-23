@@ -759,7 +759,7 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {
     }
 }
 
-Menu_replays::Menu_replays():
+Menu_replays::Menu_replays() :
     caption (_("Date - Server - Map")),
 
     menu    (_("Replays"), false)

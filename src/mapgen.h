@@ -8,7 +8,7 @@ class MapGenerator {
 
     class SimpleRoom {
     public:
-        SimpleRoom(bool walls = false): top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), mirror(false) { }
+        SimpleRoom(bool walls = false) : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), mirror(false) { }
 
         bool top, bottom, left, right;  // walls
         bool visited;
@@ -19,7 +19,7 @@ class MapGenerator {
 
     class Node {
     public:
-        Node(): cost(INT_MAX), score(INT_MAX) { }
+        Node() : cost(INT_MAX), score(INT_MAX) { }
         int cost, score;
     };
 

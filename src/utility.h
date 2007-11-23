@@ -237,7 +237,7 @@ protected:
     virtual ~LineReceiver() { }
 
 public:
-    virtual LineReceiver& operator()(const std::string& str) =0;
+    virtual LineReceiver& operator()(const std::string& str) = 0;
 };
 
 class Log;

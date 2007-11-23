@@ -105,7 +105,7 @@ Peer& Peer::operator=(const Peer& peer) {
     return *this;
 }
 
-Relay::Relay(unsigned short port, unsigned spectators):
+Relay::Relay(unsigned short port, unsigned spectators) :
     listen_port(port),
     server_socket(NL_INVALID),
     bandwidth_limit(20000),
