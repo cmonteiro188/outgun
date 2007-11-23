@@ -43,7 +43,7 @@ public:
 
     typedef void helloCallbackT         (void* customp, int client_id, char* data, int length, ServerHelloResult* res);
     typedef void connectedCallbackT     (void* customp, int client_id);
-    typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is an user one
+    typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is a user one
     typedef void dataCallbackT          (void* customp, int client_id, char* data, int length);
     typedef void lagStatusCallbackT     (void* customp, int client_id, int status);
     typedef void pingResultCallbackT    (void* customp, int client_id, int pingtime);
@@ -78,7 +78,7 @@ public:
 
     enum Disconnect_reason { disconnect_client_initiated, disconnect_server_shutdown, disconnect_timeout, disconnect_first_user_defined };
     //disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-    virtual int disconnect_client(int client_id, int timeout, NLubyte reason) = 0;
+    virtual int disconnect_client(int client_id, int timeout, NLubyte reason, bool fromUserThread = true) = 0;
 
     //broadcast the given game frame (along with lotsa other stuff like enqueued reliable messages and acks)
     //to all connected clients. this must be called by a "sender" thread in a fairly regular interval of time,

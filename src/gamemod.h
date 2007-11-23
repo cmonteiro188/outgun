@@ -176,6 +176,7 @@ public:
     GS_CheckForwardStr(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, const std::string&>& check_,
                        HookFunctionBase1<bool, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_)
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
+    ~GS_CheckForwardStr() { }
     bool set(LogSet& log, const std::string& value) {
         if (!checkValue(value))
             return basicErrorMessage(log, value, expect);
@@ -195,6 +196,7 @@ public:
     GS_CheckForwardInt(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, int>& check_,
                        HookFunctionBase1<bool, int>& setFn_, HookFunctionBase0<int>& getFn_)
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
+    ~GS_CheckForwardInt() { }
     bool set(LogSet& log, const std::string& value);
     std::string get();
 

@@ -35,4 +35,12 @@ template<class T1, class T2> const T2& map_get(const std::map<T1, T2>& m, const 
     return i->second;
 }
 
+template<class T1, class T2> const T2& map_get_assert(const std::map<T1, T2>& m, const T1& key) throw () {
+    try {
+        return map_get(m, key);
+    } catch (NotInMap) {
+        nAssert(0);
+    }
+}
+
 #endif

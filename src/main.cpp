@@ -60,7 +60,7 @@ using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
 
-bool set_shitty_mode(LogSet log) {
+static bool set_shitty_mode(LogSet log) {
     int DTC = desktop_color_depth();
 
     if (DTC == 0)   // no windowing supported
@@ -109,7 +109,7 @@ bool set_shitty_mode(LogSet log) {
 #endif
 
 // Make directory if it does not already exist.
-bool check_dir(const string& dir, LogSet& log) {
+static bool check_dir(const string& dir, LogSet& log) {
     const string directory = wheregamedir + dir;
 
     if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
@@ -120,7 +120,7 @@ bool check_dir(const string& dir, LogSet& log) {
 
 #ifndef DEDICATED_SERVER_ONLY
 
-void GlobalCloseButtonHook__closeCallback();
+static void GlobalCloseButtonHook__closeCallback();
 
 class GlobalCloseButtonHook {
     friend void GlobalCloseButtonHook__closeCallback();
@@ -133,17 +133,17 @@ public:
     }
 };
 
-void GlobalCloseButtonHook__closeCallback() {
+static void GlobalCloseButtonHook__closeCallback() {
     g_exitFlag = true;
 } END_OF_FUNCTION(GlobalCloseButtonHook__closeCallback)
 
-void statusOutputWindow(const string& str) {
+static void statusOutputWindow(const string& str) {
     set_window_title(str.c_str());
 }
 
 #endif // !DEDICATED_SERVER_ONLY
 
-void statusOutputText(const string& str) {
+static void statusOutputText(const string& str) {
     #ifndef ALLEGRO_WINDOWS
     std::cout << (utf8_mode ? latin1_to_utf8(str) : str) << '\n';
     #else
@@ -151,9 +151,9 @@ void statusOutputText(const string& str) {
     #endif
 }
 
-void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
+static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryErrorLog);
 
-int wrappedMain(int argc, const char* argv[]);
+static int wrappedMain(int argc, const char* argv[]);
 
 int main(int argc, const char* argv[]) {
     uint32_t stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
@@ -562,14 +562,16 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
 
     // run dedicated server
     if (serverCfg.dedserver) {
-        if (textserver)
-            serverCfg.statusOutput = statusOutputText;
-        #ifndef DEDICATED_SERVER_ONLY
+        #ifdef DEDICATED_SERVER_ONLY
+        serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
+        #else
+        bool withGraphics = false;
+        if (textserver || !set_shitty_mode(log)) // if 320×240 mode can't be set, use textserver
+            serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
         else {
-            if (!set_shitty_mode(log))  // if 320×240 mode can't be set, use textserver
-                serverCfg.statusOutput = statusOutputText;
-            else
-                serverCfg.statusOutput = statusOutputWindow;
+            serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+            serverCfg.ownScreen = true;
+            withGraphics = true;
         }
 
         if (set_display_switch_mode(SWITCH_BACKAMNESIA) == -1) {
@@ -581,10 +583,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
         else
             log("Switch_backamnesia set ok.");
 
-        if (serverCfg.statusOutput == statusOutputWindow) {
+        if (withGraphics)
             GlobalDisplaySwitchHook::install();
-            serverCfg.ownScreen = true;
-        }
         #endif
 
         if (memoryErrorLog.size() != acceptedErrorCount)  // no point in continuing if there were errors
@@ -621,8 +621,8 @@ void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memoryError
             return;
 
         // run client
-        clientCfg.statusOutput = statusOutputWindow;
-        serverCfg.statusOutput = statusOutputWindow;
+        clientCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+        serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
         log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
         ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);

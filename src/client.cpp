@@ -118,6 +118,7 @@ class TM_Text : public ThreadMessage {
 
 public:
     TM_Text(Message_type type_, const string& text_, int team_ = -1) : type(type_), text(text_), team(team_) { }
+    ~TM_Text() { }
     void execute(Client* cl) const {
         #ifndef DEDICATED_SERVER_ONLY
         cl->print_message(type, text, team);
@@ -147,6 +148,7 @@ class TM_MapChange : public ThreadMessage {
 
 public:
     TM_MapChange(const string& name_, NLushort crc_) : name(name_), crc(crc_) { }
+    ~TM_MapChange() { }
     void execute(Client* cl) const { cl->server_map_command(name, crc); }
 };
 
@@ -578,7 +580,7 @@ void Client::ConstDisappearedFlagIterator::findValid() {
     }
 }
 
-Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_):
+Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -2671,6 +2673,7 @@ bool Client::process_message(const char* const lebuf, int msglen) {
         ls.fromNetwork(regStatus);
         const ClientLoginStatus& os = fx.player[me].reg_status;
         const bool newMePrintout =
+            !replaying &&
             pid == me &&
             (ls.token() != os.token() ||
              (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
@@ -5686,6 +5689,7 @@ void Client::initMenus() {
     menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
     menu.options.theme.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
 
     menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));

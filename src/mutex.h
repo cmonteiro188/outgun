@@ -97,8 +97,8 @@ class AssertMutex : private NoCopying, public Lockable {
 
 public:
     AssertMutex() : mutex(Mutex::NoLogging), locked(false) { }
-    void lock() { Lock ml(mutex); numAssert(!locked, *reinterpret_cast<const int*>(&owner)); locked = true; owner = pthread_self(); }
-    void unlock() { Lock ml(mutex); nAssert(locked && owner == pthread_self()); locked = false; }
+    void lock();
+    void unlock();
 };
 
 #else
@@ -179,6 +179,7 @@ template<class ObjT> class Threadsafe : private NoCopying, public ConstLockable 
 public:
     Threadsafe(const char* identifier) : mutex(identifier) { }
     Threadsafe(const ObjT& o) : obj(o) { }
+    ~Threadsafe() { }
 
     Threadsafe& operator=(const ObjT& o) { mutex.lock(); obj = o; mutex.unlock(); return *this; }
     ObjT read() const { mutex.lock(); ObjT o = obj; mutex.unlock(); return o; }  // Get a *copy* of the object

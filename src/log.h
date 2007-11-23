@@ -38,7 +38,7 @@ class Log : public NoCopying, protected ConstLockable { // base class
     mutable Mutex m;
     int nLines;
 
-    virtual void add(const std::string& str) =0;
+    virtual void add(const std::string& str) = 0;
 
 protected:
     // note: operator()() and put() lock the mutex automatically, so it is already locked on an add() call
@@ -121,6 +121,7 @@ protected:
 
 public:
     SupplementaryLog(Log& hostLog, const std::string& outputPrefix) : host(hostLog), prefix(outputPrefix) { }
+    ~SupplementaryLog() { }
     template<class A1> SupplementaryLog(Log& hostLog, const std::string& outputPrefix, A1 a1) : Base(a1), host(hostLog), prefix(outputPrefix) { }
     template<class A1, class A2> SupplementaryLog(Log& hostLog, const std::string& outputPrefix, A1 a1, A2 a2) : Base(a1, a2), host(hostLog), prefix(outputPrefix) { }
 };

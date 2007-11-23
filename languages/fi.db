@@ -55,6 +55,7 @@ $1 was choked.##$1 tukehtui.
 $1 was nailed by $2.##$1 kuoli, tappaja $2.
 $1 was nailed by teammate $2.##$1 kuoli, tappaja joukkuetoveri $2.
 $1 was nailed.##$1 kuoli.
+$1%##$1 %
 $1% of rooms##$1 % huoneista
 $1's killing spree was ended by $2.##$1 - tappoputken päätti $2.
 $1's killing spree was ended.##$1 - tappoputki päättyi.
@@ -91,38 +92,48 @@ $1/$2p $3k/s v$4 port:$5##$1/$2p $3k/s v$4 portti:$5
 -mappic can't be combined with other command line options.##-mappic - tätä parametria ei voi käyttää muiden parametrien kanssa.
 -maxp X: X must be an even number in the range of 2 to $1.##-maxp X: X:n täytyy olla parillinen luku väliltä 2 - $1.
 -maxp must be followed by a space and a player count.##-maxp - perässä täytyy olla välilyönti ja pelaajien lukumäärä.
+-play must be followed by an IP address and optionally port.##-play - perässä täytyy olla IP-osoite ja valinnaisesti portti.
 -port X: X must be in the range of 1 to 65535.##-port X: X:n täytyy olla 1 - 65535.
 -port must be followed by a space and a port number.##-port - perässä täytyy olla välilyönti ja portin numero.
+-replay must be followed by a filename.##-replay - perässä täytyy olla tiedostonimi.
+-spectate must be followed by an IP address and port.##-spectate - perässä täytyy olla IP-osoite ja portti.
 -sport X:Y: X and Y must be in the range of 1 to 65535.##-sport X:Y: X:n ja Y:n täytyy olla 1 - 65535.
 -sport X:Y: Y must be greater than X.##-sport X:Y: Y:n täytyy olla suurempi kuin X.
 -sport must be followed by a space and minport:maxport.##-sport - perässä täytyy olla välilyönti ja minimiportti:maksimiportti.
 0 or 1##0 tai 1
 1 password removed.##Poistin 1 salasanan.
+<Random>##<Satunnainen>
 <no background>##<ei taustakuvaa>
 <no theme>##<ei teemaa>
 <no themes found>##<teemoja ei ole>
 Active controls##Aktiviiset ohjaimet
+Active joystick buttons##Aktiiviset joystick-napit
+Active mouse buttons##Aktiiviset hiirennapit
 Add server##Lisää palvelin
 Add to favorite list##Lisää suosikkilistaan
 Add to public serverlist##Lisää julkiseen palvelinlistaan
 Admin shell: Can't accept connection.##Ylläpitoyhteys: Yhteyden vastaanotto epäonnistui.
 Admin shell: Can't open socket on port $1.##Ylläpitoyhteys: Portti $1 ei aukea.
-Admin shell: Can't set socket to listen mode.##Ylläpitoyhteys: Soketin asetus listen-tilaan epäonnistui.
+Admin shell: Can't set socket to listen mode.##Ylläpitoyhteys: Soketin asetus kuuntelutilaan epäonnistui.
 Admin shell: read failed. Reason: $1##Ylläpitoyhteys: luku epäonnistui. Syy: $1
 Admin shell: sending response failed. Reason: $1##Ylläpitoyhteys: vastauksen lähetys epäonnistui. Syy: $1
 Admin shell: unprintable characters, message ignored.##Ylläpitoyhteys: virheellisiä merkkejä, viesti ohitettu.
+Allow parts of map to repeat on screen##Salli kentän osien toistua näytölla
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alfakuvien täytyy olla 8-bittisiä harmaasävykuvia; $1 on $2-bittinen.
 Alternative page flipping method##Vaihtoehtoinen page flipping -tapa
 Antialiasing##Reunanpehmennys
 Apply changes##Vaihda tähän tilaan
 Arrow keys in statistics##Nuolinäppäimet tilastoruuduissa
+Author##Tekijä
 Autodetect IP##Automaattinen osoite
 Automatic bug reporting##Automaattinen bugiraportointi
 BLUE TEAM WINS##SININEN JOUKKUE VOITTI
 Background theme##Taustakuva teemasta
 Balance teams##Joukkueiden tasoitus
+Bandwidth for out-of-room players (cps)##Kaista pelaajille eri huoneessa (t/s)
 Belgium##Belgia
 Blue Team##Sininen
+Box visible area on map in game##Reunusta näkyvä alue kartalla
 Brazil##Brasilia
 Bug report policy##Bugiraportointi
 CAPTURE $1 FLAGS TO WIN THE GAME.##PELIN VOITTAA RYÖSTÄMÄLLÄ $1 LIPPUA.
@@ -153,21 +164,29 @@ Cancel##Peru
 Capture limit##Ryöstöraja
 Captures##Ryöstöt
 Change language##Vaihda kieltä
+Class command without class name in auth.txt.##Luokkakomento ilman luokan nimeä auth.txt:ssä.
 Color depth##Värisyvyys
 Command##Komento
 Connected to $1 ($2)##Yhteydessä - $1 ($2)
 Connection refused.##Palvelin hylkäsi.
 Connection timed out.##Aikakatkaisu.
+Connection to the server closed.##Yhteys palvelimeen katkesi.
+Connection to the server closed: $1##Yhteys palvelimeen katkesi: $1
 Contacting the servers...##Kyselen palvelimilta...
 Continuous textures between rooms##Tekstuurien jatkuvuus huoneesta toiseen
 Controls##Ohjaimet
+Could not open replay file $1.##Uusinta "$1" ei aukea.
 Could not save map pictures to the directory 'mappic'.##Karttakuvat eivät tallentuneet hakemistoon "mappic".
 Could not save screenshot to $1.##Virhe kuvankaappauksen tallennuksessa tiedostoon $1.
+Could not send init data to the relay: $1##Yhteys välipalvelimelle epäonnistui: $1
+Could not set address to spectate socket.##Osoitteen asetus katselusoketille epäonnistui.
+Could not start spectating.##Katselun aloitus epäonnistui.
 Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.##Näyttötila $1×$2×$3 ei alustu tilassa "$4"; käytössä $5.
 Couldn't initialize resolution $1×$2×$3 in any mode.##Näyttötila $1×$2×$3 ei alustu.
 Critical error##Vakava virhe
 Current refresh rate##Virkistystaajuus
 Czech Republic##Tshekki
+Date - Server - Map##Päivämäärä - Palvelin - Kartta
 Deaths##Kuolemat
 Denmark##Tanska
 Disappeared players on minimap##Kadonneiden pelaajien näyttö kartalla
@@ -177,7 +196,6 @@ Downloading map "$1" (CRC $2)...##Lataan karttaa "$1" (CRC $2)...
 Drop power-ups##Herkkujen pudotus
 Dvorak##Dvorak
 ERRORS:$1##VIRHEET:$1
-ESC:quit##ESC:sulje
 EXIT##VAIHDA
 Enable joystick control##Käytä peliohjainta
 Energy##Energia
@@ -186,18 +204,23 @@ Error sending##Virhe lähetyksessä
 Error writing to '$1'.##Virhe tiedostoon $1 kirjoittamisessa.
 Error: server rejected##Virhe: palvelin ei hyväksynyt
 Errors##Virheet
+Esc:quit##Esc:sulje
 Exit Outgun##Sulje Outgun
 Extra-time##Jatkoaika
 FPS limit##FPS-rajoitus
 FPS:$1##FPS:$1
 Failed##Epäonnistui
 Favorite colors##Suosikkivärit
+Favorites##Suosikit
 File download: Can't open '$1' for writing.##Tiedoston lataus: Tiedosto "$1" ei aukea kirjoittamista varten.
 Finland##Suomi
+Flag return delay##Lipunpalautusviive
 Flags dropped##Pudotetut liput
 Flags returned##Palautetut liput
 Flags taken##Otetut liput
 Font##Fontti
+Format error in data received from the server.##Palvelimelta tuli virheellistä dataa.
+Format error in replay file.##Virhe uusintatiedostossa.
 France##Ranska
 Friendly fire##Omiin osuminen
 GAME TIED##TASAPELI
@@ -211,6 +234,7 @@ Graphic options##Grafiikka
 Health##Terveys
 Help##Ohjeita
 Highlight returned and dropped flags##Korosta palautetut ja pudotetut liput
+Highlight self after spawn##Korosta syntyminen
 Hit accuracy##Osumatarkkuus
 IP address##IP-osoite
 IP address            Ping D Players Vers. Host name##IP-osoite            Pingi D Pelaajat Vers. Palvelimen nimi
@@ -224,6 +248,7 @@ Insert = add to favorites    Delete = remove server##Insert = lisää suosikkeihin
 Internal error##Sisäinen virhe
 Internal error (client misbehaved).##Sisäinen virhe (asiakasohjelman virheellinen toiminta).
 Invalid IP address.##Virheellinen IP-osoite.
+Invalid authorization class entry in auth.txt: "$1"##Virheellinen oikeusluokkamäärittely auth.txt:ssä: "$1"
 Invalid ban command (IP address) in auth.txt: "$1"##Virheellinen ban-komento (IP-osoite) tiedostossa auth.txt: "$1"
 Invalid line (no name) in auth.txt: "$1"##Virheellinen rivi (ei nimeä) tiedostossa auth.txt: "$1"
 Invalid map line: $1##Virheellinen karttarivi: $1
@@ -236,6 +261,7 @@ Joystick axes##Ohjaimen akselit
 Joystick buttons##Ohjaimen napit
 Joystick buttons (0 = disabled)##Ohjaimen napit (0 = ei käytössä)
 Keyboard layout##Näppäimistön asettelu
+Keyboard turning speed##Kääntymisnopeus näppäimistöllä
 Kills##Tapot
 Label '$1' not found: $2##Nimeä "$1" ei löydy: $2
 Label line not allowed in label block: $1##Nimiriviä ei saa olla nimilohkossa: $1
@@ -243,6 +269,7 @@ Lag prediction##Viive-ennustus
 Lag prediction amount##Viive-ennustuksen määrä
 Language##Kieli
 Less transparency effects##Vähemmän läpinäkyvyystehosteita
+Let view follow over map border##Vieritys kentän reunan yli
 Loading map: $1 bytes##Lataan karttaa: $1 tavua
 Local server##Oma palvelin
 Local server (running)##Oma palvelin (käynnissä)
@@ -251,11 +278,15 @@ Logged in; sent to server##Kirjautunut; lähetetty palvelimelle
 Logged in; server accepted##Kirjautunut; palvelimen hyväksymä
 Login failed: check password##Kirjautuminen epäonnistui: tarkista salasana
 MAP##KARTTAA
+Make flags extra-visible##Korosta lippujen näkyvyyttä
 Manually enter IP##Syötä IP-osoite
 Map info mode##Ylimääräisten karttatietojen näyttö
 Map is missing a width, height or title.##Kartasta puuttuu leveys, korkeus tai nimi.
+Map number##Kartan numero
 Map picture saver: Can't save map picture to '$1'.##Karttakuvien tallennin: Karttakuva ei tallennu tiedostoon "$1".
 Map picture saver: Map '$1' is not a valid map file.##Karttakuvien tallennin: Tiedosto "$1" ei ole kelvollinen karttatiedosto.
+Markers for nearby players and flags in game##Lähistön pelaajien ja lippujen merkit pelissä
+Markers for nearby players and flags in replay##Lähistön pelaajien ja lippujen merkit uusinnassa
 Master server unavailable##Pääpalvelin tavoittamattomissa
 Master talker: (Quit) Can't connect to master server.##Pääpalvelinyhteys: (Sulkeutumassa) Pääpalvelimelle ei ole yhteyttä.
 Master talker: (Quit) Can't open socket to connect to master server.##Pääpalvelinyhteys: (Sulkeutumassa) Soketti ei aukea pääpalvelimelle yhdistämistä varten.
@@ -269,10 +300,10 @@ Maximum powerups##Herkkuja enintään
 Maximum weapon level##Aserajoitus
 May be heavy packet loss,##Syy on huono yhteys tai
 Minimum powerups##Herkkuja vähintään
+Mouse control (buttons: 0 = disabled)##Hiiriohjaus (napit: 0 = ei käytössä)
 Movement##Liike
 Moving stick##Liikuttava sauva
 Name##Nimi
-Name and passwords##Nimi ja salasanat
 New version: $1##Uusi versio: $1
 No IP network.##Ei IP-verkkoa.
 No help found. It should be in $1##Ohjetta ei löydy. Sen pitäisi olla tiedostossa $1
@@ -293,6 +324,7 @@ Passwordless admins need to authenticate by logging in to the tournament.##Salas
 Ping     Capt Kills      Deaths Suicides##Pingi  Ryöstöt Tapot   Kuolemat Itsemurhat
 Play on the server##Pelaa palvelimella
 Player collisions##Pelaajien törmäykset
+Player options##Pelaaja
 Player password for $1##Pelaajan $1 salasana
 Playtime lifetime    rank  power  score##Peliaika elinaika    sija vahvuus pisteet
 Please close and restart Outgun to complete the change of language.##Sulje Outgun ja käynnistä se uudelleen, niin kielivalinta tulee voimaan.
@@ -305,6 +337,7 @@ Powerup max time##Herkkujen maksimiaika
 Powerup time##Herkkujen aika
 Powerups##Herkkuja
 Prefer main theme background##Käytä ensisijaisesti pääteeman taustakuvaa
+Preferrably aim with##Tähtäys ensisijaisesti
 Protocol mismatch. Server: $1, client: $2.##Protokolla ei täsmää. Palvelin: $1, asiakas: $2.
 RED TEAM WINS##PUNAINEN JOUKKUE VOITTI
 Red Team##Punainen
@@ -316,7 +349,13 @@ Refresh servers##Päivitä palvelimet
 Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
+Replay $1 can't be read.##Uusintaa $1 ei voi lukea.
+Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
+Replay on $1##Uusinta - $1
+Replays##Uusinnat
 Room line not allowed in label block: $1##Huoneriviä ei saa olla nimilohkossa: $1
+Rooms on screen in each direction in game##Näkyviä huoneita/suunta pelissä
+Rooms on screen in each direction in replay##Näkyviä huoneita/suunta uusinnassa
 Run   ##Juokseminen 
 Running##Päivitän
 Russia##Venäjä
@@ -331,8 +370,10 @@ Say##Sano
 Say team##Sano joukkueelle
 Screen mode##Näyttötila
 Screen size##Ruudun koko
+Scrolling##Vieritys
 See the 'log' directory for more information.##Lisätietoja saattaa löytyä lokitiedostoista (hakemisto "log").
 Sending login...##Lähetän tiedot...
+Sensitivity##Herkkyys
 Server list##Palvelinlista
 Server map list##Palvelimen karttalista
 Server not responding##Palvelin ei vastaa
@@ -342,9 +383,10 @@ Server was shut down.##Palvelin sammutettiin.
 Shadow##Varjo
 Shoot ##Ampuminen   
 Shots##Laukaukset
-Shots   | Taken  Movement     Speed##Lauk.   | Saadut   Matka      Nopeus
+Shots   |  Taken  Movement     Speed##Lauk.   | Saadut   Matka      Nopeus
 Shots taken##Saadut osumat
 Show favorite servers##Näytä suosikkipalvelimet
+Show flag disappearance positions##Näytä lipun katoamispaikka
 Show flag messages##Näytä lippuviestit
 Show killing messages##Näytä tappoviestit
 Show player names##Näytä pelaajien nimet
@@ -358,11 +400,14 @@ Shutdown: master talker thread##Sammutus: pääpalvelinsäie
 Shutdown: net server##Sammutus: verkkopalvelin
 Shutdown: waiting for $1 tournament updates##Sammutus: odotan $1 turnauspäivitystä
 Shutdown: website thread##Sammutus: WWW-säie
+Size##Koko
 Slovakia##Slovakia
 Socket error##Socket-virhe
+Sort order (space to cycle): $1##Järjestys (välilyönti vaihtaa): $1
 Sound options##Äänet
 Sounds enabled##Äänet päällä
 Spain##Espanja
+Spectating on $1##Katselu - $1
 Start server##Käynnistä palvelin
 Stats screen alpha##Tilastoruudun läpinäkymättömyys
 Status##Tila
@@ -378,7 +423,7 @@ TEAMS##JOUKKUETTA
 TIME LIMIT IS $1 MINUTES.##AIKARAJA ON $1 MINUUTTIA.
 Take part in the tournament##Osallistu turnaukseen
 Team $1, flag $2 on the wall.##Joukkue $1, lippu $2 seinän päällä.
-Team $1, respawn area $2 does not have enough free space.##Joukkue $1, uudelleensyntymisalueessa $2 liian vähän vapaata tilaa.
+Team $1, respawn area $2 does not have enough free space.##Joukkue $1, uudelleensyntymisalueella $2 ei ole tarpeeksi tilaa.
 Team $1, spawn point $2 on the wall.##Joukkue $1, aloituspaikka $2 seinän päällä.
 Team power##Vahvuus
 Team stats##Joukkuetilastot
@@ -388,11 +433,14 @@ The given priority $1 isn't within system limits. Run with -info for more inform
 The server is full.##Palvelin on täynnä.
 Theme##Teema
 This file is automatically rewritten whenever the ban list changes.##Outgun luo tämän tiedoston aina, kun bannilista muuttuu.
+This is a newer replay version ($1).##Tämä uusinta on uudempaa versiota ($1).
+This is not an Outgun replay.##Tämä ei ole Outgun-uusinta.
 This map is $1 ($2 of $3).##Tämä kartta on $1 ($2/$3).
 This map is broken. There is an instantly capturable flag. Avoid it.##Tämä kartta on rikki, koska lipun voi ryöstää välittömästi.
 This map is invalid: instant flag capture is possible.##Tämä kartta on viallinen, koska lipun voi ryöstää välittömästi.
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Tämä johtuu Outgunissa olevasta bugista. Auta meitä korjaamaan se: Lähetä assert.log ja stackdump.bin log-hakemistosta ja kerro, mitä olit tekemässä, osoitteeseen outgun@mbnet.fi
 Time limit##Aikaraja
+Title##Nimi
 To reserve a name add a row:##Varataksesi nimen lisää rivi
 Too much talk. Chill...##Liikaa puhetta. Rauhoitu...
 Tournament password##Turnauksen salasana
@@ -414,13 +462,16 @@ Unrecognized map line: $1##Tuntematon karttarivi: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Kelvoton näyttötila tiedostossa gfxmodes.txt: $1×$2×$3 (pitäisi olla vähintään 320×200 ja 16, 24 tai 32 bittiä).
 Update server list##Päivitä palvelinlista
 Updating your tournament score failed!##Turnauspisteidesi päivitys epäonnistui!
+Use arrow keys to edit message input##Käytä nuolinäppäimiä viestien kirjoituksessa
 Use keypad for moving##Käytä numeronäppäimistöä liikkumiseen
 Use page flipping##Page flipping -tila
 VIROU##JÄÄTÄVÄÄ!
 Volume##Voimakkuus
 Vote map number##Äänestä karttaa nro
+Votes##Äänet
 Waiting for response...##Odotan vastausta...
 Waiting game start - next map is##Odotetaan pelin alkua - seuraava kartta on
+Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.##Varoitus: Tällä palvelimella on käytössä laajennoksia, joita käyttävillä pelaajilla on etu sinua vastaan.
 Weapon $1##Ase $1
 Website thread: (Quit) Can't connect to server website.##WWW-säie: (Sulkeutumassa) Palvelinsivulle ei ole yhteyttä.
 Website thread: (Quit) Can't open socket to connect to server website.##WWW-säie: (Sulkeutumassa) Soketti ei aukea palvelinsivulle yhdistämistä varten.
@@ -428,6 +479,7 @@ Website thread: Can't open socket to connect to server website.##WWW-säie: Soket
 Width and height of textures must be powers of 2; floor texture $1 is $2×$3.##Tekstuurin leveyden ja korkeuden pitää olla kahden potensseja; lattiatekstuuri $1 on $2×$3.
 Width and height of textures must be powers of 2; wall texture $1 is $2×$3.##Tekstuurin leveyden ja korkeuden pitää olla kahden potensseja; seinätekstuuri $1 on $2×$3.
 Windowed mode##Ikkunassa
+With mouse aim move relative to##Liikkuminen hiiritähtäyksen kanssa
 Wrong player password.##Väärä pelaajasalasana.
 Wrong server password.##Väärä palvelimen salasana.
 You are banned from this server.##Sinulla on porttikielto tälle palvelimelle.
@@ -445,7 +497,9 @@ a real number, at least $1##reaaliluku, vähintään $1
 a real number, at most $1##reaaliluku, enintään $1
 a real number, between $1 and $2, inclusive##reaaliluku $1 - $2
 administrator##ylläpitäjä
+aim (up = forward)##tähtäyksen mukaan (ylös = eteenpäin)
 all messages##kaikki
+always##aina
 an even integer between 2 and $1##parillinen kokonaisluku 2 - $1
 an integer##kokonaisluku
 an integer between 0 and $1, or 'n %' with n 0 or greater##kokonaisluku 0 - $1, tai "n %", missä n on vähintään 0
@@ -468,18 +522,27 @@ hide early##nopea poisto
 hide late##hidas poisto
 hour##tunti
 hours##tuntia
+if the border has doorways##jos kentän reunalla on aukkoja
 in $1 B/s, out $2 B/s##sisään $1 t/s, ulos $2 t/s
+in same room##samassa huoneessa
 invalid##virheellinen
+keyboard (8-directional)##näppäimistöllä (8 suuntaa)
+keyboard (smooth turning)##näppäimistöllä (sulava kääntyminen)
 left##vasemmalle
+locale##fi_FI
 locally authorized##palvelin tunnisti
 master auth pending##pääpalvelimen tunnistus kesken
 master authorized##pääpalvelin tunnisti
 minimal##minimaalinen
 minute##minuutti
 minutes##minuuttia
+mouse##hiirellä
 move player##liikuttavat pelaajaa
+multi-roomed##monen huoneen näkymässä
+never##ei koskaan
 no response##ei vastausta
 no tournament login##ei kirjautumista
+non-empty string##epätyhjä merkkijono
 none##ei
 not recording##ei tallenna
 off##pois
@@ -492,20 +555,24 @@ players##pelaajat
 private##yksityinen
 recording##tallentaa
 right##oikealle
+room (up = up)##huoneen mukaan (ylös = ylös)
 run##juokseminen
 second##sekunti
 seconds##sekuntia
 shoot##ampuminen
+single-roomed##yhden huoneen näkymässä
 special##erikoinen
 strafe##sivusiirtymä
 taken dropped returned   killed    time##otetut pudot. palaut.   kantajat   aika
 teams##joukkueet
+two positive integers and optionally a real number between 0 and 1, separated by spaces##kaksi positiivista kokonaislukua ja valinnaisesti reaaliluku väliltä 0 - 1 väleillä erotettuina
 unknown##tuntematon
 unknown ($1)##tuntematon ($1)
 up##ylös
 user <name> <tab> <password>  or  admin <name> [<tab> <password>]##user <nimi> <sarkain> <salasana>  tai  admin <nimi> [<sarkain> <salasana>]
 week##viikko
 weeks##viikkoa
+when all rooms aren't shown##kun koko kenttä ei ole näkyvillä
 where <tab> is a tabulator character.##missä <sarkain> on sarkainmerkki (tab).
 will not record##ei tallenna
 will record##tulee tallentamaan

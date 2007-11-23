@@ -269,7 +269,7 @@ public:
         for (i=0;i<MAX_CLIENTS;i++)
         if (client[i].used) //valid
         if ((client[i].connected) && (!client[i].told_disconnect) && (!client[i].server_disconnected)) //still connected
-            disconnect_client(i, disconnect_clients_timeout, disconnect_server_shutdown);
+            disconnect_client(i, disconnect_clients_timeout, disconnect_server_shutdown, true);
 
         // signal threads to stop now
         server_stopped = true;
@@ -325,13 +325,13 @@ public:
     }
 
     //disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-    virtual int disconnect_client(int client_id, int timeout, NLubyte reason) { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
-        log("disconnect_client(%d, %d, %d)", client_id, timeout, reason);
+    virtual int disconnect_client(int client_id, int timeout, NLubyte reason, bool fromUserThread) { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
+        log("disconnect_client(%d, %d, %d, %d)", client_id, timeout, reason, fromUserThread);
 
         //call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
         // DO NOT CALL if client not connected
         if (client[client_id].connected_knows)
-            disconnectedCallback(customp, client_id, true);
+            disconnectedCallback(customp, client_id, fromUserThread);
 
         //disconnect the client - this flags that the client is disconnected by the server but the
         // client at first doesn't know this. will keep sending disconnect packets to client
@@ -820,7 +820,7 @@ public:
                         lagStatusCallback(customp, i, 2);
 
                     //disconnect the client - 3 sec timeout
-                    disconnect_client(i, 3, disconnect_timeout);
+                    disconnect_client(i, 3, disconnect_timeout, false);
                 }
             }
     }

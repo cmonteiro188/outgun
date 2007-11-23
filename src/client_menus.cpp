@@ -505,7 +505,7 @@ Menu_graphics::Menu_graphics() :
     spawnHighlight       (_("Highlight self after spawn"), true),
     neighborMarkersPlay  (_("Markers for nearby players and flags in game")),
     neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
-    boxRoomsWhenPlaying  (_("Box visible rooms on map in game"), false),
+    boxRoomsWhenPlaying  (_("Box visible area on map in game"), false),
     viewOverMapBorder    (_("Let view follow over map border")),
     repeatMap            (_("Allow parts of map to repeat on screen"), false),
     statsBgAlpha         (_("Stats screen alpha"), true, 0, 255, 255, 15),
@@ -759,7 +759,7 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) {
     }
 }
 
-Menu_replays::Menu_replays():
+Menu_replays::Menu_replays() :
     caption (_("Date - Server - Map")),
 
     menu    (_("Replays"), false)

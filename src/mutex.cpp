@@ -194,3 +194,20 @@ void ConditionVariable::logAction(char operation) {
 #error DEBUG_SYNCHRONIZATION not properly set
 
 #endif
+
+#ifdef EXTRA_DEBUG
+
+void AssertMutex::lock() {
+    Lock ml(mutex);
+    nAssert(!locked);
+    locked = true;
+    owner = pthread_self();
+}
+
+void AssertMutex::unlock() {
+    Lock ml(mutex);
+    nAssert(locked && owner == pthread_self());
+    locked = false;
+}
+
+#endif
