@@ -8,7 +8,7 @@ ifdef XAUTHORITY
  endif
 endif
 
-CFLAGS ?= -W -Wall -O3 -ffast-math
+CFLAGS ?= -W -Wall -O3 -ffast-math -fno-enforce-eh-specs
 CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
