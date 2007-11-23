@@ -54,9 +54,9 @@ public:
     typedef HookFunctionBase0<RetT> FunctionT;
 
     HookFunctionHolder0(FunctionT* fn) : hookFn(fn) { }
-    HookFunctionHolder0(const ThisT& o) : hookFn(o.hookFn->clone()) { }
+    HookFunctionHolder0(const ThisT& o) : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder0() { delete hookFn; }
-    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn->clone(); }
+    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()() { return (*hookFn)(); }
 
@@ -114,9 +114,9 @@ public:
     typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
 
     HookFunctionHolder1(FunctionT* fn) : hookFn(fn) { }
-    HookFunctionHolder1(const ThisT& o) : hookFn(o.hookFn->clone()) { }
+    HookFunctionHolder1(const ThisT& o) : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder1() { delete hookFn; }
-    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn->clone(); }
+    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1) { return (*hookFn)(a1); }
 
@@ -174,9 +174,9 @@ public:
     typedef HookFunctionBase2<RetT, Arg1T, Arg2T> FunctionT;
 
     HookFunctionHolder2(FunctionT* fn) : hookFn(fn) { }
-    HookFunctionHolder2(const ThisT& o) : hookFn(o.hookFn->clone()) { }
+    HookFunctionHolder2(const ThisT& o) : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder2() { delete hookFn; }
-    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn->clone(); }
+    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2) { return (*hookFn)(a1, a2); }
 
@@ -234,9 +234,9 @@ public:
     typedef HookFunctionBase3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
 
     HookFunctionHolder3(FunctionT* fn) : hookFn(fn) { }
-    HookFunctionHolder3(const ThisT& o) : hookFn(o.hookFn->clone()) { }
+    HookFunctionHolder3(const ThisT& o) : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder3() { delete hookFn; }
-    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn->clone(); }
+    void operator=(const ThisT& o) { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2, Arg3T a3) { return (*hookFn)(a1, a2, a3); }
 
