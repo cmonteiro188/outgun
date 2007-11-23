@@ -5,7 +5,14 @@
 #include <cstdarg>
 #include <cassert>
 
-#include <conio.h>
+static int mapconv_stricmp(const char* s1, const char* s2) {
+    for (;; ++s1, ++s2) {
+        if (toupper(*s1) != toupper(*s2))
+            return int(toupper(*s1)) - int(toupper(*s2));
+        if (*s1 == '\0')
+            return 0;
+    }
+}
 
 using std::string;
 using std::vector;
@@ -16,7 +23,8 @@ bool compatible = false, verbose = false, pack = false, duplicateRooms = false;
 
 class MapObject {
 public:
-    virtual void write(FILE* dst, int rx, int ry, float xscale, float yscale) const =0;
+    virtual ~MapObject() { }
+    virtual void write(FILE* dst, int rx, int ry, float xscale, float yscale) const = 0;
 };
 
 char* fmtFloat(float value, bool forceFloat = true) {
@@ -174,7 +182,7 @@ const char* Map::load085(FILE* src) {
         if (n != 1)
             return "Missing entry header";
         optPrintf("Entry '%s'\n", buf);
-        if (!stricmp(buf, "MapName")) {
+        if (!mapconv_stricmp(buf, "MapName")) {
             n = fscanf(src, " %99[^;\n]%c", buf, &endch);
             if (n != 2 || endch != ';' || !name.empty())
                 return "Bad MapName entry";
@@ -182,7 +190,7 @@ const char* Map::load085(FILE* src) {
             while (!name.empty() && name[name.length() - 1] == ' ')
                 name.erase(name.length() - 1);
         }
-        else if (!stricmp(buf, "Map")) {
+        else if (!mapconv_stricmp(buf, "Map")) {
             n = fscanf(src, " %d %d", &width, &height);
             if (n != 2 || width <= 0 || height <= 0 || width > 40 || height > 40 || !roomIndices.empty())
                 return "Bad Map entry header";
@@ -194,7 +202,7 @@ const char* Map::load085(FILE* src) {
                     int roomi;
                     n = fscanf(src, " %d", &roomi);
                     --roomi;
-                    if (n != 1 || roomi < 0 || roomi >= roomTemplates.size())
+                    if (n != 1 || roomi < 0 || roomi >= (int)roomTemplates.size())
                         return "Bad Map entry room index";
                     roomIndices[x][y] = roomi;
                 }
@@ -202,7 +210,7 @@ const char* Map::load085(FILE* src) {
             if (n != 1 || endch != ';')
                 return "Bad Map entry (length)";
         }
-        else if (!stricmp(buf, "Objects")) {
+        else if (!mapconv_stricmp(buf, "Objects")) {
             int numObj;
             n = fscanf(src, " %d", &numObj);
             if (n != 1 || lastRoom < 0)
@@ -220,7 +228,7 @@ const char* Map::load085(FILE* src) {
                     return "Bad Objects entry object line";
                 optPrintf("Object '%s'\n", buf);
                 int type;
-                for (type = 0; stricmp(buf, name[type]); ++type)
+                for (type = 0; mapconv_stricmp(buf, name[type]); ++type)
                     if (type == numRecog - 1)
                         return "Unknown Objects entry object type";
                 int nargs = numArgs[type];
@@ -242,18 +250,18 @@ const char* Map::load085(FILE* src) {
             if (n != 1 || endch != ';')
                 return "Bad Objects entry (length)";
         }
-        else if (!stricmp(buf, "Version")) {
+        else if (!mapconv_stricmp(buf, "Version")) {
             n = fscanf(src, " %*[^;]%c", &endch);
             if (n != 1 || endch != ';')
                 return "Bad Version entry";
         }
-        else if (!stricmp(buf, "Rooms")) {
+        else if (!mapconv_stricmp(buf, "Rooms")) {
             int nrooms;
             n = fscanf(src, " %d %c", &nrooms, &endch);
             if (n != 2 || endch != ';')
                 return "Bad Rooms entry";
         }
-        else if (!stricmp(buf, "Room")) {
+        else if (!mapconv_stricmp(buf, "Room")) {
             int id, w, h;
             n = fscanf(src, " %d %d %d", &id, &w, &h);
             --id;
@@ -265,7 +273,7 @@ const char* Map::load085(FILE* src) {
             }
             else if (w != roomw || h != roomh)
                 roomw = -9;
-            if (id >= roomTemplates.size())
+            if (id >= (int)roomTemplates.size())
                 roomTemplates.resize(id + 1);
             vector< vector<int> > matrix;
             matrix.resize(w);
@@ -326,7 +334,7 @@ const char* Map::load085(FILE* src) {
                     }
             lastRoom = id;
         }
-        else if (!stricmp(buf, "Walls") || !stricmp(buf, "ObjectResources")) {
+        else if (!mapconv_stricmp(buf, "Walls") || !mapconv_stricmp(buf, "ObjectResources")) {
             while (fgetc(src) != ';')
                 if (feof(src))
                     return buf[0]=='W'?"Bad Walls entry":"Bad ObjectResources entry";
@@ -368,7 +376,7 @@ void Map::write050(FILE* dst) const {
                 else
                     fprintf(dst, "X room%d %d %d\n", roomIndices[x][y], x, y);
             }
-        for (int i = 0; i < roomTemplates.size(); ++i)
+        for (int i = 0; i < (int)roomTemplates.size(); ++i)
             if (uses[i] > 1) {
                 fprintf(dst, "\n:room%d\n", i);
                 roomTemplates[i].writeWalls(dst, !uniformScale);
