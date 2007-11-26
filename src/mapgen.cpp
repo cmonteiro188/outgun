@@ -223,7 +223,7 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) throw () {
                     min_dy = height() - min_dy;
             }
             neighbour.score = neighbour.cost + min_dx + min_dy;
-            if (find(open.begin(), open.end(), pair<int, int>(nx, ny)) == open.end());
+            if (find(open.begin(), open.end(), pair<int, int>(nx, ny)) == open.end())
                 open.push_back(pair<int, int>(nx, ny));
         }
     }
