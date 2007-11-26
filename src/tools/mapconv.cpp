@@ -5,6 +5,10 @@
 #include <cstdarg>
 #include <cassert>
 
+#ifndef __GNUC__
+#define __attribute__(a)
+#endif
+
 static int mapconv_stricmp(const char* s1, const char* s2) throw () {
     for (;; ++s1, ++s2) {
         if (toupper(*s1) != toupper(*s2))
@@ -27,7 +31,7 @@ public:
     virtual void write(FILE* dst, int rx, int ry, float xscale, float yscale) const throw () = 0;
 };
 
-char* fmtFloat(float value, bool forceFloat = true) throw () {
+const char* fmtFloat(float value, bool forceFloat = true) throw () {
     static char buf[5][10];
     static int bufi = 0;
     if (value < 0 || value > 999)
@@ -155,6 +159,8 @@ public:
     const char* load085(FILE* src) throw (); // returns error message or 0 for success
     void write050(FILE* dst) const throw ();
 };
+
+void optPrintf(const char* fmt, ...) throw () __attribute__ ((format (printf, 1, 2)));
 
 void optPrintf(const char* fmt, ...) throw () {
     if (!verbose)
