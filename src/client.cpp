@@ -4641,6 +4641,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 void Client::start_replay(const std::string& filename) throw () {
     disconnect_command();
     stop_replay();
+    openMenus.clear();
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
     if (!replay)
@@ -4704,7 +4705,6 @@ bool Client::start_replay(istream& replay) throw () {
     frameReceiveTime = 0;
 
     gameshow = false;
-    openMenus.clear();
 
     fd.frame = -1;
     fd.skipped = true;
@@ -4832,6 +4832,8 @@ void Client::start_spectating(const NLaddress& address) throw () {
     replay_rate = 1;
     spectate_data_received = false;
 
+    openMenus.clear();
+    m_connectProgress.clear();
     m_connectProgress.wrapLine(_("Waiting for the game to start."));
     showMenu(m_connectProgress);
 }
@@ -4854,7 +4856,7 @@ void Client::continue_spectating() throw () {
         stop_replay();
         return;
     }
-    if (result == 0 && !spectate_data_received)
+    if (result == 0)
         return;
 
     if (!spectate_data_received) {
@@ -5189,7 +5191,7 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
         else
             graphics.draw_map_time(0);
 
-    if (replaying)
+    if (replaying && replay_first_frame_loaded)
         graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
     else if (me >= 0) {
         // player's power-ups
