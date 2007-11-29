@@ -156,6 +156,7 @@ private:
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
     unsigned spectator_limit;   /// Maximum number of spectators for this relay
+    unsigned game_delay;        /// Delay from the live game in seconds
 
     std::vector<Spectator> spectators;
     std::vector<Peer> peers;    /// Just connected "things"

@@ -79,7 +79,7 @@ int main(int argc, const char* argv[]) {
     }
     catch (Relay::ArgumentException ex) {
         cout << ex.message() << '\n';
-        cout << "Usage: relay [-p] port [-b bandwidth_limit] [-s spectator_limit]\n";
+        cout << "Usage: relay [-p] port [-b bandwidth_limit (B/s)] [-s spectator_limit] [-d delay (s)]\n";
     }
     delete relay;
 
@@ -110,6 +110,7 @@ Relay::Relay() throw () :
     server_socket(NL_INVALID),
     bandwidth_limit(20000),
     spectator_limit(16),
+    game_delay(120),
     first_buffer(-1, string(), 0),
     buffer_first_frame(0),
     master_talk_time(0)
@@ -174,6 +175,11 @@ void Relay::load_settings(const vector<string>& parameters) throw (Relay::Argume
             spectator_limit = std::atoi(pi->c_str());
             if (spectator_limit <= 0)
                 throw ArgumentException("Spectator limit must be more than 0.");
+        }
+        else if (*pi == "-d") {
+            if (++pi == parameters.end())
+                break;
+            game_delay = std::atoi(pi->c_str());
         }
         else {
             if (*pi == "-p") {
@@ -535,7 +541,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
     if (!frame || !frame->full())
         return string();
     // Do not send too recent frames if the game is still going on.
-    if (!current_game_finished && frame->time() + 0 * 60 > get_time())
+    if (!current_game_finished && frame->time() + game_delay > get_time())
         return string();
     ostringstream ost;
     if (pos == 0)
