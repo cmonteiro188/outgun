@@ -346,7 +346,7 @@ int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
 
 void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWriteError) {
     nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data);
-    const NLint val = nlWrite(NLS, data, size);
+    NLint val = nlWrite(NLS, data, size);
     if (val == NL_INVALID) {
         const NLenum err = nlGetError();
         if (err == NL_CON_PENDING)
@@ -448,7 +448,7 @@ bool isLocalIP(Network::Address address) throw () { // local doesn't mean privat
     return false;
 }
 
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
+NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (Network::ReadWriteError) {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -456,12 +456,8 @@ NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, in
             return NR_timeout;
 
         int written;
-        if (!socket.write(data + at, length - at, &written)) {
-            if (nlGetError() != NL_CON_PENDING)
-                return NR_nlError;
-        }
-        else
-            at += written;
+        socket.write(data + at, length - at, &written);
+        at += written;
 
         platSleep(roundDelay);
         ++tries;
@@ -469,27 +465,28 @@ NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, in
     return NR_ok;
 }
 
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw () {
-    const int buffer_size = 511;
-    char lebuf[buffer_size + 1];
+NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (Network::ReadWriteError) {
+    const int buffer_size = 4000;
+    char lebuf[buffer_size];
 
-    int tries = 0;
-    for (;;) {
-        if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-            return NR_timeout;
+    try {
+        int tries = 0;
+        for (;;) {
+            if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
+                return NR_timeout;
 
-        int read = socket.read(lebuf, buffer_size);
-        if (read == Network::Error) {
-            if (nlGetError() != NL_CON_PENDING)
-                return (nlGetError() == NL_MESSAGE_END) ? NR_ok : NR_nlError;
+            const int read = socket.read(lebuf, buffer_size);
+            out.write(lebuf, read);
+
+            if (read == 0) {
+                platSleep(roundDelay);
+                ++tries;
+            }
         }
-        else {
-            lebuf[read] = '\0';
-            out << lebuf;
-        }
-
-        platSleep(roundDelay);
-        ++tries;
+    } catch (const Network::ReadWriteError& e) {
+        if (e.disconnected())
+            return NR_ok;
+        throw;
     }
 }
 

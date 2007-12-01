@@ -225,12 +225,12 @@ inline void safeWriteFloat(char* buf, int& count, float val) throw () {  // this
     writeFloat(buf, count, val);
 }
 
-enum NetworkResult { NR_ok, NR_timeout, NR_nlError };   // timeout is also returned when abortFlag triggers the return
+enum NetworkResult { NR_ok, NR_timeout };   // timeout is also returned when abortFlag triggers the return
 
 NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length,
-                                const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw ();
+                                   const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (Network::ReadWriteError);
 NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, std::ostream& out,
-                                const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw ();
+                                       const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (Network::ReadWriteError);
 
 std::string format_http_parameters(const std::map<std::string, std::string>& parameters) throw ();
 
