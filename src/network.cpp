@@ -76,6 +76,21 @@ string Network::ResolveError::str() const throw () { return _("Error resolving h
 string Network::ConnectError::str() const throw () { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
 string Network::ListenError ::str() const throw () { return _("Error setting socket to listen mode: $1", basicStr()); }
 
+string Network::OpenError::str() const throw () {
+    switch (type) {
+    /*break;*/ case UDP:
+            return port == 0 ? _("Error opening a socket on any UDP port: $1", basicStr())
+                             : _("Error opening a socket on UDP port $1: $2", itoa(port), basicStr());
+        break; case TCP:
+            return port == 0 ? _("Error opening a socket on any TCP port: $1", basicStr())
+                             : _("Error opening a socket on TCP port $1: $2", itoa(port), basicStr());
+        break; case Broadcast:
+            return port == 0 ? _("Error opening a broadcast socket on any UDP port: $1", basicStr())
+                             : _("Error opening a broadcast socket on UDP port $1: $2", itoa(port), basicStr());
+        break; default: nAssert(0);
+    }
+}
+
 string Network::ReadWriteError::str() const throw () {
     if (inRead)
         return _("Error reading from socket: $1", basicStr());
