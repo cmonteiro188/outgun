@@ -104,7 +104,7 @@ class Relay {
 public:
     class ArgumentException {
     public:
-        ArgumentException(const std::string& msg_) throw (): msg(msg_) { }
+        ArgumentException(const std::string& msg_) throw () : msg(msg_) { }
         const std::string& message() const throw () { return msg; }
 
     private:
