@@ -45,23 +45,35 @@ public:
     class Socket;
 
     class Error {
+    protected:
+        Error() throw () { }
+
+    public:
+        virtual ~Error() throw () { }
+
+        virtual std::string str() const throw () = 0;
+    };
+
+private:
+    class NLError : public Error {
         int sysError;
 
     protected:
         int nlError;
 
-        Error() throw ();
+        NLError() throw ();
         friend class Network;
 
         std::string basicStr() const throw ();
 
     public:
-        virtual ~Error() throw () { }
+        virtual ~NLError() throw () { }
 
         virtual std::string str() const throw ();
     };
 
-    class BadIP : public Error {
+public:
+    class BadIP : public NLError {
         std::string ip;
 
         BadIP(const std::string& ip_) throw () : ip(ip_) { }
@@ -73,7 +85,7 @@ public:
         virtual std::string str() const throw ();
     };
 
-    class ResolveError : public Error {
+    class ResolveError : public NLError {
         std::string name;
 
         ResolveError(const std::string& hostname) throw () : name(hostname) { }
@@ -87,7 +99,7 @@ public:
         virtual std::string str() const throw ();
     };
 
-    class OpenError : public Error {
+    class OpenError : public NLError {
         SocketType type;
         uint16_t port;
 
@@ -99,7 +111,7 @@ public:
         virtual std::string str() const throw ();
     };
 
-    class ConnectError : public Error {
+    class ConnectError : public NLError {
         std::string addr;
 
         ConnectError(const std::string& addr_) throw () : addr(addr_) { }
@@ -112,7 +124,7 @@ public:
         virtual std::string str() const throw ();
     };
 
-    class ListenError : public Error {
+    class ListenError : public NLError {
         ListenError() throw () { }
         friend class Socket;
 
@@ -120,7 +132,7 @@ public:
         virtual std::string str() const throw ();
     };
 
-    class ReadWriteError : public Error {
+    class ReadWriteError : public NLError {
         bool inRead;
         ReadWriteError(bool read) throw () : inRead(read) { }
 
@@ -131,6 +143,18 @@ public:
         bool disconnected() const throw ();
         virtual std::string str() const throw ();
     };
+
+    class Timeout : public Error {
+        bool inRead;
+        Timeout(bool read) throw () : inRead(read) { }
+
+        friend class Socket;
+
+    public:
+        virtual std::string str() const throw ();
+    };
+
+    class ExternalAbort { };
 
     class Address {
         class HiddenData;
@@ -192,6 +216,11 @@ public:
         void setRemoteAddress(const Address& a) throw (Error);
         int read(void* buffer, int bufSize) throw (ReadWriteError);
         void write(const void* data, int size, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
+
+        void writeToUnblockingTCP(const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
+            throw (ReadWriteError, ExternalAbort, Timeout);
+        void saveAllFromUnblockingTCP(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
+            throw (ReadWriteError, ExternalAbort, Timeout);
     };
 
     // static members only
@@ -225,21 +254,16 @@ inline void safeWriteFloat(char* buf, int& count, float val) throw () {  // this
     writeFloat(buf, count, val);
 }
 
-enum NetworkResult { NR_ok, NR_timeout };   // timeout is also returned when abortFlag triggers the return
-
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length,
-                                   const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (Network::ReadWriteError);
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, std::ostream& out,
-                                       const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (Network::ReadWriteError);
-
 std::string format_http_parameters(const std::map<std::string, std::string>& parameters) throw ();
 
 std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "") throw ();
 
-NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
-                             const std::string& script, const std::string& parameters, const std::string& auth = "") throw (); // timeout in ms
+void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
+                    const std::string& script, const std::string& parameters, const std::string& auth = "")
+    throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout); // timeout in ms
 
-NetworkResult save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout) throw ();   // timeout in ms
+void save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout)
+    throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout);   // timeout in ms
 
 std::string url_encode(const std::string& str) throw ();
 void url_encode(char c, std::ostream& out) throw ();

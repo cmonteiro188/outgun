@@ -51,14 +51,14 @@ extern Mutex nlOpenMutex;
 typedef Network::Address Address;
 typedef Network::Socket Socket;
 
-Network::Error::Error() throw () :
+Network::NLError::NLError() throw () :
     nlError(nlGetError())
 {
     if (nlError == NL_SYSTEM_ERROR)
         sysError = nlGetSystemError();
 }
 
-string Network::Error::basicStr() const throw () {
+string Network::NLError::basicStr() const throw () {
     nAssert(nlError != NL_NO_ERROR);
     if (nlError == NL_SYSTEM_ERROR)
         return nlGetSystemErrorStr(sysError);
@@ -70,7 +70,7 @@ Network::ResolveError::ResolveError() throw () {
     nlError = NL_NO_ERROR;
 }
 
-string Network::Error       ::str() const throw () { return _("Network error: $1", basicStr()); }
+string Network::NLError     ::str() const throw () { return _("Network error: $1", basicStr()); }
 string Network::BadIP       ::str() const throw () { return _("\"$1\" is not a valid IP address", ip); }
 string Network::ResolveError::str() const throw () { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
 string Network::ConnectError::str() const throw () { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
@@ -92,16 +92,19 @@ string Network::OpenError::str() const throw () {
 }
 
 string Network::ReadWriteError::str() const throw () {
-    if (inRead)
-        return _("Error reading from socket: $1", basicStr());
-    else
-        return _("Error writing to socket: $1", basicStr());
+    return inRead ? _("Error reading from socket: $1", basicStr())
+                  : _("Error writing to socket: $1", basicStr());
 }
 
 bool Network::ConnectError  ::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
 
 bool Network::ReadWriteError::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
 bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END; }
+
+string Network::Timeout::str() const throw () {
+    return inRead ? _("Error reading from socket: Operation timed out")
+                  : _("Error writing to socket: Operation timed out");
+}
 
 class Address::HiddenData {
 public:
@@ -278,14 +281,14 @@ bool Socket::isOpen() const throw () {
 Address Socket::getLocalAddress() const throw (Error) {
     Address a;
     if (!nlGetLocalAddr(NLS, &a.NLA))
-        throw Error();
+        throw NLError();
     return a;
 }
 
 Address Socket::getRemoteAddress() const throw (Error) {
     Address a;
     if (!nlGetRemoteAddr(NLS, &a.NLA))
-        throw Error();
+        throw NLError();
     return a;
 }
 
@@ -329,7 +332,7 @@ bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) throw () {
 
 void Socket::setRemoteAddress(const Address& a) throw (Error) {
     if (!nlSetRemoteAddr(NLS, &a.NLA))
-        throw Error();
+        throw NLError();
 }
 
 int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
@@ -360,6 +363,51 @@ void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWrit
         *writtenSize = val;
     else
         numAssert2(val == size, val, size);
+}
+
+void Socket::writeToUnblockingTCP(const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+    int at = 0;
+    int tries = 0;
+    while (at < length) {
+        if (abortFlag && *abortFlag)
+            throw ExternalAbort();
+        if (tries * roundDelay > timeout)
+            throw Timeout(false);
+
+        int written;
+        write(data + at, length - at, &written);
+        at += written;
+
+        platSleep(roundDelay);
+        ++tries;
+    }
+}
+
+void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+    const int buffer_size = 4000;
+    char lebuf[buffer_size];
+
+    try {
+        int tries = 0;
+        for (;;) {
+            if (abortFlag && *abortFlag)
+                throw ExternalAbort();
+            if (tries * roundDelay > timeout)
+                throw Timeout(true);
+
+            const int nRead = read(lebuf, buffer_size);
+            out.write(lebuf, nRead);
+
+            if (nRead == 0) {
+                platSleep(roundDelay);
+                ++tries;
+            }
+        }
+    } catch (const Network::ReadWriteError& e) {
+        if (e.disconnected())
+            return;
+        throw;
+    }
 }
 
 vector<Address> Network::getAllLocalAddresses() throw () {
@@ -448,48 +496,6 @@ bool isLocalIP(Network::Address address) throw () { // local doesn't mean privat
     return false;
 }
 
-NetworkResult writeToUnblockingTCP(Network::Socket& socket, const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (Network::ReadWriteError) {
-    int at = 0;
-    int tries = 0;
-    while (at < length) {
-        if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-            return NR_timeout;
-
-        int written;
-        socket.write(data + at, length - at, &written);
-        at += written;
-
-        platSleep(roundDelay);
-        ++tries;
-    }
-    return NR_ok;
-}
-
-NetworkResult saveAllFromUnblockingTCP(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (Network::ReadWriteError) {
-    const int buffer_size = 4000;
-    char lebuf[buffer_size];
-
-    try {
-        int tries = 0;
-        for (;;) {
-            if ((abortFlag && *abortFlag) || tries * roundDelay > timeout)
-                return NR_timeout;
-
-            const int read = socket.read(lebuf, buffer_size);
-            out.write(lebuf, read);
-
-            if (read == 0) {
-                platSleep(roundDelay);
-                ++tries;
-            }
-        }
-    } catch (const Network::ReadWriteError& e) {
-        if (e.disconnected())
-            return NR_ok;
-        throw;
-    }
-}
-
 string format_http_parameters(const map<string, string>& parameters) throw () {
     // URL encode parameter values
     ostringstream param_line;
@@ -531,14 +537,18 @@ string build_http_request(bool post, const string& host, const string& script, c
     return data.str();
 }
 
-NetworkResult post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
-                             const string& host, const string& script, const string& parameters, const string& auth) throw () {
+void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
+                    const string& host, const string& script, const string& parameters, const string& auth)
+    throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
+{
     const string request = build_http_request(true, host, script, parameters, auth);
-    return writeToUnblockingTCP(socket, request.data(), request.length(), abortFlag, timeout);
+    return socket.writeToUnblockingTCP(request.data(), request.length(), abortFlag, timeout);
 }
 
-NetworkResult save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout) throw () {
-    return saveAllFromUnblockingTCP(socket, out, abortFlag, timeout);
+void save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout)
+    throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
+{
+    return socket.saveAllFromUnblockingTCP(out, abortFlag, timeout);
 }
 
 string url_encode(const string& str) throw () {
