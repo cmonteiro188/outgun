@@ -101,7 +101,6 @@ string Network::ReadWriteError::str() const throw () {
 bool Network::ConnectError  ::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
 
 bool Network::ReadWriteError::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
-bool Network::ReadWriteError::connectionPending() const throw () { return nlError == NL_CON_PENDING; }
 bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END; }
 
 class Address::HiddenData {
@@ -339,7 +338,9 @@ int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
     if (val != NL_INVALID)
         return val;
     const NLenum err = nlGetError();
-    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+    if (err == NL_CON_PENDING)
+        return 0;
+    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
     throw ReadWriteError(true);
 }
 
@@ -348,8 +349,12 @@ void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWrit
     const NLint val = nlWrite(NLS, data, size);
     if (val == NL_INVALID) {
         const NLenum err = nlGetError();
-        numAssert(err == NL_CON_REFUSED || err == NL_CON_PENDING || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
-        throw ReadWriteError(false);
+        if (err == NL_CON_PENDING)
+            val = 0;
+        else {
+            numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+            throw ReadWriteError(false);
+        }
     }
     if (writtenSize)
         *writtenSize = val;

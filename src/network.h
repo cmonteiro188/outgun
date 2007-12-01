@@ -128,7 +128,6 @@ public:
 
     public:
         bool connectionRefused() const throw ();
-        bool connectionPending() const throw ();
         bool disconnected() const throw ();
         virtual std::string str() const throw ();
     };
