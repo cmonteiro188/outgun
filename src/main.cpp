@@ -478,12 +478,12 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         else
             log.error(_("Unknown command-line argument '$1'.", argv[i]));
     }
-    if (nlInit() == NL_FALSE)
-        log.error(_("Can't init HawkNL. $1", getNlErrorString()));
-    if (nlSelectNetwork(NL_IP) == NL_FALSE)
-        log.error(_("No IP network."));
-    // enable statistics
-    nlEnable(NL_SOCKET_STATS);
+    try {
+        Network::init();
+    } catch (const Network::InitError& e) {
+        log.error(e.str());
+        return;
+    }
 
     if (serverCfg.ipAddress.empty())
         serverCfg.ipAddress = getPublicIP(log, false);

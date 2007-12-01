@@ -167,7 +167,6 @@ private:
         mutable Mutex mutex;
         mutable LogSet log;
 
-        bool send(const std::string& data) throw ();
         void threadMain() throw ();
         void pushData_locked(const std::string& data) throw ();
         bool isConnected_locked() const throw () { return socket.isOpen(); }
@@ -201,13 +200,18 @@ private:
     bool processMessage(int pid, char* const msg, int msglen) throw ();
     void incoming_client_data(int id, char *data, int length) throw ();
 
+    void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
+
     void master_job_response(MasterQuery *j) throw ();
     void run_masterjob_thread(MasterQuery* job) throw ();
     void run_mastertalker_thread() throw ();
     void send_master_quit(const std::string& localAddress) const throw ();
 
-    bool read_string_from_TCP(Network::Socket& sock, char *buf) throw ();
+    bool read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError);
+    void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
+    int executeAdminCommand(NLulong code, NLulong cid, int pid, NLulong dwArg, char* answer) throw (Network::Error); // returns length of answer
+    bool handleAdminCommand() throw (Network::Error);
     void run_shellslave_thread(volatile bool* quitFlag) throw ();
 
     void run_website_thread() throw ();

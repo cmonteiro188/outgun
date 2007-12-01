@@ -73,6 +73,14 @@ private:
     };
 
 public:
+    class InitError : public NLError {
+        InitError() throw () { }
+        friend class Network;
+
+    public:
+        virtual std::string str() const throw ();
+    };
+
     class BadIP : public NLError {
         std::string ip;
 
@@ -224,6 +232,7 @@ public:
     };
 
     // static members only
+    static void init() throw (InitError);
     static std::vector<Address> getAllLocalAddresses() throw ();
     static Address getDefaultLocalAddress() throw ();
 };

@@ -70,6 +70,7 @@ Network::ResolveError::ResolveError() throw () {
     nlError = NL_NO_ERROR;
 }
 
+string Network::InitError   ::str() const throw () { return _("Error initializing network subsystem: $1", basicStr()); }
 string Network::NLError     ::str() const throw () { return _("Network error: $1", basicStr()); }
 string Network::BadIP       ::str() const throw () { return _("\"$1\" is not a valid IP address", ip); }
 string Network::ResolveError::str() const throw () { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
@@ -408,6 +409,12 @@ void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFl
             return;
         throw;
     }
+}
+
+void Network::init() throw (InitError) {
+    if (!nlInit() || !nlSelectNetwork(NL_IP))
+        throw InitError();
+    nlEnable(NL_SOCKET_STATS);
 }
 
 vector<Address> Network::getAllLocalAddresses() throw () {

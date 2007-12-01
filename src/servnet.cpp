@@ -2179,40 +2179,22 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         }
         delay = 60000;  // default to one minute
 
-        Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
-        if (!sock.isOpen()) {
-            log("Tournament thread: Can't open socket. %s", getNlErrorString());
-            delay = 10000;
-            continue;
-        }
-
-        Network::Address tournamentServer;
-        if (!tournamentServer.tryResolve("www.mycgiserver.com"))
-            tournamentServer.fromValidIP("64.69.35.205");
-
-        tournamentServer.setPort(80);
-        sock.connect(tournamentServer);
-
-        const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
-        if (result != NR_ok) {
-            sock.close();
-            if (mjob_exit)
-                break;
-            log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-            continue;
-        }
-
         string response;
-        {
+
+        try {
+            Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+
+            Network::Address tournamentServer;
+            if (!tournamentServer.tryResolve("www.mycgiserver.com"))
+                tournamentServer.fromValidIP("64.69.35.205");
+            tournamentServer.setPort(80);
+            sock.connect(tournamentServer);
+
+            sock.writeToUnblockingTCP(job->request.data(), job->request.length(), &mjob_exit, 30000);
+
             ostringstream respStream;
-            const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
+            save_http_response(sock, respStream, &mjob_exit, 30000);
             sock.close();
-            if (result != NR_ok) {
-                if (mjob_exit)
-                    break;
-                log("Tournament thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-                continue;
-            }
             string fullResponse = respStream.str();
 
             // find the start and end of the body: after the last "<html>" and before the last "</html>"
@@ -2229,6 +2211,12 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 continue;
             }
             response = fullResponse.substr(startPos, endPos - startPos);
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            log("Tournament thread: %s", e.str().c_str());
+            delay = 15000; // faster retry
+            continue;
         }
 
         // parse the response
@@ -2314,6 +2302,13 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
     delete job;
 }
 
+void ServerNetworking::logTCPThreadError(const Network::Error& error, const string& text) throw () {
+    if (dynamic_cast<const Network::ReadWriteError*>(&error) || dynamic_cast<const Network::Timeout*>(&error)) // these are too mundane errors to bother the user with
+        log(text);
+    else
+        log.error(text);
+}
+
 void ServerNetworking::run_mastertalker_thread() throw () {
     string localAddress = settings.ip();
     if (!isValidIP(localAddress) || check_private_IP(localAddress)) {
@@ -2344,56 +2339,41 @@ void ServerNetworking::run_mastertalker_thread() throw () {
         if (!g_masterSettings.address().valid())
             continue;
 
-        Network::Socket msock(Network::NonBlocking, Network::TCP, 0);
-        if (!msock.isOpen()) {
-            log.error(_("Master talker: Can't open socket to connect to master server."));
-            continue;
-        }
+        try {
+            Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
+            msock.connect(g_masterSettings.address());
 
-        if (!msock.connect(g_masterSettings.address())) {
-            log("Master talker: Can't connect to master server.");
-            msock.close();
-            continue;
-        }
+            //now we have talked
+            master_never_talked = false;
 
-        //now we have talked
-        master_never_talked = false;
-
-        // build and send data
-        map<string, string> parameters = master_parameters(localAddress);
-        const string data = format_http_parameters(parameters);
-        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
-        if (result != NR_ok)
-            log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        else {
+            // build and send data
+            map<string, string> parameters = master_parameters(localAddress);
+            const string data = format_http_parameters(parameters);
+            post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
             stringstream response;
-            result = save_http_response(msock, response, &file_threads_quit, 30000);
-            if (result == NR_ok) {
-                // save transaction to a file
-                ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-                out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-                out << "--- Query ---\n";
-                out << data << "\n";
-                out << "\n--- Response ---\n";
-                out << response.str();
-                out.close();
-                if (response.str().find("VERSION ERROR") != string::npos) {
-                    log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
-                    msock.close();
-                    return;
-                }
-                if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
-                    log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
-                else if (response.str().find("[OK]") == string::npos) // this happens when the master server has problems
-                    log("Master talker: There was an unexpected error while sending information to the master list. See log/master.log.");
+            save_http_response(msock, response, &file_threads_quit, 30000);
+            // save transaction to a file
+            ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+            out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+            out << "--- Query ---\n";
+            out << data << "\n";
+            out << "\n--- Response ---\n";
+            out << response.str();
+            out.close();
+            if (response.str().find("VERSION ERROR") != string::npos) {
+                log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
+                return;
             }
-            else {
-                log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-                master_talk_time = get_time() + 30.0;   // faster retry: in 30 seconds
-            }
+            if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
+                log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
+            else if (response.str().find("[OK]") == string::npos) // this happens when the master server has problems
+                log("Master talker: There was an unexpected error while sending information to the master list. See log/master.log.");
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            logTCPThreadError(e, _("Master talker: $1", e.str()));
+            master_talk_time = get_time() + 30.0; // faster retry
         }
-
-        msock.close();
     }
 
     log("Master talker: time to say goodbye.");
@@ -2409,43 +2389,27 @@ void ServerNetworking::send_master_quit(const string& localAddress) const throw 
     if (!g_masterSettings.address().valid())
         return;
 
-    Network::Socket msock(Network::NonBlocking, Network::TCP, 0);
-    if (!msock.isOpen()) {
-        log.error(_("Master talker: (Quit) Can't open socket to connect to master server."));
-        return;
-    }
+    try {
+        Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
 
-    if (!msock.connect(g_masterSettings.address())) {
-        log.error(_("Master talker: (Quit) Can't connect to master server."));
-        msock.close();
-        return;
-    }
-
-    const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
-    const string data = format_http_parameters(parameters);
-    NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
-    if (result != NR_ok)
-        log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
-    else {
+        const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
+        const string data = format_http_parameters(parameters);
+        post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
         stringstream response;
-        result = save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
-        if (result == NR_ok) {
-            // save transaction to a file
-            ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-            out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-            out << "--- Query ---\n";
-            out << data << "\n";
-            out << "\n--- Response ---\n";
-            out << response.str();
-            out.close();
-            if (response.str().find("[OK]") == string::npos)
-                log.error(_("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log."));
-        }
-        else
-            log.error(_("Master talker: (Quit) Error while waiting for a response: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
+        save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+        // save transaction to a file
+        ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+        out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+        out << "--- Query ---\n";
+        out << data << "\n";
+        out << "\n--- Response ---\n";
+        out << response.str();
+        out.close();
+        if (response.str().find("[OK]") == string::npos)
+            log.error(_("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log."));
+    } catch (const Network::Error& e) {
+        log.error(_("Master talker: (Quit) $1", e.str()));
     }
-
-    msock.close();
 }
 
 void ServerNetworking::run_website_thread() throw () {
@@ -2471,14 +2435,9 @@ void ServerNetworking::run_website_thread() throw () {
 
         // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        Network::Socket websock(Network::NonBlocking, Network::TCP, 0);
-        if (!websock.isOpen()) {
-            log.error(_("Website thread: Can't open socket to connect to server website."));
-            continue;
-        }
         bool success = false;
         for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri) {
-            ResolveError err;
+            Network::ResolveError err;
             if (website_address.tryResolve(*addri, &err)) {
                 success = true;
                 working_address_string = *addri;
@@ -2491,38 +2450,32 @@ void ServerNetworking::run_website_thread() throw () {
             log("Website thread: Can't get any address from the list!");
             continue;
         }
-        int web_port = website_address.getPort();
-        if (!web_port) {
-            web_port = 80;
-            website_address.setPort(web_port);
-        }
-        if (!website_address.valid() || !websock.connect(website_address)) {
-            log("Website thread: Server can't connect to server website! Reason: %s", getNlErrorString());
-            websock.close();
-            continue;
-        }
+        if (website_address.getPort() == 0)
+            website_address.setPort(80);
 
-        // build and send data
-        map<string, string> parameters = website_parameters(localAddress);
-        const int sending_maplist_revision = maplist_revision;
-        if (first_connection || sending_maplist_revision != sent_maplist_revision) {
-            parameters["maplist"] = website_maplist();
-            first_connection = false;
-        }
-        const string data = format_http_parameters(parameters);
-        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
-        if (result == NR_ok) {
+        try {
+            Network::Socket websock(Network::NonBlocking, Network::TCP, 0, true);
+            websock.connect(website_address);
+
+            // build and send data
+            map<string, string> parameters = website_parameters(localAddress);
+            const int sending_maplist_revision = maplist_revision;
+            if (first_connection || sending_maplist_revision != sent_maplist_revision) {
+                parameters["maplist"] = website_maplist();
+                first_connection = false;
+            }
+            const string data = format_http_parameters(parameters);
+            post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
             // save response to a file
             ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-            result = save_http_response(websock, out, &file_threads_quit, 30000);
-        }
-        if (result != NR_ok)
-            website_talk_time = get_time() + 30.0;  // faster retry: in 30 seconds
-        else
+            save_http_response(websock, out, &file_threads_quit, 30000);
             sent_maplist_revision = sending_maplist_revision;
-
-        //close socket
-        websock.close();
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            logTCPThreadError(e, _("Website thread: $1", e.str()));
+            website_talk_time = get_time() + 30.0; // faster retry
+        }
     }
 
     log("Website thread: time to say goodbye");
@@ -2531,30 +2484,20 @@ void ServerNetworking::run_website_thread() throw () {
         return;
 
     //quitting: send server shutdown message to web script
-    Network::Socket websock(Network::NonBlocking, Network::TCP, 0);
-    if (!websock.isOpen()) {
-        log.error(_("Website thread: (Quit) Can't open socket to connect to server website."));
-        return;
-    }
+    try {
+        Network::Socket websock(Network::NonBlocking, Network::TCP, 0, true);
+        websock.connect(website_address);
 
-    if (!websock.connect(website_address)) {
-        log.error(_("Website thread: (Quit) Can't connect to server website."));
-        websock.close();
-        return;
-    }
+        const string quit = "quit=1";
+        post_http_data(websock, 0, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
+        log("Website thread: Sent information to server website: \"%s\"", formatForLogging(quit).c_str());
 
-    // send quit message
-    const string quit = "quit=1";
-    const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
-    log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
-
-    if (result == NR_ok) {
         // save response to a file
         ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
         save_http_response(websock, out, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+    } catch (Network::Error& e) {
+        log.error(_("Website thread: (Quit) $1", e.str()));
     }
-
-    websock.close();
 }
 
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const throw () {
@@ -2643,7 +2586,7 @@ string ServerNetworking::website_maplist() const throw () {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, char *buf) throw () {
+bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError) {
     for (;;) {
         const int result = sock.read(buf, 1);
         if (result != 1)    // message not completely received
@@ -2654,6 +2597,53 @@ bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, char *buf) th
     }
 }
 
+void ServerNetworking::handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error) {
+    log("Incoming admin shell connection");
+
+    // accept connections only from localhost
+    Network::Address addr = shellssock.getRemoteAddress(), c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
+    addr.setPort(0);
+
+    if (addr != c1 && addr != c2) {
+        log("Attempt to connect a remote admin shell blocked.");
+        shellssock.close();
+        return;
+    }
+
+    log("Admin shell connection accepted");
+
+    // tell about the current situation
+    char lebuf[4096];
+    int count = 0;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used) {
+            writeLong(lebuf, count, STA_PLAYER_CONNECTED);
+            writeLong(lebuf, count, world.player[i].cid);
+
+            writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
+            writeLong(lebuf, count, world.player[i].cid);
+            writeStr(lebuf, count, world.player[i].name);
+
+            writeLong(lebuf, count, STA_PLAYER_IP);
+            writeLong(lebuf, count, world.player[i].cid);
+            Network::Address addr = get_client_address(world.player[i].cid);
+            addr.setPort(0);
+            writeStr(lebuf, count, addr.toString());
+
+            writeLong(lebuf, count, STA_PLAYER_FRAGS);
+            writeLong(lebuf, count, world.player[i].cid);
+            writeLong(lebuf, count, world.player[i].stats().frags());
+        }
+    shellssock.write(lebuf, count);
+
+    if (slaveThread.isRunning())
+        slaveThread.join();
+    slaveRunning = true;    // slave will set it false when exiting
+    slaveThread.start("ServerNetworking::run_shellslave_thread",
+                      RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
+                      settings.lowerPriority());
+}
+
 //run a admin shell master thread
 void ServerNetworking::run_shellmaster_thread(int port) throw () {
     Thread slaveThread;
@@ -2661,249 +2651,184 @@ void ServerNetworking::run_shellmaster_thread(int port) throw () {
 
     log("Admin shell master thread running");
 
-    Network::Socket shellmsock(Network::NonBlocking, Network::TCP, port);
-    if (!shellmsock.isOpen()) {
-        log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
+    Network::Socket shellmsock(true);
+    try {
+        shellmsock.open(Network::NonBlocking, Network::TCP, port);
+        shellmsock.listen();
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell: $1", e.str()));
         return;
     }
-    if (!shellmsock.listen()) {
-        log.error(_("Admin shell: Can't set socket to listen mode."));
-        return;
-    }
-
     while (!file_threads_quit) {
         platSleep(1000); // this thread definitely is no priority
 
-        //accept one connection
-        if (!shellssock.acceptConnection(Network::NonBlocking, shellmsock)) {
-            if (nlGetError() == NL_NO_PENDING)
-                continue;
-            log.error(_("Admin shell: Can't accept connection."));
-            return;
-        }
-
-        log("Incoming admin shell connection");
-
-        //accept connections only from localhost
-        Network::Address addr = shellssock.getRemoteAddress(), c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
-        addr.setPort(0);
-
-        if (addr != c1 && addr != c2) {
-            log("Attempt to connect a remote admin shell blocked.");
-            shellssock.close();
+        if (shellssock.isOpen()) {
+            Network::Socket newSock(true);
+            if (newSock.acceptConnection(Network::NonBlocking, shellmsock))
+                log("Attempt to connect two simultaneous admin shells blocked.");
             continue;
         }
 
-        if (slaveRunning) { // if already connected, skip
-            log("Attempt to connect two simultaneous admin shells blocked.");
-            shellssock.close();
+        if (!shellssock.acceptConnection(Network::NonBlocking, shellmsock))
             continue;
+
+        try {
+            handleNewAdminShell(slaveThread, slaveRunning);
+        } catch (const Network::Error& e) {
+            shellssock.close();
+            log("Admin shell: %s", e.str().c_str());
         }
-
-        log("Admin shell connection accepted");
-
-        // tell about the current situation
-        char lebuf[4096];
-        int count = 0;
-        for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used) {
-                writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-                writeLong(lebuf, count, world.player[i].cid);
-
-                writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-                writeLong(lebuf, count, world.player[i].cid);
-                writeStr(lebuf, count, world.player[i].name);
-
-                writeLong(lebuf, count, STA_PLAYER_IP);
-                writeLong(lebuf, count, world.player[i].cid);
-                Network::Address addr = get_client_address(world.player[i].cid);
-                addr.setPort(0);
-                writeStr(lebuf, count, addr.toString());
-
-                writeLong(lebuf, count, STA_PLAYER_FRAGS);
-                writeLong(lebuf, count, world.player[i].cid);
-                writeLong(lebuf, count, world.player[i].stats().frags());
-            }
-        shellssock.write(lebuf, count);
-
-        if (slaveThread.isRunning())
-            slaveThread.join();
-        slaveRunning = true;    // slave will set it false when exiting
-        slaveThread.start("ServerNetworking::run_shellslave_thread",
-                          RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
-                          settings.lowerPriority());
     }
+
     shellmsock.close();
     log("Admin shell master thread quitting");
     if (slaveThread.isRunning())
         slaveThread.join();
 }
 
+
+int ServerNetworking::executeAdminCommand(NLulong code, NLulong cid, int pid, NLulong dwArg, char* answer) throw (Network::Error) {
+    Lock ml(threadLockMutex);
+    int ansLen = 0;
+    switch (code) {
+    /*break;*/ case ATS_GET_PLAYER_FRAGS:
+            writeLong(answer, ansLen, STA_PLAYER_FRAGS);
+            writeLong(answer, ansLen, cid);
+            writeLong(answer, ansLen, world.player[pid].stats().frags());
+        break; case ATS_GET_PLAYER_TOTAL_TIME:
+            writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
+            writeLong(answer, ansLen, cid);
+            writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
+        break; case ATS_GET_PLAYER_TOTAL_KILLS:
+            writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
+            writeLong(answer, ansLen, cid);
+            writeLong(answer, ansLen, world.player[pid].stats().kills());
+        break; case ATS_GET_PLAYER_TOTAL_DEATHS:
+            writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
+            writeLong(answer, ansLen, cid);
+            writeLong(answer, ansLen, world.player[pid].stats().deaths());
+        break; case ATS_GET_PLAYER_TOTAL_CAPTURES:
+            writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
+            writeLong(answer, ansLen, cid);
+            writeLong(answer, ansLen, world.player[pid].stats().captures());
+        break; case ATS_SERVER_CHAT: {
+            char buf[500];
+            read_string_from_TCP(shellssock, buf);
+            if (find_nonprintable_char(buf))
+                log.error(_("Admin shell: unprintable characters, message ignored."));
+            else if (buf[0] == '/')
+                host->chat(shell_pid, buf);
+            else
+                bprintf(msg_normal, "ADMIN: %s", buf);
+        }
+        break; case ATS_GET_PINGS:
+            for (int p = 0; p < maxplayers; ++p)
+                if (world.player[p].used) {
+                    writeLong(answer, ansLen, STA_PLAYER_PING);
+                    writeLong(answer, ansLen, world.player[p].cid);
+                    writeLong(answer, ansLen, world.player[p].ping);
+                }
+        break; case ATS_MUTE_PLAYER:
+            host->mutePlayer(pid, dwArg, shell_pid);
+        break; case ATS_KICK_PLAYER:
+            host->kickPlayer(pid, shell_pid);
+        break; case ATS_BAN_PLAYER:
+            host->banPlayer(pid, shell_pid, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
+        break; case ATS_RESET_SETTINGS:
+            host->reset_settings(true);
+        break; default:
+            nAssert(0);
+    }
+    return ansLen;
+}
+
+bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
+    char rbuf[256];
+    int rcount = 0;
+
+    //read request code
+    int result = shellssock.read(rbuf, 4);
+
+    if (result == 0) {
+        platSleep(500);  // no need to be more responsive
+        return true;
+    }
+
+    if (result != 4) {
+        log.error("Admin shell: bad data length");
+        return false;
+    }
+
+    NLulong code;
+    readLong(rbuf, rcount, code);
+
+    // parse the code
+    if (code >= NUMBER_OF_ATS) {
+        log.error("Admin shell: invalid command " + itoa(code));
+        return false;
+    }
+
+    if (code == ATS_QUIT) {
+        log("Admin shell: received quit command");
+        return false;
+    }
+
+    NLulong cid = 0;
+    int pid = 0;    // pid and cid set if argPid[code]
+    NLulong dwArg = 0;  // set if argDw[code]
+    //                                      noop, get-functions,ch,qu,pi,kckbanmte,reset
+    static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+    static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+    const int argsLen = (argPid[code] + argDw[code]) * 4;
+
+    if (argsLen) {
+        result = shellssock.read(rbuf, argsLen);
+        if (result != argsLen) {
+            log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
+            return false;
+        }
+        rcount = 0;
+        if (argPid[code]) {
+            readLong(rbuf, rcount, cid);
+            if (cid > 255) {
+                log.error("Admin shell: bad client id");
+                return false;
+            }
+            pid = ctop[cid];
+            if (pid == -1 || !world.player[pid].used)   // player not in the game; just ignore the command
+                return true;
+        }
+        if (argDw[code])
+            readLong(rbuf, rcount, dwArg);
+    }
+
+    char answer[1000];
+    const int ansLen = executeAdminCommand(code, cid, pid, dwArg, answer);
+
+    if (ansLen) {
+        int written;
+        shellssock.write(answer, ansLen, &written);
+        if (written != ansLen) {
+            log.error(_("Admin shell: sending response failed."));
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw () {  // sets *runningFlag = true when quitting
-    while (!file_threads_quit) {
-        char rbuf[256];
-        int rcount = 0;
-
-        //read request code
-        int result = shellssock.read(rbuf, 4);
-
-        if (result == Network::Error) {
-            log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-            break;
-        }
-
-        if (result == 0) {
-            platSleep(500);  // no need to be more responsive
-            continue;
-        }
-
-        if (result != 4) {
-            log.error("Admin shell: bad data length");
-            break;
-        }
-
-        NLulong code;
-        readLong(rbuf, rcount, code);
-
-        // parse the code
-        if (code >= NUMBER_OF_ATS) {
-            log.error("Admin shell: invalid command " + itoa(code));
-            break;
-        }
-
-        if (code == ATS_QUIT) {
-            log("Admin shell: received quit command");
-            break;
-        }
-
-        NLulong cid = 0;
-        int pid = 0;    // pid and cid set if argPid[code]
-        NLulong dwArg = 0;  // set if argDw[code]
-        //                                      noop, get-functions,ch,qu,pi,kckbanmte,reset
-        static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
-        static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
-        const int argsLen = (argPid[code] + argDw[code]) * 4;
-
-        if (argsLen) {
-            result = shellssock.read(rbuf, argsLen);
-            if (result != argsLen) {
-                if (result == Network::Error)
-                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-                else
-                    log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
+    try {
+        while (!file_threads_quit)
+            if (!handleAdminCommand())
                 break;
-            }
-            rcount = 0;
-            if (argPid[code]) {
-                readLong(rbuf, rcount, cid);
-                if (cid > 255) {
-                    log.error("Admin shell: bad client id");
-                    break;
-                }
-                pid = ctop[cid];
-                if (pid == -1 || !world.player[pid].used)   // player not in the game; just ignore the command
-                    continue;
-            }
-            if (argDw[code])
-                readLong(rbuf, rcount, dwArg);
-        }
-
-        if (threadLock)
-            threadLockMutex.lock();
-
-        char answer[1000];
-        int ansLen = 0;
-        bool error = false;
-        switch (code) {
-        /*break;*/ case ATS_GET_PLAYER_FRAGS:
-                writeLong(answer, ansLen, STA_PLAYER_FRAGS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().frags());
-            break; case ATS_GET_PLAYER_TOTAL_TIME:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
-            break; case ATS_GET_PLAYER_TOTAL_KILLS:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().kills());
-            break; case ATS_GET_PLAYER_TOTAL_DEATHS:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().deaths());
-            break; case ATS_GET_PLAYER_TOTAL_CAPTURES:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().captures());
-            break; case ATS_SERVER_CHAT: {
-                char buf[500];
-                if (!read_string_from_TCP(shellssock, buf)) {
-                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-                    error = true;
-                }
-                else {
-                    if (find_nonprintable_char(buf))
-                        log.error(_("Admin shell: unprintable characters, message ignored."));
-                    else if (buf[0] == '/')
-                        host->chat(shell_pid, buf);
-                    else
-                        bprintf(msg_normal, "ADMIN: %s", buf);
-                }
-            }
-            break; case ATS_GET_PINGS:
-                for (int p = 0; p < maxplayers; ++p)
-                    if (world.player[p].used) {
-                        writeLong(answer, ansLen, STA_PLAYER_PING);
-                        writeLong(answer, ansLen, world.player[p].cid);
-                        writeLong(answer, ansLen, world.player[p].ping);
-                    }
-            break; case ATS_MUTE_PLAYER:
-                host->mutePlayer(pid, dwArg, shell_pid);
-            break; case ATS_KICK_PLAYER:
-                host->kickPlayer(pid, shell_pid);
-            break; case ATS_BAN_PLAYER:
-                host->banPlayer(pid, shell_pid, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
-            break; case ATS_RESET_SETTINGS:
-                host->reset_settings(true);
-            break; default:
-                nAssert(0);
-        }
-
-        if (threadLock)
-            threadLockMutex.unlock();
-
-        if (error)
-            break;
-
-        if (ansLen) {
-            result = shellssock.write(answer, ansLen);
-            if (result != ansLen) {
-                log.error(_("Admin shell: sending response failed. Reason: $1", getNlErrorString()));
-                break;
-            }
-        }
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell: $1", e.str()));
     }
 
     shellssock.close();
     *runningFlag = false;
     log("Admin shell slave thread quitting");
-}
-
-bool ServerNetworking::RelayThread::send(const string& data) throw () {
-    // Test the connection
-    const unsigned max_buffer_size = 100;
-    NLbyte buffer[max_buffer_size];
-    const int receive = socket.read(buffer, max_buffer_size);
-    if (receive == Network::Error) {
-        log("Relay disconnected: %s", getNlErrorString());
-        return false;
-    }
-    const NetworkResult result = writeToUnblockingTCP(socket, data.data(), data.length(), &quitFlag, 100, 50); // 5 second timeout
-    if (result != NR_ok) {
-        log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        return false;
-    }
-    return true;
 }
 
 void ServerNetworking::RelayThread::threadMain() throw () {
@@ -2918,12 +2843,13 @@ void ServerNetworking::RelayThread::threadMain() throw () {
         const string data = dataQueue.front();
         dataQueue.pop();
 
-        bool result;
-        {
+        try {
             Unlock mu(mutex);
-            result = send(data);
-        }
-        if (!result) {
+            socket.writeToUnblockingTCP(data.data(), data.length(), &quitFlag, 100, 50); // 5 second timeout
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            log("Relay thread: %s", e.str().c_str());
             socket.close();
             dataQueue = queue<string>();
         }
@@ -2964,15 +2890,12 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
 
     dataQueue = queue<string>();
 
-    socket.open(Network::NonBlocking, Network::TCP, 0);
-    if (!socket.isOpen()) {
-        log("Could not open relay socket.");
-        return;
-    }
-
-    if (!socket.connect(relayAddress)) {
-        log("Could not connect to relay.");
-        socket.close();
+    try {
+        socket.open(Network::NonBlocking, Network::TCP, 0);
+        socket.connect(relayAddress);
+    } catch (const Network::Error& e) {
+        log("Relay thread: %s", e.str().c_str());
+        socket.closeIfOpen();
         return;
     }
 
