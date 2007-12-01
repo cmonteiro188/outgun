@@ -1132,7 +1132,7 @@ void ServerNetworking::broadcast_broken_map() const throw () {
 }
 
 void ServerNetworking::set_relay_server(const string& address) throw () {
-    if (!relay_address.resolve(address)) {
+    if (!relay_address.tryResolve(address)) {
         log("Relay address could not be resolved from %s.", address.c_str());
         return;
     }
@@ -2187,7 +2187,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         }
 
         Network::Address tournamentServer;
-        if (!tournamentServer.resolve("www.mycgiserver.com"))
+        if (!tournamentServer.tryResolve("www.mycgiserver.com"))
             tournamentServer.fromValidIP("64.69.35.205");
 
         tournamentServer.setPort(80);
@@ -2477,14 +2477,16 @@ void ServerNetworking::run_website_thread() throw () {
             continue;
         }
         bool success = false;
-        for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri)
-            if (website_address.resolve(*addri)) {
+        for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri) {
+            ResolveError err;
+            if (website_address.tryResolve(*addri, &err)) {
                 success = true;
                 working_address_string = *addri;
                 break;
             }
             else
-                log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
+                log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), err.str().c_str());
+        }
         if (!success) {
             log("Website thread: Can't get any address from the list!");
             continue;

@@ -310,7 +310,7 @@ void MasterSettings::load(LogSet& log) throw () {
     log("Resolving master server address...");
     if (name.length() >= 3) {
         hostName = name;
-        if (!masterAddress.resolve(name))
+        if (!masterAddress.tryResolve(name))
             log("Can't resolve master server DNS name to IP.");
     }
     else if (ip.length() > 1)
@@ -323,7 +323,7 @@ void MasterSettings::load(LogSet& log) throw () {
         masterAddress.fromValidIP(ip);
 
     if (bugName.length() >= 3)
-        if (!bugAddress.resolve(bugName))
+        if (!bugAddress.tryResolve(bugName))
             log("Can't resolve bug report server DNS name to IP.");
     if (!bugAddress) {
         if (bugIP.length() > 1)

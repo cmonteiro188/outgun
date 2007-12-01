@@ -319,7 +319,7 @@ void TournamentPasswordManager::threadFn() throw () {
         }
 
         Network::Address tournamentServer;
-        if (!tournamentServer.resolve("www.mycgiserver.com"))
+        if (!tournamentServer.tryResolve("www.mycgiserver.com"))
             tournamentServer.fromValidIP("64.69.35.205");
 
         tournamentServer.setPort(80);

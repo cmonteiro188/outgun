@@ -514,7 +514,7 @@ void Relay::send_master_server() throw () {
     }
 
     Network::Address master_address;
-    if (!master_address.resolve(master_name)) {
+    if (!master_address.tryResolve(master_name)) {
         cout << "Can't resolve master address for " << master_name << ".\n";
         msock.close();
         return;
