@@ -69,6 +69,7 @@ public:
         friend class Address;
 
     public:
+        ~BadIP() throw () { }
         virtual std::string str() const throw ();
     };
 
@@ -81,6 +82,7 @@ public:
 
     public:
         ResolveError() throw ();
+        ~ResolveError() throw () { }
 
         virtual std::string str() const throw ();
     };
@@ -105,6 +107,7 @@ public:
         friend class Socket;
 
     public:
+        ~ConnectError() throw () { }
         bool connectionRefused() const throw ();
         virtual std::string str() const throw ();
     };
