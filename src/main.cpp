@@ -411,7 +411,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         else if (!strcmp(argv[i], "-mappic")) {
             register_png_file_type();
             if (argc != 2)
-                log.error(_("-mappic can't be combined with other command line options."));
+                log.error(_("$1 can't be combined with other command line options.", argv[i]));
             if (!check_dir("mappic", log))
                 return;
 
@@ -423,7 +423,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
             Mappic mappic(log);
             try {
                 mappic.run();
-                messageBox("Outgun", _("Saved map pictures to the directory 'mappic'."));
+                messageBox("Outgun", _("Map pictures saved to the directory 'mappic'."));
             } catch (const Mappic::Save_error& s) {
                 log.error(_("Could not save map pictures to the directory 'mappic'."));
             }
@@ -431,20 +431,20 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         }
         else if (!strcmp(argv[i], "-colour-file")) {
             if (argc != 2)
-                log.error(_("-colour-file can't be combined with other command line options."));
+                log.error(_("$1 can't be combined with other command line options.", argv[i]));
             if (!check_dir("graphics", log))
                 return;
             Colour_manager col(log);
             const string filename = wheregamedir + "graphics" + directory_separator + "colours.txt";
             col.create_default_file(filename);
-            messageBox("Outgun", _("Default colours generated to $1", filename));
+            messageBox("Outgun", _("Default colours generated to $1.", filename));
             return;
         }
         else if (!strcmp(argv[i], "-play")) {
-            if (++i < argc && isValidIP(argv[i], true, 1))
+            if (++i < argc)
                 clientCfg.autoPlay = argv[i];
             else
-                log.error(_("-play must be followed by an IP address and optionally port."));
+                log.error(_("-play must be followed by a hostname and optionally port."));
         }
         else if (!strcmp(argv[i], "-replay")) {
             if (++i < argc)
@@ -453,10 +453,10 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
                 log.error(_("-replay must be followed by a filename."));
         }
         else if (!strcmp(argv[i], "-spectate")) {
-            if (++i < argc && isValidIP(argv[i], true, 1, true))
+            if (++i < argc)
                 clientCfg.autoSpectate = argv[i];
             else
-                log.error(_("-spectate must be followed by an IP address and port."));
+                log.error(_("-spectate must be followed by a hostname and port."));
         }
         #endif
         else if (!strcmp(argv[i], "-suppressmessages"))

@@ -4350,15 +4350,24 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     double nextClientFrame = get_time();
 
     if (!extConfig.autoPlay.empty()) {
-        nlStringToAddr(extConfig.autoPlay.c_str(), &serverIP);
-        if (nlGetPortFromAddr(&serverIP) == 0)
-            nlSetAddrPort(&serverIP, DEFAULT_UDP_PORT);
-        connect_command(true);
+        nlGetAddrFromName(extConfig.autoPlay.c_str(), &serverIP);
+        if (!serverIP.valid)
+            log.error(_("Error resolving hostname $1.", extConfig.autoPlay));
+        else {
+            if (nlGetPortFromAddr(&serverIP) == 0)
+                nlSetAddrPort(&serverIP, DEFAULT_UDP_PORT);
+            connect_command(true);
+        }
     }
     else if (!extConfig.autoSpectate.empty()) {
         NLaddress addr;
-        nlStringToAddr(extConfig.autoSpectate.c_str(), &addr);
-        start_spectating(addr);
+        nlGetAddrFromName(extConfig.autoSpectate.c_str(), &addr);
+        if (!addr.valid)
+            log.error(_("Error resolving hostname $1.", extConfig.autoSpectate));
+        else if (nlGetPortFromAddr(&addr) == 0)
+            log.error(_("Port is missing from $1.", extConfig.autoSpectate));
+        else
+            start_spectating(addr);
     }
     else if (!extConfig.autoReplay.empty())
         start_replay(extConfig.autoReplay);
