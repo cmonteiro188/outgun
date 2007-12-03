@@ -63,6 +63,7 @@ private:
 
         NLError() throw ();
         friend class Network;
+        friend class Network::Socket;
 
         std::string basicStr() const throw ();
 
@@ -171,6 +172,7 @@ public:
         Address(HiddenData* h) throw ();
 
         friend class Network;
+        friend class Network::Socket;
 
     public:
         Address() throw ();
@@ -219,13 +221,14 @@ public:
         int getStat(NLenum type) const throw (); //#fix: create an own enum for the type
 
         void connect(const Address& a) throw (ConnectError);
+        bool connectPending() throw (ReadWriteError);
         void listen() throw (ListenError);
         bool acceptConnection(BlockingMode b, Socket& listenerSock) throw ();
         void setRemoteAddress(const Address& a) throw (Error);
         int read(void* buffer, int bufSize) throw (ReadWriteError);
         void write(const void* data, int size, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
 
-        void writeToUnblockingTCP(const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
+        void writeToUnblockingTCP(const void* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
             throw (ReadWriteError, ExternalAbort, Timeout);
         void saveAllFromUnblockingTCP(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
             throw (ReadWriteError, ExternalAbort, Timeout);

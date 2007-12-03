@@ -306,6 +306,21 @@ void Socket::connect(const Address& a) throw (ConnectError) {
     connected = true;
 }
 
+bool Socket::connectPending() throw (ReadWriteError) {
+    nAssert(isOpen() && connected);
+    char nullData;
+    const NLint val = nlWrite(NLS, &nullData, 0);
+    if (val == NL_INVALID) {
+        const NLenum err = nlGetError();
+        if (err == NL_CON_PENDING)
+            return true;
+        numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+        throw ReadWriteError(true); // while we're using nlWrite, this operation is conceptually more like reading
+    }
+    nAssert(val == 0);
+    return false;
+}
+
 void Socket::listen() throw (ListenError) {
     nAssert(isOpen() && !connected);
     if (!nlListen(NLS)) {
@@ -366,7 +381,7 @@ void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWrit
         numAssert2(val == size, val, size);
 }
 
-void Socket::writeToUnblockingTCP(const char* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+void Socket::writeToUnblockingTCP(const void* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     int at = 0;
     int tries = 0;
     while (at < length) {
@@ -376,7 +391,7 @@ void Socket::writeToUnblockingTCP(const char* data, int length, const volatile b
             throw Timeout(false);
 
         int written;
-        write(data + at, length - at, &written);
+        write(static_cast<const char*>(data) + at, length - at, &written);
         at += written;
 
         platSleep(roundDelay);
