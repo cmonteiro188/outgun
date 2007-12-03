@@ -1601,7 +1601,8 @@ void Client::change_name_command() throw () {
     openMenus.close(&menu.options.player.menu);
 
     playername = newName;
-    m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
+    if (serverIP.valid)
+        m_playerPassword.password.set(load_player_password(playername, addressToString(serverIP)));
     issue_change_name_command();
     tournamentPassword.changeData(playername, menu.options.player.password());
 }
@@ -6341,7 +6342,7 @@ void Client::MCF_prepareReplayMenu() throw () {
             replays.push_back(pair<string, string>(name, text.str()));
         }
         else
-            log.error(_("Replay $1 can't be read.", replay_file));
+            log("Replay file %s is invalid.", replay_file.c_str());
     }
     delete replay_files;
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
