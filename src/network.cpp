@@ -426,6 +426,18 @@ void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFl
     }
 }
 
+void Socket::writeToUnblockingTCP(const void* data, int length, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+    try {
+        writeToUnblockingTCP(data, length, 0, timeout, roundDelay);
+    } catch (ExternalAbort) { nAssert(0); }
+}
+
+void Socket::saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+    try {
+        saveAllFromUnblockingTCP(out, 0, timeout, roundDelay);
+    } catch (ExternalAbort) { nAssert(0); }
+}
+
 void Network::init() throw (InitError) {
     if (!nlInit() || !nlSelectNetwork(NL_IP))
         throw InitError();
@@ -444,7 +456,7 @@ vector<Address> Network::getAllLocalAddresses() throw () {
     return a;
 }
 
-Address Network::getDefaultLocalAddress() throw () {
+Address Network::getDefaultLocalAddress() throw (Error) {
     Socket s(NonBlocking, UDP, 0);
     Address addr;
     if (s.isOpen()) {
@@ -509,8 +521,12 @@ string getPublicIP(LineReceiver& output, bool allowAnyExternal) throw () {
 
 bool isLocalIP(Network::Address address) throw () { // local doesn't mean private
     address.setPort(0);
-    if (address == Network::Address("127.0.0.1"))
-        return true;
+    {
+        Network::Address localhost;
+        localhost.fromValidIP("127.0.0.1");
+        if (address == localhost)
+            return true;
+    }
     const vector<Network::Address> locals = Network::getAllLocalAddresses();
     for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li)
         if (address == *li)

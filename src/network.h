@@ -232,12 +232,15 @@ public:
             throw (ReadWriteError, ExternalAbort, Timeout);
         void saveAllFromUnblockingTCP(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
             throw (ReadWriteError, ExternalAbort, Timeout);
+
+        void writeToUnblockingTCP(const void* data, int length, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
+        void saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
     };
 
     // static members only
     static void init() throw (InitError);
     static std::vector<Address> getAllLocalAddresses() throw ();
-    static Address getDefaultLocalAddress() throw ();
+    static Address getDefaultLocalAddress() throw (Error);
 };
 
 bool isValidIP(const std::string& address, bool allowPort = false, unsigned int minimumPort = 0, bool requirePort = false) throw ();
