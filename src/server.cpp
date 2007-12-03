@@ -826,8 +826,8 @@ void Server::init_bots() throw () {
     pthread_getschedparam(pthread_self(), &policy, &param); // get priority of current thread (which is the default value)
     clientCfg.networkPriority = clientCfg.priority = clientCfg.lowerPriority = param.sched_priority;
     clientCfg.statusOutput = settings.statusOutput();
-    const Network::Address address("127.0.0.1:" + itoa(settings.get_port()));
-    nAssert(address.valid());
+    Network::Address address;
+    address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
         ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);

@@ -574,7 +574,12 @@ public:
         // mensagem 0 200 = serverinfo request
 
         //extract remote address from server socket
-        const Network::Address remoteaddr = servsock.getRemoteAddress();
+        Network::Address remoteaddr;
+        try {
+            remoteaddr = servsock.getRemoteAddress();
+        } catch (Network::Error&) {
+            return 0;
+        }
 
         int count = 0;
         NLulong packid, smsgid, leetversion;
@@ -654,9 +659,13 @@ public:
             writeByte(lebuf, count, b);
             writeString(lebuf, count, serverinfo);
             //send
-            servsock.setRemoteAddress(remoteaddr);
-            log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-            servsock.write(lebuf, count);
+            try {
+                servsock.setRemoteAddress(remoteaddr);
+                log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
+                servsock.write(lebuf, count);
+            } catch (Network::Error&) {
+                return 0;
+            }
             return 1;
         }
 
@@ -668,9 +677,13 @@ public:
             if (a == 'u' && b == 'n') {
                 char lebuf[512]; int count = 0;
                 writeString(lebuf, count, "Outgun");
-                servsock.setRemoteAddress(remoteaddr);
-                log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-                servsock.write(lebuf, count);
+                try {
+                    servsock.setRemoteAddress(remoteaddr);
+                    log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
+                    servsock.write(lebuf, count);
+                } catch (Network::Error&) {
+                    return 0;
+                }
             }
             return 1;
         }
@@ -692,10 +705,14 @@ public:
             writeLong(lebuf, count, 201);           //"connection rejected - engine server FULL"
 
             //send
-            servsock.setRemoteAddress(remoteaddr);
-            servsock.write(lebuf, count);
-            log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, remoteaddr.toString().c_str());
-            return 1;
+            try {
+                servsock.setRemoteAddress(remoteaddr);
+                servsock.write(lebuf, count);
+                log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, remoteaddr.toString().c_str());
+                return 1;
+            } catch (Network::Error&) {
+                return 0;
+            }
         }
 
         //verifica se LEETNET_VERSION match
@@ -722,7 +739,7 @@ public:
                 client[i].quitflag = false; //thread must quit flag
 
                 // aloca jogador para thread
-                client[i].addr = servsock.getRemoteAddress();       //set address
+                client[i].addr = remoteaddr;       //set address
                 client[i].connected = false;                // must negotiate connection (client must first say "hello" :-)
                 client[i].connected_knows = false;      // did not receive game data packet yet when TRUE the
                                                                                             // server knows that the client knows that he was accepted
@@ -922,8 +939,10 @@ public:
 //                      log("station debuginfo = %s", client[cid].station->debug_info());
 
                         // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
-                        servsock.setRemoteAddress(client[cid].addr);
-                        servsock.write(reply->getbuf(), reply->getlen());
+                        try {
+                            servsock.setRemoteAddress(client[cid].addr);
+                            servsock.write(reply->getbuf(), reply->getlen());
+                        } catch (Network::Error&) { }
 
                         delete reply;
 
@@ -937,8 +956,10 @@ public:
                         reply->addlong(4);      //"connection rejected"
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom "connection denied" information
-                        servsock.setRemoteAddress(client[cid].addr);
-                        servsock.write(reply->getbuf(), reply->getlen());
+                        try {
+                            servsock.setRemoteAddress(client[cid].addr);
+                            servsock.write(reply->getbuf(), reply->getlen());
+                        } catch (Network::Error&) { }
                         delete reply;
 
                         //return this thread/client slot to the free pool

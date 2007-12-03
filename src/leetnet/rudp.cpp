@@ -368,12 +368,20 @@ DLOG_Scope s("UPIM");
             if (localPortLastTry == firstTry)
                 return 0;   // ERROR
         }
-        sendsock.setRemoteAddress(netaddr);
+        try {
+            sendsock.setRemoteAddress(netaddr);
+        } catch (Network::Error&) {
+            return 0;
+        }
         return 1;   // ok
     }
 
     virtual int getLocalPort() const throw () {
-        return sendsock.getLocalAddress().getPort();
+        try {
+            return sendsock.getLocalAddress().getPort();
+        } catch (Network::Error&) {
+            return 0;
+        }
     }
 
     // read a reliable message from the queue
@@ -695,22 +703,24 @@ DLOG_Scope s("USP");
 
         // send the packet
         //
-        sendsock.setRemoteAddress(netaddr);
-        #if LEETNET_SIMULATED_PACKET_LOSS != 0
-        if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
-            ; // packet simulated as lost; sent ok though
-        else
-        #endif
+        try {
+            sendsock.setRemoteAddress(netaddr);
+            #if LEETNET_SIMULATED_PACKET_LOSS != 0
+            if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
+                ; // packet simulated as lost; sent ok though
+            else
+            #endif
 {DLOG_Scope s("USPw");
-            sendsock.write(sendbuf, count); //FIXME: deal with error
+                sendsock.write(sendbuf, count);
 }
 
-        #ifdef LEETNET_DATA_LOG
-        if (datalog) {
-            fwrite(&count, sizeof(int), 1, datalog);
-            fwrite(sendbuf, 1, count, datalog);
-        }
-        #endif
+            #ifdef LEETNET_DATA_LOG
+            if (datalog) {
+                fwrite(&count, sizeof(int), 1, datalog);
+                fwrite(sendbuf, 1, count, datalog);
+            }
+            #endif
+        } catch (Network::Error&) { } //FIXME: deal with error
 
         // reset the unreliable buffer (don't delete, just invalidate)
         //

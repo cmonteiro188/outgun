@@ -105,6 +105,20 @@ ServerNetworking::~ServerNetworking() throw () {
     }
 }
 
+bool ServerNetworking::writeToAdminShell(void* data, int length) const throw () {
+    try {
+        int written;
+        shellssock.write(data, length, &written);
+        if (written == length)
+            return true;
+        log.error(_("Admin shell connection: Not all written."));
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell connection: $1", e.str()));
+    }
+    shellssock.close();
+    return false;
+}
+
 void ServerNetworking::upload_next_file_chunk(int i) throw () {
     const int max_chunksize = 128;      // the max chunk size in bytes
 
@@ -235,7 +249,7 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const throw () 
             writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
             writeLong(lebuf, count, world.player[pid].cid);
             writeStr(lebuf, count, world.player[pid].name);
-            shellssock.write(lebuf, count);
+            writeToAdminShell(lebuf, count);
         }
     }
     else
@@ -471,7 +485,7 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_CAPTURES);
         writeLong(lebuf, count, player.cid);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 }
 
@@ -538,7 +552,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
             writeLong(lebuf, count, STA_PLAYER_DIES);
             writeLong(lebuf, count, target.cid);
         }
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 }
 
@@ -558,7 +572,7 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_DIES);
         writeLong(lebuf, count, player.cid);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 }
 
@@ -601,7 +615,7 @@ void ServerNetworking::new_player_to_admin_shell(int pid) const throw () {
         Network::Address addr = get_client_address(world.player[pid].cid);
         addr.setPort(0);
         writeStr(lebuf, count, addr.toString());
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 }
 
@@ -894,7 +908,7 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
         writeLong(lebuf, count, STA_GAME_TEXT);
         writeByte(lebuf, count, '.');
         writeStr(lebuf, count, text);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 }
 
@@ -954,7 +968,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
                 count = 0;
                 writeLong(lebuf, count, STA_GAME_TEXT);
                 writeStr(lebuf, count, text);
-                shellssock.write(lebuf, count);
+                writeToAdminShell(lebuf, count);
             }
         }
         else if (pid == pid_all) {
@@ -986,7 +1000,7 @@ void ServerNetworking::broadcast_text(Message_type type, const string& text) con
         int count = 0;
         writeLong(lebuf, count, STA_GAME_TEXT);
         writeStr(lebuf, count, text);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
         delete[] lebuf;
     }
 }
@@ -1043,7 +1057,7 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         if (shellssock.isOpen()) {
             char lebuf[256]; int count = 0;
             writeLong(lebuf, count, STA_GAME_OVER);
-            shellssock.write(lebuf, count);
+            writeToAdminShell(lebuf, count);
             sendTextToAdminShell("Map is " + host->current_map().title);
         }
     }
@@ -1360,7 +1374,7 @@ int ServerNetworking::client_connected(int id) throw () {
         char lebuf[256]; int count = 0;
         writeLong(lebuf, count, STA_PLAYER_CONNECTED);
         writeLong(lebuf, count, world.player[myself].cid);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 
     host->check_fav_colors(myself);
@@ -1430,7 +1444,7 @@ void ServerNetworking::client_disconnected(int id) throw () {
         count = 0;
         writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
         writeLong(lebuf, count, world.player[pid].cid);
-        shellssock.write(lebuf, count);
+        writeToAdminShell(lebuf, count);
     }
 
     //report the latest player achievements to the master server
@@ -1483,7 +1497,7 @@ void ServerNetworking::forwardSayadminMessage(int cid, const string& message) co
     writeLong(lebuf, count, STA_ADMIN_MESSAGE);
     writeLong(lebuf, count, cid);
     writeStr(lebuf, count, message);
-    shellssock.write(lebuf, count);
+    writeToAdminShell(lebuf, count);
 }
 
 void ServerNetworking::sendTextToAdminShell(const string& text) const throw () {
@@ -1495,7 +1509,7 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const throw () {
     buf[count++] = '|';
     buf[count++] = ' ';
     writeStr(buf, count, text);
-    shellssock.write(buf, count);
+    writeToAdminShell(buf, count);
 }
 
 bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) throw () {
@@ -2394,9 +2408,9 @@ void ServerNetworking::send_master_quit(const string& localAddress) const throw 
 
         const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
         const string data = format_http_parameters(parameters);
-        post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
+        post_http_data(msock, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
         stringstream response;
-        save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+        save_http_response(msock, response, 5000);  // only 5 seconds allowed; it's not so crucial
         // save transaction to a file
         ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
         out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
@@ -2489,12 +2503,12 @@ void ServerNetworking::run_website_thread() throw () {
         websock.connect(website_address);
 
         const string quit = "quit=1";
-        post_http_data(websock, 0, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
+        post_http_data(websock, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
         log("Website thread: Sent information to server website: \"%s\"", formatForLogging(quit).c_str());
 
         // save response to a file
         ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-        save_http_response(websock, out, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+        save_http_response(websock, out, 5000);  // only 5 seconds allowed; it's not so crucial
     } catch (Network::Error& e) {
         log.error(_("Website thread: (Quit) $1", e.str()));
     }
@@ -2634,7 +2648,7 @@ void ServerNetworking::handleNewAdminShell(Thread& slaveThread, volatile bool& s
             writeLong(lebuf, count, world.player[i].cid);
             writeLong(lebuf, count, world.player[i].stats().frags());
         }
-    shellssock.write(lebuf, count);
+    writeToAdminShell(lebuf, count);
 
     if (slaveThread.isRunning())
         slaveThread.join();
@@ -2805,16 +2819,10 @@ bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
     char answer[1000];
     const int ansLen = executeAdminCommand(code, cid, pid, dwArg, answer);
 
-    if (ansLen) {
-        int written;
-        shellssock.write(answer, ansLen, &written);
-        if (written != ansLen) {
-            log.error(_("Admin shell: sending response failed."));
-            return false;
-        }
-    }
-
-    return true;
+    if (ansLen)
+        return writeToAdminShell(answer, ansLen);
+    else
+        return true;
 }
 
 void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw () {  // sets *runningFlag = true when quitting
@@ -2826,7 +2834,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw (
         log.error(_("Admin shell: $1", e.str()));
     }
 
-    shellssock.close();
+    shellssock.closeIfOpen();
     *runningFlag = false;
     log("Admin shell slave thread quitting");
 }

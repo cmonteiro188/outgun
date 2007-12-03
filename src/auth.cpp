@@ -148,7 +148,8 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw (FileErr
             if (!isValidIP(data))
                 throw FileError(_("Invalid ban command (IP address) in auth.txt: \"$1\"", line));
             else {
-                Network::Address addr(data);
+                Network::Address addr;
+                addr.fromValidIP(data);
                 nAssert(addr.valid());
                 addr.setPort(0);
                 time_t endTime;

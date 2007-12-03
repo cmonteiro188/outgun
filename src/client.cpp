@@ -3735,9 +3735,11 @@ bool Client::refresh_all_servers() throw () {
                 writeByte(lebuf, count, (NLubyte)i);        //connect entry (am I lazy or what)
                 writeByte(lebuf, count, (NLubyte)round);        //packet number
 
-                sock.setRemoteAddress(servers[i]->address());
-                sock.write(lebuf, count);
-                tempd[i].send(round);
+                try {
+                    sock.setRemoteAddress(servers[i]->address());
+                    sock.write(lebuf, count);
+                    tempd[i].send(round);
+                } catch (Network::Error&) { } //#fix: report?
             }
         }
 
@@ -3777,9 +3779,13 @@ bool Client::refresh_all_servers() throw () {
 
                 Lock ml(serverListMutex);
 
-                const Network::Address from = sock.getRemoteAddress();
-                if (from != servers[index]->address())
-                    continue;
+                try {
+                    const Network::Address from = sock.getRemoteAddress();
+                    if (from != servers[index]->address())
+                        continue;
+                } catch (Network::Error&) {
+                    continue; //#fix: report?
+                }
 
                 readStr(lebuf, count, servers[index]->info);
 
@@ -4303,9 +4309,12 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
         connect_command(true);
     }
     else if (!extConfig.autoSpectate.empty()) {
-        Network::Address addr(extConfig.autoSpectate);
-        nAssert(addr.valid());
-        start_spectating(addr);
+        try {
+            Network::Address addr(extConfig.autoSpectate);
+            start_spectating(addr);
+        } catch (Network::BadIP) {
+            nAssert(0);
+        }
     }
     else if (!extConfig.autoReplay.empty())
         start_replay(extConfig.autoReplay);
@@ -4763,7 +4772,7 @@ void Client::start_spectating(const Network::Address& address) throw () {
         write_string(ost, ""); // username
         write_string(ost, ""); // password
 
-        spectate_socket.writeToUnblockingTCP(ost.str().data(), ost.str().length(), 0, 500, 5);
+        spectate_socket.writeToUnblockingTCP(ost.str().data(), ost.str().length(), 500, 5);
         log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
     } catch (const Network::Error& e) {
         spectate_socket.closeIfOpen();

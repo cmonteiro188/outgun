@@ -207,6 +207,8 @@ private:
     void run_mastertalker_thread() throw ();
     void send_master_quit(const std::string& localAddress) const throw ();
 
+    bool writeToAdminShell(void* data, int length) const throw ();
+
     bool read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError);
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();

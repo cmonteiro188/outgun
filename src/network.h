@@ -280,6 +280,12 @@ void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int
 void save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout)
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout);   // timeout in ms
 
+void post_http_data(Network::Socket& socket, int timeout, const std::string& host, const std::string& script, const std::string& parameters, const std::string& auth = "")
+    throw (Network::ReadWriteError, Network::Timeout); // timeout in ms
+
+void save_http_response(Network::Socket& socket, std::ostream& out, int timeout)
+    throw (Network::ReadWriteError, Network::Timeout);   // timeout in ms
+
 std::string url_encode(const std::string& str) throw ();
 void url_encode(char c, std::ostream& out) throw ();
 bool is_url_safe(char c) throw ();

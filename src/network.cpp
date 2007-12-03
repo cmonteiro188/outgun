@@ -589,6 +589,19 @@ void save_http_response(Network::Socket& socket, ostream& out, const volatile bo
     return socket.saveAllFromUnblockingTCP(out, abortFlag, timeout);
 }
 
+void post_http_data(Network::Socket& socket, int timeout, const string& host, const string& script, const string& parameters, const string& auth)
+    throw (Network::ReadWriteError, Network::Timeout)
+{
+    const string request = build_http_request(true, host, script, parameters, auth);
+    return socket.writeToUnblockingTCP(request.data(), request.length(), timeout);
+}
+
+void save_http_response(Network::Socket& socket, ostream& out, int timeout)
+    throw (Network::ReadWriteError, Network::Timeout)
+{
+    return socket.saveAllFromUnblockingTCP(out, timeout);
+}
+
 string url_encode(const string& str) throw () {
     ostringstream ost;
     for (string::const_iterator s = str.begin(); s != str.end(); s++)
