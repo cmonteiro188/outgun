@@ -400,7 +400,7 @@ vector<ScreenMode> Graphics::getResolutions(int depth, bool forceTryIfNothing) c
         const bool ok = ss;
         ss >> nullc;
         if (!ok || ss) {
-            log.error(_("Syntax error in gfxmodes.txt, line '$1'.", line));
+            log.error(_("Syntax error in $1, line '$2'.", "gfxmodes.txt", line));
             break;
         }
         if (width < 320 || height < 200 || (bits != 16 && bits != 24 && bits != 32)) {

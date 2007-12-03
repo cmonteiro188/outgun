@@ -160,7 +160,7 @@ void Colour_manager::init(const string& file, bool create_default_only) throw ()
                 log("Unknown key in colours.txt: %s", key.c_str());
         }
         else
-            log.error(_("Syntax error in colours.txt, line '$1'.", line.c_str()));
+            log.error(_("Syntax error in $1, line '$2'.", "colours.txt", line));
     }
 }
 
