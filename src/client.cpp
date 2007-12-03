@@ -1581,7 +1581,8 @@ void Client::change_name_command() throw () {
     openMenus.close(&menu.options.player.menu);
 
     playername = newName;
-    m_playerPassword.password.set(load_player_password(playername, serverIP.toString()));
+    if (serverIP.valid())
+        m_playerPassword.password.set(load_player_password(playername, serverIP.toString()));
     issue_change_name_command();
     tournamentPassword.changeData(playername, menu.options.player.password());
 }
@@ -4303,18 +4304,24 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     double nextClientFrame = get_time();
 
     if (!extConfig.autoPlay.empty()) {
-        serverIP.fromValidIP(extConfig.autoPlay);
-        if (serverIP.getPort() == 0)
-            serverIP.setPort(DEFAULT_UDP_PORT);
-        connect_command(true);
+        Network::ResolveError err;
+        if (!serverIP.tryResolve(extConfig.autoPlay, &err))
+            log.error(err.str());
+        else {
+            if (serverIP.getPort() == 0)
+                serverIP.setPort(DEFAULT_UDP_PORT);
+            connect_command(true);
+        }
     }
     else if (!extConfig.autoSpectate.empty()) {
-        try {
-            Network::Address addr(extConfig.autoSpectate);
+        Network::Address addr;
+        Network::ResolveError err;
+        if (!addr.tryResolve(extConfig.autoSpectate, &err))
+            log.error(err.str());
+        else if (addr.getPort() == 0)
+            log.error(_("Port is missing from $1.", extConfig.autoSpectate));
+        else
             start_spectating(addr);
-        } catch (Network::BadIP) {
-            nAssert(0);
-        }
     }
     else if (!extConfig.autoReplay.empty())
         start_replay(extConfig.autoReplay);
@@ -4598,6 +4605,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 void Client::start_replay(const std::string& filename) throw () {
     disconnect_command();
     stop_replay();
+    openMenus.clear();
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
     if (!replay)
@@ -4661,7 +4669,6 @@ bool Client::start_replay(istream& replay) throw () {
     frameReceiveTime = 0;
 
     gameshow = false;
-    openMenus.clear();
 
     fd.frame = -1;
     fd.skipped = true;
@@ -4785,6 +4792,8 @@ void Client::start_spectating(const Network::Address& address) throw () {
     replay_rate = 1;
     spectate_data_received = false;
 
+    openMenus.clear();
+    m_connectProgress.clear();
     m_connectProgress.wrapLine(_("Waiting for the game to start."));
     showMenu(m_connectProgress);
 }
@@ -4808,8 +4817,7 @@ void Client::continue_spectating() throw () {
         stop_replay();
         return;
     }
-
-    if (result == 0 && !spectate_data_received)
+    if (result == 0)
         return;
 
     if (!spectate_data_received) {
@@ -5144,7 +5152,7 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
         else
             graphics.draw_map_time(0);
 
-    if (replaying)
+    if (replaying && replay_first_frame_loaded)
         graphics.draw_replay_info(replay_paused ? 0 : replay_rate, static_cast<unsigned>(fx.frame - replay_start_frame), replay_length, replay_stopped);
     else if (me >= 0) {
         // player's power-ups
@@ -6294,7 +6302,7 @@ void Client::MCF_prepareReplayMenu() throw () {
             replays.push_back(pair<string, string>(name, text.str()));
         }
         else
-            log.error(_("Replay $1 can't be read.", replay_file));
+            log("Replay file %s is invalid.", replay_file.c_str());
     }
     delete replay_files;
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));

@@ -201,11 +201,15 @@ Current refresh rate
 $1 Hz
 Apply changes
 
-Graphic options
+Theme and font
 Theme
 Background theme
 Prefer main theme background
+Colour theme
+Prefer main theme colours
 Font
+
+Graphic options
 Show player names
 Rooms on screen in each direction in game
 Rooms on screen in each direction in replay
@@ -292,6 +296,7 @@ $1% of rooms
 
 ; Used in the connection progress dialog. No limit; over 76 chars gets wrapped.
 Trying to connect...
+Waiting for the game to start.
 No response from server.
 Connection refused.
 No reason given.
@@ -491,6 +496,7 @@ Your vote has no effect until you vote for a specific map.
 
 ; Used like: This map is mapname (5 of 13)
 This map is $1 ($2 of $3).
+This map is $1.
 
 CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2
 CAPTURE $1 FLAGS TO WIN THE GAME.
@@ -587,6 +593,10 @@ Shadow
 
 ; The shorter the better; test it.
 Weapon $1
+
+; Extra-time abbreviation prepending the game clock. Try to use only one or
+; two letters.
+ET
 
 ; No limit really, but small and discreet is good.
 FPS:$1
@@ -708,7 +718,8 @@ IP addresses:
 Outgun - Saving map pictures
 
 ; Used in an external dialog message.
-Saved map pictures to the directory 'mappic'.
+Map pictures saved to the directory 'mappic'.
+Default colours generated to $1.
 
 
 ; - - - - - - - - - - - - - - - error messages  - - - - - - - - - - - - - - -
@@ -718,6 +729,7 @@ Saved map pictures to the directory 'mappic'.
 ; No length restrictions.
 
 ; Command line errors.
+$1 can't be combined with other command line options.
 -cport must be followed by a space and either a port number or minport:maxport.
 -cport X or -cport X:Y: X and Y must be in the range of 1 to 65535.
 -cport X:Y: Y must be greater than X.
@@ -727,14 +739,13 @@ Saved map pictures to the directory 'mappic'.
 -fps X: X must be in the range of 1 to 1000.
 -ip must be followed by a space and an IP address.
 -ip X: X must be a valid IP address without :port.
--mappic can't be combined with other command line options.
 -maxp must be followed by a space and a player count.
 -maxp X: X must be an even number in the range of 2 to $1.
--play must be followed by an IP address and optionally port.
+-play must be followed by a hostname and optionally port.
 -port must be followed by a space and a port number.
 -port X: X must be in the range of 1 to 65535.
 -replay must be followed by a filename.
--spectate must be followed by an IP address and port.
+-spectate must be followed by a hostname and port.
 -sport must be followed by a space and minport:maxport.
 -sport X:Y: X and Y must be in the range of 1 to 65535.
 -sport X:Y: Y must be greater than X.
@@ -822,9 +833,8 @@ Invalid line (no name) in auth.txt: "$1"
 Invalid syntax in client.cfg ("$1").
 Invalid user command (no password) in auth.txt: "$1"
 Map picture saver: Map '$1' is not a valid map file.
-Replay $1 can't be read.
 Replay $1 is a newer version ($2).
-Syntax error in gfxmodes.txt, line '$1'.
+Syntax error in $1, line '$2'.
 This is a newer replay version ($1).
 This is not an Outgun replay.
 Translation $1 can't be read.
@@ -900,6 +910,7 @@ Shutdown: bot thread
 Shutdown: main thread
 Shutdown: master talker thread
 Shutdown: net server
+Shutdown: relay thread
 Shutdown: waiting for $1 tournament updates
 Shutdown: website thread
 

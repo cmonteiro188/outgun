@@ -50,16 +50,11 @@ using std::vector;
 
 int main(int argc, const char* argv[]) {
     cout << "Outgun relay " << getVersionString() << '\n';
-    int port = 0;
-    //int bandwidth_limit = 20000;
-    int spectators = 32;
 
-    if (argc == 2)
-        port = atoi(argv[1]);
-    if (port <= 0 || port > 65535) {
-        cout << "Usage: relay port\n";
-        return 0;
-    }
+    vector<string> parameters;
+    for (int i = 1; i < argc; i++)
+        parameters.push_back(argv[i]);
+
     if (nlInit())
         cout << "NL init successful.\n";
     else {
@@ -77,10 +72,15 @@ int main(int argc, const char* argv[]) {
     platInitAfterAllegro();
     g_timeCounter.setZero();
 
-    cout << "Starting relay server on port " << port << ".\n";
-
-    Relay* relay = new Relay(port, spectators);
-    relay->run();
+    Relay* relay = new Relay();
+    try {
+        relay->load_settings(parameters);
+        relay->run();
+    }
+    catch (Relay::ArgumentException ex) {
+        cout << ex.message() << '\n';
+        cout << "Usage: relay [-p] port [-b bandwidth_limit (B/s)] [-s spectator_limit] [-d delay (s)]\n";
+    }
     delete relay;
 
     platUninit();
@@ -105,14 +105,16 @@ Peer& Peer::operator=(const Peer& peer) throw () {
     return *this;
 }
 
-Relay::Relay(unsigned short port, unsigned spectators) throw () :
-    listen_port(port),
+Relay::Relay() throw () :
+    listen_port(0),
     bandwidth_limit(20000),
-    spectator_limit(spectators),
+    spectator_limit(16),
+    game_delay(120),
     first_buffer(-1, string(), 0),
     buffer_first_frame(0),
     master_talk_time(0)
-{ }
+{
+}
 
 Relay::~Relay() throw () {
     cout << "Closing sockets\n";
@@ -125,6 +127,8 @@ Relay::~Relay() throw () {
 }
 
 void Relay::run() throw () {
+    cout << "Relay server starting on port " << listen_port << ".\n";
+
     if (!listen_socket.open(Network::NonBlocking, Network::TCP, listen_port)) {
         cout << "Can't open socket: " << getNlErrorString() << '\n';
         return;
@@ -135,6 +139,8 @@ void Relay::run() throw () {
     }
 
     load_master_settings();
+
+    cout << "Relay server started.\n";
 
     while (!g_exitFlag) {
         g_timeCounter.refresh();
@@ -148,6 +154,42 @@ void Relay::run() throw () {
     }
 
     cout << "Shutdown\n";
+}
+
+void Relay::load_settings(const vector<string>& parameters) throw (Relay::ArgumentException) {
+    for (vector<string>::const_iterator pi = parameters.begin(); pi != parameters.end(); pi++) {
+        if (*pi == "-b") {
+            if (++pi == parameters.end())
+                break;
+            bandwidth_limit = std::atoi(pi->c_str());
+            if (bandwidth_limit <= 0)
+                throw ArgumentException("Bandwidth limit must be more than 0 B/s.");
+        }
+        else if (*pi == "-s") {
+            if (++pi == parameters.end())
+                break;
+            spectator_limit = std::atoi(pi->c_str());
+            if (spectator_limit <= 0)
+                throw ArgumentException("Spectator limit must be more than 0.");
+        }
+        else if (*pi == "-d") {
+            if (++pi == parameters.end())
+                break;
+            game_delay = std::atoi(pi->c_str());
+        }
+        else {
+            if (*pi == "-p") {
+                if (++pi == parameters.end())
+                    break;
+            }
+            int temp_port = std::atoi(pi->c_str());
+            if (temp_port <= 0 || temp_port > 65535)
+                throw ArgumentException("Port must be between 1 and 65535.");
+            listen_port = temp_port;
+        }
+    }
+    if (listen_port == 0)
+        throw ArgumentException("Port must be defined.");
 }
 
 // FIX: getline_skip_comments
@@ -492,7 +534,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
     if (!frame || !frame->full())
         return string();
     // Do not send too recent frames if the game is still going on.
-    if (!current_game_finished && frame->time() + 0 * 60 > get_time())
+    if (!current_game_finished && frame->time() + game_delay > get_time())
         return string();
     ostringstream ost;
     if (pos == 0)

@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cstdio>
 #include <map>
+#include <stdint.h>
 #include <string>
 #include <vector>
 
@@ -20,7 +21,7 @@ struct BadLogFileData {
     BadLogFileData(string cond, int line_) : condition(cond), line(line_) { }
 };
 
-#define dataAssert(condition) (condition ? (void)0 : throw BadLogFileData(#condition, __LINE__))
+#define dataAssert(condition) ((void)((condition) ? 0 : throw BadLogFileData(#condition, __LINE__)))
 
 typedef uint32_t ThreadId;
 typedef uint64_t ObjectId;
@@ -197,7 +198,7 @@ bool SyncStatus::threadOperation(Thread& t, Thread& tgt, char operation, FILE* l
              * The ones in ((double parentheses)) shouldn't happen even if the thread was able to detach itself, since they require outside cooperation.
              */
             switch (tgt.status) {
-                break; case Thread::RunningUnknown:    tgt.status = detachState == 'D' ? Thread::RunningDetached : Thread::RunningUndetached;
+            /*break;*/ case Thread::RunningUnknown:    tgt.status = detachState == 'D' ? Thread::RunningDetached : Thread::RunningUndetached;
                 break; case Thread::RunningDetached:   dataAssert(detachState == 'J');
                 break; case Thread::WaitingToBeJoined: if (detachState == 'D') tgt.status = Thread::Cleaned;
                 break; case Thread::Cleaned:

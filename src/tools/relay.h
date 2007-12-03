@@ -102,8 +102,20 @@ private:
 
 class Relay {
 public:
-    Relay(unsigned short port, unsigned spectators) throw ();
+    class ArgumentException {
+    public:
+        ArgumentException(const std::string& msg_) throw () : msg(msg_) { }
+        const std::string& message() const throw () { return msg; }
+
+    private:
+        std::string msg;
+    };
+
+    Relay() throw ();
     ~Relay() throw ();
+
+    /// Load settings from command line parameters
+    void load_settings(const std::vector<std::string>& parameters) throw (ArgumentException);
 
     void run() throw ();
 
@@ -144,6 +156,7 @@ private:
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
     unsigned spectator_limit;   /// Maximum number of spectators for this relay
+    unsigned game_delay;        /// Delay from the live game in seconds
 
     std::vector<Spectator> spectators;
     std::vector<Peer> peers;    /// Just connected "things"
