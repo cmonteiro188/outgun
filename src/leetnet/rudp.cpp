@@ -360,7 +360,7 @@ DLOG_Scope s("UPIM");
             localPortLastTry = localPortMin;
         const int firstTry = localPortLastTry;
         for (;;) {
-            if (sendsock.open(Network::NonBlocking, Network::UDP, localPortLastTry))
+            if (sendsock.tryOpen(Network::NonBlocking, Network::UDP, localPortLastTry))
                 break;
             ++localPortLastTry;
             if (localPortLastTry > localPortMax)
@@ -723,33 +723,41 @@ DLOG_Scope s("USP");
     // send a raw UDP packet to the destination. returns 1 if ok, 0 if nlWrite failed
     virtual int send_raw_packet(const data_c *data) throw () {
 
-        //fix remote addr (changed by reads)
-        sendsock.setRemoteAddress(netaddr);
+        try {
+            //fix remote addr (changed by reads)
+            sendsock.setRemoteAddress(netaddr);
 
 {DLOG_Scope s("SRPw");
-        if (!sendsock.write(data->getbuf(), data->getlen())) {
-            // FAILED
+            sendsock.write(data->getbuf(), data->getlen());
+}
+            return 1;
+        } catch (Network::Error&) {
             return 0;
         }
-}
-        //ok
-        return 1;
     }
 
     virtual int send_raw_packet_to_port(const data_c* data, int port) throw () {
-        Network::Address addr = netaddr;
-        addr.setPort(port);
-        sendsock.setRemoteAddress(addr);
-        return !!sendsock.write(data->getbuf(), data->getlen());
+        try {
+            Network::Address addr = netaddr;
+            addr.setPort(port);
+            sendsock.setRemoteAddress(addr);
+            sendsock.write(data->getbuf(), data->getlen());
+            return 1;
+        } catch (Network::Error&) {
+            return 0;
+        }
     }
 
     // non-blocking call: attempt to read data from the socket
     // buffer/bufsize: buffer given to the routine
     // int return: value of nlRead()... :-)
     virtual int receive_packet(char *buffer, int bufsize) throw () {
+        try {
 DLOG_Scope s("URPr");
-
-        return sendsock.read(buffer, bufsize);
+            return sendsock.read(buffer, bufsize);
+        } catch (Network::Error&) {
+            return -1;
+        }
     }
 
     // return the socket for get_socket_stat purposes

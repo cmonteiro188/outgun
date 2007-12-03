@@ -214,7 +214,7 @@ public:
         //timeout defaults
         set_client_timeout(5, 10);
 
-        if (!servsock.open(Network::NonBlocking, Network::UDP, port)) {
+        if (!servsock.tryOpen(Network::NonBlocking, Network::UDP, port)) {
             log("server_ci::start(): cannot nlOpen server socket!");
             return 0;  // error
         }
@@ -1182,7 +1182,13 @@ void thread_master_f(server_ci* server) throw ()
     //loop
     while (1) {
         //read from socket
-        const int amount = servsock.read(buffer, THREAD_READER_BUFSIZE);
+        int amount;
+        try {
+            amount = servsock.read(buffer, THREAD_READER_BUFSIZE);
+        } catch (const Network::Error& e) {
+            amount = -1;
+            server->log("Master thread: trouble reading socket: %s", e.str().c_str());
+        }
 
         //HACK (a better one): think for the server
         server->server_think();
@@ -1198,11 +1204,8 @@ void thread_master_f(server_ci* server) throw ()
         }
 
         // check for error
-        if (amount == Network::Error) {
-            server->log("Master thread: trouble reading socket: %s", getNlErrorString());
+        if (amount < 0)
             platSleep(100);
-        }
-        // process packet
         else
             server->process_incoming_datagram(buffer, amount);
     }

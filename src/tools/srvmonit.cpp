@@ -86,9 +86,6 @@ using std::string;
 
 typedef unsigned char uchar;
 
-class ReadFail { };
-class SendFail { };
-class ConnectFail { };
 class UserExit { };
 
 string encode(const string& str) throw () {
@@ -99,16 +96,14 @@ string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::Socket& sock, const void* data, int len) throw (SendFail) {
-    int written;
-    if (!sock.write(data, len, &written) || written != len)
-        throw SendFail();
+void send(Network::Socket& sock, const void* data, int len) throw (Network::Error) {
+    sock.writeToUnblockingTCP(data, len, 100, 20);
 }
 
 class IdleFunction {
 public:
     virtual ~IdleFunction() throw () { }
-    virtual void operator()() throw (SendFail, UserExit) = 0;
+    virtual void operator()() throw (Network::Error, UserExit) = 0;
 };
 
 class DelayHandler : public IdleFunction {
@@ -133,7 +128,7 @@ public:
             fflush(stdout);
         }
     }
-    void operator()() throw (SendFail, UserExit) {
+    void operator()() throw (Network::Error, UserExit) {
         while (kbhit()) {
             char buf[12 + sayBufLen];
             int idx = 0;
@@ -276,7 +271,7 @@ class DelaySocketReader {
 
 public:
     DelaySocketReader(Network::Socket& socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
-    NLulong getLong() throw (ReadFail, SendFail, UserExit) {
+    NLulong getLong() throw (Network::Error, UserExit) {
         NLulong val = 0;
         val =              getByte();
         val = (val << 8) | getByte();
@@ -284,14 +279,12 @@ public:
         val = (val << 8) | getByte();
         return val;
     }
-    uchar getByte() throw (ReadFail, SendFail, UserExit) {
+    uchar getByte() throw (Network::Error, UserExit) {
         for (;;) {
             if (rbufRd < rbufUsed)
                 return rbuf[rbufRd++];
             rbufUsed = sock.read(rbuf, rbufSz);
             rbufRd = 0;
-            if (rbufUsed == Network::Error)
-                throw ReadFail();
             if (rbufUsed == 0) {
                 (*ifp)();
                 Sleep(100);
@@ -327,22 +320,16 @@ const char* plyName(int idx) throw () {
 }
 
 bool runMonitor(int port, bool messageBoxes) throw () {
-    Network::Socket sock(Network::NonBlocking, Network::TCP, 0);
-    if (!sock.isOpen())
-        throw ConnectFail();
-
     try {
+        Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+
         Network::Address addr("127.0.0.1");
         addr.setPort(port);
 
-        if (!sock.connect(addr))
-            throw ConnectFail();
-        char nul;
-        while (!sock.write(&nul, 0)) {
-            if (nlGetError() != NL_CON_PENDING)
-                throw ConnectFail();
+        sock.connect(addr);
+        while (sock.connectPending())
             Sleep(10);
-        }
+
         DelayHandler dh(sock, &messageBoxes);
         printf("Connected!\n");
         DelaySocketReader reader(sock, &dh);
@@ -404,25 +391,9 @@ bool runMonitor(int port, bool messageBoxes) throw () {
         }
     } catch (UserExit) {
         printf("<User abort>\n");
-        sock.close();
         return true;
-    } catch (...) {
-        try {
-            throw;
-        } catch (SendFail) {
-            printf("<Send failed>\n");
-        } catch (ReadFail) {
-            printf("<Read failed>\n");
-        } catch (ConnectFail) {
-            printf("<Connect failed>\n");
-        } catch (...) {
-            printf("<unknown exception>\n");
-        }
-        if (nlGetError() == NL_SYSTEM_ERROR)
-            printf("sys: %s\n", nlGetSystemErrorStr(nlGetSystemError()));
-        else
-            printf("nl: %s\n", nlGetErrorStr(nlGetError()));
-        sock.close();
+    } catch (const Network::Error& e) {
+        printf("%s\n", e.str().c_str());
         return false;
     }
 }
@@ -446,12 +417,10 @@ int main(int argc, const char* argv[]) {
             }
         }
     }
-    if (nlInit() == NL_FALSE) {
-        printf("ERROR: cannot init HawkNL!\n");
-        return 1;
-    }
-    if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-        printf("ERROR: no IP network!\n");
+    try {
+        Network::init();
+    } catch (const Network::Error& e) {
+        printf("%s\n", e.str().c_str());
         return 1;
     }
     outfile = fopen("srvmonit.log", "at");

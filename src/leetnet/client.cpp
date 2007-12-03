@@ -858,7 +858,7 @@ DLOG_ScopeNeg s("CTR");
         }
 
         // check for error
-        if (amount == Network::Error) {
+        if (amount < 0) {
             //DEBUG FIXME: error in nlGetError
             static volatile int menosmenos = 0;
             if (menosmenos == 0) {
