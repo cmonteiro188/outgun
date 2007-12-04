@@ -55,19 +55,13 @@ int main(int argc, const char* argv[]) {
     for (int i = 1; i < argc; i++)
         parameters.push_back(argv[i]);
 
-    if (nlInit())
-        cout << "NL init successful.\n";
-    else {
-        cout << "NL init failed\n";
+    try {
+        Network::init();
+    } catch (const Network::Error& e) {
+        cout << e.str();
         return 0;
     }
-    if (nlSelectNetwork(NL_IP))
-        cout << "Network init successful.\n";
-    else {
-        cout << "Network init failed.\n";
-        return 0;
-    }
-    nlEnable(NL_SOCKET_STATS);
+    cout << "Network init successful.\n";
     platInit();
     platInitAfterAllegro();
     g_timeCounter.setZero();
@@ -189,11 +183,8 @@ void Relay::load_master_settings() throw () {
 void Relay::listen() throw () {
     while (listen_socket.isOpen()) {
         Network::Socket new_socket;
-        if (!new_socket.acceptConnection(Network::NonBlocking, listen_socket)) {
-            if (nlGetError() != NL_NO_PENDING)
-                cout << "Can't accept incoming connection.\n";
+        if (!new_socket.acceptConnection(Network::NonBlocking, listen_socket))
             break;
-        }
 
         try {
             Network::Address addr = new_socket.getRemoteAddress();
