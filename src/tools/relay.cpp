@@ -231,7 +231,7 @@ void Relay::listen() throw () {
 }
 
 void Relay::check_new_connections() throw () {
-    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
+    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end(); ) {
         const unsigned max_buffer_size = 2000;
         NLbyte buffer[max_buffer_size];
         const int result = nlRead(pi->socket, buffer, max_buffer_size);
@@ -428,7 +428,7 @@ bool Relay::add_data(istream& in) throw () {
 }
 
 void Relay::send_data() throw () {
-    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
+    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ) {
         const unsigned temp_buffer_size = 10;
         NLbyte temp[temp_buffer_size];
         // Check connection

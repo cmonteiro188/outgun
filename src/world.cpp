@@ -3621,7 +3621,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
     out << " <TR><TH>Time<TH>Team<TH>Score<TH>Capturer\n";
 
     int red_score = teams[0].base_score(), blue_score = teams[1].base_score();
-    for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin(); ;) {
+    for (vector<pair<int, string> >::const_iterator red = teams[0].captures().begin(), blue = teams[1].captures().begin();;) {
         string time, team, capturer;
         int team_nr;
         if (red != teams[0].captures().end() && (blue == teams[1].captures().end() || red->first <= blue->first)) {
