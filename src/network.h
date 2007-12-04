@@ -242,6 +242,7 @@ public:
 
     // static members only
     static void init() throw (InitError);
+    static void shutdown() throw ();
     static std::vector<Address> getAllLocalAddresses() throw ();
     static Address getDefaultLocalAddress() throw (Error);
 };

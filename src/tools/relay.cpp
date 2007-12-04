@@ -26,6 +26,7 @@
 #include <string>
 
 #include "../commont.h"
+#include "../function_utility.h"
 #include "../network.h"
 #include "../platform.h"
 #include "../protocol.h"
@@ -61,24 +62,22 @@ int main(int argc, const char* argv[]) {
         cout << e.str();
         return 0;
     }
+    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
     cout << "Network init successful.\n";
     platInit();
     platInitAfterAllegro();
+    AtScopeExit autoPlatformCleanup(newRedirectToFun0(platUninit));
     g_timeCounter.setZero();
 
-    Relay* relay = new Relay();
     try {
-        relay->load_settings(parameters);
-        relay->run();
+        Relay relay;
+        relay.load_settings(parameters);
+        relay.run();
     }
     catch (Relay::ArgumentException ex) {
         cout << ex.message() << '\n';
         cout << "Usage: relay [-p] port [-b bandwidth_limit (B/s)] [-s spectator_limit] [-d delay (s)]\n";
     }
-    delete relay;
-
-    platUninit();
-    nlShutdown();
 }
 
 Relay::Relay() throw () :

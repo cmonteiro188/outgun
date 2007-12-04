@@ -429,7 +429,7 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         else                            // labels have started
             label_lines.back().second.push_back(line);
     }
-    crc = nlGetCRC16(const_cast<NLubyte*>(reinterpret_cast<const NLubyte*>(crcData.data())), crcData.length());
+    crc = CRC16(crcData.data(), crcData.length());
     crcData.clear();    // free the memory; crcData is not needed from here on
     for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
         if (!parse_line(log, *line, label_lines, crx, cry, scalex, scaley))

@@ -484,6 +484,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         log.error(e.str());
         return;
     }
+    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
 
     if (serverCfg.ipAddress.empty())
         serverCfg.ipAddress = getPublicIP(log, false);
@@ -649,8 +650,4 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
     #endif
 
     log("Exiting");
-    // exit HawkNL
-    nlShutdown();
-
-    return;
 }

@@ -28,6 +28,7 @@
 
 #include "../incalleg.h"
 #include "../admshell.h"
+#include "../function_utility.h"
 #include "../nassert.h"
 #include "../network.h"
 #include "../platform.h"
@@ -401,6 +402,7 @@ bool runMonitor(int port, bool messageBoxes) throw () {
 int main(int argc, const char* argv[]) {
     check_utf8_mode();
     initKeyboard();
+    AtScopeExit autoResetKeyboard(newRedirectToFun0(resetKeyboard));
     int port = 24500;
     bool messageBoxes = true;
     if (argc > 1) {
@@ -423,6 +425,8 @@ int main(int argc, const char* argv[]) {
         printf("%s\n", e.str().c_str());
         return 1;
     }
+    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+
     outfile = fopen("srvmonit.log", "at");
     if (!outfile) {
         printf("Can't open srvmonit.log for append!\n");
@@ -430,8 +434,6 @@ int main(int argc, const char* argv[]) {
     }
     const int r = runMonitor(port, messageBoxes) ? 0 : 1;
     fclose(outfile);
-    nlShutdown();
-    resetKeyboard();
     return r;
 }
 #ifdef END_OF_MAIN

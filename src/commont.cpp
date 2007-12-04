@@ -302,7 +302,7 @@ void MasterSettings::load(LogSet& log) throw () {
         NLubyte buf[bufSize];
         const int numread = fread(buf, 1, bufSize, fp);
         fclose(fp);
-        configCRC = nlGetCRC16(buf, numread);
+        configCRC = CRC16(buf, numread);
     }
     else
         configCRC = defaultConfigCRC;

@@ -351,4 +351,6 @@ public:
     int i2() const throw () { return val2; }
 };
 
+uint16_t CRC16(const void* buf, unsigned size) throw (); // implemented in network.cpp because HawkNL is used
+
 #endif

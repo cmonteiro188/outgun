@@ -464,6 +464,10 @@ void Network::init() throw (InitError) {
     nlEnable(NL_SOCKET_STATS);
 }
 
+void Network::shutdown() throw () {
+    nlShutdown();
+}
+
 vector<Address> Network::getAllLocalAddresses() throw () {
     NLint count;
     NLaddress* addressList = nlGetAllLocalAddr(&count);
@@ -688,4 +692,8 @@ string base64_encode(const string& data) throw () {
             result += padding;
     }
     return result;
+}
+
+uint16_t CRC16(const void* buf, unsigned size) throw () { // from utility.h
+    return nlGetCRC16(const_cast<NLubyte*>(static_cast<const NLubyte*>(buf)), size);
 }
