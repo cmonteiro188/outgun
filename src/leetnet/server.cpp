@@ -73,7 +73,7 @@ struct client_t {
                                                                             // packet was already received from the client
     volatile bool       server_disconnected; // set to true when the server kicks the client. told_disconnect may
                                                                              // be false at that point.
-    NLubyte disconnect_reason;  // values are user defined, except 0 is used internally for drop at timeout
+    uint8_t disconnect_reason;  // values are user defined, except 0 is used internally for drop at timeout
 
     Time                    ping_start_time;        //time of last ping request from gameserver
 
@@ -325,7 +325,7 @@ public:
     }
 
     //disconnects a specific client, timeout = seconds to wait before loosing patience and just shooting the client
-    virtual int disconnect_client(int client_id, int timeout, NLubyte reason, bool fromUserThread) throw () { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
+    virtual int disconnect_client(int client_id, int timeout, uint8_t reason, bool fromUserThread) throw () { // reason is user defined; reserved: 0 = client initiated, 1 = timeout
         log("disconnect_client(%d, %d, %d, %d)", client_id, timeout, reason, fromUserThread);
 
         //call the "client disconnected" callback (2 of 2 : server-initiated disconnection)
@@ -582,7 +582,7 @@ public:
         }
 
         int count = 0;
-        NLulong packid, smsgid, leetversion;
+        uint32_t packid, smsgid, leetversion;
         readLong(packet, count, packid);    //packet id
         readLong(packet, count, smsgid);    // special message id (if packet id == 0)
 
@@ -648,7 +648,7 @@ public:
 
         //serverinfo request : answer
         if (smsgid == 200) {
-            NLubyte a, b;
+            uint8_t a, b;
             readByte(packet, count, a);     //clientside gamespy entry (lazyness)
             readByte(packet, count, b);     //packet try #
 
@@ -671,7 +671,7 @@ public:
 
         // broadcasted server request
         if (smsgid == 0x4F757467) { // "Outg"
-            NLbyte a, b;
+            int8_t a, b;
             readByte(packet, count, a);
             readByte(packet, count, b);
             if (a == 'u' && b == 'n') {
@@ -894,7 +894,7 @@ public:
 
         if (is_special) {
             // get the special code
-            NLulong code;
+            uint32_t code;
             int count = 4;  //skip "0"
             readLong(data, count, code);
 

@@ -545,7 +545,7 @@ DLOG_Scope s("CPIDg");
         //special packet? (connection accepted/rejected , disconnected ...)
         if (special) {
 
-            NLulong code;
+            uint32_t code;
             int count = 0;
             readLong(data, count, code);        //discard the "0"
             readLong(data, count, code);
@@ -587,7 +587,7 @@ DLOG_Scope s("CPIDg");
 
                 log("special packet 0,2 arrived my connect_status == %i started_disc = %i", connect_status, started_disconnection);
 
-                NLulong reason;
+                uint32_t reason;
                 readLong(data, count, reason);
 
                 // if was not already disconnected
@@ -624,7 +624,7 @@ DLOG_Scope s("CPIDg");
 
                 // check if callback called already
                 if (connect_status != 3) {
-                    NLulong port;
+                    uint32_t port;
                     readLong(data, count, port);
                     if (port > 0 && port < 65536) {
                         // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
@@ -678,7 +678,7 @@ DLOG_Scope s("CPIDg");
         else {
 
             //int count = 0;
-            //NLulong a,b,c;
+            //uint32_t a,b,c;
             //readLong(udp_data, count, a);
             //readLong(udp_data, count, b);
             //readLong(udp_data, count, c);
@@ -730,7 +730,7 @@ DLOG_Scope s("CPIDg");
         data_c  *dat = new_data_c();
         dat->addlong(0); //special packet
         dat->addlong(1); //want to connect
-        dat->addlong( ((NLulong)LEETNET_VERSION) );     // LEETNET protocol/build version - must match server's
+        dat->addlong( ((uint32_t)LEETNET_VERSION) );     // LEETNET protocol/build version - must match server's
 
         //custom data?
         dat->addlong(connect_data_length);      //amound of customdata, goes anyway
@@ -845,7 +845,7 @@ void thread_reader_f(client_ci* client) throw () {
 DLOG_ScopeNegStart("CTR");
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];
-    NLint amount; //amount read
+    int amount; //amount read
 
     while (!client->reader_thread_quit()) {
         //read from socket

@@ -99,7 +99,7 @@ private:
 };
 
 typedef GS_IntT<int> GS_Int;
-typedef GS_IntT<NLulong> GS_Ulong;
+typedef GS_IntT<uint32_t> GS_Ulong;
 
 typedef GS_ForwardIntT<int> GS_ForwardInt;
 

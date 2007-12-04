@@ -263,7 +263,7 @@ void MasterSettings::load(LogSet& log) throw () {
     static const char* defaultBugName = "nix.dnsalias.net";
     static const char* defaultBugIP = "-";
     static const int defaultBugPort = 24900;
-    static const NLushort defaultConfigCRC = 54840;
+    static const uint16_t defaultConfigCRC = 54840;
     // defaultConfigCRC should correspond to the file the master is sending that contains the above settings, so that downloading is not needed on a fresh install.
     // If instead downloading in that case is preferred, use 0 which is guaranteed not to be used by a legitimate master.txt.
 
@@ -299,7 +299,7 @@ void MasterSettings::load(LogSet& log) throw () {
     FILE *fp = fopen((wheregamedir + "config" + directory_separator + "master.txt").c_str(), "rb");
     if (fp) {
         static const int bufSize = 1024; // The first kbyte should be enough to distinguish versions, even if the file at some point gets this large.
-        NLubyte buf[bufSize];
+        uint8_t buf[bufSize];
         const int numread = fread(buf, 1, bufSize, fp);
         fclose(fp);
         configCRC = CRC16(buf, numread);

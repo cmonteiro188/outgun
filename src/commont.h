@@ -109,8 +109,8 @@ class ClientControls {
 public:
     ClientControls() throw () : data(0) { }
 
-    NLubyte toNetwork(bool server) const throw () { if (server) return data & 31; else return data; }
-    void fromNetwork(NLubyte d, bool server) throw () { data = d; if (server) data &= 31; }
+    uint8_t toNetwork(bool server) const throw () { if (server) return data & 31; else return data; }
+    void fromNetwork(uint8_t d, bool server) throw () { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad, bool use_cursor_keys) throw ();
     void fromJoystick(int moving_stick, int run_button, int strafe_button) throw (); // uses pseudo button ids like readJoystickButton
 
@@ -145,7 +145,7 @@ public:
     int getDirection() const throw (); // returns -1 for no direction, else between 0..7
 
 private:
-    NLubyte data;
+    uint8_t data;
 
     enum {
         up     =  1,
@@ -161,8 +161,8 @@ class ClientLoginStatus {
 public:
     ClientLoginStatus() throw () : data(0) { }
 
-    NLubyte toNetwork() const throw () { return data; }
-    void fromNetwork(NLubyte byte) throw () { data = byte; }
+    uint8_t toNetwork() const throw () { return data; }
+    void fromNetwork(uint8_t byte) throw () { data = byte; }
 
     std::string strFlags() const throw () {
         std::string s;
@@ -197,7 +197,7 @@ private:
         SB_admin = 16
     };
 
-    NLubyte data;
+    uint8_t data;
 };
 
 class GlobalDisplaySwitchHook {
@@ -310,7 +310,7 @@ extern const std::string TK1_VERSION_STRING;
 //************************************************************
 
 //the default game port
-const NLushort DEFAULT_UDP_PORT = 25000;
+const uint16_t DEFAULT_UDP_PORT = 25000;
 
 //directories for save/load maps
 extern const std::string SERVER_MAPS_DIR;

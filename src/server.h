@@ -98,7 +98,7 @@ class Server : private NoCopying {
 
     // client control
     double          team_smul[2];
-    NLulong         next_vote_announce_frame;
+    uint32_t         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
@@ -307,7 +307,7 @@ class Server : private NoCopying {
     std::string record_filename;
     mutable std::ofstream record;
     mutable std::ostringstream record_frame;
-    NLulong record_start_frame;
+    uint32_t record_start_frame;
     std::string record_map;
     int end_game_human_count;  // used for deciding whether to keep the record file
 

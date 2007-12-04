@@ -87,7 +87,7 @@ private:
     public:
         bool        serving_udp_file;
         std::string data;
-        NLulong     dp, old_dp;
+        uint32_t     dp, old_dp;
 
     public:
         ClientTransferData() throw () {
@@ -152,8 +152,8 @@ private:
     unsigned        newUniqueId;
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
-    NLulong         accelerationModeMask;
-    NLubyte         flagModeMask;
+    uint32_t         accelerationModeMask;
+    uint8_t         flagModeMask;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
@@ -212,7 +212,7 @@ private:
     bool read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError);
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
-    int executeAdminCommand(NLulong code, NLulong cid, int pid, NLulong dwArg, char* answer) throw (Network::Error); // returns length of answer
+    int executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, char* answer) throw (Network::Error); // returns length of answer
     bool handleAdminCommand() throw (Network::Error);
     void run_shellslave_thread(volatile bool* quitFlag) throw ();
 
@@ -308,14 +308,14 @@ public:
     void sendWorldReset() const throw ();
     void sendStartGame() const throw ();
     void sendWeaponPower(int pid) const throw ();
-    void sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int pid, bool power, int px, int py, int x, int y, NLulong vislist) const throw (); // sid = shot-id: array of NLubyte[shots]
+    void sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power, int px, int py, int x, int y, uint32_t vislist) const throw (); // sid = shot-id: array of uint8_t[shots]
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const throw ();
-    void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const throw ();
+    void sendRocketDeletion(uint32_t plymask, int rid, int16_t hitx, int16_t hity, int targ) const throw ();
     void sendDeathbringer(int pid, const ServerPlayer& ply) const throw ();
     void sendPowerupVisible(int pid, int pup_id, const Powerup& it) const throw ();
     void broadcastPowerupPicked(int roomx, int roomy, int pup_id) const throw ();
-    void sendPupTime(int pid, NLubyte pupType, double timeLeft) const throw ();
-    void sendFragUpdate(int pid, NLulong frags) const throw ();
+    void sendPupTime(int pid, uint8_t pupType, double timeLeft) const throw ();
+    void sendFragUpdate(int pid, uint32_t frags) const throw ();
     void sendNameAuthorizationRequest(int pid) const throw ();
 
     void broadcast_sample(int code) const throw ();

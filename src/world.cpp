@@ -1339,7 +1339,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         cb.rocketOutOfBounds(i);
 }
 
-void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, NLubyte* rids, int frameAdvance,
+void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, uint8_t* rids, int frameAdvance,
                              int team, bool power, int px, int py, int x, int y) throw () {
     struct RocketFormation {
         int nForward;
@@ -1428,7 +1428,7 @@ void PhysicalSettings::read(const char* lebuf, int& count) throw () {
     friendly_db     = safeReadFloat(lebuf, count);
     rocket_speed    = safeReadFloat(lebuf, count);
 
-    NLubyte bitField;
+    uint8_t bitField;
     readByte(lebuf, count, bitField);
     player_collisions = static_cast<PlayerCollisions>(bitField & 0x03);
     allowFreeTurning = (bitField & 0x04) != 0;
@@ -2333,7 +2333,7 @@ void ServerWorld::suicide(int pid) throw () {
     killPlayer(pid, true);
 }
 
-NLubyte ServerWorld::getFreeRocket() throw () {
+uint8_t ServerWorld::getFreeRocket() throw () {
     for (int i = 0; i < MAX_ROCKETS; i++)
         if (rock[i].owner == -1) {
             rock[i].owner = 0;
@@ -2363,7 +2363,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
     player[pid].stats().add_shot();
     teams[pid / TSIZE].add_shot();
 
-    NLubyte sid[16];
+    uint8_t sid[16];
     for (int i = 0; i < shots; ++i)
         sid[i] = getFreeRocket();
 
@@ -2372,7 +2372,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
-    NLulong vislist = 0;
+    uint32_t vislist = 0;
     for (int p = 0; p < maxplayers; p++)
         if (player[p].used && doesPlayerSeeRocket(player[p], px, py))
             vislist |= (1u << p);
@@ -2384,7 +2384,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
     net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, px, py, x, y, vislist);
 }
 
-void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) throw () {
+void ServerWorld::deleteRocket(int rid, int16_t hitx, int16_t hity, int targ) throw () {
     Rocket& r = rock[rid];
     net->sendRocketDeletion(r.vislist, rid, hitx, hity, targ);
     r.owner = -1;
@@ -2468,9 +2468,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
     }
 
     if (had_shield)
-        deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, 252);     //do not blink
+        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, 252);     //do not blink
     else
-        deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, pid);     //blink
+        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
     return player[pid].dead;
 }
 
@@ -3113,7 +3113,7 @@ void ServerWorld::simulateFrame() throw () {
         const WorldCoords& pos = db.position();
         const double radius = db.radius(frame);
 
-        NLulong newOutsideMask = 0;
+        uint32_t newOutsideMask = 0;
         for (int ti = 0; ti < maxplayers; ++ti) {
             ServerPlayer& target = player[ti];
             if (!target.used || target.dead || target.roomx != pos.px || target.roomy != pos.py)
@@ -3382,7 +3382,7 @@ void ServerWorld::simulateFrame() throw () {
         }
 
     // check time limit
-    const NLulong time_limit = config.getTimeLimit();
+    const uint32_t time_limit = config.getTimeLimit();
     if (host->get_player_count() > 1 && time_limit > 0) {
         const int timeLeft = getTimeLeft();
         if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
@@ -3488,7 +3488,7 @@ void ServerWorld::team_gets_carrying_point(int team, bool forTournament) throw (
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                              ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) throw () {
+                              ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw () {
     if (source.skipped) {
         skipped = true;
         return;
@@ -3514,7 +3514,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
     }
 
     static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network
-    for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
+    for (uint8_t ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
         if (me != -1)
             player[me].controls = ctrlTab[ctrli];
         applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, 1.); // 1 is full frame

@@ -144,10 +144,10 @@ public:
 
 class TM_MapChange : public ThreadMessage {
     string name;
-    NLushort crc;
+    uint16_t crc;
 
 public:
-    TM_MapChange(const string& name_, NLushort crc_) throw () : name(name_), crc(crc_) { }
+    TM_MapChange(const string& name_, uint16_t crc_) throw () : name(name_), crc(crc_) { }
     ~TM_MapChange() throw () { }
     void execute(Client* cl) const throw () { cl->server_map_command(name, crc); }
 };
@@ -169,15 +169,15 @@ public:
 };
 
 class TM_ServerSettings : public ThreadMessage {
-    NLubyte caplimit, timelimit, extratime;
-    NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+    uint8_t caplimit, timelimit, extratime;
+    uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
     void addLine(Client* cl, const string& caption, const string& value) const throw ();
 
 public:
-    TM_ServerSettings(NLubyte caplimit_, NLubyte timelimit_, NLubyte extratime_, NLushort misc1_,
-                      NLushort pupMin_, NLushort pupMax_, NLushort pupAddTime_, NLushort pupMaxTime_, int flag_return_delay_) throw () :
+    TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint16_t misc1_,
+                      uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
     void execute(Client* cl) const throw ();
@@ -1000,7 +1000,7 @@ void Client::download_server_file(const string& type, const string& name) throw 
 // Server tells client of current map / map change.
 // Client checks from the "cmaps" and "maps" directory.
 // If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
-void Client::server_map_command(const string& mapname, NLushort server_crc) throw () {
+void Client::server_map_command(const string& mapname, uint16_t server_crc) throw () {
     log("Received map change: '%s'", mapname.c_str());
 
     servermap = mapname;
@@ -1028,7 +1028,7 @@ void Client::server_map_command(const string& mapname, NLushort server_crc) thro
     #endif
 }
 
-bool Client::load_map(const string& directory, const string& mapname, NLushort server_crc) throw () {
+bool Client::load_map(const string& directory, const string& mapname, uint16_t server_crc) throw () {
     LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
 
     const bool ok =
@@ -1066,9 +1066,9 @@ void Client::sendFavoriteColors() throw () {
     // send two colours in a byte
     for (vector<int>::const_iterator col = menu.options.player.favoriteColors.values().begin();
                                     col != menu.options.player.favoriteColors.values().end(); ++col) {
-        NLubyte byte = static_cast<NLubyte>(*col) & 0x0F;
+        uint8_t byte = static_cast<uint8_t>(*col) & 0x0F;
         if (++col != menu.options.player.favoriteColors.values().end())
-            byte |= static_cast<NLubyte>(*col) << 4;
+            byte |= static_cast<uint8_t>(*col) << 4;
         writeByte(lebuf, count, byte);
     }
     client->send_message(lebuf, count);
@@ -1094,7 +1094,7 @@ void Client::client_connected(const char* data, int length) throw () {   // call
     //  BYTE    maxplayers
     //  STRING  hostname
     int count = 0;
-    NLubyte maxpl;
+    uint8_t maxpl;
     readByte(data, count, maxpl);
     setMaxPlayers(maxpl);
 
@@ -1104,7 +1104,7 @@ void Client::client_connected(const char* data, int length) throw () {   // call
     readStr(data, count, hostname);
 
     if (count < length) {
-        NLubyte protoExt;
+        uint8_t protoExt;
         readByte(data, count, protoExt);
         log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
         if (protoExt > PROTOCOL_EXTENSIONS_VERSION)
@@ -1328,7 +1328,7 @@ void Client::connect_failed_denied(const char* data, int length) throw () {
     }
     else if (length == 1) {
         int count = 0;
-        NLubyte rb;
+        uint8_t rb;
         readByte(data, count, rb);
         if (rb > reject_last)
             message = _("Unknown reason code ($1).", itoa(rb));
@@ -1699,7 +1699,7 @@ void Client::refreshGunDir() throw () {
 #endif // DEDICATED_SERVER_ONLY
 
 void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) throw () {
-    NLubyte whox, whoy;
+    uint8_t whox, whoy;
     readByte(data, count, whox);
     readByte(data, count, whoy);
     if (pid != me && !fx.player[pid].onscreen) {
@@ -1728,7 +1728,7 @@ void Client::readMinimapPlayerPosition(const char* data, int& count, int pid) th
 
 bool Client::process_live_frame_data(const char* data, int length) throw () { // returns false if an error occured that requires disconnecting
     int count = 0;
-    NLulong svframe;    //server's frame
+    uint32_t svframe;    //server's frame
     readLong(data, count, svframe);
 
     #ifndef DEDICATED_SERVER_ONLY
@@ -1761,7 +1761,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
 
     int frameExtensions = protocolExtensionsC2S; // C2S used deliberately: the S2C-setting message might still be waiting
 
-    NLubyte fo;
+    uint8_t fo;
     readByte(data, count, fo);
     if (!frameExtensionsAcknowledged && fo == 127)
         frameExtensions = -1;
@@ -1783,7 +1783,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
         }
     }
 
-    NLubyte xtra;
+    uint8_t xtra;
     readByte(data, count, xtra);
 
     const int extraHealth = (xtra & 1) ? 256 : 0;
@@ -1806,7 +1806,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
     fx.skipped = false;
 
     //V 0.3.9 NEW : read screen of "me" player
-    NLubyte scr;
+    uint8_t scr;
     readByte(data, count, scr);     //player.x
     fx.player[me].roomx = scr;
     readByte(data, count, scr);     //player.y
@@ -1821,7 +1821,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
     }
 
     //read "players onscreen" vector
-    NLulong players_onscreen;
+    uint32_t players_onscreen;
     readLong(data, count, players_onscreen);
 
     //decode players_onscreen and update player data
@@ -1842,9 +1842,9 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
         h.roomy = fx.player[me].roomy;
 
         //coords & speeds
-        NLubyte xy;
+        uint8_t xy;
 
-        NLushort hx, hy;
+        uint16_t hx, hy;
         readByte(data, count, xy);      //first 8 bits x
         hx = xy;
         readByte(data, count, xy);
@@ -1857,7 +1857,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
 
         if (frameExtensions < 0) {
             typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-            NLubyte byte;
+            uint8_t byte;
             readByte(data, count, byte);
             h.sx = SpeedType::toDouble(byte);
             readByte(data, count, byte);
@@ -1865,7 +1865,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
         }
 
         //EXTRA BYTE
-        NLubyte byt, extra;
+        uint8_t byt, extra;
         readByte(data, count, extra);           //extra byte
 
         //FLAGS BYTE
@@ -1883,7 +1883,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
                 h.sx = h.sy = 0;
             else {
                 typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                NLubyte byte;
+                uint8_t byte;
                 readByte(data, count, byte);
                 h.sx = SpeedType::toDouble(byte);
                 readByte(data, count, byte);
@@ -1891,12 +1891,12 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
             }
         }
 
-        NLubyte ccb;
+        uint8_t ccb;
         readByte(data, count, ccb);
         h.controls.fromNetwork(ccb, true);
 
         if (preciseGundir) {
-            NLubyte extraGundirBits;
+            uint8_t extraGundirBits;
             readByte(data, count, extraGundirBits);
             h.gundir.fromNetworkLongForm(((ccb >> 5) << 8) | extraGundirBits);
         }
@@ -1926,7 +1926,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
     if (frameExtensions < 0) {
-        NLubyte mmByte;
+        uint8_t mmByte;
         readByte(data, count, mmByte);
         if (mmByte != 255)
             readMinimapPlayerPosition(data, count, mmByte);
@@ -1935,11 +1935,11 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
             readMinimapPlayerPosition(data, count, mmByte);
     }
     else {
-        NLubyte mmByte;
+        uint8_t mmByte;
         readByte(data, count, mmByte);
         const int pos = 4 * (mmByte >> 5);
         const int extraBytes = ((mmByte & 0x18) >> 3) + 1;
-        NLulong rotP = mmByte & 0x07;
+        uint32_t rotP = mmByte & 0x07;
         for (int i = 0, rotPpos = 3; i < extraBytes; ++i, rotPpos += 8) {
             readByte(data, count, mmByte);
             rotP |= mmByte << rotPpos;
@@ -1950,7 +1950,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
     }
 
     //read player's health and energy
-    NLubyte healt, energ;
+    uint8_t healt, energ;
     readByte(data, count, healt);
     readByte(data, count, energ);
     fx.player[me].health = healt + extraHealth;
@@ -1958,7 +1958,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
 
     //read ping of player frame % maxplayers
     if (count < length) {
-        NLshort ping;
+        int16_t ping;
         readShort(data, count, ping);
         if (ping < 0) // Server versions up to 1.0.3 using a multicore processor can send negative pings.
             ping = 0;
@@ -1971,7 +1971,7 @@ bool Client::process_live_frame_data(const char* data, int length) throw () { //
 #ifndef DEDICATED_SERVER_ONLY
 int Client::process_replay_frame_data(const char* data) throw () { // returns number of bytes read
     int count = 0;
-    NLulong svframe;    //server's frame
+    uint32_t svframe;    //server's frame
     readLong(data, count, svframe);
 
     nAssert(svframe > fx.frame);
@@ -1988,7 +1988,7 @@ int Client::process_replay_frame_data(const char* data) throw () { // returns nu
     }
 
     fx.skipped = false;
-    NLulong players_present;
+    uint32_t players_present;
     readLong(data, count, players_present);
     for (int i = 0; i < maxplayers; i++) {
         ClientPlayer& pl = fx.player[i];
@@ -1996,7 +1996,7 @@ int Client::process_replay_frame_data(const char* data) throw () { // returns nu
             continue;
 
         // Dead and powerup flags
-        NLubyte byte;
+        uint8_t byte;
         readByte(data, count, byte);
         pl.dead = (byte & (1 << 0)) != 0;
         pl.item_deathbringer = (byte & (1 << 1)) != 0;
@@ -2009,19 +2009,19 @@ int Client::process_replay_frame_data(const char* data) throw () { // returns nu
         const bool position_data = (byte & (1 << 7)) != 0;
         if (position_data) {
             // Position
-            NLubyte x, y;
+            uint8_t x, y;
             readByte(data, count, x);
             readByte(data, count, y);
             pl.roomx = x;
             pl.roomy = y;
-            NLushort px, py;
+            uint16_t px, py;
             readShort(data, count, px);
             readShort(data, count, py);
             pl.lx = px;
             pl.ly = py;
 
             // Speed
-            NLfloat speed;
+            float speed;
             readFloat(data, count, speed);
             pl.sx = speed;
             readFloat(data, count, speed);
@@ -2033,7 +2033,7 @@ int Client::process_replay_frame_data(const char* data) throw () { // returns nu
         pl.controls.fromNetwork(byte, true);
 
         if (preciseGundir) {
-            NLubyte extraGundirBits;
+            uint8_t extraGundirBits;
             readByte(data, count, extraGundirBits);
             pl.gundir.fromNetworkLongForm(((byte >> 5) << 8) | extraGundirBits);
         }
@@ -2058,7 +2058,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     const double time = fx.frame / 10;
 
     int count = 0;
-    NLubyte code;
+    uint8_t code;
     readByte(lebuf, count, code);
 
     if (LOG_MESSAGE_TRAFFIC)
@@ -2066,7 +2066,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     switch (static_cast<Network_data_code>(code)) {
     /*break;*/ case data_name_update: {
-        NLubyte pid;
+        uint8_t pid;
         string name;
         readByte(lebuf, count, pid);
         readStr(lebuf, count, name);
@@ -2114,7 +2114,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
                 chatmsg = _("$1 decided it's time for a restart.", name);
             }
         }
-        NLbyte sender_team = -1;
+        int8_t sender_team = -1;
         if (protocolExtensionsS2C >= 0) {
             if (type == msg_team || type == msg_normal)
                 readByte(lebuf, count, sender_team);
@@ -2128,11 +2128,11 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_first_packet: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);    //"who am I"
         me = pid;
 
-        NLubyte color;
+        uint8_t color;
         readByte(lebuf, count, color);
         if (color < PlayerBase::invalid_color)
             fx.player[pid].set_color(color);
@@ -2141,13 +2141,13 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
             return false;
         }
 
-        NLubyte map_nr;
+        uint8_t map_nr;
         readByte(lebuf, count, map_nr); //current map number
         #ifndef DEDICATED_SERVER_ONLY
         current_map = map_nr;
         #endif
 
-        NLubyte score;
+        uint8_t score;
         readByte(lebuf, count, score);
         fx.teams[0].set_score(score);
         if (fx.teams[0].captures().size() == 0) // only if just joined the server
@@ -2164,8 +2164,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_frags_update: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte pid;
-        NLulong frags;
+        uint8_t pid;
+        uint32_t frags;
         readByte(lebuf, count, pid);
         readLong(lebuf, count, frags);
         fx.player[pid].stats().set_frags(frags);
@@ -2174,8 +2174,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_flag_update: {
-        NLubyte team;
-        NLbyte flags;
+        uint8_t team;
+        int8_t flags;
         readByte(lebuf, count, team);
         readByte(lebuf, count, flags);
         bool new_flag = false;
@@ -2190,12 +2190,12 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
                 fx.teams[team].add_flag(WorldCoords());
                 new_flag = true;
             }
-            NLubyte carried;
+            uint8_t carried;
             readByte(lebuf, count, carried);    // 0==not carried 1==carried
             if (carried == 0) {
                 //not carried: update position
-                NLubyte px, py;
-                NLshort x, y;
+                uint8_t px, py;
+                int16_t x, y;
                 readByte(lebuf, count, px);
                 readByte(lebuf, count, py);
                 readShort(lebuf, count, x);
@@ -2221,7 +2221,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
             }
             else {
                 //carried: get carrier
-                NLubyte carrier;
+                uint8_t carrier;
                 readByte(lebuf, count, carrier);
                 if (!new_flag) {
                     if (!fx.player[carrier].onscreen && !replaying) {
@@ -2248,10 +2248,10 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         if (!map_ready)
             break;
 
-        NLubyte rpow, rdir;
-        NLubyte rids[16];
-        NLulong frameno;
-        NLubyte rteampower;
+        uint8_t rpow, rdir;
+        uint8_t rids[16];
+        uint32_t frameno;
+        uint8_t rteampower;
 
         GunDirection dir;
 
@@ -2259,7 +2259,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         readByte(lebuf, count, rdir);
         if (rdir & 0x80) {
             nAssert(protocolExtensionsS2C >= 0);
-            NLubyte rdir2;
+            uint8_t rdir2;
             readByte(lebuf, count, rdir2);
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | rdir2);
         }
@@ -2271,8 +2271,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         readByte(lebuf, count, rteampower); // power (bit 0) and shooter pid/team
         const bool power = (rteampower & 1) != 0;
 
-        NLubyte rpx, rpy;
-        NLshort rx, ry;
+        uint8_t rpx, rpy;
+        int16_t rx, ry;
         readByte(lebuf, count, rpx);
         readByte(lebuf, count, rpy);
         numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
@@ -2316,9 +2316,9 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         if (!map_ready)
             break;
 
-        NLubyte rockid, rdir;
-        NLulong frameno;
-        NLubyte rteampower;
+        uint8_t rockid, rdir;
+        uint32_t frameno;
+        uint8_t rteampower;
 
         GunDirection dir;
 
@@ -2327,7 +2327,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         readByte(lebuf, count, rdir);
         if (rdir & 0x80) {
             nAssert(protocolExtensionsS2C >= 0);
-            NLubyte rdir2;
+            uint8_t rdir2;
             readByte(lebuf, count, rdir2);
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | rdir2);
         }
@@ -2339,11 +2339,11 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         const bool power = ((rteampower & 1) != 0);
         const int team = (rteampower & 2) >> 1;
 
-        NLubyte rpx, rpy;
+        uint8_t rpx, rpy;
         readByte(lebuf, count, rpx);
         readByte(lebuf, count, rpy);
         numAssert4(rpx < fx.map.w && rpy < fx.map.h, rpx, fx.map.w, rpy, fx.map.h);
-        NLshort rx, ry;
+        int16_t rx, ry;
         readShort(lebuf, count, rx);
         readShort(lebuf, count, ry);
 
@@ -2356,17 +2356,17 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         if (!map_ready)
             break;
 
-        NLubyte rockid;
+        uint8_t rockid;
         readByte(lebuf, count, rockid);
         fx.rock[rockid].owner = -1;
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte target;
+        uint8_t target;
         readByte(lebuf, count, target);
         if (target != 255) {    // hit player
             if (target != 252)  // not shield hit -> blink player
                 fx.player[target].hitfx = time + .3;
             //hit position
-            NLshort rokx, roky;
+            int16_t rokx, roky;
             readShort(lebuf, count, rokx);
             readShort(lebuf, count, roky);
             addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
@@ -2378,7 +2378,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_power_collision: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte target;
+        uint8_t target;
         readByte(lebuf, count, target);
         fx.player[target].hitfx = time + .3;
         if (!replaying || player_on_screen(target))
@@ -2387,8 +2387,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_score_update: {
-        NLubyte team;
-        NLubyte score;
+        uint8_t team;
+        uint8_t score;
         readByte(lebuf, count, team);       //team
         readByte(lebuf, count, score);      //new score
         fx.teams[team].set_score(score);    // update the score
@@ -2396,10 +2396,10 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_sound: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte sample;
+        uint8_t sample;
         readByte(lebuf, count, sample);     // sample #
         if (replaying && count < msglen) {
-            NLubyte rx, ry;
+            uint8_t rx, ry;
             readByte(lebuf, count, rx);
             readByte(lebuf, count, ry);
             if (!on_screen(rx, ry))
@@ -2411,7 +2411,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_pup_visible: {
-        NLubyte iid, kind, spos;
+        uint8_t iid, kind, spos;
         readByte(lebuf, count, iid);        // item id
         readByte(lebuf, count, kind);       // kind
         fx.item[iid].kind = static_cast<Powerup::Pup_type>(kind);
@@ -2419,7 +2419,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         fx.item[iid].px = spos;
         readByte(lebuf, count, spos);       // screen y
         fx.item[iid].py = spos;
-        NLushort coord;
+        uint16_t coord;
         readShort(lebuf, count, coord);     // pos x
         fx.item[iid].x = coord;
         readShort(lebuf, count, coord);     // pos y
@@ -2427,14 +2427,14 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_pup_picked: {
-        NLubyte iid;
+        uint8_t iid;
         readByte(lebuf, count, iid);
         fx.item[iid].kind = Powerup::pup_unused;        // no more!
     }
 
     break; case data_pup_timer: {
-        NLubyte iid;
-        NLushort pup_time;
+        uint8_t iid;
+        uint16_t pup_time;
         readByte(lebuf, count, iid);    //kind
         readShort(lebuf, count, pup_time);  //amount of time
         if (iid == Powerup::pup_turbo)
@@ -2446,7 +2446,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_weapon_change: {
-        NLubyte level;
+        uint8_t level;
         readByte(lebuf, count, level);
         fx.player[me].weapon = level;
     }
@@ -2471,12 +2471,12 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         fx.wild_flags.clear();
         for (int i = 0; i < MAX_ROCKETS; ++i)
             fx.rock[i].owner = -1;
-        NLushort crc;
+        uint16_t crc;
         readShort(lebuf, count, crc);
         string mapname, maptitle;
         readStr(lebuf, count, mapname);
         readStr(lebuf, count, maptitle);
-        NLubyte map_nr, total_maps;
+        uint8_t map_nr, total_maps;
         readByte(lebuf, count, map_nr);
         readByte(lebuf, count, total_maps);
         #ifndef DEDICATED_SERVER_ONLY
@@ -2503,7 +2503,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         }
         #ifndef DEDICATED_SERVER_ONLY
         else { // The map is saved with the message
-            NLulong map_length;
+            uint32_t map_length;
             readLong(lebuf, count, map_length);
             stringstream stream;
             stream.write(lebuf + count, map_length);
@@ -2539,17 +2539,17 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         #ifndef DEDICATED_SERVER_ONLY
         extra_time_running = false;
         #endif
-        NLubyte plaque;
+        uint8_t plaque;
         readByte(lebuf, count, plaque);
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
             gameover_plaque = plaque;
             #ifndef DEDICATED_SERVER_ONLY
-            NLubyte score;
+            uint8_t score;
             readByte(lebuf, count, score);  //RED team final score
             red_final_score = score;
             readByte(lebuf, count, score);  //BLUE team final score
             blue_final_score = score;
-            NLubyte caplimit, timelimit;
+            uint8_t caplimit, timelimit;
             readByte(lebuf, count, caplimit);
             readByte(lebuf, count, timelimit);
 
@@ -2598,10 +2598,10 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         #endif
 
     break; case data_deathbringer: {
-        NLubyte team;
-        NLulong frameno;
-        NLubyte roomx, roomy;
-        NLushort lx, ly;
+        uint8_t team;
+        uint32_t frameno;
+        uint8_t roomx, roomy;
+        uint16_t lx, ly;
         readByte(lebuf, count, team);
         readLong(lebuf, count, frameno);    // creation frame
         readByte(lebuf, count, roomx);
@@ -2616,8 +2616,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_file_download: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte last;
-        NLushort chunkSize;
+        uint8_t last;
+        uint16_t chunkSize;
         readShort(lebuf, count, chunkSize);     //chunk size
         readByte(lebuf, count, last);       //"last chunk"?
         process_udp_download_chunk(&lebuf[count], chunkSize, (last != 0));
@@ -2626,7 +2626,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_registration_response: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte response;
+        uint8_t response;
         readByte(lebuf, count, response);
         if (response == 1)  // success
             tournamentPassword.serverAcceptsToken();
@@ -2637,8 +2637,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_crap_update: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte pid, color, regStatus;
-        NLulong prank, pscore, nscore;
+        uint8_t pid, color, regStatus;
+        uint32_t prank, pscore, nscore;
         readByte(lebuf, count, pid);
         readByte(lebuf, count, color);
         readByte(lebuf, count, regStatus);
@@ -2705,7 +2705,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_time: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLulong current_time, time_left;
+        uint32_t current_time, time_left;
         readLong(lebuf, count, current_time);
         readLong(lebuf, count, time_left);
         map_start_time = static_cast<int>(time) - current_time;
@@ -2731,7 +2731,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_current_map: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte mapNr;
+        uint8_t mapNr;
         readByte(lebuf, count, mapNr);
         current_map = mapNr;
         #endif
@@ -2739,7 +2739,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_list: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte width, height, votes, random = 0;
+        uint8_t width, height, votes, random = 0;
         MapInfo mapinfo;
         readStr(lebuf, count, mapinfo.title);
         readStr(lebuf, count, mapinfo.author);
@@ -2761,7 +2761,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_vote: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLbyte map_nr;
+        int8_t map_nr;
         readByte(lebuf, count, map_nr);
         map_vote = map_nr;
         #endif
@@ -2769,7 +2769,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_votes_update: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte total, map_nr, votes;
+        uint8_t total, map_nr, votes;
         readByte(lebuf, count, total);
         Lock ml(mapInfoMutex);
         for (int i = 0; i < total; i++) {
@@ -2803,7 +2803,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_capture: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = pid & 0x80;
@@ -2826,7 +2826,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_kill: {
-        NLubyte attacker, target;
+        uint8_t attacker, target;
         readByte(lebuf, count, attacker);
         readByte(lebuf, count, target);
         const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
@@ -2943,7 +2943,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_flag_take: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         const bool wild_flag = pid & 0x80;
         pid &= ~0x80;
@@ -2964,7 +2964,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_flag_return: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         fx.player[pid].stats().add_flag_return();
         fx.teams[pid / TSIZE].add_flag_return();
@@ -2981,7 +2981,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_flag_drop: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = pid & 0x80;
@@ -3005,7 +3005,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_suicide: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         const bool flag = pid & 0x80;
         #ifndef DEDICATED_SERVER_ONLY
@@ -3048,7 +3048,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_players_present: {    // this is only sent immediately after connecting to the server
-        NLulong pp;
+        uint32_t pp;
         readLong(lebuf, count, pp);
         for (int i = 0; i < MAX_PLAYERS; ++i) {
             if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
@@ -3063,7 +3063,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_new_player: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         nAssert(!fx.player[pid].used || replaying);
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
@@ -3074,7 +3074,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_player_left: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         #ifndef DEDICATED_SERVER_ONLY
         const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
@@ -3089,7 +3089,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_team_change: {
-        NLubyte from, to, col1, col2;
+        uint8_t from, to, col1, col2;
         readByte(lebuf, count, from);
         readByte(lebuf, count, to);
         readByte(lebuf, count, col1);
@@ -3169,7 +3169,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_spawn: {
-        NLubyte pid;
+        uint8_t pid;
         readByte(lebuf, count, pid);
         fx.player[pid].stats().spawn(time);
         if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
@@ -3179,10 +3179,10 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_team_movements_shots: {
         for (int i = 0; i < 2; i++) {
-            NLulong movement;
+            uint32_t movement;
             readLong(lebuf, count, movement);
             fx.teams[i].set_movement(movement);
-            NLushort data;
+            uint16_t data;
             readShort(lebuf, count, data);
             fx.teams[i].set_shots(data);
             readShort(lebuf, count, data);
@@ -3194,7 +3194,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_team_stats: {
         for (int i = 0; i < 2; i++) {
-            NLubyte data;
+            uint8_t data;
             readByte(lebuf, count, data);
             fx.teams[i].set_kills(data);
             readByte(lebuf, count, data);
@@ -3211,14 +3211,14 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_movements_shots: {
-        NLubyte id;
+        uint8_t id;
         readByte(lebuf, count, id);
         // todo: check id
-        NLulong movement;
+        uint32_t movement;
         readLong(lebuf, count, movement);
         fx.player[id].stats().set_movement(movement);
         fx.player[id].stats().save_speed(time);
-        NLushort data;
+        uint16_t data;
         readShort(lebuf, count, data);
         fx.player[id].stats().set_shots(data);
         readShort(lebuf, count, data);
@@ -3228,7 +3228,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_stats: {
-        NLubyte id;
+        uint8_t id;
         readByte(lebuf, count, id);
         const bool flag = (id & 0x80);
         const bool wild_flag = (id & 0x40);
@@ -3239,7 +3239,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         stats.set_flag(flag, wild_flag);
         fx.player[id].dead = dead;
         stats.set_dead(dead);
-        NLubyte data;
+        uint8_t data;
         readByte(lebuf, count, data);
         stats.set_kills(data);
         readByte(lebuf, count, data);
@@ -3264,7 +3264,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         stats.set_flags_returned(data);
         readByte(lebuf, count, data);
         stats.set_carriers_killed(data);
-        NLulong ldata;
+        uint32_t ldata;
         readLong(lebuf, count, ldata);
         stats.set_start_time(time - ldata);
         readLong(lebuf, count, ldata);
@@ -3281,8 +3281,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         #endif
 
     break; case data_server_settings: {
-        NLubyte caplimit, timelimit, extratime;
-        NLushort misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+        uint8_t caplimit, timelimit, extratime;
+        uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
         readByte(lebuf, count, caplimit);
         readByte(lebuf, count, timelimit);
         readByte(lebuf, count, extratime);
@@ -3293,7 +3293,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         readShort(lebuf, count, pupMaxTime);
         fx.physics.read(lebuf, count);
         if (count < msglen) {
-            NLushort delay;
+            uint16_t delay;
             readShort(lebuf, count, delay);
             flag_return_delay = delay;
         }
@@ -3356,7 +3356,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     break; case data_normal_time_out: {
         #ifndef DEDICATED_SERVER_ONLY
         extra_time_running = true;
-        NLubyte sudden_death;
+        uint8_t sudden_death;
         readByte(lebuf, count, sudden_death);
         string msg = _("*** Normal time out - extra-time started");
         if (sudden_death & 0x01)
@@ -3367,8 +3367,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_change_info: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte votes, needed;
-        NLushort vote_block_time;
+        uint8_t votes, needed;
+        uint16_t vote_block_time;
         readByte(lebuf, count, votes);
         readByte(lebuf, count, needed);
         readShort(lebuf, count, vote_block_time);
@@ -3396,7 +3396,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_player_mute: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte pid, mode;
+        uint8_t pid, mode;
         string admin;
         readByte(lebuf, count, pid);
         readByte(lebuf, count, mode);
@@ -3426,8 +3426,8 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_player_kick: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte pid;
-        NLulong minutes;
+        uint8_t pid;
+        uint32_t minutes;
         string admin;
         readByte(lebuf, count, pid);
         readLong(lebuf, count, minutes);
@@ -3455,7 +3455,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_disconnecting: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte time;
+        uint8_t time;
         readByte(lebuf, count, time);
         const string msg = _("Disconnecting in $1...", itoa(time));
         addThreadMessage(new TM_Text(msg_warning, msg));
@@ -3464,7 +3464,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_idlekick_warning: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLubyte time;
+        uint8_t time;
         readByte(lebuf, count, time);
         const string msg = _("*** Idle kick: move or be kicked in $1 seconds.", itoa(time));
         addThreadMessage(new TM_Text(msg_warning, msg));
@@ -3480,14 +3480,14 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         protocolExtensionsS2C = protocolExtensionsC2S;
 
     break; case data_acceleration_modes: {
-        NLulong mask;
+        uint32_t mask;
         readLong(lebuf, count, mask);
         for (int i = 0; i < maxplayers; ++i)
             fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
     }
 
     break; case data_flag_modes: {
-        NLubyte mask;
+        uint8_t mask;
         readByte(lebuf, count, mask);
         lock_team_flags_in_effect = mask & 8;
         lock_wild_flags_in_effect = mask & 4;
@@ -3496,7 +3496,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     }
 
     break; case data_waiting_time: {
-        NLulong waiting_time;
+        uint32_t waiting_time;
         readShort(lebuf, count, waiting_time);
         if (waiting_time >= 10)
             next_respawn_time = get_time() + waiting_time / 10.;
@@ -3733,8 +3733,8 @@ bool Client::refresh_all_servers() throw () {
                 int count = 0;
                 writeLong(lebuf, count, 0);         //special packet
                 writeLong(lebuf, count, 200);       //serverinfo request
-                writeByte(lebuf, count, (NLubyte)i);        //connect entry (am I lazy or what)
-                writeByte(lebuf, count, (NLubyte)round);        //packet number
+                writeByte(lebuf, count, (uint8_t)i);        //connect entry (am I lazy or what)
+                writeByte(lebuf, count, (uint8_t)round);        //packet number
 
                 try {
                     sock.setRemoteAddress(servers[i]->address());
@@ -3765,13 +3765,13 @@ bool Client::refresh_all_servers() throw () {
                     continue;
 
                 int count = 0;
-                NLulong dw1, dw2;
+                uint32_t dw1, dw2;
                 readLong(lebuf, count, dw1);
                 readLong(lebuf, count, dw2);
                 if (dw1 != 0 || dw2 != 200)
                     continue;
 
-                NLubyte index, pack;
+                uint8_t index, pack;
                 readByte(lebuf, count, index);  // entry number echoed by the server
                 readByte(lebuf, count, pack);   // packet #
 
@@ -4457,7 +4457,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
             else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
-                NLubyte firstFrame, lastFrame;
+                uint8_t firstFrame, lastFrame;
                 if (clFrameSent == clFrameWorld)
                     firstFrame = lastFrame = clFrameWorld;
                 else {
@@ -4473,7 +4473,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                     if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way)
                         fx.player[me].gundir = gunDir;
                     else
-                        for (NLubyte controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
+                        for (uint8_t controlFrame = lastFrame; controlFrame != clFrameWorld; --controlFrame) {
                             if (controlHistory[controlFrame].isStrafe())
                                 continue;
                             const int dir = controlHistory[controlFrame].getDirection();
@@ -5486,7 +5486,7 @@ Client::VisibilityMap Client::calculateVisibilities() throw () {
     const double time = fd.frame / 10;
 
     VisibilityMap roomVis(fx.map.w);
-    NLubyte initVal = (replaying || me >= 0 && fx.player[me].item_shadow_time > time) ? 255 : 0;
+    uint8_t initVal = (replaying || me >= 0 && fx.player[me].item_shadow_time > time) ? 255 : 0;
     for (int x = 0; x < fx.map.w; ++x)
         roomVis[x].resize(fx.map.h, initVal);
 

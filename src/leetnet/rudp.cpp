@@ -110,10 +110,10 @@ public:
     }
 
     //add long: watch endianess
-    void addlong(NLulong data) throw () {
-        extend(sizeof(NLulong)); // extend to fit
+    void addlong(uint32_t data) throw () {
+        extend(sizeof(uint32_t)); // extend to fit
         writeLong(buf, ulen, data);
-        //ulen += sizeof(NLulong);  //previous statemente already incs ulen
+        //ulen += sizeof(uint32_t);  //previous statemente already incs ulen
     }
 
     //set data
@@ -127,7 +127,7 @@ public:
     }
 
     //set data
-    void set(const char *data, NLushort len) throw () {
+    void set(const char *data, uint16_t len) throw () {
         ulen = 0;
         extend(len);
         ulen = len;
@@ -174,7 +174,7 @@ public:
 //
 class msgrec {
     int id_;            // the message id, -1 = unused
-    NLulong sent;       // id of first packet that sent this message
+    uint32_t sent;       // id of first packet that sent this message
     data_ci message_;   // the message's contents
 
 public:
@@ -182,11 +182,11 @@ public:
 
     void clear() throw () { id_ = -1; message_.clear(); }
     void set(int id, const data_ci* msg) throw () { nAssert(!used()); sent = 0; id_ = id; message_.set(msg); }
-    void set(int id, const char *data, NLushort len) throw () { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
-    void send(NLulong frame) throw () { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
+    void set(int id, const char *data, uint16_t len) throw () { nAssert(!used()); sent = 0; id_ = id; message_.set(data, len); }
+    void send(uint32_t frame) throw () { nAssert(frame != 0); if (sent == 0) sent = frame; else nAssert(sent < frame); }
 
     bool used() const throw () { return id_ != -1; }
-    bool sentBefore(NLulong id) const throw () { return sent != 0 && sent <= id; } // sent == 0 means not sent at all
+    bool sentBefore(uint32_t id) const throw () { return sent != 0 && sent <= id; } // sent == 0 means not sent at all
     int id() const throw () { return id_; }
     const data_ci& message() const throw () { return message_; }
     int msgSize() const throw () { return message_.getlen(); }
@@ -213,18 +213,18 @@ public:
     data_ci reldata;
 
     // outgoing reliable messages id generator
-    NLulong idgen_reliable_send;
+    uint32_t idgen_reliable_send;
 
     // outgoing packet id generator
-    NLulong idgen_packet_send;
+    uint32_t idgen_packet_send;
 
     // for process_incoming_packet()
     bool is_packet_set;
 
     // the last packet received, to be acked
-    NLulong ack;
+    uint32_t ack;
 
-    NLulong nextPortChange; // at which client frame if there's still zero ack, a port change is attempted; 0 means disabled
+    uint32_t nextPortChange; // at which client frame if there's still zero ack, a port change is attempted; 0 means disabled
 
     //the UDP packet set
     char    udp_data[BIG_UDPBUF];
@@ -242,17 +242,17 @@ public:
     // - dup messages : will be discovered when trying to put it into the queue (will already inserted)
     char            message[MAX_INCOMING_MESSAGES][MAX_MESSAGE_SIZE];
     int             message_size[MAX_INCOMING_MESSAGES];    //array of sizes. -1 == UNUSED
-    NLulong     msg_current;        // current expected message id
+    uint32_t     msg_current;        // current expected message id
 
     // the packet buffer's reliable messages (OUTGOING)
     // also works as the "messages yet to be acked" list
     // since all unacked messages are always sent, this includes those that were not sent a single time yet.
     msgrec reliable[MAXMSG];  // FIXME: access to "reliable" must be sinchronized
-    NLubyte  reliable_count;     //count of reliable messages in buffer
+    uint8_t  reliable_count;     //count of reliable messages in buffer
     Mutex relmsg_mutex;
 
     #ifdef EXTRA_RELIABLE_STORAGE
-    NLulong reliable_size;  // total size of reliable messages in reliable[], plus 6 bytes extra for each
+    uint32_t reliable_size;  // total size of reliable messages in reliable[], plus 6 bytes extra for each
     std::queue<data_ci*> extra_reliables;
     void erase_extra_reliables() throw () {
         while (!extra_reliables.empty()) {
@@ -260,7 +260,7 @@ public:
             extra_reliables.pop();
         }
     }
-    bool can_add_reliable(NLulong msgsize) const throw () { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
+    bool can_add_reliable(uint32_t msgsize) const throw () { return reliable_size==0 || reliable_size + msgsize < MAX_PACKET_SIZE; }
     #endif
 
     // resets the state of the object. so you don't have to delete and create a new one
@@ -321,7 +321,7 @@ public:
     // - discard duplicates and old messages
     // - implement "sliding window" for reliable message total ordering
     // messages are internally enqueued for later retrieval
-    void process_incoming_message(NLulong msgid, char* msgdata, int msgsize) throw () {
+    void process_incoming_message(uint32_t msgid, char* msgdata, int msgsize) throw () {
 DLOG_Scope s("UPIM");
         //printf("process_incoming_message id=%i cur=%i siz=%i\n", msgid, msg_current, msgsize);
 
@@ -401,7 +401,7 @@ DLOG_Scope s("URR");
         //printf("msg ready!\n");
 
         //message present - create return data
-        reldata.set(&(message[index][0]), (NLushort)message_size[index]);
+        reldata.set(&(message[index][0]), (uint16_t)message_size[index]);
 
         //clear msg (slide window)
         relmsg_mutex.lock();
@@ -456,19 +456,19 @@ DLOG_Scope s("UPIP");
 
         // (1) parse the packet:
         //
-        // NLulong                          packet_id
-        // NLulong                          acked packet (latest received by remote)
-        // NLubyte                          number of reliable messages
+        // uint32_t                          packet_id
+        // uint32_t                          acked packet (latest received by remote)
+        // uint8_t                          number of reliable messages
         // for each reliable message:
-        //      NLulong                     message id
-        //      NLushort                    message size
-        //      NLbyte[message size]        the reliable message data
-        // NLbyte[unreliable data size]     all the unreliable data glued in a big chunk
+        //      uint32_t                     message id
+        //      uint16_t                    message size
+        //      int8_t[message size]        the reliable message data
+        // int8_t[unreliable data size]     all the unreliable data glued in a big chunk
         //
 
-        NLint count = 0;  //packet parse count
-        NLulong packet_id;  //the packet id
-        NLulong packet_ack;
+        int count = 0;  //packet parse count
+        uint32_t packet_id;  //the packet id
+        uint32_t packet_ack;
 
 //      int debug = 1;
 
@@ -489,7 +489,7 @@ DLOG_Scope s("UPIP");
         }
 
         readLong(udp_data, count, packet_ack);
-        NLubyte nreliable;
+        uint8_t nreliable;
         readByte(udp_data, count, nreliable);   //number of reliable msgs
 
         //if (debug) printf(" rc=%i", nreliable);
@@ -507,8 +507,8 @@ DLOG_Scope s("UPIP");
             }
         }
 
-        NLulong msgid;
-        NLushort msgsize;
+        uint32_t msgid;
+        uint16_t msgsize;
         for (i=0; i<nreliable; i++) {       // read all reliable msgs
             readLong(udp_data, count, msgid);       //id
             readShort(udp_data, count, msgsize);    //size
@@ -526,7 +526,7 @@ DLOG_Scope s("UPIP");
         }
 
         // return this
-        NLushort unreliable_size;
+        uint16_t unreliable_size;
 
 
         // FIXED: nao eh mais enviado o unreliable size porque ele pode ser inferido do
@@ -534,7 +534,7 @@ DLOG_Scope s("UPIP");
         //readShort(udp_data, count, unreliable_size);          // unreliable msg size
 
         // tamanho = udp_size(tamanho total do datagrama UDP) - count (quantidade jah parseada ate aqui)
-        unreliable_size = ((NLushort)(udp_size - count));
+        unreliable_size = ((uint16_t)(udp_size - count));
 
         char *unreliable = (udp_data + count);      // unreliable msg pointer
 
@@ -614,7 +614,7 @@ DLOG_Scope s("UWR");
             //
             for (int i=0; i<MAXMSG; i++)
                 if (!reliable[i].used()) {
-                    reliable[i].set(idgen_reliable_send++, data, (NLushort)length);
+                    reliable[i].set(idgen_reliable_send++, data, (uint16_t)length);
                     reliable_count++;                                               // another one
                     reliable_size += length + 6;
                     relmsg_mutex.unlock();
@@ -628,7 +628,7 @@ DLOG_Scope s("UWR");
         // can't add to the standard send buffer
         #ifdef EXTRA_RELIABLE_STORAGE
         data_ci* msg = new data_ci();
-        msg->set(data, (NLushort)length);
+        msg->set(data, (uint16_t)length);
         extra_reliables.push(msg);
         relmsg_mutex.unlock();
         return 1;
@@ -663,16 +663,16 @@ DLOG_Scope s("USP");
 
         // build the packet:
         //
-        // NLulong                          packet_id
-        // NLulong                          acked packet (latest received by remote)
-        // NLubyte                          number of reliable messages
+        // uint32_t                          packet_id
+        // uint32_t                          acked packet (latest received by remote)
+        // uint8_t                          number of reliable messages
         // for each reliable message:
-        //      NLulong                     message id
-        //      NLushort                    message size
-        //      NLbyte[message size]        the reliable message data
-        // NLbyte[unreliable data size]     all the unreliable data glued in a big chunk
+        //      uint32_t                     message id
+        //      uint16_t                    message size
+        //      int8_t[message size]        the reliable message data
+        // int8_t[unreliable data size]     all the unreliable data glued in a big chunk
 
-        NLint   count = 0;
+        int   count = 0;
 
 //      static int debug = 1;
 
@@ -687,7 +687,7 @@ DLOG_Scope s("USP");
         for (i=0;i<MAXMSG;i++)  // reliable messages in queue
             if (reliable[i].used()) {
                 writeLong(sendbuf, count, reliable[i].id());        //id
-                writeShort(sendbuf, count, (NLushort)reliable[i].message().ulen);   //size
+                writeShort(sendbuf, count, (uint16_t)reliable[i].message().ulen);   //size
                 writeBlock(sendbuf, count, reliable[i].message().buf, reliable[i].message().ulen);  //data
                 //add this send packet id to the message's outgoing sends
                 reliable[i].send(id);

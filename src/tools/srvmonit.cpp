@@ -272,8 +272,8 @@ class DelaySocketReader {
 
 public:
     DelaySocketReader(Network::Socket& socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
-    NLulong getLong() throw (Network::Error, UserExit) {
-        NLulong val = 0;
+    uint32_t getLong() throw (Network::Error, UserExit) {
+        uint32_t val = 0;
         val =              getByte();
         val = (val << 8) | getByte();
         val = (val << 8) | getByte();

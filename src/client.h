@@ -237,7 +237,7 @@ class Client : public ClientInterface {
     // network
     client_c *client;
     double lastpackettime;
-    NLubyte clFrameSent, clFrameWorld;
+    uint8_t clFrameSent, clFrameWorld;
     double botReactedFrame;
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
@@ -269,8 +269,8 @@ class Client : public ClientInterface {
 
     TournamentPasswordManager tournamentPassword;
 
-    NLulong fdp;
-    NLulong max_world_rank;
+    uint32_t fdp;
+    uint32_t max_world_rank;
     #endif
 
     #ifndef DEDICATED_SERVER_ONLY
@@ -292,7 +292,7 @@ class Client : public ClientInterface {
     int map_end_time;
     bool extra_time_running;
     #endif
-    NLbyte remove_flags;
+    int8_t remove_flags;
     bool lock_team_flags_in_effect;
     bool lock_wild_flags_in_effect;
     bool capture_on_team_flags_in_effect;
@@ -642,8 +642,8 @@ class Client : public ClientInterface {
     void process_udp_download_chunk(const char* buf, int len, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
     #endif
-    void server_map_command(const std::string& mapname, NLushort server_crc) throw ();
-    bool load_map(const std::string& directory, const std::string& mapname, NLushort server_crc) throw ();
+    void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
+    bool load_map(const std::string& directory, const std::string& mapname, uint16_t server_crc) throw ();
 
     void handlePendingThreadMessages() throw (); // should only be called by the main thread; call with frameMutex locked
 

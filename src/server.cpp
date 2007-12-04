@@ -551,7 +551,7 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
 
     vector<int> winners;
     int maxVotes = 0;
-    NLulong longest_time = world.frame;
+    uint32_t longest_time = world.frame;
     for (int m = 0; m < static_cast<int>(maprot.size()); ++m) {
         if (maprot[m].votes < maxVotes)
             continue;
@@ -1553,7 +1553,7 @@ void Server::simulate_and_broadcast_frame() throw () {
                 byte = ClientControls().toNetwork(true);
 
             if (preciseGundir) {
-                const NLushort gundir = pl.gundir.toNetworkLongForm();
+                const uint16_t gundir = pl.gundir.toNetworkLongForm();
                 byte |= (gundir >> 8) << 5;
                 write(temp_frame, byte);
                 byte = gundir & 0xFF;

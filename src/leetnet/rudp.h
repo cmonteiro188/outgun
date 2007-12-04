@@ -50,13 +50,13 @@ public:
     virtual void add(const void* data, int len) throw () = 0;
 
     //add long: watch endianess
-    virtual void addlong(NLulong data) throw () = 0;
+    virtual void addlong(uint32_t data) throw () = 0;
 
     //set data
     virtual void set(const data_c *data) throw () = 0;
 
     //set data
-    virtual void set(const char *data, NLushort len) throw () = 0;
+    virtual void set(const char *data, uint16_t len) throw () = 0;
 
     //clear
     virtual void clear() throw () = 0;

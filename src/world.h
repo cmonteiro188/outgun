@@ -196,7 +196,7 @@ public:
     std::string title;  //map title
     std::string author;
     int w, h;   // width height
-    NLushort crc;   //map's 16bit CRC
+    uint16_t crc;   //map's 16bit CRC
 
     Map() throw () : w(0), h(0), crc(0) { }
 
@@ -221,7 +221,7 @@ public:
     bool random;
     float over_edge;
     int votes, sentVotes;
-    NLulong last_game;  // last game in the map (frame #)
+    uint32_t last_game;  // last game in the map (frame #)
     bool highlight;     // for the map list in the client
 
     MapInfo() throw ();
@@ -359,11 +359,11 @@ public:
     GunDirection& updateFromControls(const ClientControls& c) throw () { const int d = c.getDirection(); if (d != -1) data = d; return *this; }
     GunDirection& fromRad(double r) throw () { data = r / N_PI_4; normalize(); return *this; }
 
-    GunDirection& fromNetworkShortForm(NLubyte data_) throw () { data = data_ & 7; return *this; }
-    GunDirection& fromNetworkLongForm(NLushort data_) throw () { data = data_ / 256.; return *this; } // only 11 bits used
+    GunDirection& fromNetworkShortForm(uint8_t data_) throw () { data = data_ & 7; return *this; }
+    GunDirection& fromNetworkLongForm(uint16_t data_) throw () { data = data_ / 256.; return *this; } // only 11 bits used
 
-    NLubyte toNetworkShortForm() const throw () { return to8way(); }
-    NLushort toNetworkLongForm() const throw () { nAssert(data >= 0 && data <= 8); return iround(data * 256.) % (256 * 8); } // only 11 bits used
+    uint8_t toNetworkShortForm() const throw () { return to8way(); }
+    uint16_t toNetworkLongForm() const throw () { nAssert(data >= 0 && data <= 8); return iround(data * 256.) % (256 * 8); } // only 11 bits used
 
     int to8way() const throw () { nAssert(data >= 0 && data <= 8); return iround(data) % 8; }
     #ifndef DEDICATED_SERVER_ONLY
@@ -459,7 +459,7 @@ public:
     double team_change_time;
 
     int cid;    // client id (network identity)
-    NLubyte lastClientFrame;    // client set frame identifier of the latest data received
+    uint8_t lastClientFrame;    // client set frame identifier of the latest data received
     double frameOffset; // at what time within the frame the client's packet arrived
     double waitnametime;
     bool localIP;
@@ -473,7 +473,7 @@ public:
 
     bool drop_key;
     bool dropped_flag;
-    NLulong next_shoot_frame, start_take_damage_frame;
+    uint32_t next_shoot_frame, start_take_damage_frame;
     int frames_to_respawn, extra_frames_to_respawn;
     bool respawn_to_base;
 
@@ -537,12 +537,12 @@ public:
     int team;
     bool power;
 
-    NLulong vislist;    //notification list (bitfield, bit0=player0, bit1=player1... etc.)
+    uint32_t vislist;    //notification list (bitfield, bit0=player0, bit1=player1... etc.)
     int px, py;         //screen coords
     double x, y;        //start position or current position
     double sx, sy;      //speed
     GunDirection direction;
-    NLulong time;       //time of shot or current time
+    uint32_t time;       //time of shot or current time
 
     Rocket() throw () { owner = -1; }
     void move(double fraction) throw () { x += sx*fraction; y += sy*fraction; }
@@ -725,7 +725,7 @@ public:
     int team() const throw () { return ownerTeam; }
     int player() const throw () { nAssert(ownerPid != -1); return ownerPid; } // can only be used if initialized with the player
 
-    NLulong playersOutsideMask; // bit set for every player that was on the previous frame in the same room but outside the db ring, kind of waiting to be hit (only those can be hit on this frame); additionally, every player when the deathbringer is new (even if they happen to be in another room, it doesn't matter in the calculations)
+    uint32_t playersOutsideMask; // bit set for every player that was on the previous frame in the same room but outside the db ring, kind of waiting to be hit (only those can be hit on this frame); additionally, every player when the deathbringer is new (even if they happen to be in another room, it doesn't matter in the calculations)
 };
 
 template<class Type> class PointerContainer {   // doesn't delete the objects!
@@ -839,7 +839,7 @@ public:
 
     virtual ~WorldBase() throw () { }
 
-    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, NLubyte* rids,
+    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, uint8_t* rids,
                       int frameAdvance, int team, bool power, int px, int py, int x, int y) throw ();
 
     void run_server_player_physics(int pid) throw ();
@@ -940,8 +940,8 @@ public:
     double hit_stun_time;
     double shoot_interval, shoot_interval_with_energy;
     double spawn_safe_time;
-    NLulong time_limit;
-    NLulong extra_time;
+    uint32_t time_limit;
+    uint32_t extra_time;
     bool sudden_death;
     int capture_limit;
     int win_score_difference;     // minimum score difference needed to win the game
@@ -973,8 +973,8 @@ public:
     int getShadowMinimum() const throw () { return shadow_minimum; }
     int getCaptureLimit() const throw () { return capture_limit; }
     int getWinScoreDifference() const throw () { return win_score_difference; }
-    NLulong getTimeLimit() const throw () { return time_limit; }
-    NLulong getExtraTime() const throw () { return extra_time; }
+    uint32_t getTimeLimit() const throw () { return time_limit; }
+    uint32_t getExtraTime() const throw () { return extra_time; }
 
     Team_balance balanceTeams() const throw () { return balance_teams; }
     bool suddenDeath() const throw () { return sudden_death; }
@@ -990,7 +990,7 @@ class ServerWorld : public WorldBase {
     WorldSettings config;
     LogSet log;
 
-    NLubyte getFreeRocket() throw ();    // may give an existing rocket to overwrite if the table is full
+    uint8_t getFreeRocket() throw ();    // may give an existing rocket to overwrite if the table is full
     bool doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const throw ();
     void drop_powerup(const ServerPlayer& player) throw ();
     void drop_worst_powerup(ServerPlayer& player) throw ();
@@ -1005,8 +1005,8 @@ class ServerWorld : public WorldBase {
     bool all_kind_of_flags_exist() const throw ();
 
 public:
-    NLulong frame;
-    NLulong map_start_time; // frame #
+    uint32_t frame;
+    uint32_t map_start_time; // frame #
     ServerPlayer player[MAX_PLAYERS];
 
     ServerWorld(Server* hostp, ServerNetworking* netp, LogSet logset) throw () :
@@ -1055,7 +1055,7 @@ public:
 
     bool dropFlagIfAny(int pid, bool purpose = false) throw ();
     void shootRockets(int pid, int numshots) throw ();
-    void deleteRocket(int r, NLshort hitx, NLshort hity, int targ) throw ();
+    void deleteRocket(int r, int16_t hitx, int16_t hity, int targ) throw ();
     void changeEmbeddedPids(int source, int target) throw ();
     void swapEmbeddedPids(int a, int b) throw ();
 
@@ -1090,7 +1090,7 @@ public:
     double get_frame() const throw () { return frame; }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                     ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) throw ();
+                     ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw ();
 
     /*void save_stats(const std::string& dir, const Team* teams,
                 const std::vector<ClientPlayer*>& players, const std::string& map_name) const throw ();*/
