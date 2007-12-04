@@ -30,22 +30,20 @@
 #include <vector>
 
 #include "../network.h"
+#include "../pointervector.h"
 
-class Peer {
+class Peer : private NoCopying {
 public:
-    Peer(const Network::Address& addr, const Network::Socket& sock) throw () : address(addr), socket(sock) { }
-    Peer(const Peer& peer) throw ();
-
-    Peer& operator=(const Peer& peer) throw ();
+    Peer(const Network::Address& addr, TrashableRef<Network::Socket> sock) throw () : address(addr), socket(sock) { }
 
     Network::Address address;
     Network::Socket  socket;
     std::stringstream buffer;
 };
 
-class Spectator {
+class Spectator : private NoCopying {
 public:
-    Spectator(const Network::Address& addr, const Network::Socket& sock) throw () :
+    Spectator(const Network::Address& addr, TrashableRef<Network::Socket> sock) throw () :
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -158,8 +156,8 @@ private:
     unsigned spectator_limit;   /// Maximum number of spectators for this relay
     unsigned game_delay;        /// Delay from the live game in seconds
 
-    std::vector<Spectator> spectators;
-    std::vector<Peer> peers;    /// Just connected "things"
+    PointerVector<Spectator> spectators;
+    PointerVector<Peer> peers;    /// Just connected "things"
     std::deque<Game> games;     /// Game data
 
     std::string waiting_data;

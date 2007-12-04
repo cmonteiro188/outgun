@@ -87,24 +87,6 @@ int main(int argc, const char* argv[]) {
     nlShutdown();
 }
 
-string itoa(int val) throw () {
-    ostringstream ss;
-    ss << val;
-    return ss.str();
-}
-
-Peer::Peer(const Peer& peer) throw () {
-    *this = peer;
-}
-
-Peer& Peer::operator=(const Peer& peer) throw () {
-    address = peer.address;
-    socket = peer.socket;
-    buffer.str("");
-    buffer << peer.buffer.str();
-    return *this;
-}
-
 Relay::Relay() throw () :
     listen_port(0),
     bandwidth_limit(20000),
@@ -120,21 +102,20 @@ Relay::~Relay() throw () {
     cout << "Closing sockets\n";
     listen_socket.closeIfOpen();
     server_socket.closeIfOpen();
-    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end(); ++pi)
+    for (PointerVector<Peer>::iterator pi = peers.begin(); pi != peers.end(); ++pi)
         pi->socket.closeIfOpen();
-    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ++si)
+    for (PointerVector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); ++si)
         si->socket.closeIfOpen();
 }
 
 void Relay::run() throw () {
     cout << "Relay server starting on port " << listen_port << ".\n";
 
-    if (!listen_socket.open(Network::NonBlocking, Network::TCP, listen_port)) {
-        cout << "Can't open socket: " << getNlErrorString() << '\n';
-        return;
-    }
-    else if (!listen_socket.listen()) {
-        cout << "Could not set socket to listen mode: " << getNlErrorString() << '\n';
+    try {
+        listen_socket.open(Network::NonBlocking, Network::TCP, listen_port);
+        listen_socket.listen();
+    } catch (const Network::Error& e) {
+        cout << e.str() << '\n';
         return;
     }
 
@@ -214,21 +195,26 @@ void Relay::listen() throw () {
             break;
         }
 
-        Network::Address addr = new_socket.getRemoteAddress();
-        cout << "Incoming connection from " << addr.toString() << ".\n";
+        try {
+            Network::Address addr = new_socket.getRemoteAddress();
+            cout << "Incoming connection from " << addr.toString() << ".\n";
 
-        peers.push_back(Peer(addr, new_socket));
+            peers.push_back(give_control(new Peer(addr, trashable_ref(new_socket))));
+        } catch (const Network::Error& e) {
+            cout << e.str() << '\n';
+        }
     }
 }
 
 void Relay::check_new_connections() throw () {
-    for (vector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
+    for (PointerVector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
         const unsigned max_buffer_size = 2000;
         NLbyte buffer[max_buffer_size];
-        const int result = pi->socket.read(buffer, max_buffer_size);
-
-        if (result == Network::Error) {
-            cout << "Socket read error. " << getNlErrorString() << '\n';
+        int result;
+        try {
+            result = pi->socket.read(buffer, max_buffer_size);
+        } catch (const Network::Error& e) {
+            cout << e.str() << '\n';
             pi->socket.close();
             pi = peers.erase(pi);
             continue;
@@ -288,7 +274,7 @@ void Relay::check_new_connections() throw () {
             }
             #endif
 
-            spectators.push_back(Spectator(pi->address, pi->socket));
+            spectators.push_back(give_control(new Spectator(pi->address, trashable_ref(pi->socket))));
             cout << "Spectator connected.\n";
             pi = peers.erase(pi);
         }
@@ -329,7 +315,7 @@ void Relay::check_new_connections() throw () {
             write_string(ost, string());    // Store empty map name because the server sent only the map name of the first game.
             first_buffer = Frame(ost.str().length(), ost.str(), get_time());
 
-            server_socket = pi->socket;
+            server_socket = trashable_ref(pi->socket);
             cout << "Server connected: " << hostname << '\n';
 
             pi = peers.erase(pi);
@@ -352,18 +338,21 @@ void Relay::get_server_data() throw () {
     data << waiting_data;
     waiting_data.clear();
     while (server_socket.isOpen()) {
-        const unsigned max_buffer_size = 20000;
-        NLbyte buffer[max_buffer_size];
-        const int result = server_socket.read(buffer, max_buffer_size);
-
-        if (result == Network::Error) {
-            cout << "Server disconnected: " << getNlErrorString() << '\n';
+        try {
+            const unsigned max_buffer_size = 20000;
+            NLbyte buffer[max_buffer_size];
+            const int result = server_socket.read(buffer, max_buffer_size);
+            if (result == 0)
+                break;
+            data.write(buffer, result);
+        } catch (const Network::ReadWriteError& e) {
+            if (e.disconnected())
+                cout << "Server disconnected.\n";
+            else
+                cout << e.str() << '\n';
             server_socket.close();
             return;
         }
-        if (result == 0)
-            break;
-        data.write(buffer, result);
     }
 
     if (data.str().empty())
@@ -418,13 +407,17 @@ bool Relay::add_data(istream& in) throw () {
 }
 
 void Relay::send_data() throw () {
-    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
-        const unsigned temp_buffer_size = 10;
-        NLbyte temp[temp_buffer_size];
-        // Check connection
-        int result = si->socket.read(temp, temp_buffer_size);
-        if (result == Network::Error) {
-            cout << "Spectator disconnected: " << getNlErrorString() << '\n';
+    for (PointerVector<Spectator>::iterator si = spectators.begin(); si != spectators.end();) {
+        try {
+            // Check connection
+            const unsigned temp_buffer_size = 10;
+            NLbyte temp[temp_buffer_size];
+            si->socket.read(temp, temp_buffer_size);
+        } catch (const Network::ReadWriteError& e) {
+            if (e.disconnected())
+                cout << "Spectator disconnected.\n";
+            else
+                cout << e.str() << '\n';
             si->socket.close();
             si = spectators.erase(si);
             continue;
@@ -452,10 +445,8 @@ void Relay::send_data() throw () {
             ++si;
             continue;
         }
-        result = send_data(si->socket, chunk);
+        const int result = send_data(si->socket, chunk);
         if (result == -1) {
-            cout << "Spectator disconnected: " << getNlErrorString() << '\n';
-            si->socket.close();
             si = spectators.erase(si);
             continue;
         }
@@ -485,17 +476,25 @@ int Relay::send_data(Network::Socket& socket, const string& data) const throw ()
         cout << "Closed spectator socket in send_data().\n";
         return -1;
     }
-    int sent;
-    if (!socket.write(data.data(), data.length(), &sent))
+    try {
+        int sent;
+        socket.write(data.data(), data.length(), &sent);
+        return sent;
+    } catch (const Network::ReadWriteError& e) {
+        if (e.disconnected())
+            cout << "Spectator disconnected.\n";
+        else
+            cout << e.str() << '\n';
+        socket.close();
         return -1;
-    return sent;
+    }
 }
 
 void Relay::remove_oldest_game() throw () {
     if (!games.front().finished())
         return;
     bool transmissions_needed = false;
-    for (vector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); si++)
+    for (PointerVector<Spectator>::iterator si = spectators.begin(); si != spectators.end(); si++)
         if (si->next_frame <= buffer_first_frame + games.front().size()) {
             transmissions_needed = true;
             break;
@@ -549,40 +548,28 @@ void Relay::send_master_server() throw () {
 
     master_talk_time = get_time() + 5 * 60.0;
 
-    Network::Socket msock(Network::NonBlocking, Network::TCP, 0);
-    if (!msock.isOpen()) {
-        cout << "Can't open socket to connect to master server.\n";;
-        return;
-    }
+    try {
+        Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
 
-    Network::Address master_address;
-    if (!master_address.tryResolve(master_name)) {
-        cout << "Can't resolve master address for " << master_name << ".\n";
-        msock.close();
-        return;
-    }
-    int port = master_address.getPort();
-    if (!port) {
-        port = 80;
-        master_address.setPort(port);
-    }
+        Network::Address master_address;
+        if (!master_address.tryResolve(master_name)) {
+            cout << "Can't resolve master address for " << master_name << ".\n";
+            return;
+        }
+        if (master_address.getPort() == 0)
+            master_address.setPort(80);
+        msock.connect(master_address);
 
-    if (!msock.connect(master_address)) {
-        cout << "Can't connect to master server.\n";
-        msock.close();
-        return;
-    }
-
-    // build and send data
-    map<string, string> parameters;
-    parameters["port"] = itoa(listen_port);
-    parameters["server"] = hostname;
-    const string data = format_http_parameters(parameters);
-    cout << master_name << ": " << data << '\n';
-    NetworkResult result = post_http_data(msock, &g_exitFlag, 1000, master_name, master_submit, data);
-    if (result != NR_ok)
-        cout << "Master talker: Error sending info: " << (result == NR_timeout ? "Timeout" : getNlErrorString()) << '\n';
-    else
+        // build and send data
+        map<string, string> parameters;
+        parameters["port"] = itoa(listen_port);
+        parameters["server"] = hostname;
+        const string data = format_http_parameters(parameters);
+        cout << master_name << ": " << data << '\n';
+        post_http_data(msock, &g_exitFlag, 1000, master_name, master_submit, data);
         save_http_response(msock, cout, &g_exitFlag, 1000);
-    msock.close();
+    } catch (Network::ExternalAbort) {
+    } catch (Network::Error& e) {
+        cout << "Sending to master server failed: " << e.str() << '\n';
+    }
 }
