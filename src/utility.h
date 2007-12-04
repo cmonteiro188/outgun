@@ -124,6 +124,53 @@ public:
     ~ConstUnlock() throw () { t.lock(); }
 };
 
+/** Reference to an object that may be trashed by the recipient.
+ * Provides a means to indicate in code that a function will manipulate its reference argument
+ * without guaranteeing anything to the caller.
+ * Intended to be constructed using trashable_ref().
+ * To use members of the wrapped reference, use either trt->member; or { T& t = trt; t.member; }
+ */
+template<class T> class TrashableRef {
+    T& t;
+
+    TrashableRef(T& t_) throw () : t(t_) { }
+
+public:
+    static TrashableRef construct(T& t) throw () { return t; }
+
+    operator       T&()       throw () { return t; }
+    operator const T&() const throw () { return t; }
+
+          T* operator->()       throw () { return &t; }
+    const T* operator->() const throw () { return &t; }
+};
+
+template<class T> TrashableRef<T> trashable_ref(T& t) throw () { return TrashableRef<T>::construct(t); }
+
+/** Pointer to an object whose destruction is to be taken care of by the recipient.
+ * Provides a means to indicate in code that a function will assume control over the destruction of its pointer argument.
+ * Intended to be constructed using give_control().
+ */
+template<class T> class ControlledPtr {
+    T* p;
+
+    ControlledPtr(T* p_) throw () : p(p_) { }
+
+public:
+    static ControlledPtr construct(T* p) throw () { return p; }
+
+    operator       T*()       throw () { return p; }
+    operator const T*() const throw () { return p; }
+
+          T* operator->()       throw () { return p; }
+    const T* operator->() const throw () { return p; }
+
+          T& operator*()       throw () { return *p; }
+    const T& operator*() const throw () { return *p; }
+};
+
+template<class T> ControlledPtr<T> give_control(T* p) throw () { return ControlledPtr<T>::construct(p); }
+
 template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str) throw ();
