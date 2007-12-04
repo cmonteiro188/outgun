@@ -32,6 +32,8 @@
 
 #include <string>
 
+#include "../network.h"
+
 //the client class
 class client_c {
 public:
@@ -70,7 +72,7 @@ public:
     virtual char* receive_message(int *length) throw () = 0;
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
-    virtual int get_socket_stat(int stat) throw () = 0;
+    virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () = 0;
 
     virtual double increasePacketDelay(double amount = 0.01) throw () = 0;
     virtual double decreasePacketDelay(double amount = 0.01) throw () = 0;

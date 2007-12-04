@@ -5194,8 +5194,8 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
 
     // debug panel
     if (key[KEY_F9]) {
-        const int bpsin = client->get_socket_stat(NL_AVE_BYTES_RECEIVED) + spectate_socket.getStat(NL_AVE_BYTES_RECEIVED);
-        const int bpsout = client->get_socket_stat(NL_AVE_BYTES_SENT) + spectate_socket.getStat(NL_AVE_BYTES_SENT);
+        const int bpsin = client->get_socket_stat(Network::Socket::Stat_AvgBytesReceived) + spectate_socket.getStat(Network::Socket::Stat_AvgBytesReceived);
+        const int bpsout = client->get_socket_stat(Network::Socket::Stat_AvgBytesSent) + spectate_socket.getStat(Network::Socket::Stat_AvgBytesSent);
 
         vector<vector<pair<int, int> > > sticks;
         vector<int> buttons;

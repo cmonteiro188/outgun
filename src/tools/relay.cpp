@@ -417,7 +417,7 @@ void Relay::send_data() throw () {
             continue;
         }
         if (!si->local) {           // Limit data sending rate for spectators
-            const unsigned bpsout = si->socket.getStat(NL_AVE_BYTES_SENT);
+            const unsigned bpsout = si->socket.getStat(Network::Socket::Stat_AvgBytesSent);
             if (bpsout > bandwidth_limit / spectators.size())
                 continue;
         }

@@ -313,8 +313,20 @@ Address Socket::getRemoteAddress() const throw (Error) {
     return a;
 }
 
-int Socket::getStat(NLenum type) const throw () {
-    return nlGetSocketStat(NLS, type); // can't verify result, because 0 can mean two things and we've no real way to clear what nlGetError returns, either (we could force it to an error value never returned by nlGetSocketStat, but that would be too funny)
+int Socket::getStat(StatisticType type) const throw () {
+    NLenum nlType;
+    switch (type) {
+     /*break;*/case Stat_PacketsSent:       nlType = NL_PACKETS_SENT;
+        break; case Stat_BytesSent:         nlType = NL_BYTES_SENT;
+        break; case Stat_AvgBytesSent:      nlType = NL_AVE_BYTES_SENT;
+        break; case Stat_HighBytesSent:     nlType = NL_HIGH_BYTES_SENT;
+        break; case Stat_PacketsReceived:   nlType = NL_PACKETS_RECEIVED;
+        break; case Stat_BytesReceived:     nlType = NL_BYTES_RECEIVED;
+        break; case Stat_AvgBytesReceived:  nlType = NL_AVE_BYTES_RECEIVED;
+        break; case Stat_HighBytesReceived: nlType = NL_HIGH_BYTES_RECEIVED;
+        break; default: nAssert(0);
+    }
+    return nlGetSocketStat(NLS, nlType); // can't verify result, because 0 can mean two things and we've no real way to clear what nlGetError returns, either (we could force it to an error value never returned by nlGetSocketStat, but that would be too funny)
 }
 
 void Socket::connect(const Address& a) throw (ConnectError) {

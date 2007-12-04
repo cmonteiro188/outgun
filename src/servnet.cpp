@@ -2178,7 +2178,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 }
 
 double ServerNetworking::getTraffic() const throw () {
-    return server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT);
+    return server->get_socket_stat(Network::Socket::Stat_AvgBytesReceived) + server->get_socket_stat(Network::Socket::Stat_AvgBytesSent);
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {

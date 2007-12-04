@@ -502,7 +502,7 @@ public:
     //get a statistic from sockets. stat = HawkNL socket-stats id
     //this function returns the sum of all sockets active in the server. no per-client
     //results available for now.
-    virtual int get_socket_stat(int stat) throw () {
+    virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () {
 
         int thestat = 0;
 

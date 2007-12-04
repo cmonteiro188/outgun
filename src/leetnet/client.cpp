@@ -355,7 +355,7 @@ public:
     }
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
-    virtual int get_socket_stat(int stat) throw () {
+    virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () {
         return station->get_nl_socket().getStat(stat);
     }
 

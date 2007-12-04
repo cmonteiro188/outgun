@@ -221,7 +221,10 @@ public:
         bool isOpen() const throw ();
         Address getLocalAddress() const throw (Error);
         Address getRemoteAddress() const throw (Error);
-        int getStat(NLenum type) const throw (); //#fix: create an own enum for the type
+
+        enum StatisticType { Stat_PacketsSent    , Stat_BytesSent    , Stat_AvgBytesSent    , Stat_HighBytesSent,
+                             Stat_PacketsReceived, Stat_BytesReceived, Stat_AvgBytesReceived, Stat_HighBytesReceived };
+        int getStat(StatisticType type) const throw ();
 
         void connect(const Address& a) throw (ConnectError);
         bool connectPending() throw (ReadWriteError);
