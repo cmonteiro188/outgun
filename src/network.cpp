@@ -236,11 +236,31 @@ Socket::Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_) thr
     open(b, t, port);
 }
 
+Socket::Socket(TrashableRef<Socket> s) throw () :
+    hidden(s->hidden),
+    connected(s->connected),
+    autoClose(s->autoClose)
+{
+    s->hidden = new HiddenData(NL_INVALID);
+    s->connected = false;
+}
+
 Socket::~Socket() throw () {
     if (autoClose)
         closeIfOpen();
     nAssert(!isOpen());
     delete hidden;
+}
+
+Socket& Socket::operator=(TrashableRef<Socket> s) throw () {
+    if (autoClose)
+        closeIfOpen();
+    nAssert(!isOpen());
+    std::swap(hidden, s->hidden);
+    connected = s->connected;
+    autoClose = s->autoClose;
+    s->connected = false;
+    return *this;
 }
 
 bool Socket::tryOpen(BlockingMode b, SocketType t, uint16_t port) throw () {

@@ -208,7 +208,10 @@ public:
     public:
         Socket(bool autoClose_ = false) throw ();
         Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_ = false) throw (OpenError);
+        Socket(TrashableRef<Socket> s) throw (); /// "move constructor": assume the identity of s and clear s
         ~Socket() throw ();
+
+        Socket& operator=(TrashableRef<Socket> s) throw (); /// "move assignment": assume the identity of s and clear s
 
         bool tryOpen(BlockingMode b, SocketType t, uint16_t port) throw ();
         void open(BlockingMode b, SocketType t, uint16_t port) throw (OpenError);
