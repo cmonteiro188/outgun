@@ -643,10 +643,10 @@ void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player)
     writeByte(lebuf, count, data_movements_shots);
     writeByte(lebuf, count, static_cast<NLubyte>(player.id));
     const Statistics& stats = player.stats();
-    writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
+    writeLong(lebuf, count, static_cast<NLulong>(stats.movement()));
+    writeShort(lebuf, count, static_cast<NLushort>(stats.shots()));
+    writeShort(lebuf, count, static_cast<NLushort>(stats.hits()));
+    writeShort(lebuf, count, static_cast<NLushort>(stats.shots_taken()));
     broadcast_message(lebuf, count);
     record_message(lebuf, count);
 }
@@ -684,9 +684,9 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const thr
     writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_dropped()));
     writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_returned()));
     writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
+    writeLong(lebuf, count, static_cast<NLulong>(stats.playtime(get_time())));
+    writeLong(lebuf, count, static_cast<NLulong>(stats.lifetime(get_time())));
+    writeLong(lebuf, count, static_cast<NLulong>(stats.flag_carrying_time(get_time())));
     if (cid == pid_record)
         record_message(lebuf, count);
     else
@@ -699,10 +699,10 @@ void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
     writeByte(lebuf, count, data_team_movements_shots);
     for (int i = 0; i < 2; i++) {
         const Team& team = world.teams[i];
-        writeLong(lebuf, count, static_cast<NLlong>(team.movement()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.shots()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.hits()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.shots_taken()));
+        writeLong(lebuf, count, static_cast<NLulong>(team.movement()));
+        writeShort(lebuf, count, static_cast<NLushort>(team.shots()));
+        writeShort(lebuf, count, static_cast<NLushort>(team.hits()));
+        writeShort(lebuf, count, static_cast<NLushort>(team.shots_taken()));
     }
     if (cid == pid_record)
         record_message(lebuf, count);
@@ -733,11 +733,11 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) const throw () 
     const MapInfo& map = host->maplist()[player.current_map_list_item];
     writeStr(lebuf, count, map.title);
     writeStr(lebuf, count, map.author);
-    writeByte(lebuf, count, static_cast<NLchar>(map.width));
-    writeByte(lebuf, count, static_cast<NLchar>(map.height));
-    writeByte(lebuf, count, static_cast<NLchar>(map.votes));
+    writeByte(lebuf, count, static_cast<NLubyte>(map.width));
+    writeByte(lebuf, count, static_cast<NLubyte>(map.height));
+    writeByte(lebuf, count, static_cast<NLubyte>(map.votes));
     if (map.random)
-        writeByte(lebuf, count, static_cast<NLchar>(map.random));
+        writeByte(lebuf, count, static_cast<NLubyte>(map.random));
     server->send_message(player.cid, lebuf, count);
 }
 
@@ -751,11 +751,11 @@ void ServerNetworking::send_map_vote(const ServerPlayer& player) const throw () 
 
 void ServerNetworking::broadcast_map_votes_update() throw () {
     // check changed votes
-    vector<pair<NLchar, NLchar> > votes;    // map number and votes
-    NLchar i = 0;
+    vector<pair<NLubyte, NLubyte> > votes;    // map number and votes
+    NLubyte i = 0;
     for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
         if (mi->sentVotes != mi->votes) {
-            votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
+            votes.push_back(pair<NLubyte, NLubyte>(i, mi->votes));
             mi->sentVotes = mi->votes;
         }
 
@@ -766,8 +766,8 @@ void ServerNetworking::broadcast_map_votes_update() throw () {
     int count = 0;
     char lebuf[256];
     writeByte(lebuf, count, data_map_votes_update);
-    writeByte(lebuf, count, static_cast<NLchar>(votes.size()));
-    for (vector<pair<NLchar, NLchar> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
+    writeByte(lebuf, count, static_cast<NLubyte>(votes.size()));
+    for (vector<pair<NLubyte, NLubyte> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
         writeByte(lebuf, count, vi->first);
         writeByte(lebuf, count, vi->second);
     }
@@ -1083,7 +1083,7 @@ void ServerNetworking::broadcast_map_change_info(int votes, int needed, int vote
     writeByte(lebuf, count, data_map_change_info);
     writeByte(lebuf, count, static_cast<NLubyte>(votes));
     writeByte(lebuf, count, static_cast<NLubyte>(needed));
-    writeShort(lebuf, count, static_cast<NLshort>(vote_block_time));
+    writeShort(lebuf, count, static_cast<NLushort>(vote_block_time));
 
     broadcast_message(lebuf, count);
 }
@@ -1114,11 +1114,12 @@ void ServerNetworking::broadcast_mute_message(int pid, int mode, const string& a
 }
 
 void ServerNetworking::broadcast_kick_message(int pid, int minutes, const string& admin) const throw () {
+    nAssert(minutes >= 0);
     char lebuf[256];
     int count = 0;
     writeByte(lebuf, count, data_player_kick);
     writeByte(lebuf, count, static_cast<NLubyte>(pid));
-    writeLong(lebuf, count, static_cast<NLlong>(minutes));
+    writeLong(lebuf, count, static_cast<NLulong>(minutes));
     writeStr(lebuf, count, admin);
 
     broadcast_message(lebuf, count);

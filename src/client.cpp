@@ -2705,7 +2705,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_time: {
         #ifndef DEDICATED_SERVER_ONLY
-        int current_time, time_left;
+        NLulong current_time, time_left;
         readLong(lebuf, count, current_time);
         readLong(lebuf, count, time_left);
         map_start_time = static_cast<int>(time) - current_time;
@@ -2769,13 +2769,13 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_map_votes_update: {
         #ifndef DEDICATED_SERVER_ONLY
-        NLbyte total, map_nr, votes;
+        NLubyte total, map_nr, votes;
         readByte(lebuf, count, total);
         Lock ml(mapInfoMutex);
         for (int i = 0; i < total; i++) {
             readByte(lebuf, count, map_nr);
             readByte(lebuf, count, votes);
-            if (map_nr >= 0 && map_nr < static_cast<int>(maps.size())) {
+            if (map_nr < static_cast<int>(maps.size())) {
                 maps[map_nr].votes = votes;
                 mapListChangedAfterSort = true;
             }
@@ -3179,10 +3179,10 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
 
     break; case data_team_movements_shots: {
         for (int i = 0; i < 2; i++) {
-            NLlong movement;
+            NLulong movement;
             readLong(lebuf, count, movement);
             fx.teams[i].set_movement(movement);
-            NLshort data;
+            NLushort data;
             readShort(lebuf, count, data);
             fx.teams[i].set_shots(data);
             readShort(lebuf, count, data);
@@ -3214,11 +3214,11 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         NLubyte id;
         readByte(lebuf, count, id);
         // todo: check id
-        NLlong movement;
+        NLulong movement;
         readLong(lebuf, count, movement);
         fx.player[id].stats().set_movement(movement);
         fx.player[id].stats().save_speed(time);
-        NLshort data;
+        NLushort data;
         readShort(lebuf, count, data);
         fx.player[id].stats().set_shots(data);
         readShort(lebuf, count, data);
@@ -3264,7 +3264,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
         stats.set_flags_returned(data);
         readByte(lebuf, count, data);
         stats.set_carriers_killed(data);
-        int ldata;
+        NLulong ldata;
         readLong(lebuf, count, ldata);
         stats.set_start_time(time - ldata);
         readLong(lebuf, count, ldata);
@@ -3368,7 +3368,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     break; case data_map_change_info: {
         #ifndef DEDICATED_SERVER_ONLY
         NLubyte votes, needed;
-        NLshort vote_block_time;
+        NLushort vote_block_time;
         readByte(lebuf, count, votes);
         readByte(lebuf, count, needed);
         readShort(lebuf, count, vote_block_time);
@@ -3427,7 +3427,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
     break; case data_player_kick: {
         #ifndef DEDICATED_SERVER_ONLY
         NLubyte pid;
-        NLlong minutes;
+        NLulong minutes;
         string admin;
         readByte(lebuf, count, pid);
         readLong(lebuf, count, minutes);
@@ -3859,7 +3859,7 @@ bool Client::get_local_servers() throw () {
         sock.setRemoteAddress(Network::Address("255.255.255.255:25000"));
 
         const char broadcast_string[] = "Outgun";
-        NLbyte buffer[512]; int count = 0;
+        char buffer[512]; int count = 0;
         writeLong(buffer, count, 0);
         writeString(buffer, count, broadcast_string);
         sock.write(buffer, count);

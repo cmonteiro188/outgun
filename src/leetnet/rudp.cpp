@@ -248,7 +248,7 @@ public:
     // also works as the "messages yet to be acked" list
     // since all unacked messages are always sent, this includes those that were not sent a single time yet.
     msgrec reliable[MAXMSG];  // FIXME: access to "reliable" must be sinchronized
-    NLbyte  reliable_count;     //count of reliable messages in buffer
+    NLubyte  reliable_count;     //count of reliable messages in buffer
     Mutex relmsg_mutex;
 
     #ifdef EXTRA_RELIABLE_STORAGE
@@ -458,7 +458,7 @@ DLOG_Scope s("UPIP");
         //
         // NLulong                          packet_id
         // NLulong                          acked packet (latest received by remote)
-        // NLbyte                           number of reliable messages
+        // NLubyte                          number of reliable messages
         // for each reliable message:
         //      NLulong                     message id
         //      NLushort                    message size
@@ -489,7 +489,7 @@ DLOG_Scope s("UPIP");
         }
 
         readLong(udp_data, count, packet_ack);
-        NLbyte nreliable;
+        NLubyte nreliable;
         readByte(udp_data, count, nreliable);   //number of reliable msgs
 
         //if (debug) printf(" rc=%i", nreliable);
@@ -665,7 +665,7 @@ DLOG_Scope s("USP");
         //
         // NLulong                          packet_id
         // NLulong                          acked packet (latest received by remote)
-        // NLbyte                           number of reliable messages
+        // NLubyte                          number of reliable messages
         // for each reliable message:
         //      NLulong                     message id
         //      NLushort                    message size

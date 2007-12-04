@@ -199,7 +199,7 @@ void Relay::listen() throw () {
 void Relay::check_new_connections() throw () {
     for (PointerVector<Peer>::iterator pi = peers.begin(); pi != peers.end();) {
         const unsigned max_buffer_size = 2000;
-        NLbyte buffer[max_buffer_size];
+        char buffer[max_buffer_size];
         int result;
         try {
             result = pi->socket.read(buffer, max_buffer_size);
@@ -330,7 +330,7 @@ void Relay::get_server_data() throw () {
     while (server_socket.isOpen()) {
         try {
             const unsigned max_buffer_size = 20000;
-            NLbyte buffer[max_buffer_size];
+            char buffer[max_buffer_size];
             const int result = server_socket.read(buffer, max_buffer_size);
             if (result == 0)
                 break;
@@ -401,7 +401,7 @@ void Relay::send_data() throw () {
         try {
             // Check connection
             const unsigned temp_buffer_size = 10;
-            NLbyte temp[temp_buffer_size];
+            char temp[temp_buffer_size];
             si->socket.read(temp, temp_buffer_size);
         } catch (const Network::ReadWriteError& e) {
             if (e.disconnected())
