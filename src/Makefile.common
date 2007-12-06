@@ -42,6 +42,7 @@ ifdef LINUX
  BUILDTOOL_LDFLAGS :=
  MON_LDFLAGS := -pthread
  RELAY_LDFLAGS := -pthread
+ TEST_LDFLAGS := -pthread
 
 else
 
@@ -61,6 +62,7 @@ else
  BUILDTOOL_LDFLAGS := -mconsole
  MON_LDFLAGS := -mconsole
  RELAY_LDFLAGS := -mconsole
+ TEST_LDFLAGS := -mconsole
 
  $(OBJDIR)/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
@@ -95,6 +97,7 @@ MON_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(MON_OBJ_NAMES))
 BUILDTOOL_LIBS :=
 MON_LIBS := $(COMMON_LIBS)
 RELAY_LIBS := $(COMMON_LIBS)
+TEST_LIBS := $(COMMON_LIBS) $(ALLEG_LIBS)
 
 TEXT_CXXFLAGS := $(CXXFLAGS) -DDEDICATED_SERVER_ONLY
 
@@ -108,7 +111,7 @@ ifdef WITH_PNG
  OUTGUN_CLIENT_LIBS += $(PNG_LIBS)
 endif
 
-SRC_PREFIXES := * leetnet/* loadpng/* tools/*
+SRC_PREFIXES := * leetnet/* loadpng/* tests/* tools/*
 # Suffix order is important for dependency generation.
 # Files that generate Makefile rules (.cpp and .c) must be included last.
 SRC_SUFFIXES := .h .inc .cpp .c
@@ -117,10 +120,14 @@ GENERATED_HEADER_FILES := generated/svnrevision.inc
 SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
 DEPENDENCY_FILES := $(patsubst %,$(DEPDIR)/%.d,$(SRC_FILES))
 
+TEST_TARGETS := $(patsubst %.cpp,%$(EXE_SUFFIX),$(filter-out tests/tests.cpp,$(wildcard tests/*.cpp)))
+TEST_EXEC_TARGETS = $(patsubst tests/%$(EXE_SUFFIX),test_%,$(TEST_TARGETS))
+
 # shorthand target names
 
 standard: outgun srvmonit relay
-all: outgun outgun-ded makedep writeifdifferent srvmonit relay
+all: outgun outgun-ded makedep writeifdifferent srvmonit relay testsuite
+ALL: all TAGS run_tests
 
 outgun: ../outgun$(EXE_SUFFIX)
 outgun-ded: ../outgun-ded$(EXE_SUFFIX)
@@ -128,28 +135,42 @@ makedep: tools/makedep$(EXE_SUFFIX)
 writeifdifferent: tools/writeifdifferent$(EXE_SUFFIX)
 srvmonit: ../srvmonit$(EXE_SUFFIX)
 relay: ../relay$(EXE_SUFFIX)
+testsuite: $(TEST_TARGETS)
+run_tests: $(TEST_EXEC_TARGETS)
 
 clean:
-	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(WRITEIFDIFFERENT_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) TAGS
+	$(RM) $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(WRITEIFDIFFERENT_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(DEPENDENCY_FILES) $(TEST_TARGETS) TAGS
 
-.PHONY: standard all outgun outgun-ded makedep writeifdifferent srvmonit relay clean
+.PHONY: standard all ALL outgun outgun-ded makedep writeifdifferent srvmonit relay testsuite run-tests $(TEST_EXEC_TARGETS) clean
 
 TAGS: $(SRC_FILES)
 	etags $^
 
 # directories for generated files
 
-$(DEPDIR) $(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools generated $(OBJDIR) $(OBJDIR)/gui $(OBJDIR)/gui/loadpng $(OBJDIR)/leetnet $(OBJDIR)/text $(OBJDIR)/text/tools:
+DEP_SUBDIR_NAMES = generated leetnet loadpng tests tools
+OBJ_SUBDIR_NAMES = gui leetnet tests text
+OBJ_GUI_SUBDIR_NAMES = loadpng
+OBJ_TEXT_SUBDIR_NAMES = tools
+
+DEP_SUBDIRS = $(patsubst %,$(DEPDIR)/%,$(DEP_SUBDIR_NAMES))
+OBJ_SUBDIRS = $(patsubst %,$(OBJDIR)/%,$(OBJ_SUBDIR_NAMES))
+OBJ_GUI_SUBDIRS = $(patsubst %,$(OBJDIR)/gui/%,$(OBJ_GUI_SUBDIR_NAMES))
+OBJ_TEXT_SUBDIRS = $(patsubst %,$(OBJDIR)/text/%,$(OBJ_TEXT_SUBDIR_NAMES))
+
+GENERATED_DIRS = generated $(DEPDIR) $(DEP_SUBDIRS) $(OBJDIR) $(OBJ_SUBDIRS) $(OBJ_GUI_SUBDIRS) $(OBJ_TEXT_SUBDIRS)
+
+$(GENERATED_DIRS):
 	-$(MKDIR) $@
 
-$(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools: | $(DEPDIR)
-$(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet: | $(OBJDIR)
-$(OBJDIR)/text/tools: | $(OBJDIR)/text
-$(OBJDIR)/gui/loadpng: | $(OBJDIR)/gui
+$(DEP_SUBDIRS): | $(DEPDIR)
+$(OBJ_SUBDIRS): | $(OBJDIR)
+$(OBJ_GUI_SUBDIRS): | $(OBJDIR)/gui
+$(OBJ_TEXT_SUBDIRS): | $(OBJDIR)/text
 
 # make-directories-dummy must exist and is not generated anywhere (because its date should stay old).
 # It is used to work around a gmake bug.
-make-directories-dummy: | $(DEPDIR) generated $(OBJDIR) $(DEPDIR)/generated $(DEPDIR)/leetnet $(DEPDIR)/loadpng $(DEPDIR)/tools $(OBJDIR)/gui $(OBJDIR)/text $(OBJDIR)/leetnet $(OBJDIR)/text/tools $(OBJDIR)/gui/loadpng
+make-directories-dummy: | $(GENERATED_DIRS)
 
 # file dependency lists
 
@@ -160,6 +181,9 @@ $(DEPDIR)/leetnet/%.d: leetnet/% $(MAKEDEP) | make-directories-dummy
 
 $(DEPDIR)/loadpng/%.d: loadpng/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR)/gui $< > $@
+
+$(DEPDIR)/tests/%.d: tests/% $(MAKEDEP) | make-directories-dummy
+	@$(MAKEDEP) -O $(OBJDIR) $< > $@
 
 $(DEPDIR)/tools/%.d: tools/% $(MAKEDEP) | make-directories-dummy
 	@$(MAKEDEP) -O $(OBJDIR)/text $< > $@
@@ -185,6 +209,9 @@ $(OBJDIR)/gui/%.o: %.cpp | make-directories-dummy
 
 $(OBJDIR)/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
+
+$(OBJDIR)/tests/%.o: tests/%.cpp | make-directories-dummy
+	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
 
 $(OBJDIR)/text/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
@@ -214,3 +241,13 @@ tools/writeifdifferent$(EXE_SUFFIX): $(WRITEIFDIFFERENT_OBJS)
 
 ../relay$(EXE_SUFFIX): $(RELAY_OBJS)
 	$(CXX) $(RELAY_LDFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
+
+# testsuite binaries
+
+$(TEST_TARGETS) : tests/%$(EXE_SUFFIX) : $(OBJDIR)/tests/%.o $(OBJDIR)/tests/tests.o
+	$(CXX) $(TEST_LDFLAGS) -o $@ $^ $(TEST_LIBS)
+
+# executing tests
+
+$(TEST_EXEC_TARGETS) : test_% : tests/%$(EXE_SUFFIX)
+	$<
