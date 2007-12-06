@@ -154,9 +154,10 @@ private:
     NLsocket server_socket;     /// Game server socket
     std::string hostname;
 
-    unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
-    unsigned spectator_limit;   /// Maximum number of spectators for this relay
-    unsigned game_delay;        /// Delay from the live game in seconds
+    int bandwidth_limit;        /// Total bandwidth limit, bytes per second
+    int spectator_limit;        /// Maximum number of spectators for this relay
+    int game_delay;             /// Delay from the live game in seconds
+    int server_delay;           /// Delay from the live game on the game server, in seconds
 
     std::vector<Spectator> spectators;
     std::vector<Peer> peers;    /// Just connected "things"

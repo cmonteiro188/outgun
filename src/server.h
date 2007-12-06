@@ -162,6 +162,7 @@ class Server : private NoCopying {
         std::string     server_website_url; // the URL of the server website to be sent to master server
         int             srvmonit_port;
         int             recording;
+        int             spectating_delay;
         int             minimap_send_limit;
 
         int             join_start;         // allow joining from this time of a day (in seconds)
@@ -282,6 +283,7 @@ class Server : private NoCopying {
         const std::string& get_server_website_url() const throw () { return server_website_url; }
 
         int  get_recording() const throw () { return recording; }
+        int  get_spectating_delay() const throw () { return spectating_delay; }
 
         int get_join_start() const throw () { return join_start; }
         int get_join_end() const throw () { return join_end; }

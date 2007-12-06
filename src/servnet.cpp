@@ -1160,7 +1160,7 @@ bool ServerNetworking::is_relay_active() const throw () {
 }
 
 void ServerNetworking::send_first_relay_data(const string& data) throw () {
-    relayThread.startNewGame(relay_address, data);
+    relayThread.startNewGame(relay_address, data, settings.get_spectating_delay());
 }
 
 void ServerNetworking::send_relay_data(const string& data) throw () {
@@ -2952,13 +2952,13 @@ bool ServerNetworking::RelayThread::send(const string& data) throw () {
 void ServerNetworking::RelayThread::threadMain() throw () {
     Lock ml(mutex);
     for (;;) {
-        while (!quitFlag && dataQueue.empty())
+        while (!quitFlag && (dataQueue.empty() || dataQueue.front().time + delay > get_time()))
             wakeup.wait(mutex);
         if (quitFlag)
             break;
         nAssert(isConnected_locked());
         nAssert(!dataQueue.empty());
-        const string data = dataQueue.front();
+        const string data = dataQueue.front().data;
         dataQueue.pop();
 
         bool result;
@@ -2969,13 +2969,13 @@ void ServerNetworking::RelayThread::threadMain() throw () {
         if (!result) {
             nlClose(socket);
             socket = NL_INVALID;
-            dataQueue = queue<string>();
+            dataQueue = queue<RelayData>();
         }
     }
 }
 
 void ServerNetworking::RelayThread::pushData_locked(const string& data) throw () {
-    dataQueue.push(data);
+    dataQueue.push(RelayData(static_cast<int>(get_time()), data));
     wakeup.signal();
 }
 
@@ -2999,15 +2999,16 @@ void ServerNetworking::RelayThread::stop() throw () {
     thread.join();
 }
 
-void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData) throw () {
+void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData, int gameDelay) throw () {
     Lock ml(mutex);
 
     newGame = true;
+    delay = gameDelay;
 
     if (isConnected_locked())
         return; // initData already sent, too
 
-    dataQueue = queue<string>();
+    dataQueue = queue<RelayData>();
 
     nlOpenMutex.lock();
     nlDisable(NL_BLOCKING_IO);

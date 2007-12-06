@@ -641,6 +641,7 @@ void Server::start_recording() throw () {
     }
 
     record_init_data();
+    write(ost, settings.get_spectating_delay());
     network.send_first_relay_data(ost.str());
 
     recording_started = true;

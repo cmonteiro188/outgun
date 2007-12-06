@@ -79,7 +79,7 @@ int main(int argc, const char* argv[]) {
     }
     catch (Relay::ArgumentException ex) {
         cout << ex.message() << '\n';
-        cout << "Usage: relay [-p] port [-b bandwidth_limit (B/s)] [-s spectator_limit] [-d delay (s)]\n";
+        cout << "Usage: relay -p port [-b bandwidth_limit (B/s)] [-s spectator_limit] [-d delay (s)]\n";
     }
     delete relay;
 
@@ -162,35 +162,33 @@ void Relay::run() throw () {
 
 void Relay::load_settings(const vector<string>& parameters) throw (Relay::ArgumentException) {
     for (vector<string>::const_iterator pi = parameters.begin(); pi != parameters.end(); pi++) {
-        if (*pi == "-b") {
-            if (++pi == parameters.end())
-                break;
-            bandwidth_limit = std::atoi(pi->c_str());
-            if (bandwidth_limit <= 0)
+        const string& option = *pi;
+        if (++pi == parameters.end())
+            throw ArgumentException("Value missing from option " + option + '.');
+        const string& value = *pi;
+        istringstream ist(value);
+        if (option == "-b") {
+            ist >> bandwidth_limit;
+            if (!ist || bandwidth_limit <= 0)
                 throw ArgumentException("Bandwidth limit must be more than 0 B/s.");
         }
-        else if (*pi == "-s") {
-            if (++pi == parameters.end())
-                break;
-            spectator_limit = std::atoi(pi->c_str());
-            if (spectator_limit <= 0)
+        else if (option == "-s") {
+            ist >> spectator_limit;
+            if (!ist || spectator_limit <= 0)
                 throw ArgumentException("Spectator limit must be more than 0.");
         }
-        else if (*pi == "-d") {
-            if (++pi == parameters.end())
-                break;
-            game_delay = std::atoi(pi->c_str());
+        else if (option == "-d") {
+            ist >> game_delay;
+            if (!ist || game_delay < 0)
+                throw ArgumentException("Game delay must be at least 0.");
         }
-        else {
-            if (*pi == "-p") {
-                if (++pi == parameters.end())
-                    break;
-            }
-            int temp_port = std::atoi(pi->c_str());
-            if (temp_port <= 0 || temp_port > 65535)
+        else if (option == "-p") {
+            ist >> listen_port;
+            if (!ist || listen_port == 0)
                 throw ArgumentException("Port must be between 1 and 65535.");
-            listen_port = temp_port;
         }
+        else
+            throw ArgumentException("Unknown option: " + option);
     }
     if (listen_port == 0)
         throw ArgumentException("Port must be defined.");
@@ -268,7 +266,7 @@ void Relay::check_new_connections() throw () {
             continue;
         }
         if (type == "SPECTATOR") {
-            if (spectators.size() >= spectator_limit) {
+            if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
                 cout << "New spectator couldn't join because spectator limit already reached.\n";
                 nlClose(pi->socket);
                 pi = peers.erase(pi);
@@ -321,6 +319,7 @@ void Relay::check_new_connections() throw () {
             read_string(ist, hostname);
             read(ist, maxplayers);
             read_string(ist, map_name);
+            read(ist, server_delay);
 
             if (!ist) {     // Not all data received yet.
                 ist.clear();
@@ -407,6 +406,7 @@ bool Relay::add_data(istream& in) throw () {
             switch (data_code) {
             /*break;*/ case relay_data_game_start:
                     games.back().finish();
+                    // TODO: Reload the init data, at least the server_delay setting
                     games.push_back(Game());
                     data_buffer = &games.back().buffer();
                     cout << "New game started.\n";
@@ -541,7 +541,7 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
     if (!frame || !frame->full())
         return string();
     // Do not send too recent frames if the game is still going on.
-    if (!current_game_finished && frame->time() + game_delay > get_time())
+    if (!current_game_finished && frame->time() + game_delay > get_time() + server_delay)
         return string();
     ostringstream ost;
     if (pos == 0)

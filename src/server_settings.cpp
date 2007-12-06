@@ -200,6 +200,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(srvmonitSetting);
     cat.add(new GS_Int       ("recording",                   &recording, 0, MAX_PLAYERS));
     cat.add(new GS_ForwardStr("relay_server",                setRelayServer, getRelayServer));
+    cat.add(new GS_Int       ("spectating_delay",            &spectating_delay, 0, GS_Int::lim::max()));
     categories.push_back(cat);
 
     cat = Category("website" , "Server web site");
@@ -444,6 +445,7 @@ void Server::SettingManager::reset() throw () {
     save_stats = 0;
 
     recording = 0;
+    spectating_delay = 120;
 
     minimap_send_limit = 32;
 
