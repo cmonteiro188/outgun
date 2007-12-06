@@ -62,7 +62,7 @@ private:
         }
         bool draw() const throw () { return alphaTotal >= scaleVal / 100; }
         int color() const throw () {
-            // this ensures that only whole pixels are written; enable if that's true:  numAssert(alphaTotal >= .999, int(alphaTotal * 10000.));
+            // this ensures that only whole pixels are written; enable if that's true:  numAssert(alphaTotal >= .999, alphaTotal * 10000.);
             numAssert(alphaTotal <= scaleVal * 1.001, alphaTotal);
             return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
         }

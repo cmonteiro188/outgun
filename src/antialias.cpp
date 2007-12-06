@@ -36,7 +36,7 @@ using std::pair;
 using std::swap;
 
 double CurveFunction::operator()(double y) const throw () {
-    numAssert3(r2 - (y - cy)*(y - cy) >= 0, int(r2*1000.), int(y*1000.), int(cy*1000.));
+    numAssert3(r2 - (y - cy)*(y - cy) >= 0, r2 * 1000., y * 1000., cy * 1000.);
     return cx + sqrt(r2 - (y - cy)*(y - cy)) * sideMul;
 }
 
@@ -65,10 +65,10 @@ ChangePoints CurveFunction::getChangePoints(double x) const throw () {
 double CurveFunction::spanLeftSideIntegral(double x0, double y0, double y1) const throw () {
     // this function computes the integral from y0 to y1 of (x(y) - x0)dy ; derive the expression yourself ;)
     y0 -= cy; y1 -= cy;
-    numAssert3(fabs(y0) <= r, int(y0), int(r), int((y0-r)*1e20));
-    numAssert3(fabs(y1) <= r, int(y1), int(r), int((y1-r)*1e20));
+    numAssert3(fabs(y0) <= r, y0, r, (y0 - r) * 1e20);
+    numAssert3(fabs(y1) <= r, y1, r, (y1 - r) * 1e20);
     const double val = (y1 - y0)*(cx - x0) + .5*sideMul*( y1*sqrt(r2 - y1*y1) - y0*sqrt(r2 - y0*y0) + r2*(asin(y1/r) - asin(y0/r)) );
-    numAssert(val >= -.00001 && val <= 1.00001, int(val*10000.));
+    numAssert(val >= -.00001 && val <= 1.00001, val * 10000.);
     return val;
 }
 
@@ -120,7 +120,7 @@ double LineFunction::spanLeftSideIntegral(double x0, double y0, double y1) const
         return 0;
     }
     const double val = (y1 - y0)*(px1 - x0 - py1 * ratio) + .5*(y1*y1 - y0*y0)*ratio;
-    numAssert(val >= -.0001 && val <= 1.00001, int(val*1000000.));
+    numAssert(val >= -.0001 && val <= 1.00001, val * 1000000.);
     return val;
 }
 
@@ -177,7 +177,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
             totalPixel += fn.spanLeftSideIntegral(x0, y, *rcpi);
             y = *rcpi++; swap(rs);
         }
-        numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, int(totalPixel*100000.));
+        numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, totalPixel * 100000.);
     }
 }
 
@@ -1006,7 +1006,7 @@ void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) throw (
 }
 
 void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) throw () {
-    numAssert2(y1 <= y2, int(y1*10.), int(y2*10.));
+    numAssert2(y1 <= y2, y1 * 10., y2 * 10.);
 
     objects.push_back(ObjectSource());
     objects.back().texid = texture;
@@ -1026,7 +1026,7 @@ void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, 
 }
 
 void SceneAntialiaser::addRectWall(const RectWall& wall, int texture) throw () {
-    numAssert2(wall.y1() <= wall.y2(), int(wall.y1()*10.), int(wall.y2()*10.));
+    numAssert2(wall.y1() <= wall.y2(), wall.y1() * 10., wall.y2() * 10.);
     addRectangle(wall.x1(), wall.y1(), wall.x2(), wall.y2(), texture);
 }
 

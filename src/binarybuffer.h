@@ -246,7 +246,7 @@ template<unsigned size> void BinaryBuffer<size>::writeString(const std::string& 
         return ret;                                                                                                                                    \
     }                                                                                                                                                  \
     template<unsigned size> void BinaryBuffer<size>::writeBound##name(BasicType wData, RealType minBound, RealType maxBound) throw () {                \
-        numAssert3(wData >= minBound && wData <= maxBound, (int)wData, (int)minBound, (int)maxBound);                                                  \
+        numAssert3(wData >= minBound && wData <= maxBound, wData, minBound, maxBound);                                                                 \
         uncheckedWriteMethod(static_cast<RealType>(wData));                                                                                            \
     }
 
