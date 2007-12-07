@@ -2605,14 +2605,15 @@ string ServerNetworking::website_maplist() const throw () {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError) {
+bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, string& resultStr) throw (Network::ReadWriteError) {
     for (;;) {
-        const int result = sock.read(buf, 1);
+        uint8_t ch;
+        const int result = sock.read(&ch, 1);
         if (result != 1)    // message not completely received
             return false;
-        if (*buf == '\0')
+        if (ch == '\0')
             return true;
-        ++buf;
+        resultStr += static_cast<char>(ch);
     }
 }
 
@@ -2731,14 +2732,16 @@ int ServerNetworking::executeAdminCommand(uint32_t code, uint32_t cid, int pid, 
             writeLong(answer, ansLen, cid);
             writeLong(answer, ansLen, world.player[pid].stats().captures());
         break; case ATS_SERVER_CHAT: {
-            char buf[500];
-            read_string_from_TCP(shellssock, buf);
-            if (find_nonprintable_char(buf))
+            string str;
+            read_string_from_TCP(shellssock, str);
+            if (str.empty())
+                break;
+            if (find_nonprintable_char(str))
                 log.error(_("Admin shell: unprintable characters, message ignored."));
-            else if (buf[0] == '/')
-                host->chat(shell_pid, buf);
+            else if (str[0] == '/')
+                host->chat(shell_pid, str);
             else
-                bprintf(msg_normal, "ADMIN: %s", buf);
+                bprintf(msg_normal, "ADMIN: %s", str.c_str());
         }
         break; case ATS_GET_PINGS:
             for (int p = 0; p < maxplayers; ++p)

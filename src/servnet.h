@@ -210,7 +210,7 @@ private:
     bool writeToAdminShell(const void* data, int length) const throw ();
     bool writeToAdminShell(ConstDataBlockRef data) const throw ();
 
-    bool read_string_from_TCP(Network::Socket& sock, char *buf) throw (Network::ReadWriteError);
+    bool read_string_from_TCP(Network::Socket& sock, std::string& resultStr) throw (Network::ReadWriteError);
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
     int executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, char* answer) throw (Network::Error); // returns length of answer
