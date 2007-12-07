@@ -72,7 +72,7 @@ public:
         virtual int get_join_end() const throw () = 0;
         virtual const std::string& get_join_limit_message() const throw () = 0;
 
-        virtual int get_spectating_delay() const throw () = 0;
+        virtual unsigned get_spectating_delay() const throw () = 0;
 
         virtual const std::vector<std::string>& get_web_servers() const throw () = 0;
         virtual const std::string& get_web_script() const throw () = 0;

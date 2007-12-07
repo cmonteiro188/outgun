@@ -169,22 +169,22 @@ void Relay::load_settings(const vector<string>& parameters) throw (Relay::Argume
         istringstream ist(value);
         if (option == "-b") {
             ist >> bandwidth_limit;
-            if (!ist || bandwidth_limit <= 0)
-                throw ArgumentException("Bandwidth limit must be more than 0 B/s.");
+            if (!ist || bandwidth_limit == 0 || !ist.eof())
+                throw ArgumentException("Bandwidth limit must be a positive integer.");
         }
         else if (option == "-s") {
             ist >> spectator_limit;
-            if (!ist || spectator_limit <= 0)
-                throw ArgumentException("Spectator limit must be more than 0.");
+            if (!ist || spectator_limit == 0 || !ist.eof())
+                throw ArgumentException("Spectator limit must be a positive integer.");
         }
         else if (option == "-d") {
             ist >> game_delay;
-            if (!ist || game_delay < 0)
-                throw ArgumentException("Game delay must be at least 0.");
+            if (!ist || !ist.eof())
+                throw ArgumentException("Game delay must be an integer and at least 0.");
         }
         else if (option == "-p") {
             ist >> listen_port;
-            if (!ist || listen_port == 0)
+            if (!ist || listen_port == 0 || !ist.eof())
                 throw ArgumentException("Port must be between 1 and 65535.");
         }
         else
