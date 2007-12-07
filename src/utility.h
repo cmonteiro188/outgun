@@ -184,12 +184,13 @@ public:
     T& operator[](unsigned index) const throw () { return pData[index]; }
 };
 
-template<> class BlockRef<void> { // interface differs in not having operator[]
+template<> class BlockRef<void> { // interface differs in not having operator[]; plus additional conversion from other BlockRefs
     void* pData;
     unsigned sz;
 
 public:
     BlockRef(void* data, unsigned size) throw () : pData(data), sz(size) { }
+    template<class T> BlockRef(const BlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
 
     void* data() const throw () { return pData; }
     unsigned size() const throw () { return sz; }
@@ -211,12 +212,15 @@ public:
     void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
 };
 
-template<> class ConstBlockRef<void> { // interface differs in not having operator[], and sizes are in bytes
+template<> class ConstBlockRef<void> { // interface differs in not having operator[], and sizes are in bytes; plus additional conversion from string and other ConstBlockRefs
     const void* pData;
     unsigned sz;
 
 public:
     ConstBlockRef(const void* data, unsigned size) throw () : pData(data), sz(size) { }
+    ConstBlockRef(const std::string& str) throw () : pData(str.data()), sz(str.length()) { }
+    ConstBlockRef(const BlockRef<void>& d) throw () : pData(d.data()), sz(d.size()) { }
+    template<class T> ConstBlockRef(const ConstBlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
 
     const void* data() const throw () { return pData; }
     unsigned size() const throw () { return sz; }
