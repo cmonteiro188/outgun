@@ -33,8 +33,6 @@
 
 #include <nl.h> //#remove
 
-class LineReceiver;
-
 class Network {
 public:
     // Socket related enums, declared here to avoid having to use Network::Socket::Something
