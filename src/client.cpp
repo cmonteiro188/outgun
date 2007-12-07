@@ -312,7 +312,7 @@ void TournamentPasswordManager::threadFn() throw () {
 
         string response;
         try {
-            Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+            Network::TCPSocket sock(Network::NonBlocking, 0, true);
 
             Network::Address tournamentServer;
             if (!tournamentServer.tryResolve("www.mycgiserver.com"))
@@ -3712,9 +3712,9 @@ bool Client::refresh_all_servers() throw () {
     if (pending == 0)
         return true;
 
-    Network::Socket sock(true);
+    Network::UDPSocket sock(true);
     try {
-        sock.open(Network::NonBlocking, Network::UDP, 0);
+        sock.open(Network::NonBlocking, 0);
     } catch (const Network::Error& e) {
         log.error(_("Can't open socket for refreshing servers. $1", e.str()));
         return false;
@@ -3737,8 +3737,7 @@ bool Client::refresh_all_servers() throw () {
                 writeByte(lebuf, count, (uint8_t)round);        //packet number
 
                 try {
-                    sock.setRemoteAddress(servers[i]->address());
-                    sock.write(lebuf, count);
+                    sock.write(servers[i]->address(), lebuf, count);
                     tempd[i].send(round);
                 } catch (Network::Error&) { } //#fix: report?
             }
@@ -3753,15 +3752,15 @@ bool Client::refresh_all_servers() throw () {
 
             for (;;) {  // continue while there are new packets
                 char lebuf[512];
-                int len;
+                Network::UDPSocket::ReadResult result;
                 try {
-                    len = sock.read(lebuf, 512);
+                    result = sock.read(lebuf, 512);
                 } catch (Network::Error&) {
-                    break;
+                    break; //#fix: report?
                 }
-                if (len == 0)
+                if (result.length == 0)
                     break;
-                if (len < 10)
+                if (result.length < 10)
                     continue;
 
                 int count = 0;
@@ -3775,18 +3774,13 @@ bool Client::refresh_all_servers() throw () {
                 readByte(lebuf, count, index);  // entry number echoed by the server
                 readByte(lebuf, count, pack);   // packet #
 
-                if (index >= nServers || pack >= 4 || pack > round || len < count)  // don't have to worry about < 0 because they're unsigned
+                if (index >= nServers || pack >= 4 || pack > round || result.length < count)  // don't have to worry about < 0 because they're unsigned
                     continue;
 
                 Lock ml(serverListMutex);
 
-                try {
-                    const Network::Address from = sock.getRemoteAddress();
-                    if (from != servers[index]->address())
-                        continue;
-                } catch (Network::Error&) {
-                    continue; //#fix: report?
-                }
+                if (result.source != servers[index]->address())
+                    continue;
 
                 readStr(lebuf, count, servers[index]->info);
 
@@ -3819,7 +3813,7 @@ bool Client::getServerList() throw () {
     refreshStatus = RS_connecting;
 
     try {
-        Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+        Network::TCPSocket sock(Network::NonBlocking, 0, true);
         sock.connect(g_masterSettings.address());
 
         const string request = build_http_request(false, g_masterSettings.host(), g_masterSettings.query(),
@@ -3855,29 +3849,30 @@ bool Client::get_local_servers() throw () {
     refreshStatus = RS_connecting;
 
     try {
-        Network::Socket sock(Network::NonBlocking, Network::Broadcast, 0, true);
-        sock.setRemoteAddress(Network::Address("255.255.255.255:25000"));
+        Network::UDPSocket sock(Network::NonBlocking, 0, true, true);
 
         const char broadcast_string[] = "Outgun";
         char buffer[512]; int count = 0;
         writeLong(buffer, count, 0);
         writeString(buffer, count, broadcast_string);
-        sock.write(buffer, count);
+        sock.write("255.255.255.255:" + itoa(DEFAULT_UDP_PORT), buffer, count);
         log("Successfully sent broadcast query.");
 
         refreshStatus = RS_receiving;
 
         platSleep(500);
-        while (sock.read(buffer, sizeof(buffer)) > 0) {
-            log("Full response: '%s'", formatForLogging(buffer).c_str());
+        for (;;) {
+            const Network::UDPSocket::ReadResult result = sock.read(buffer, sizeof(buffer));
+            if (result.length == 0)
+                break;
+
+            log("Response from %s: '%s'", result.source.toString().c_str(), formatForLogging(buffer).c_str());
 
             if (strcmp(buffer, broadcast_string))
                 continue;   // Not an Outgun server.
 
-            const Network::Address addr = sock.getRemoteAddress();
-
             ServerListEntry spy;
-            spy.setAddress(addr);
+            spy.setAddress(result.source);
             mgamespy.push_back(spy);
         }
         return true;
@@ -4769,7 +4764,7 @@ void Client::start_spectating(const Network::Address& address) throw () {
     serverIP = address;
 
     try {
-        spectate_socket.open(Network::NonBlocking, Network::TCP, 0);
+        spectate_socket.open(Network::NonBlocking, 0);
         spectate_socket.connect(serverIP);
 
         ostringstream ost;

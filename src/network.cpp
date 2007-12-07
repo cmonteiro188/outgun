@@ -50,6 +50,9 @@ extern Mutex nlOpenMutex;
 
 typedef Network::Address Address;
 typedef Network::Socket Socket;
+typedef Network::TCPListenerSocket TCPListenerSocket;
+typedef Network::TCPSocket TCPSocket;
+typedef Network::UDPSocket UDPSocket;
 
 Network::NLError::NLError() throw () :
     nlError(nlGetError())
@@ -223,26 +226,22 @@ bool Address::operator==(const Address& a) const throw () {
 }
 
 Socket::Socket(bool autoClose_) throw () :
-    hidden(new HiddenData(NL_INVALID)),
-    connected(false),
-    autoClose(autoClose_)
+    autoClose(autoClose_),
+    hidden(new HiddenData(NL_INVALID))
 { }
 
 Socket::Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_) throw (OpenError) :
-    hidden(new HiddenData(NL_INVALID)),
-    connected(false),
-    autoClose(autoClose_)
+    autoClose(autoClose_),
+    hidden(new HiddenData(NL_INVALID))
 {
     open(b, t, port);
 }
 
 Socket::Socket(TrashableRef<Socket> s) throw () :
-    hidden(s->hidden),
-    connected(s->connected),
-    autoClose(s->autoClose)
+    autoClose(s->autoClose),
+    hidden(s->hidden)
 {
     s->hidden = new HiddenData(NL_INVALID);
-    s->connected = false;
 }
 
 Socket::~Socket() throw () {
@@ -257,9 +256,7 @@ Socket& Socket::operator=(TrashableRef<Socket> s) throw () {
         closeIfOpen();
     nAssert(!isOpen());
     std::swap(hidden, s->hidden);
-    connected = s->connected;
     autoClose = s->autoClose;
-    s->connected = false;
     return *this;
 }
 
@@ -286,7 +283,6 @@ void Socket::close() throw () {
     if (!nlClose(NLS))
         nAssert(0);
     NLS = NL_INVALID;
-    connected = false;
 }
 
 void Socket::closeIfOpen() throw () {
@@ -295,11 +291,11 @@ void Socket::closeIfOpen() throw () {
 }
 
 bool Socket::isOpen() const throw () {
-    nAssert(NLS != NL_INVALID || !connected);
     return NLS != NL_INVALID;
 }
 
 Address Socket::getLocalAddress() const throw (Error) {
+    nAssert(isOpen());
     Address a;
     if (!nlGetLocalAddr(NLS, &a.NLA))
         throw NLError();
@@ -307,6 +303,7 @@ Address Socket::getLocalAddress() const throw (Error) {
 }
 
 Address Socket::getRemoteAddress() const throw (Error) {
+    nAssert(isOpen());
     Address a;
     if (!nlGetRemoteAddr(NLS, &a.NLA))
         throw NLError();
@@ -329,62 +326,8 @@ int Socket::getStat(StatisticType type) const throw () {
     return nlGetSocketStat(NLS, nlType); // can't verify result, because 0 can mean two things and we've no real way to clear what nlGetError returns, either (we could force it to an error value never returned by nlGetSocketStat, but that would be too funny)
 }
 
-void Socket::connect(const Address& a) throw (ConnectError) {
-    nAssert(isOpen() && !connected);
-    if (!nlConnect(NLS, &a.NLA)) {
-        numAssert(nlGetError() == NL_SYSTEM_ERROR || nlGetError() == NL_CON_REFUSED, nlGetError());
-        throw ConnectError(a.toString());
-    }
-    connected = true;
-}
-
-bool Socket::connectPending() throw (ReadWriteError) {
-    nAssert(isOpen() && connected);
-    char nullData;
-    const NLint val = nlWrite(NLS, &nullData, 0);
-    if (val == NL_INVALID) {
-        const NLenum err = nlGetError();
-        if (err == NL_CON_PENDING)
-            return true;
-        numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
-        throw ReadWriteError(true); // while we're using nlWrite, this operation is conceptually more like reading
-    }
-    nAssert(val == 0);
-    return false;
-}
-
-void Socket::listen() throw (ListenError) {
-    nAssert(isOpen() && !connected);
-    if (!nlListen(NLS)) {
-        numAssert(nlGetError() == NL_SYSTEM_ERROR, nlGetError());
-        throw ListenError();
-    }
-}
-
-bool Socket::acceptConnection(BlockingMode b, Socket& listenerSock) throw () {
-    nAssert(!isOpen() && listenerSock.isOpen());
-    Lock ml(nlOpenMutex);
-    if (b == Blocking)
-        nlEnable(NL_BLOCKING_IO);
-    else
-        nlDisable(NL_BLOCKING_IO);
-    const NLsocket newSocket = nlAcceptConnection(listenerSock.NLS);
-    if (newSocket != NL_INVALID) {
-        NLS = newSocket;
-        connected = true;
-        return true;
-    }
-    numAssert(nlGetError() == NL_NO_PENDING, nlGetError());
-    return false;
-}
-
-void Socket::setRemoteAddress(const Address& a) throw (Error) {
-    if (!nlSetRemoteAddr(NLS, &a.NLA))
-        throw NLError();
-}
-
 int Socket::read(DataBlockRef buffer) throw (ReadWriteError) {
-    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && buffer.data());
+    nAssert(isOpen() && buffer.data());
     const NLint val = nlRead(NLS, buffer.data(), buffer.size());
     if (val != NL_INVALID)
         return val;
@@ -396,7 +339,7 @@ int Socket::read(DataBlockRef buffer) throw (ReadWriteError) {
 }
 
 void Socket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteError) {
-    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data.data());
+    nAssert(isOpen() && data.data());
     NLint val = nlWrite(NLS, data.data(), data.size());
     if (val == NL_INVALID) {
         const NLenum err = nlGetError();
@@ -413,7 +356,104 @@ void Socket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteErr
         numAssert2(static_cast<unsigned>(val) == data.size(), val, data.size());
 }
 
-void Socket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+TCPListenerSocket& TCPListenerSocket::operator=(TrashableRef<TCPListenerSocket> s) throw () {
+    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    return *this;
+}
+
+void TCPListenerSocket::listen() throw (ListenError) {
+    if (!nlListen(NLS)) {
+        numAssert(nlGetError() == NL_SYSTEM_ERROR, nlGetError());
+        throw ListenError();
+    }
+}
+
+TCPSocket::TCPSocket(bool autoClose_) throw () :
+    Socket(autoClose_),
+    connected(false)
+{ }
+
+TCPSocket::TCPSocket(BlockingMode b, uint16_t port, bool autoClose_) throw (OpenError) :
+    Socket(b, TCP, port, autoClose_),
+    connected(false)
+{ }
+
+TCPSocket::TCPSocket(TrashableRef<TCPSocket> s) throw () :
+    Socket(trashable_ref(static_cast<Socket&>(s))),
+    connected(s->connected)
+{
+    s->connected = false;
+}
+
+TCPSocket& TCPSocket::operator=(TrashableRef<TCPSocket> s) throw () {
+    connected = s->connected;
+    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    s->connected = false;
+    return *this;
+}
+
+void TCPSocket::close() throw () {
+    Socket::close();
+    connected = false;
+}
+
+bool TCPSocket::acceptConnection(BlockingMode b, TCPListenerSocket& listenerSock) throw () {
+    nAssert(!isOpen() && listenerSock.isOpen());
+    Lock ml(nlOpenMutex);
+    if (b == Blocking)
+        nlEnable(NL_BLOCKING_IO);
+    else
+        nlDisable(NL_BLOCKING_IO);
+    const NLsocket newSocket = nlAcceptConnection(listenerSock.NLS);
+    if (newSocket != NL_INVALID) {
+        NLS = newSocket;
+        connected = true;
+        return true;
+    }
+    numAssert(nlGetError() == NL_NO_PENDING, nlGetError());
+    return false;
+}
+
+void TCPSocket::connect(const Address& a) throw (ConnectError) {
+    nAssert(isOpen() && !connected);
+    if (!nlConnect(NLS, &a.NLA)) {
+        numAssert(nlGetError() == NL_SYSTEM_ERROR || nlGetError() == NL_CON_REFUSED, nlGetError());
+        throw ConnectError(a.toString());
+    }
+    connected = true;
+}
+
+bool TCPSocket::connectPending() throw (ReadWriteError) {
+    nAssert(isOpen() && connected);
+    char nullData;
+    const NLint val = nlWrite(NLS, &nullData, 0);
+    if (val == NL_INVALID) {
+        const NLenum err = nlGetError();
+        if (err == NL_CON_PENDING)
+            return true;
+        numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+        throw ReadWriteError(true); // while we're using nlWrite, this operation is conceptually more like reading
+    }
+    nAssert(val == 0);
+    return false;
+}
+
+Address TCPSocket::getRemoteAddress() const throw (Error) {
+    nAssert(connected);
+    return Socket::getRemoteAddress();
+}
+
+int TCPSocket::read(DataBlockRef buffer) throw (ReadWriteError) {
+    nAssert(connected);
+    return Socket::read(buffer);
+}
+
+void TCPSocket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteError) {
+    nAssert(connected);
+    Socket::write(data, writtenSize);
+}
+
+void TCPSocket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     int tries = 0;
     while (data.size()) {
         if (abortFlag && *abortFlag)
@@ -430,7 +470,7 @@ void Socket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* a
     }
 }
 
-void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+void TCPSocket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     const int buffer_size = 4000;
     char lebuf[buffer_size];
 
@@ -457,16 +497,33 @@ void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFl
     }
 }
 
-void Socket::writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+void TCPSocket::writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
     try {
         writeToUnblockingTCP(data, 0, timeout, roundDelay);
     } catch (ExternalAbort) { nAssert(0); }
 }
 
-void Socket::saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+void TCPSocket::saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
     try {
         saveAllFromUnblockingTCP(out, 0, timeout, roundDelay);
     } catch (ExternalAbort) { nAssert(0); }
+}
+
+UDPSocket& UDPSocket::operator=(TrashableRef<UDPSocket> s) throw () {
+    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    return *this;
+}
+
+UDPSocket::ReadResult UDPSocket::read(DataBlockRef buffer) throw (ReadWriteError) {
+    const int n = Socket::read(buffer);
+    return ReadResult(n, getRemoteAddress());
+}
+
+void UDPSocket::write(const Address& addr, ConstDataBlockRef data) throw (ReadWriteError, Error) {
+    nAssert(isOpen());
+    if (!nlSetRemoteAddr(NLS, &addr.NLA))
+        throw NLError();
+    Socket::write(data);
 }
 
 void Network::init() throw (InitError) {
@@ -492,13 +549,9 @@ vector<Address> Network::getAllLocalAddresses() throw () {
 }
 
 Address Network::getDefaultLocalAddress() throw (Error) {
-    Socket s(NonBlocking, UDP, 0);
-    Address addr;
-    if (s.isOpen()) {
-        addr = s.getLocalAddress();
-        s.close();
-        addr.setPort(0);
-    }
+    UDPSocket s(NonBlocking, 0, true);
+    Address addr = s.getLocalAddress();
+    addr.setPort(0);
     return addr;
 }
 
@@ -610,7 +663,7 @@ string build_http_request(bool post, const string& host, const string& script, c
     return data.str();
 }
 
-void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout,
+void post_http_data(Network::TCPSocket& socket, const volatile bool* abortFlag, int timeout,
                     const string& host, const string& script, const string& parameters, const string& auth)
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
 {
@@ -618,20 +671,20 @@ void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int
     return socket.writeToUnblockingTCP(request, abortFlag, timeout);
 }
 
-void save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout)
+void save_http_response(Network::TCPSocket& socket, ostream& out, const volatile bool* abortFlag, int timeout)
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
 {
     return socket.saveAllFromUnblockingTCP(out, abortFlag, timeout);
 }
 
-void post_http_data(Network::Socket& socket, int timeout, const string& host, const string& script, const string& parameters, const string& auth)
+void post_http_data(Network::TCPSocket& socket, int timeout, const string& host, const string& script, const string& parameters, const string& auth)
     throw (Network::ReadWriteError, Network::Timeout)
 {
     const string request = build_http_request(true, host, script, parameters, auth);
     return socket.writeToUnblockingTCP(request, timeout);
 }
 
-void save_http_response(Network::Socket& socket, ostream& out, int timeout)
+void save_http_response(Network::TCPSocket& socket, ostream& out, int timeout)
     throw (Network::ReadWriteError, Network::Timeout)
 {
     return socket.saveAllFromUnblockingTCP(out, timeout);

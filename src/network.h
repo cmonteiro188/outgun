@@ -41,6 +41,8 @@ public:
 
     class Address;
     class Socket;
+    class TCPListenerSocket;
+    class TCPSocket;
 
     class Error {
     protected:
@@ -123,7 +125,7 @@ public:
 
         ConnectError(const std::string& addr_) throw () : addr(addr_) { }
 
-        friend class Socket;
+        friend class TCPSocket;
 
     public:
         ~ConnectError() throw () { }
@@ -133,7 +135,7 @@ public:
 
     class ListenError : public NLError {
         ListenError() throw () { }
-        friend class Socket;
+        friend class TCPListenerSocket;
 
     public:
         virtual std::string str() const throw ();
@@ -144,6 +146,7 @@ public:
         ReadWriteError(bool read) throw () : inRead(read) { }
 
         friend class Socket;
+        friend class TCPSocket;
 
     public:
         bool connectionRefused() const throw ();
@@ -155,7 +158,7 @@ public:
         bool inRead;
         Timeout(bool read) throw () : inRead(read) { }
 
-        friend class Socket;
+        friend class TCPSocket;
 
     public:
         virtual std::string str() const throw ();
@@ -198,37 +201,78 @@ public:
     };
 
     class Socket : private NoCopying {
-        class HiddenData;
-        HiddenData* hidden;
-        bool connected;
         bool autoClose;
 
-    public:
+    protected:
+        class HiddenData;
+        HiddenData* hidden;
+
         Socket(bool autoClose_ = false) throw ();
         Socket(BlockingMode b, SocketType t, uint16_t port, bool autoClose_ = false) throw (OpenError);
         Socket(TrashableRef<Socket> s) throw (); /// "move constructor": assume the identity of s and clear s
-        ~Socket() throw ();
 
         Socket& operator=(TrashableRef<Socket> s) throw (); /// "move assignment": assume the identity of s and clear s
 
         bool tryOpen(BlockingMode b, SocketType t, uint16_t port) throw ();
         void open(BlockingMode b, SocketType t, uint16_t port) throw (OpenError);
-        void close() throw ();
-        void closeIfOpen() throw ();
 
-        bool isOpen() const throw ();
-        Address getLocalAddress() const throw (Error);
         Address getRemoteAddress() const throw (Error);
+
+        int read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read
+        void write(ConstDataBlockRef data, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
+
+    public:
+        virtual ~Socket() throw ();
+
+        virtual void close() throw ();
+        void closeIfOpen() throw ();
+        bool isOpen() const throw ();
 
         enum StatisticType { Stat_PacketsSent    , Stat_BytesSent    , Stat_AvgBytesSent    , Stat_HighBytesSent,
                              Stat_PacketsReceived, Stat_BytesReceived, Stat_AvgBytesReceived, Stat_HighBytesReceived };
         int getStat(StatisticType type) const throw ();
 
-        void connect(const Address& a) throw (ConnectError);
-        bool connectPending() throw (ReadWriteError);
+        Address getLocalAddress() const throw (Error);
+    };
+
+    class TCPListenerSocket : public Socket {
         void listen() throw (ListenError);
-        bool acceptConnection(BlockingMode b, Socket& listenerSock) throw ();
-        void setRemoteAddress(const Address& a) throw (Error);
+        friend class TCPSocket;
+
+    public:
+        TCPListenerSocket(bool autoClose_ = false) throw () : Socket(autoClose_) { }
+        TCPListenerSocket(BlockingMode b, uint16_t port, bool autoClose_ = false) throw (OpenError, ListenError) : Socket(b, TCP, port, autoClose_) { listen(); }
+        TCPListenerSocket(TrashableRef<TCPListenerSocket> s) throw () : Socket(trashable_ref(static_cast<Socket&>(s))) { } /// "move constructor": assume the identity of s and clear s
+
+        TCPListenerSocket& operator=(TrashableRef<TCPListenerSocket> s) throw (); /// "move assignment": assume the identity of s and clear s
+
+        bool tryOpen(BlockingMode b, uint16_t port) throw (ListenError) { return Socket::tryOpen(b, TCP, port) && (listen(), true); }
+        void open(BlockingMode b, uint16_t port) throw (OpenError, ListenError) { Socket::open(b, TCP, port); listen(); }
+    };
+
+    class TCPSocket : public Socket {
+        bool connected;
+
+    public:
+        TCPSocket(bool autoClose_ = false) throw ();
+        TCPSocket(BlockingMode b, uint16_t port, bool autoClose_ = false) throw (OpenError);
+        TCPSocket(TrashableRef<TCPSocket> s) throw (); /// "move constructor": assume the identity of s and clear s
+
+        TCPSocket& operator=(TrashableRef<TCPSocket> s) throw (); /// "move assignment": assume the identity of s and clear s
+
+        bool tryOpen(BlockingMode b, uint16_t port) throw () { return Socket::tryOpen(b, TCP, port); }
+        void open(BlockingMode b, uint16_t port) throw (OpenError) { Socket::open(b, TCP, port); }
+
+        virtual void close() throw ();
+
+        bool acceptConnection(BlockingMode b, TCPListenerSocket& listenerSock) throw ();
+        void connect(const Address& a) throw (ConnectError);
+
+        // the rest of the interface is only available when connected
+
+        bool connectPending() throw (ReadWriteError);
+
+        Address getRemoteAddress() const throw (Error);
 
         int read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read
         int read(void* buffer, unsigned size) throw (ReadWriteError) { return read(DataBlockRef(buffer, size)); }
@@ -242,6 +286,30 @@ public:
 
         void writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
         void saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
+    };
+
+    class UDPSocket : public Socket {
+    public:
+        UDPSocket(bool autoClose_ = false) throw () : Socket(autoClose_) { }
+        UDPSocket(BlockingMode b, uint16_t port, bool autoClose_ = false, bool broadcast = false) throw (OpenError) : Socket(b, broadcast ? Broadcast : UDP, port, autoClose_) { }
+        UDPSocket(TrashableRef<UDPSocket> s) throw () : Socket(trashable_ref(static_cast<Socket&>(s))) { } /// "move constructor": assume the identity of s and clear s
+
+        UDPSocket& operator=(TrashableRef<UDPSocket> s) throw (); /// "move assignment": assume the identity of s and clear s
+
+        bool tryOpen(BlockingMode b, uint16_t port, bool broadcast = false) throw () { return Socket::tryOpen(b, broadcast ? Broadcast : UDP, port); }
+        void open(BlockingMode b, uint16_t port, bool broadcast = false) throw (OpenError) { Socket::open(b, broadcast ? Broadcast : UDP, port); }
+
+        struct ReadResult {
+            int length;
+            Address source;
+
+            ReadResult() { }
+            ReadResult(int l, const Address& s) : length(l), source(s) { }
+        };
+        ReadResult read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read and the source address
+        ReadResult read(void* buffer, unsigned size) throw (ReadWriteError) { return read(DataBlockRef(buffer, size)); }
+        void write(const Address& addr, ConstDataBlockRef data) throw (ReadWriteError, Error);
+        void write(const Address& addr, const void* data, unsigned size) throw (ReadWriteError) { write(addr, ConstDataBlockRef(data, size)); }
     };
 
     // static members only
@@ -281,17 +349,17 @@ std::string format_http_parameters(const std::map<std::string, std::string>& par
 
 std::string build_http_request(bool post, const std::string& host, const std::string& script, const std::string& parameters = "", const std::string& auth = "") throw ();
 
-void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
+void post_http_data(Network::TCPSocket& socket, const volatile bool* abortFlag, int timeout, const std::string& host,
                     const std::string& script, const std::string& parameters, const std::string& auth = "")
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout); // timeout in ms
 
-void save_http_response(Network::Socket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout)
+void save_http_response(Network::TCPSocket& socket, std::ostream& out, const volatile bool* abortFlag, int timeout)
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout);   // timeout in ms
 
-void post_http_data(Network::Socket& socket, int timeout, const std::string& host, const std::string& script, const std::string& parameters, const std::string& auth = "")
+void post_http_data(Network::TCPSocket& socket, int timeout, const std::string& host, const std::string& script, const std::string& parameters, const std::string& auth = "")
     throw (Network::ReadWriteError, Network::Timeout); // timeout in ms
 
-void save_http_response(Network::Socket& socket, std::ostream& out, int timeout)
+void save_http_response(Network::TCPSocket& socket, std::ostream& out, int timeout)
     throw (Network::ReadWriteError, Network::Timeout);   // timeout in ms
 
 std::string url_encode(const std::string& str) throw ();

@@ -200,7 +200,7 @@ public:
     char debug[256];
 
     // send socket -- ALSO the receive socket now.
-    Network::Socket sendsock;
+    Network::UDPSocket sendsock;
 
     // the address set with set_remote_addr() -- must be set in the socket before all sending
     // cause receiving erases it
@@ -360,18 +360,13 @@ DLOG_Scope s("UPIM");
             localPortLastTry = localPortMin;
         const int firstTry = localPortLastTry;
         for (;;) {
-            if (sendsock.tryOpen(Network::NonBlocking, Network::UDP, localPortLastTry))
+            if (sendsock.tryOpen(Network::NonBlocking, localPortLastTry))
                 break;
             ++localPortLastTry;
             if (localPortLastTry > localPortMax)
                 localPortLastTry = localPortMin;
             if (localPortLastTry == firstTry)
                 return 0;   // ERROR
-        }
-        try {
-            sendsock.setRemoteAddress(netaddr);
-        } catch (Network::Error&) {
-            return 0;
         }
         return 1;   // ok
     }
@@ -416,7 +411,7 @@ DLOG_Scope s("URR");
     }
 
     // sets UDP raw packet that arrived from network
-    virtual int set_incoming_packet(char *data, int size) throw () {
+    virtual int set_incoming_packet(const char *data, int size) throw () {
 DLOG_Scope s("USIP");
 
         // ok!
@@ -704,14 +699,13 @@ DLOG_Scope s("USP");
         // send the packet
         //
         try {
-            sendsock.setRemoteAddress(netaddr);
             #if LEETNET_SIMULATED_PACKET_LOSS != 0
             if (rand() % 100 < LEETNET_SIMULATED_PACKET_LOSS)
                 ; // packet simulated as lost; sent ok though
             else
             #endif
 {DLOG_Scope s("USPw");
-                sendsock.write(sendbuf, count);
+                sendsock.write(netaddr, sendbuf, count);
 }
 
             #ifdef LEETNET_DATA_LOG
@@ -734,11 +728,8 @@ DLOG_Scope s("USP");
     virtual int send_raw_packet(const data_c *data) throw () {
 
         try {
-            //fix remote addr (changed by reads)
-            sendsock.setRemoteAddress(netaddr);
-
 {DLOG_Scope s("SRPw");
-            sendsock.write(data->getbuf(), data->getlen());
+            sendsock.write(netaddr, data->getbuf(), data->getlen());
 }
             return 1;
         } catch (Network::Error&) {
@@ -750,8 +741,7 @@ DLOG_Scope s("USP");
         try {
             Network::Address addr = netaddr;
             addr.setPort(port);
-            sendsock.setRemoteAddress(addr);
-            sendsock.write(data->getbuf(), data->getlen());
+            sendsock.write(addr, data->getbuf(), data->getlen());
             return 1;
         } catch (Network::Error&) {
             return 0;
@@ -764,14 +754,14 @@ DLOG_Scope s("USP");
     virtual int receive_packet(char *buffer, int bufsize) throw () {
         try {
 DLOG_Scope s("URPr");
-            return sendsock.read(buffer, bufsize);
+            return sendsock.read(buffer, bufsize).length;
         } catch (Network::Error&) {
             return -1;
         }
     }
 
     // return the socket for get_socket_stat purposes
-    virtual const Network::Socket& get_nl_socket() throw () {
+    virtual const Network::UDPSocket& get_nl_socket() throw () {
         return sendsock;
     }
 

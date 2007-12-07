@@ -2201,7 +2201,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         string response;
 
         try {
-            Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+            Network::TCPSocket sock(Network::NonBlocking, 0, true);
 
             Network::Address tournamentServer;
             if (!tournamentServer.tryResolve("www.mycgiserver.com"))
@@ -2359,7 +2359,7 @@ void ServerNetworking::run_mastertalker_thread() throw () {
             continue;
 
         try {
-            Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
+            Network::TCPSocket msock(Network::NonBlocking, 0, true);
             msock.connect(g_masterSettings.address());
 
             //now we have talked
@@ -2409,7 +2409,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const throw 
         return;
 
     try {
-        Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
+        Network::TCPSocket msock(Network::NonBlocking, 0, true);
 
         const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
         const string data = format_http_parameters(parameters);
@@ -2473,7 +2473,7 @@ void ServerNetworking::run_website_thread() throw () {
             website_address.setPort(80);
 
         try {
-            Network::Socket websock(Network::NonBlocking, Network::TCP, 0, true);
+            Network::TCPSocket websock(Network::NonBlocking, 0, true);
             websock.connect(website_address);
 
             // build and send data
@@ -2504,7 +2504,7 @@ void ServerNetworking::run_website_thread() throw () {
 
     //quitting: send server shutdown message to web script
     try {
-        Network::Socket websock(Network::NonBlocking, Network::TCP, 0, true);
+        Network::TCPSocket websock(Network::NonBlocking, 0, true);
         websock.connect(website_address);
 
         const string quit = "quit=1";
@@ -2605,7 +2605,7 @@ string ServerNetworking::website_maplist() const throw () {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(Network::Socket& sock, string& resultStr) throw (Network::ReadWriteError) {
+bool ServerNetworking::read_string_from_TCP(Network::TCPSocket& sock, string& resultStr) throw (Network::ReadWriteError) {
     for (;;) {
         uint8_t ch;
         const int result = sock.read(&ch, 1);
@@ -2671,10 +2671,9 @@ void ServerNetworking::run_shellmaster_thread(int port) throw () {
 
     log("Admin shell master thread running");
 
-    Network::Socket shellmsock(true);
+    Network::TCPListenerSocket shellmsock(true);
     try {
-        shellmsock.open(Network::NonBlocking, Network::TCP, port);
-        shellmsock.listen();
+        shellmsock.open(Network::NonBlocking, port);
     } catch (const Network::Error& e) {
         log.error(_("Admin shell: $1", e.str()));
         return;
@@ -2683,7 +2682,7 @@ void ServerNetworking::run_shellmaster_thread(int port) throw () {
         platSleep(1000); // this thread definitely is no priority
 
         if (shellssock.isOpen()) {
-            Network::Socket newSock(true);
+            Network::TCPSocket newSock(true);
             if (newSock.acceptConnection(Network::NonBlocking, shellmsock))
                 log("Attempt to connect two simultaneous admin shells blocked.");
             continue;
@@ -2907,7 +2906,7 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
     dataQueue = queue<string>();
 
     try {
-        socket.open(Network::NonBlocking, Network::TCP, 0);
+        socket.open(Network::NonBlocking, 0);
         socket.connect(relayAddress);
     } catch (const Network::Error& e) {
         log("Relay thread: %s", e.str().c_str());

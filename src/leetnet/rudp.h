@@ -116,7 +116,7 @@ public:
 
     // sets UDP raw packet that arrived from network (received_packet call). this is used
     // because a thread may set the packet so that other thread processes it (see below)
-    virtual int set_incoming_packet(char *udp_data, int udp_size) throw () = 0;
+    virtual int set_incoming_packet(const char *udp_data, int udp_size) throw () = 0;
 
     virtual void enablePortSearch() throw () = 0;
 
@@ -155,7 +155,7 @@ public:
     virtual int send_raw_packet_to_port(const data_c* data, int port) throw () = 0;
 
     // return the socket for get_socket_stat purposes
-    virtual const Network::Socket& get_nl_socket() throw () = 0;
+    virtual const Network::UDPSocket& get_nl_socket() throw () = 0;
 
     // get debug info
     virtual char* debug_info() throw () = 0;

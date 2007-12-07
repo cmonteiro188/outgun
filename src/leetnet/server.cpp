@@ -136,7 +136,7 @@ public:
     int     num_clients;
 
     // the server UDP socket
-    Network::Socket            servsock;
+    Network::UDPSocket            servsock;
 
     int minLocalPort, maxLocalPort;
 
@@ -214,7 +214,7 @@ public:
         //timeout defaults
         set_client_timeout(5, 10);
 
-        if (!servsock.tryOpen(Network::NonBlocking, Network::UDP, port)) {
+        if (!servsock.tryOpen(Network::NonBlocking, port)) {
             log("server_ci::start(): cannot nlOpen server socket!");
             return 0;  // error
         }
@@ -517,7 +517,7 @@ public:
         if (client[i].used)
         if (client[i].station)
         {
-            const Network::Socket& clsock = client[i].station->get_nl_socket();
+            const Network::UDPSocket& clsock = client[i].station->get_nl_socket();
             if (clsock.isOpen())
                 thestat += clsock.getStat(stat);
         }
@@ -561,7 +561,7 @@ public:
     //------------------------
 
     //incoming datagram from UDP socket
-    virtual int process_incoming_datagram(char* packet, int length) throw () {
+    virtual int process_incoming_datagram(const Network::Address& remoteaddr, const char* packet, int length) throw () {
         //MAKEIT
         //
         //o que pode acontecer
@@ -572,14 +572,6 @@ public:
         //   pra ela. a thread lida com conexao tambem.
         // mensagem 0 666 = ping request
         // mensagem 0 200 = serverinfo request
-
-        //extract remote address from server socket
-        Network::Address remoteaddr;
-        try {
-            remoteaddr = servsock.getRemoteAddress();
-        } catch (Network::Error&) {
-            return 0;
-        }
 
         int count = 0;
         uint32_t packid, smsgid, leetversion;
@@ -660,9 +652,8 @@ public:
             writeString(lebuf, count, serverinfo);
             //send
             try {
-                servsock.setRemoteAddress(remoteaddr);
                 log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-                servsock.write(lebuf, count);
+                servsock.write(remoteaddr, lebuf, count);
             } catch (Network::Error&) {
                 return 0;
             }
@@ -678,9 +669,8 @@ public:
                 char lebuf[512]; int count = 0;
                 writeString(lebuf, count, "Outgun");
                 try {
-                    servsock.setRemoteAddress(remoteaddr);
                     log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());
-                    servsock.write(lebuf, count);
+                    servsock.write(remoteaddr, lebuf, count);
                 } catch (Network::Error&) {
                     return 0;
                 }
@@ -706,8 +696,7 @@ public:
 
             //send
             try {
-                servsock.setRemoteAddress(remoteaddr);
-                servsock.write(lebuf, count);
+                servsock.write(remoteaddr, lebuf, count);
                 log("*** SENT SERVER-FULL (%i clients) REPLY TO CLIENT AT %s ***", num_clients, remoteaddr.toString().c_str());
                 return 1;
             } catch (Network::Error&) {
@@ -843,7 +832,7 @@ public:
     }
 
     //returns the serversocket
-    Network::Socket& get_server_socket() throw () {
+    Network::UDPSocket& get_server_socket() throw () {
         return servsock;
     }
 
@@ -940,8 +929,7 @@ public:
 
                         // send using the server socket from where the originating message was received: to make sure the reply gets through any firewalls/NATs
                         try {
-                            servsock.setRemoteAddress(client[cid].addr);
-                            servsock.write(reply->getbuf(), reply->getlen());
+                            servsock.write(client[cid].addr, reply->getbuf(), reply->getlen());
                         } catch (Network::Error&) { }
 
                         delete reply;
@@ -957,8 +945,7 @@ public:
                         if (res.customDataLength > 0)
                             reply->add(res.customData, res.customDataLength);   // custom "connection denied" information
                         try {
-                            servsock.setRemoteAddress(client[cid].addr);
-                            servsock.write(reply->getbuf(), reply->getlen());
+                            servsock.write(client[cid].addr, reply->getbuf(), reply->getlen());
                         } catch (Network::Error&) { }
                         delete reply;
 
@@ -1195,7 +1182,7 @@ public:
 void thread_master_f(server_ci* server) throw ()
 {
     //get socket to read from
-    Network::Socket& servsock = server->get_server_socket();
+    Network::UDPSocket& servsock = server->get_server_socket();
 
     //read buffer
     char    buffer[THREAD_READER_BUFSIZE];
@@ -1203,11 +1190,11 @@ void thread_master_f(server_ci* server) throw ()
     //loop
     while (1) {
         //read from socket
-        int amount;
+        Network::UDPSocket::ReadResult result;
         try {
-            amount = servsock.read(buffer, THREAD_READER_BUFSIZE);
+            result = servsock.read(buffer, THREAD_READER_BUFSIZE);
         } catch (const Network::Error& e) {
-            amount = -1;
+            result.length = -1;
             server->log("Master thread: trouble reading socket: %s", e.str().c_str());
         }
 
@@ -1219,16 +1206,16 @@ void thread_master_f(server_ci* server) throw ()
             break;
 
         // if no data, keep reading
-        if (amount == 0) {
+        if (result.length == 0) {
             platSleep(2);
             continue;
         }
 
         // check for error
-        if (amount < 0)
+        if (result.length < 0)
             platSleep(100);
         else
-            server->process_incoming_datagram(buffer, amount);
+            server->process_incoming_datagram(result.source, buffer, result.length);
     }
 }
 

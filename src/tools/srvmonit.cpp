@@ -97,7 +97,7 @@ string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::Socket& sock, const void* data, int len) throw (Network::Error) {
+void send(Network::TCPSocket& sock, const void* data, int len) throw (Network::Error) {
     sock.writeToUnblockingTCP(ConstDataBlockRef(data, len), 100, 20);
 }
 
@@ -110,14 +110,14 @@ public:
 class DelayHandler : public IdleFunction {
     enum { sayBufLen = 1024 };
     char sayBuf[sayBufLen + 1];
-    Network::Socket& sock;
+    Network::TCPSocket& sock;
     int sayIdx; // -1 when not typing
     bool kick, ban;
     int mute;
     bool* messageBoxSetting;
 
 public:
-    DelayHandler(Network::Socket& socket, bool* messageBox) throw () : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
+    DelayHandler(Network::TCPSocket& socket, bool* messageBox) throw () : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
     void pauseSay() const throw () {
         if (sayIdx != -1)
             printf("\r%79s\r", "");
@@ -265,13 +265,13 @@ public:
 
 class DelaySocketReader {
     enum { rbufSz = 1024 };
-    Network::Socket& sock;
+    Network::TCPSocket& sock;
     IdleFunction* ifp;
     char rbuf[rbufSz];
     int rbufUsed, rbufRd;
 
 public:
-    DelaySocketReader(Network::Socket& socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
+    DelaySocketReader(Network::TCPSocket& socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
     uint32_t getLong() throw (Network::Error, UserExit) {
         uint32_t val = 0;
         val =              getByte();
@@ -322,7 +322,7 @@ const char* plyName(int idx) throw () {
 
 bool runMonitor(int port, bool messageBoxes) throw () {
     try {
-        Network::Socket sock(Network::NonBlocking, Network::TCP, 0, true);
+        Network::TCPSocket sock(Network::NonBlocking, 0, true);
 
         Network::Address addr("127.0.0.1");
         addr.setPort(port);

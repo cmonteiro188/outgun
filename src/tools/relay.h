@@ -34,16 +34,16 @@
 
 class Peer : private NoCopying {
 public:
-    Peer(const Network::Address& addr, TrashableRef<Network::Socket> sock) throw () : address(addr), socket(sock) { }
+    Peer(const Network::Address& addr, TrashableRef<Network::TCPSocket> sock) throw () : address(addr), socket(sock) { }
 
     Network::Address address;
-    Network::Socket  socket;
+    Network::TCPSocket socket;
     std::stringstream buffer;
 };
 
 class Spectator : private NoCopying {
 public:
-    Spectator(const Network::Address& addr, TrashableRef<Network::Socket> sock) throw () :
+    Spectator(const Network::Address& addr, TrashableRef<Network::TCPSocket> sock) throw () :
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -53,7 +53,7 @@ public:
     { }
 
     Network::Address address;
-    Network::Socket  socket;
+    Network::TCPSocket socket;
     bool local;
     unsigned  next_frame;
     unsigned  bytes_sent;
@@ -134,7 +134,7 @@ private:
     void send_data() throw ();
 
     /// Send data to the socket
-    int send_data(Network::Socket& socket, const std::string& data) const throw ();
+    int send_data(Network::TCPSocket& socket, const std::string& data) const throw ();
 
     /// Remove the oldest game if it is not needed anymore
     void remove_oldest_game() throw ();
@@ -145,11 +145,11 @@ private:
     void load_master_settings() throw ();
     void send_master_server() throw ();
 
-    Network::Socket listen_socket;     /// Socket for all incoming connections
+    Network::TCPListenerSocket listen_socket;     /// Socket for all incoming connections
     unsigned short listen_port; /// Port for all incoming connections
 
     Network::Address server_address;   /// Game server address
-    Network::Socket server_socket;     /// Game server socket
+    Network::TCPSocket server_socket;     /// Game server socket
     std::string hostname;
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second

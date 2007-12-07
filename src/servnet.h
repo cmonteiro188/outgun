@@ -135,7 +135,7 @@ private:
     ClientTransferData fileTransfer[MAX_PLAYERS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
-    mutable Network::Socket shellssock; // if open, admin shell messages are sent to this socket
+    mutable Network::TCPSocket shellssock; // if open, admin shell messages are sent to this socket
     Thread          shellmthread;
 
     Thread          mthread;
@@ -160,7 +160,7 @@ private:
     class RelayThread {
         Thread thread;
         volatile bool& quitFlag;
-        Network::Socket socket;
+        Network::TCPSocket socket;
         bool newGame;
         std::queue<std::string> dataQueue;
         ConditionVariable wakeup;
@@ -210,7 +210,7 @@ private:
     bool writeToAdminShell(const void* data, int length) const throw ();
     bool writeToAdminShell(ConstDataBlockRef data) const throw ();
 
-    bool read_string_from_TCP(Network::Socket& sock, std::string& resultStr) throw (Network::ReadWriteError);
+    bool read_string_from_TCP(Network::TCPSocket& sock, std::string& resultStr) throw (Network::ReadWriteError);
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
     int executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, char* answer) throw (Network::Error); // returns length of answer

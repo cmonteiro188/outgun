@@ -720,12 +720,6 @@ DLOG_Scope s("CPIDg");
             return true;
         }
 
-        try {
-            log("trying... local = '%s' remote = '%s'",
-                station->get_nl_socket().getLocalAddress ().toString().c_str(),
-                station->get_nl_socket().getRemoteAddress().toString().c_str());
-        } catch (Network::Error&) { }
-
         //send the packet
         data_c  *dat = new_data_c();
         dat->addlong(0); //special packet

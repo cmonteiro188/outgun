@@ -105,8 +105,7 @@ void Relay::run() throw () {
     cout << "Relay server starting on port " << listen_port << ".\n";
 
     try {
-        listen_socket.open(Network::NonBlocking, Network::TCP, listen_port);
-        listen_socket.listen();
+        listen_socket.open(Network::NonBlocking, listen_port);
     } catch (const Network::Error& e) {
         cout << e.str() << '\n';
         return;
@@ -181,7 +180,7 @@ void Relay::load_master_settings() throw () {
 
 void Relay::listen() throw () {
     while (listen_socket.isOpen()) {
-        Network::Socket new_socket;
+        Network::TCPSocket new_socket;
         if (!new_socket.acceptConnection(Network::NonBlocking, listen_socket))
             break;
 
@@ -461,7 +460,7 @@ void Relay::send_data() throw () {
     }
 }
 
-int Relay::send_data(Network::Socket& socket, const string& data) const throw () {
+int Relay::send_data(Network::TCPSocket& socket, const string& data) const throw () {
     if (!socket.isOpen()) {
         cout << "Closed spectator socket in send_data().\n";
         return -1;
@@ -539,7 +538,7 @@ void Relay::send_master_server() throw () {
     master_talk_time = get_time() + 5 * 60.0;
 
     try {
-        Network::Socket msock(Network::NonBlocking, Network::TCP, 0, true);
+        Network::TCPSocket msock(Network::NonBlocking, 0, true);
 
         Network::Address master_address;
         if (!master_address.tryResolve(master_name)) {
