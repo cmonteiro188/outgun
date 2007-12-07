@@ -171,6 +171,62 @@ public:
 
 template<class T> ControlledPtr<T> give_control(T* p) throw () { return ControlledPtr<T>::construct(p); }
 
+template<class T> class BlockRef {
+    T* pData;
+    unsigned sz;
+
+public:
+    BlockRef(T* data, unsigned size) throw () : pData(data), sz(size) { }
+
+    T* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    T& operator[](unsigned index) const throw () { return pData[index]; }
+};
+
+template<> class BlockRef<void> { // interface differs in not having operator[]
+    void* pData;
+    unsigned sz;
+
+public:
+    BlockRef(void* data, unsigned size) throw () : pData(data), sz(size) { }
+
+    void* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+};
+
+template<class T> class ConstBlockRef {
+    const T* pData;
+    unsigned sz;
+
+public:
+    ConstBlockRef(const T* data, unsigned size) throw () : pData(data), sz(size) { }
+    ConstBlockRef(const BlockRef<T>& d) throw () : pData(d.data()), sz(d.size()) { }
+
+    const T* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    const T& operator[](unsigned index) const throw () { return pData[index]; }
+
+    void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
+};
+
+template<> class ConstBlockRef<void> { // interface differs in not having operator[], and sizes are in bytes
+    const void* pData;
+    unsigned sz;
+
+public:
+    ConstBlockRef(const void* data, unsigned size) throw () : pData(data), sz(size) { }
+
+    const void* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    void skipFront(unsigned bytes) throw () { nAssert(sz >= bytes); pData = static_cast<const uint8_t*>(pData) + bytes; sz -= bytes; }
+};
+
+typedef BlockRef<void> DataBlockRef;
+typedef ConstBlockRef<void> ConstDataBlockRef;
+
 template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str) throw ();
