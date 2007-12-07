@@ -453,7 +453,7 @@ void TCPSocket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWrite
     Socket::write(data, writtenSize);
 }
 
-void TCPSocket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+void TCPSocket::persistentWrite(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     int tries = 0;
     while (data.size()) {
         if (abortFlag && *abortFlag)
@@ -470,7 +470,7 @@ void TCPSocket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool
     }
 }
 
-void TCPSocket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
+void TCPSocket::readAll(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     const int buffer_size = 4000;
     char lebuf[buffer_size];
 
@@ -497,15 +497,15 @@ void TCPSocket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abor
     }
 }
 
-void TCPSocket::writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+void TCPSocket::persistentWrite(ConstDataBlockRef data, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
     try {
-        writeToUnblockingTCP(data, 0, timeout, roundDelay);
+        persistentWrite(data, 0, timeout, roundDelay);
     } catch (ExternalAbort) { nAssert(0); }
 }
 
-void TCPSocket::saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+void TCPSocket::readAll(std::ostream& out, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
     try {
-        saveAllFromUnblockingTCP(out, 0, timeout, roundDelay);
+        readAll(out, 0, timeout, roundDelay);
     } catch (ExternalAbort) { nAssert(0); }
 }
 
@@ -668,26 +668,26 @@ void post_http_data(Network::TCPSocket& socket, const volatile bool* abortFlag, 
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
 {
     const string request = build_http_request(true, host, script, parameters, auth);
-    return socket.writeToUnblockingTCP(request, abortFlag, timeout);
+    return socket.persistentWrite(request, abortFlag, timeout);
 }
 
 void save_http_response(Network::TCPSocket& socket, ostream& out, const volatile bool* abortFlag, int timeout)
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
 {
-    return socket.saveAllFromUnblockingTCP(out, abortFlag, timeout);
+    return socket.readAll(out, abortFlag, timeout);
 }
 
 void post_http_data(Network::TCPSocket& socket, int timeout, const string& host, const string& script, const string& parameters, const string& auth)
     throw (Network::ReadWriteError, Network::Timeout)
 {
     const string request = build_http_request(true, host, script, parameters, auth);
-    return socket.writeToUnblockingTCP(request, timeout);
+    return socket.persistentWrite(request, timeout);
 }
 
 void save_http_response(Network::TCPSocket& socket, ostream& out, int timeout)
     throw (Network::ReadWriteError, Network::Timeout)
 {
-    return socket.saveAllFromUnblockingTCP(out, timeout);
+    return socket.readAll(out, timeout);
 }
 
 string url_encode(const string& str) throw () {

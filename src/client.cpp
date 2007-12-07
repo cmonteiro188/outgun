@@ -329,11 +329,11 @@ void TournamentPasswordManager::threadFn() throw () {
             passStatus = PS_sending;
             if (newToken)
                 log("Password thread: Sending login");
-            sock.writeToUnblockingTCP(query, &quitThread, 30000);
+            sock.persistentWrite(query, &quitThread, 30000);
 
             passStatus = PS_receiving;
             ostringstream respStream;
-            sock.saveAllFromUnblockingTCP(respStream, &quitThread, 30000);
+            sock.readAll(respStream, &quitThread, 30000);
             sock.close();
             const string fullResponse = respStream.str();
 
@@ -3821,13 +3821,13 @@ bool Client::getServerList() throw () {
                                                   "&branch=" + url_encode(GAME_BRANCH) +
                                                   "&master=" + itoa(g_masterSettings.crc()) +
                                                   "&protocol=" + url_encode(GAME_PROTOCOL));
-        sock.writeToUnblockingTCP(request, &abortThreads, 30000);
+        sock.persistentWrite(request, &abortThreads, 30000);
         log("Successfully sent query to master: '%s'", formatForLogging(request).c_str());
 
         refreshStatus = RS_receiving;
 
         stringstream response;
-        sock.saveAllFromUnblockingTCP(response, &abortThreads, 30000);
+        sock.readAll(response, &abortThreads, 30000);
         sock.close();
 
         log("Full response: '%s'", formatForLogging(response.str()).c_str());
@@ -4774,7 +4774,7 @@ void Client::start_spectating(const Network::Address& address) throw () {
         write_string(ost, ""); // username
         write_string(ost, ""); // password
 
-        spectate_socket.writeToUnblockingTCP(ost.str(), 500, 5);
+        spectate_socket.persistentWrite(ost.str(), 500, 5);
         log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
     } catch (const Network::Error& e) {
         spectate_socket.closeIfOpen();

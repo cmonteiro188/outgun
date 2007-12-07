@@ -279,13 +279,11 @@ public:
         void write(ConstDataBlockRef data, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
         void write(const void* data, unsigned size, int* writtenSize = 0) throw (ReadWriteError) { write(ConstDataBlockRef(data, size), writtenSize); }
 
-        void writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
-            throw (ReadWriteError, ExternalAbort, Timeout);
-        void saveAllFromUnblockingTCP(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
-            throw (ReadWriteError, ExternalAbort, Timeout);
+        void persistentWrite(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (ReadWriteError, ExternalAbort, Timeout);
+        void readAll(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (ReadWriteError, ExternalAbort, Timeout);
 
-        void writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
-        void saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
+        void persistentWrite(ConstDataBlockRef data, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
+        void readAll(std::ostream& out, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
     };
 
     class UDPSocket : public Socket {

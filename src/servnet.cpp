@@ -2209,7 +2209,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             tournamentServer.setPort(80);
             sock.connect(tournamentServer);
 
-            sock.writeToUnblockingTCP(job->request, &mjob_exit, 30000);
+            sock.persistentWrite(job->request, &mjob_exit, 30000);
 
             ostringstream respStream;
             save_http_response(sock, respStream, &mjob_exit, 30000);
@@ -2860,7 +2860,7 @@ void ServerNetworking::RelayThread::threadMain() throw () {
 
         try {
             Unlock mu(mutex);
-            socket.writeToUnblockingTCP(data, &quitFlag, 100, 50); // 5 second timeout
+            socket.persistentWrite(data, &quitFlag, 100, 50); // 5 second timeout
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {

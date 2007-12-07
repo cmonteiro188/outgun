@@ -98,7 +98,7 @@ string decode(const string& str) throw () {
 }
 
 void send(Network::TCPSocket& sock, const void* data, int len) throw (Network::Error) {
-    sock.writeToUnblockingTCP(ConstDataBlockRef(data, len), 100, 20);
+    sock.persistentWrite(ConstDataBlockRef(data, len), 100, 20);
 }
 
 class IdleFunction {
