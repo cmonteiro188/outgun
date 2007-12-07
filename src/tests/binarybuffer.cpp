@@ -21,19 +21,17 @@
  *
  */
 
-#include "../binarybuffer.h"
+#include "../binaryaccess.h"
 #include "../binders.h"
 
 #include "tests.h"
 
 using namespace std;
 
-template class BinaryBuffer<10>; // to ensure all methods are implemented
-
 void binaryBufferTest() throw () {
     BinaryBuffer<20> b1, b2;
 
-    nAssert(b1.getSize() == 20);
+    nAssert(b1.getCapacity() == 20);
 
     b1.writeU8(200);
     b1.writeS8(-100);

@@ -247,6 +247,8 @@ tools/writeifdifferent$(EXE_SUFFIX): $(WRITEIFDIFFERENT_OBJS)
 $(TEST_TARGETS) : tests/%$(EXE_SUFFIX) : $(OBJDIR)/tests/%.o $(OBJDIR)/tests/tests.o
 	$(CXX) $(TEST_LDFLAGS) -o $@ $^ $(TEST_LIBS)
 
+tests/binarybuffer$(EXE_SUFFIX) : $(OBJDIR)/gui/binaryaccess.o
+
 # executing tests
 
 $(TEST_EXEC_TARGETS) : test_% : tests/%$(EXE_SUFFIX)
