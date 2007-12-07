@@ -172,7 +172,13 @@ template<unsigned size> std::string BinaryBuffer<size>::readConstLengthString(un
 }
 
 template<unsigned size> std::string BinaryBuffer<size>::readString() throw (ReadOverflow) {
-    return readConstLengthString(readU8());
+    std::string s;
+    for (;;) {
+        const uint8_t byte = readU8();
+        if (byte == 0)
+            return s;
+        s += static_cast<char>(byte);
+    }
 }
 
 template<unsigned size> void BinaryBuffer<size>::writeUncheckedU8(uint8_t wData) throw () {
@@ -233,9 +239,9 @@ template<unsigned size> void BinaryBuffer<size>::writeConstLengthString(const st
 }
 
 template<unsigned size> void BinaryBuffer<size>::writeString(const std::string& wData) throw () {
-    numAssert(wData.length() <= 255, wData.length());
-    writeU8(wData.length());
+    nAssert(wData.find_first_of('\0') == std::string::npos);
     writeConstLengthString(wData, wData.length());
+    writeUncheckedU8(0);
 }
 
 #define DEFINE_BOUND_METHODS(BasicType, RealType, name, uncheckedWriteMethod)                                                                          \
