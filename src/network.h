@@ -43,6 +43,7 @@ public:
     class Socket;
     class TCPListenerSocket;
     class TCPSocket;
+    class UDPSocket;
 
     class Error {
     protected:
@@ -64,6 +65,7 @@ private:
         NLError() throw ();
         friend class Network;
         friend class Network::Socket;
+        friend class Network::UDPSocket;
 
         std::string basicStr() const throw ();
 
@@ -174,6 +176,8 @@ public:
 
         friend class Network;
         friend class Network::Socket;
+        friend class Network::TCPSocket;
+        friend class Network::UDPSocket;
 
     public:
         Address() throw ();
@@ -304,10 +308,10 @@ public:
             ReadResult() { }
             ReadResult(int l, const Address& s) : length(l), source(s) { }
         };
-        ReadResult read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read and the source address
-        ReadResult read(void* buffer, unsigned size) throw (ReadWriteError) { return read(DataBlockRef(buffer, size)); }
+        ReadResult read(DataBlockRef buffer) throw (ReadWriteError, Error); // returns the number of bytes read and the source address
+        ReadResult read(void* buffer, unsigned size) throw (ReadWriteError, Error) { return read(DataBlockRef(buffer, size)); }
         void write(const Address& addr, ConstDataBlockRef data) throw (ReadWriteError, Error);
-        void write(const Address& addr, const void* data, unsigned size) throw (ReadWriteError) { write(addr, ConstDataBlockRef(data, size)); }
+        void write(const Address& addr, const void* data, unsigned size) throw (ReadWriteError, Error) { write(addr, ConstDataBlockRef(data, size)); }
     };
 
     // static members only

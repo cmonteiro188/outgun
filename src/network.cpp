@@ -514,7 +514,7 @@ UDPSocket& UDPSocket::operator=(TrashableRef<UDPSocket> s) throw () {
     return *this;
 }
 
-UDPSocket::ReadResult UDPSocket::read(DataBlockRef buffer) throw (ReadWriteError) {
+UDPSocket::ReadResult UDPSocket::read(DataBlockRef buffer) throw (ReadWriteError, Error) {
     const int n = Socket::read(buffer);
     return ReadResult(n, getRemoteAddress());
 }
