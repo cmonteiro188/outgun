@@ -105,11 +105,11 @@ ServerNetworking::~ServerNetworking() throw () {
     }
 }
 
-bool ServerNetworking::writeToAdminShell(void* data, int length) const throw () {
+bool ServerNetworking::writeToAdminShell(ConstDataBlockRef data) const throw () {
     try {
         int written;
-        shellssock.write(data, length, &written);
-        if (written == length)
+        shellssock.write(data, &written);
+        if (static_cast<unsigned>(written) == data.size())
             return true;
         log.error(_("Admin shell connection: Not all written."));
     } catch (const Network::Error& e) {
@@ -117,6 +117,10 @@ bool ServerNetworking::writeToAdminShell(void* data, int length) const throw () 
     }
     shellssock.close();
     return false;
+}
+
+bool ServerNetworking::writeToAdminShell(const void* data, int length) const throw () {
+    return writeToAdminShell(ConstDataBlockRef(data, length));
 }
 
 void ServerNetworking::upload_next_file_chunk(int i) throw () {
@@ -2205,7 +2209,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             tournamentServer.setPort(80);
             sock.connect(tournamentServer);
 
-            sock.writeToUnblockingTCP(job->request.data(), job->request.length(), &mjob_exit, 30000);
+            sock.writeToUnblockingTCP(job->request, &mjob_exit, 30000);
 
             ostringstream respStream;
             save_http_response(sock, respStream, &mjob_exit, 30000);
@@ -2854,7 +2858,7 @@ void ServerNetworking::RelayThread::threadMain() throw () {
 
         try {
             Unlock mu(mutex);
-            socket.writeToUnblockingTCP(data.data(), data.length(), &quitFlag, 100, 50); // 5 second timeout
+            socket.writeToUnblockingTCP(data, &quitFlag, 100, 50); // 5 second timeout
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {

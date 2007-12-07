@@ -229,15 +229,18 @@ public:
         void listen() throw (ListenError);
         bool acceptConnection(BlockingMode b, Socket& listenerSock) throw ();
         void setRemoteAddress(const Address& a) throw (Error);
-        int read(void* buffer, int bufSize) throw (ReadWriteError);
-        void write(const void* data, int size, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
 
-        void writeToUnblockingTCP(const void* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
+        int read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read
+        int read(void* buffer, unsigned size) throw (ReadWriteError) { return read(DataBlockRef(buffer, size)); }
+        void write(ConstDataBlockRef data, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
+        void write(const void* data, unsigned size, int* writtenSize = 0) throw (ReadWriteError) { write(ConstDataBlockRef(data, size), writtenSize); }
+
+        void writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
             throw (ReadWriteError, ExternalAbort, Timeout);
         void saveAllFromUnblockingTCP(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500)
             throw (ReadWriteError, ExternalAbort, Timeout);
 
-        void writeToUnblockingTCP(const void* data, int length, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
+        void writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
         void saveAllFromUnblockingTCP(std::ostream& out, int timeout, int roundDelay = 500) throw (ReadWriteError, Timeout);
     };
 

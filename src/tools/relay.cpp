@@ -468,7 +468,7 @@ int Relay::send_data(Network::Socket& socket, const string& data) const throw ()
     }
     try {
         int sent;
-        socket.write(data.data(), data.length(), &sent);
+        socket.write(data, &sent);
         return sent;
     } catch (const Network::ReadWriteError& e) {
         if (e.disconnected())

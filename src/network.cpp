@@ -383,9 +383,9 @@ void Socket::setRemoteAddress(const Address& a) throw (Error) {
         throw NLError();
 }
 
-int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
-    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && buffer);
-    const NLint val = nlRead(NLS, buffer, bufSize);
+int Socket::read(DataBlockRef buffer) throw (ReadWriteError) {
+    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && buffer.data());
+    const NLint val = nlRead(NLS, buffer.data(), buffer.size());
     if (val != NL_INVALID)
         return val;
     const NLenum err = nlGetError();
@@ -395,9 +395,9 @@ int Socket::read(void* buffer, int bufSize) throw (ReadWriteError) {
     throw ReadWriteError(true);
 }
 
-void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWriteError) {
-    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data);
-    NLint val = nlWrite(NLS, data, size);
+void Socket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteError) {
+    nAssert(isOpen() /*&& connected (violated at least in Leetnet)*/ && data.data());
+    NLint val = nlWrite(NLS, data.data(), data.size());
     if (val == NL_INVALID) {
         const NLenum err = nlGetError();
         if (err == NL_CON_PENDING)
@@ -410,21 +410,20 @@ void Socket::write(const void* data, int size, int* writtenSize) throw (ReadWrit
     if (writtenSize)
         *writtenSize = val;
     else
-        numAssert2(val == size, val, size);
+        numAssert2(static_cast<unsigned>(val) == data.size(), val, data.size());
 }
 
-void Socket::writeToUnblockingTCP(const void* data, int length, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
-    int at = 0;
+void Socket::writeToUnblockingTCP(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     int tries = 0;
-    while (at < length) {
+    while (data.size()) {
         if (abortFlag && *abortFlag)
             throw ExternalAbort();
         if (tries * roundDelay > timeout)
             throw Timeout(false);
 
         int written;
-        write(static_cast<const char*>(data) + at, length - at, &written);
-        at += written;
+        write(data, &written);
+        data.skipFront(written);
 
         platSleep(roundDelay);
         ++tries;
@@ -458,9 +457,9 @@ void Socket::saveAllFromUnblockingTCP(ostream& out, const volatile bool* abortFl
     }
 }
 
-void Socket::writeToUnblockingTCP(const void* data, int length, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
+void Socket::writeToUnblockingTCP(ConstDataBlockRef data, int timeout, int roundDelay) throw (ReadWriteError, Timeout) {
     try {
-        writeToUnblockingTCP(data, length, 0, timeout, roundDelay);
+        writeToUnblockingTCP(data, 0, timeout, roundDelay);
     } catch (ExternalAbort) { nAssert(0); }
 }
 
@@ -616,7 +615,7 @@ void post_http_data(Network::Socket& socket, const volatile bool* abortFlag, int
     throw (Network::ReadWriteError, Network::ExternalAbort, Network::Timeout)
 {
     const string request = build_http_request(true, host, script, parameters, auth);
-    return socket.writeToUnblockingTCP(request.data(), request.length(), abortFlag, timeout);
+    return socket.writeToUnblockingTCP(request, abortFlag, timeout);
 }
 
 void save_http_response(Network::Socket& socket, ostream& out, const volatile bool* abortFlag, int timeout)
@@ -629,7 +628,7 @@ void post_http_data(Network::Socket& socket, int timeout, const string& host, co
     throw (Network::ReadWriteError, Network::Timeout)
 {
     const string request = build_http_request(true, host, script, parameters, auth);
-    return socket.writeToUnblockingTCP(request.data(), request.length(), timeout);
+    return socket.writeToUnblockingTCP(request, timeout);
 }
 
 void save_http_response(Network::Socket& socket, ostream& out, int timeout)
