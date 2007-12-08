@@ -948,7 +948,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
         if (type == msg_normal || type == msg_team) // It should really never be a team message in this method.
             writeByte(lebuf, extended_length, static_cast<NLbyte>(pid / TSIZE));
         if (pid == pid_record)
-            record_message(lebuf, count);
+            record_message(lebuf, extended_length);
         else if (pid == shell_pid) {
             //send to the admin shell
             if (shellssock != NL_INVALID) {
@@ -965,7 +965,7 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
                         server->send_message(world.player[i].cid, lebuf, extended_length);
                     else
                         server->send_message(world.player[i].cid, lebuf, count); // don't send the possible team info
-            record_message(lebuf, count);
+            record_message(lebuf, extended_length);
         }
         else if (world.player[pid].protocolExtensionsLevel >= 0)
             server->send_message(world.player[pid].cid, lebuf, extended_length);

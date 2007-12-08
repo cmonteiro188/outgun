@@ -2135,7 +2135,7 @@ bool Client::process_message(const char* const lebuf, int msglen) throw () {
             }
         }
         NLbyte sender_team = -1;
-        if (protocolExtensionsS2C >= 0) {
+        if (protocolExtensionsS2C >= 0 || replaying) {
             if (type == msg_team || type == msg_normal)
                 readByte(lebuf, count, sender_team);
         }
