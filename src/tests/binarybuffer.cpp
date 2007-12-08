@@ -41,52 +41,55 @@ void binaryBufferTest() throw () {
     b1.writeS32(-4);
     b1.writeConstLengthString("bl", 2);
     b1.writeString("st");
-    nAssert(b1.getDataLength() == 19);
+    nAssert(b1.getPosition() == 19);
 
     const uint8_t* data1 = b1.accessData();
     uint8_t* data2 = b2.accessData();
-    memcpy(data2, data1, b1.getDataLength());
-    b2.setDataLength(b1.getDataLength());
+    memcpy(data2, data1, b1.getPosition());
+    b2.setPosition(b1.getPosition());
 
     b1.writeU8(0);
-    nAssert(b1.getDataLength() == 20);
+    nAssert(b1.getPosition() == 20);
     testAssertion(VMFbind1(b1, &BinaryBuffer<20>::writeS8, 0));
 
-    b1.setDataLength(0);
+    b1.setPosition(0);
     testAssertion(VMFbind3(b1, &BinaryBuffer<20>::writeBoundS8, -11, -10, -1));
     b1.writeBoundS8(-10, -10, -1);
     b1.writeBoundS8(-1, -10, -1);
     testAssertion(VMFbind3(b1, &BinaryBuffer<20>::writeBoundS8, 0, -10, -1));
-    b1.setDataLength(0);
+    b1.setPosition(0);
     for (int i = 0; i < 10; ++i)
         b1.writeBoundS8(i, 0, 9);
     const double testFloat = .123456789123456789123456789;
     b1.writeDouble(testFloat);
     b1.writeS8(0);
-    nAssert(b1.getDataLength() == 19);
+    nAssert(b1.getPosition() == 19);
     testAssertion(VMFbind1(b1, &BinaryBuffer<20>::writeS16, 0));
-    nAssert(b1.readBoundU8(0, 0) == 0);
-    nAssert(b1.readU64() == 0x0102030405060708);
-    nAssert(b1.readS8() == 9);
-    nAssert(b1.readDouble() == testFloat);
-    b1.rewind();
-    nAssert(b1.readS8() == 0);
 
-    nAssert(b2.readBoundU8(200, 200) == 200);
-    nAssert(b2.readBoundS8(-128, -1) == -100);
-    nAssert(b2.readU16() == 65535);
-    nAssert(b2.readS16() == -1);
+    BinaryReader r1(b1);
+    nAssert(r1.readBoundU8(0, 0) == 0);
+    nAssert(r1.readU64() == 0x0102030405060708);
+    nAssert(r1.readS8() == 9);
+    nAssert(r1.readDouble() == testFloat);
+    b1.setPosition(0);
+    nAssert(r1.readS8() == 0);
+
+    BinaryReader r2(b2);
+    nAssert(r2.readBoundU8(200, 200) == 200);
+    nAssert(r2.readBoundS8(-128, -1) == -100);
+    nAssert(r2.readU16() == 65535);
+    nAssert(r2.readS16() == -1);
     try {
-        b2.readBoundU32(1, 1000);
+        r2.readBoundU32(1, 1000);
         nAssert(0);
-    } catch (BinaryBuffer<20>::DataOutOfRange) { }
-    nAssert(b2.readS32() == -4);
-    nAssert(b2.readConstLengthString(2) == "bl");
-    nAssert(b2.readString() == "st");
+    } catch (BinaryReader::DataOutOfRange) { }
+    nAssert(r2.readS32() == -4);
+    nAssert(r2.readConstLengthString(2) == "bl");
+    nAssert(r2.readString() == "st");
     try {
-        b2.readS8();
+        r2.readS8();
         nAssert(0);
-    } catch (BinaryBuffer<20>::ReadOverflow) { }
+    } catch (BinaryReader::ReadOutside) { }
 }
 
 int main() {

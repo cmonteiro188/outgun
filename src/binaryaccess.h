@@ -30,57 +30,69 @@
 #include "nassert.h"
 #include "utility.h"
 
-class BinaryAccess {
-    uint8_t* const data;
-    const unsigned capacity;
-    unsigned dataLength, readPos;
+class BinaryReader {
+protected:
+    const uint8_t* const data;
+    const unsigned dataLength;
+    unsigned pos;
 
 public:
     // a read exception invalidates the read position
-    class ReadOverflow { };
+    class ReadOutside { };
     class DataOutOfRange { };
 
-    BinaryAccess(void* buffer, unsigned bufSize) throw () : data(static_cast<uint8_t*>(buffer)), capacity(bufSize), dataLength(0), readPos(0) { }
+    BinaryReader(const void* data_, unsigned size) throw () : data(static_cast<const uint8_t*>(data_)), dataLength(size), pos(0) { }
+    BinaryReader(ConstDataBlockRef block) throw () : data(static_cast<const uint8_t*>(block.data())), dataLength(block.size()), pos(0) { }
+
+    void setPosition(unsigned position) throw () { numAssert2(position < dataLength, position, dataLength); pos = position; }
+    unsigned getPosition() const throw () { return pos; }
+
+     uint8_t readU8 () throw (ReadOutside);
+      int8_t readS8 () throw (ReadOutside) { return static_cast<int8_t >(readU8 ()); }
+    uint16_t readU16() throw (ReadOutside);
+     int16_t readS16() throw (ReadOutside) { return static_cast<int16_t>(readU16()); }
+    uint32_t readU32() throw (ReadOutside);
+     int32_t readS32() throw (ReadOutside) { return static_cast<int32_t>(readU32()); }
+    uint64_t readU64() throw (ReadOutside);
+     int64_t readS64() throw (ReadOutside) { return static_cast<int64_t>(readU64()); }
+
+    float  readFloat () throw (ReadOutside);
+    double readDouble() throw (ReadOutside);
+
+     uint8_t readBoundU8 ( uint8_t minBound,  uint8_t maxBound) throw (ReadOutside, DataOutOfRange);
+      int8_t readBoundS8 (  int8_t minBound,   int8_t maxBound) throw (ReadOutside, DataOutOfRange);
+    uint16_t readBoundU16(uint16_t minBound, uint16_t maxBound) throw (ReadOutside, DataOutOfRange);
+     int16_t readBoundS16( int16_t minBound,  int16_t maxBound) throw (ReadOutside, DataOutOfRange);
+    uint32_t readBoundU32(uint32_t minBound, uint32_t maxBound) throw (ReadOutside, DataOutOfRange);
+     int32_t readBoundS32( int32_t minBound,  int32_t maxBound) throw (ReadOutside, DataOutOfRange);
+    uint64_t readBoundU64(uint64_t minBound, uint64_t maxBound) throw (ReadOutside, DataOutOfRange);
+     int64_t readBoundS64( int64_t minBound,  int64_t maxBound) throw (ReadOutside, DataOutOfRange);
+
+    float  readBoundFloat (float  minBound, float  maxBound) throw (ReadOutside, DataOutOfRange);
+    double readBoundDouble(double minBound, double maxBound) throw (ReadOutside, DataOutOfRange);
+
+    std::string readConstLengthString(unsigned length) throw (ReadOutside);
+    std::string readString() throw (ReadOutside);
+};
+
+class BinaryWriter {
+    uint8_t* const data;
+    const unsigned capacity;
+    unsigned pos;
+
+public:
+    BinaryWriter(void* buffer, unsigned bufSize) throw () : data(static_cast<uint8_t*>(buffer)), capacity(bufSize), pos(0) { }
+    BinaryWriter(DataBlockRef block) throw () : data(static_cast<uint8_t*>(block.data())), capacity(block.size()), pos(0) { }
 
           uint8_t* accessData()       throw () { return data; }
     const uint8_t* accessData() const throw () { return data; }
 
+    void setPosition(unsigned position) throw () { numAssert2(position <= capacity, position, capacity); pos = position; }
+    unsigned getPosition() const throw () { return pos; }
     unsigned getCapacity() const throw () { return capacity; }
-    unsigned getDataLength() const throw () { return dataLength; }
 
-    operator      DataBlockRef()       throw () { return      DataBlockRef(accessData(), getDataLength()); }
-    operator ConstDataBlockRef() const throw () { return ConstDataBlockRef(accessData(), getDataLength()); }
-
-    void setDataLength(unsigned length) throw () { numAssert(length <= capacity, length); dataLength = length; }
-
-    void rewind() throw () { readPos = 0; }
-
-     uint8_t readU8 () throw (ReadOverflow);
-      int8_t readS8 () throw (ReadOverflow) { return static_cast<int8_t >(readU8 ()); }
-    uint16_t readU16() throw (ReadOverflow);
-     int16_t readS16() throw (ReadOverflow) { return static_cast<int16_t>(readU16()); }
-    uint32_t readU32() throw (ReadOverflow);
-     int32_t readS32() throw (ReadOverflow) { return static_cast<int32_t>(readU32()); }
-    uint64_t readU64() throw (ReadOverflow);
-     int64_t readS64() throw (ReadOverflow) { return static_cast<int64_t>(readU64()); }
-
-    float  readFloat () throw (ReadOverflow);
-    double readDouble() throw (ReadOverflow);
-
-     uint8_t readBoundU8 ( uint8_t minBound,  uint8_t maxBound) throw (ReadOverflow, DataOutOfRange);
-      int8_t readBoundS8 (  int8_t minBound,   int8_t maxBound) throw (ReadOverflow, DataOutOfRange);
-    uint16_t readBoundU16(uint16_t minBound, uint16_t maxBound) throw (ReadOverflow, DataOutOfRange);
-     int16_t readBoundS16( int16_t minBound,  int16_t maxBound) throw (ReadOverflow, DataOutOfRange);
-    uint32_t readBoundU32(uint32_t minBound, uint32_t maxBound) throw (ReadOverflow, DataOutOfRange);
-     int32_t readBoundS32( int32_t minBound,  int32_t maxBound) throw (ReadOverflow, DataOutOfRange);
-    uint64_t readBoundU64(uint64_t minBound, uint64_t maxBound) throw (ReadOverflow, DataOutOfRange);
-     int64_t readBoundS64( int64_t minBound,  int64_t maxBound) throw (ReadOverflow, DataOutOfRange);
-
-    float  readBoundFloat (float  minBound, float  maxBound) throw (ReadOverflow, DataOutOfRange);
-    double readBoundDouble(double minBound, double maxBound) throw (ReadOverflow, DataOutOfRange);
-
-    std::string readConstLengthString(unsigned length) throw (ReadOverflow);
-    std::string readString() throw (ReadOverflow);
+    operator      DataBlockRef()       throw () { return      DataBlockRef(data, pos); }
+    operator ConstDataBlockRef() const throw () { return ConstDataBlockRef(data, pos); }
 
     void writeUncheckedU8 ( uint8_t wData) throw ();
     void writeUncheckedS8 (  int8_t wData) throw () { writeUncheckedU8 (static_cast< uint8_t>(wData)); }
@@ -117,11 +129,11 @@ public:
     void writeString(const std::string& wData) throw ();
 };
 
-template<unsigned size> class BinaryBuffer : public BinaryAccess {
+template<unsigned size> class BinaryBuffer : public BinaryWriter {
     uint8_t buffer[size];
 
 public:
-    BinaryBuffer() : BinaryAccess(buffer, size) { }
+    BinaryBuffer() : BinaryWriter(buffer, size) { }
 };
 
 #endif
