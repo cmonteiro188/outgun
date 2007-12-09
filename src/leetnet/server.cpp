@@ -33,7 +33,6 @@
 
 */
 
-#include "../incpthread.h"
 #include <sched.h>
 #include <stdio.h>
 #include "../commont.h" // for wheregamedir

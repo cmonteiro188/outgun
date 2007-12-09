@@ -33,7 +33,6 @@
 #include "../mutex.h"
 #include "../nassert.h"
 #include "../network.h"
-#include "../incpthread.h"
 
 #include "rudp.h"
 

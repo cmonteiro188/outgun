@@ -54,12 +54,6 @@
 //Other standard includes
 #include <assert.h>
 
-//Include pthreads, disabling the catch warning.
-#define PtW32NoCatchWarn
-#include "../incpthread.h"
-#include <sched.h>
-#undef PtW32NoCatchWarn
-
 //Define a custom "assert" macro
 #ifdef _DEBUG
 #define valassert(CALL, VAL)        assert((CALL) == (VAL))

@@ -35,7 +35,6 @@
 
 #include "../network.h"
 
-#include "../incpthread.h"
 #include <sched.h>
 #include <stdio.h>
 
