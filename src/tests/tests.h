@@ -24,7 +24,7 @@
 #ifndef TESTS_TESTS_H
 #define TESTS_TESTS_H
 
-#include <pthread.h>
+#include "../incpthread.h"
 
 #include "../nassert.h"
 
