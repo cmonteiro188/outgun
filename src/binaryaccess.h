@@ -32,8 +32,10 @@
 
 class BinaryReader {
 protected:
-    const uint8_t* const data;
-    const unsigned dataLength;
+    const uint8_t* data;
+    unsigned dataLength;
+
+private:
     unsigned pos;
 
 public:
@@ -46,6 +48,7 @@ public:
 
     void setPosition(unsigned position) throw () { numAssert2(position < dataLength, position, dataLength); pos = position; }
     unsigned getPosition() const throw () { return pos; }
+    bool hasMore() const throw () { return pos < dataLength; }
 
      uint8_t U8 () throw (ReadOutside);
       int8_t S8 () throw (ReadOutside) { return static_cast<int8_t >(U8 ()); }
@@ -73,16 +76,25 @@ public:
 
     std::string constLengthStr(unsigned length) throw (ReadOutside);
     std::string str() throw (ReadOutside);
+
+    ConstDataBlockRef block(unsigned length) throw (ReadOutside);
 };
 
 class BinaryWriter {
-    uint8_t* const data;
-    const unsigned capacity;
+protected:
+    uint8_t* data;
+    unsigned capacity;
+
+    void reserve(unsigned capacityRequired) throw () { if (capacityRequired > capacity) reallocate(capacityRequired); }
+    virtual void reallocate(unsigned capacityRequired) throw () { numAssert2(0, capacity, capacityRequired); }
+
+private:
     unsigned pos;
 
 public:
     BinaryWriter(void* buffer, unsigned bufSize) throw () : data(static_cast<uint8_t*>(buffer)), capacity(bufSize), pos(0) { }
     BinaryWriter(DataBlockRef block) throw () : data(static_cast<uint8_t*>(block.data())), capacity(block.size()), pos(0) { }
+    virtual ~BinaryWriter() throw () { }
 
           uint8_t* accessData()       throw () { return data; }
     const uint8_t* accessData() const throw () { return data; }
@@ -127,13 +139,23 @@ public:
 
     void constLengthStr(const std::string& wData, unsigned length) throw ();
     void str(const std::string& wData) throw ();
+
+    void block(ConstDataBlockRef wData) throw ();
 };
 
 template<unsigned size> class BinaryBuffer : public BinaryWriter {
     uint8_t buffer[size];
 
 public:
-    BinaryBuffer() : BinaryWriter(buffer, size) { }
+    BinaryBuffer() throw () : BinaryWriter(buffer, size) { }
+};
+
+class ExpandingBinaryBuffer : public BinaryWriter, private NoCopying {
+    virtual void reallocate(unsigned capacityRequired) throw ();
+
+public:
+    ExpandingBinaryBuffer() throw ();
+    ~ExpandingBinaryBuffer() throw ();
 };
 
 #endif

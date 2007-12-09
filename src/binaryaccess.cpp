@@ -91,21 +91,28 @@ std::string BinaryReader::str() throw (ReadOutside) {
     }
 }
 
+ConstDataBlockRef BinaryReader::block(unsigned length) throw (ReadOutside) {
+    if (pos + length > dataLength)
+        throw ReadOutside();
+    pos += length;
+    return ConstDataBlockRef(data + pos - length, length);
+}
+
 void BinaryWriter::uncheckedU8(uint8_t wData) throw () {
-    nAssert(pos + 1 <= capacity);
+    reserve(pos + 1);
     data[pos] = wData;
     ++pos;
 }
 
 void BinaryWriter::uncheckedU16(uint16_t wData) throw () {
-    nAssert(pos + 2 <= capacity);
+    reserve(pos + 2);
     data[pos    ] = wData >> 8;
     data[pos + 1] = wData;
     pos += 2;
 }
 
 void BinaryWriter::uncheckedU32(uint32_t wData) throw () {
-    nAssert(pos + 4 <= capacity);
+    reserve(pos + 4);
     data[pos    ] = wData >> 24;
     data[pos + 1] = wData >> 16;
     data[pos + 2] = wData >>  8;
@@ -114,7 +121,7 @@ void BinaryWriter::uncheckedU32(uint32_t wData) throw () {
 }
 
 void BinaryWriter::U64(uint64_t wData) throw () {
-    nAssert(pos + 8 <= capacity);
+    reserve(pos + 8);
     data[pos    ] = wData >> 56;
     data[pos + 1] = wData >> 48;
     data[pos + 2] = wData >> 40;
@@ -142,7 +149,7 @@ void BinaryWriter::dbl(double wData) throw () {
 
 void BinaryWriter::constLengthStr(const std::string& wData, unsigned length) throw () {
     numAssert2(wData.length() == length, wData.length(), length);
-    numAssert(pos + length <= capacity, length);
+    reserve(pos + length);
     for (unsigned i = 0; i < length; ++i)
         data[pos + i] = wData[i];
     pos += length;
@@ -152,6 +159,14 @@ void BinaryWriter::str(const std::string& wData) throw () {
     nAssert(wData.find_first_of('\0') == std::string::npos);
     constLengthStr(wData, wData.length());
     uncheckedU8(0);
+}
+
+void BinaryWriter::block(ConstDataBlockRef wData) throw () {
+    if (wData.size() == 0)
+        return;
+    reserve(pos + wData.size());
+    memcpy(data + pos, wData.data(), wData.size());
+    pos += wData.size();
 }
 
 #define DEFINE_BOUND_METHODS(BasicType, RealType, name, uncheckedWriteMethod)                                  \
@@ -190,3 +205,24 @@ DEFINE_METHODS_WITHOUT_CHECKED(double, double, dbl)
 #undef DEFINE_BOUND_METHODS
 #undef DEFINE_METHODS_WITHOUT_CHECKED
 #undef DEFINE_METHODS_WITH_CHECKED
+
+void ExpandingBinaryBuffer::reallocate(unsigned capacityRequired) throw () {
+    nAssert(capacityRequired > capacity);
+    capacity = std::max(capacity * 2, capacityRequired);
+    uint8_t* const newPtr = static_cast<uint8_t*>(realloc(data, capacity));
+    if (!newPtr) {
+        new char[0xFFFFFFFF]; // try to provoke normal out of memory behaviour
+        nAssert(0);
+    }
+    data = newPtr;
+}
+
+ExpandingBinaryBuffer::ExpandingBinaryBuffer() throw () :
+    BinaryWriter(0, 0)
+{
+    reallocate(100);
+}
+
+ExpandingBinaryBuffer::~ExpandingBinaryBuffer() throw () {
+    free(data);
+}
