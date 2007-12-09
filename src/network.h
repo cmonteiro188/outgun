@@ -31,8 +31,6 @@
 
 #include "utility.h"
 
-#include <nl.h> //#remove
-
 class Network {
 public:
     // Socket related enums, declared here to avoid having to use Network::Socket::Something
@@ -281,7 +279,6 @@ public:
         int read(DataBlockRef buffer) throw (ReadWriteError); // returns the number of bytes read
         int read(void* buffer, unsigned size) throw (ReadWriteError) { return read(DataBlockRef(buffer, size)); }
         void write(ConstDataBlockRef data, int* writtenSize = 0) throw (ReadWriteError); //#fix: force using writtenSize, then move it to return value
-        void write(const void* data, unsigned size, int* writtenSize = 0) throw (ReadWriteError) { write(ConstDataBlockRef(data, size), writtenSize); }
 
         void persistentWrite(ConstDataBlockRef data, const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (ReadWriteError, ExternalAbort, Timeout);
         void readAll(std::ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay = 500) throw (ReadWriteError, ExternalAbort, Timeout);
@@ -311,7 +308,6 @@ public:
         ReadResult read(DataBlockRef buffer) throw (ReadWriteError, Error); // returns the number of bytes read and the source address
         ReadResult read(void* buffer, unsigned size) throw (ReadWriteError, Error) { return read(DataBlockRef(buffer, size)); }
         void write(const Address& addr, ConstDataBlockRef data) throw (ReadWriteError, Error);
-        void write(const Address& addr, const void* data, unsigned size) throw (ReadWriteError, Error) { write(addr, ConstDataBlockRef(data, size)); }
     };
 
     // static members only
@@ -325,27 +321,6 @@ bool isValidIP(const std::string& address, bool allowPort = false, unsigned int 
 bool check_private_IP(const std::string& address, bool allowAnyExternal = false) throw ();   // with allowAnyExternal only (invalid and) loopback addresses are blocked
 std::string getPublicIP(LineReceiver& log, bool allowAnyExternal = false) throw ();    // with allowAnyExternal only (invalid and) loopback addresses are blocked
 bool isLocalIP(Network::Address address) throw ();  // returns true if address points to this machine (nothing to do with the address being private)
-
-inline void readStr(const char* buf, int& count, std::string& dst) throw () {
-    dst.clear();
-    while (buf[count])
-        dst += buf[count++];
-    ++count;
-}
-inline void writeStr(char* buf, int& count, const std::string& src) throw () {
-    memcpy(&buf[count], src.data(), src.length());
-    count += src.length();
-    buf[count++] = '\0';
-}
-
-inline double safeReadFloat(const char* buf, int& count) throw () {
-    float val;
-    readFloat(buf, count, val);
-    return val;
-}
-inline void safeWriteFloat(char* buf, int& count, float val) throw () {  // this adds type safety: val is ensured to be a float
-    writeFloat(buf, count, val);
-}
 
 std::string format_http_parameters(const std::map<std::string, std::string>& parameters) throw ();
 

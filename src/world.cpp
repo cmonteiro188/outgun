@@ -32,6 +32,7 @@
 
 #include <cmath>
 
+#include "binaryaccess.h"
 #include "language.h"
 #include "mapgen.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
@@ -1339,7 +1340,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         cb.rocketOutOfBounds(i);
 }
 
-void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, uint8_t* rids, int frameAdvance,
+void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, const uint8_t* rids, int frameAdvance,
                              int team, bool power, int px, int py, int x, int y) throw () {
     struct RocketFormation {
         int nForward;
@@ -1415,48 +1416,45 @@ void PhysicalSettings::calc_max_run_speed() throw () {
     max_run_speed = (run_mul * accel - fric) / drag;
 }
 
-void PhysicalSettings::read(const char* lebuf, int& count) throw () {
-    fric            = safeReadFloat(lebuf, count);
-    drag            = safeReadFloat(lebuf, count);
-    accel           = safeReadFloat(lebuf, count);
-    brake_mul       = safeReadFloat(lebuf, count);
-    turn_mul        = safeReadFloat(lebuf, count);
-    run_mul         = safeReadFloat(lebuf, count);
-    turbo_mul       = safeReadFloat(lebuf, count);
-    flag_mul        = safeReadFloat(lebuf, count);
-    friendly_fire   = safeReadFloat(lebuf, count);
-    friendly_db     = safeReadFloat(lebuf, count);
-    rocket_speed    = safeReadFloat(lebuf, count);
+void PhysicalSettings::read(BinaryReader& reader) throw () {
+    fric            = reader.flt();
+    drag            = reader.flt();
+    accel           = reader.flt();
+    brake_mul       = reader.flt();
+    turn_mul        = reader.flt();
+    run_mul         = reader.flt();
+    turbo_mul       = reader.flt();
+    flag_mul        = reader.flt();
+    friendly_fire   = reader.flt();
+    friendly_db     = reader.flt();
+    rocket_speed    = reader.flt();
 
-    uint8_t bitField;
-    readByte(lebuf, count, bitField);
+    const uint8_t bitField = reader.U8();
     player_collisions = static_cast<PlayerCollisions>(bitField & 0x03);
     allowFreeTurning = (bitField & 0x04) != 0;
 
     unsigned extraBytes = bitField >> 5;
-    if (extraBytes == 7) {
-        readByte(lebuf, count, bitField);
-        extraBytes = unsigned(bitField) + 7;
-    }
-    count += extraBytes; // ignore data we don't understand
+    if (extraBytes == 7)
+        extraBytes = unsigned(reader.U8()) + 7;
+    reader.block(extraBytes); // ignore data we don't understand
 
     calc_max_run_speed();
 }
 
-void PhysicalSettings::write(char* lebuf, int& count) const throw () {
-    safeWriteFloat(lebuf, count, fric);
-    safeWriteFloat(lebuf, count, drag);
-    safeWriteFloat(lebuf, count, accel);
-    safeWriteFloat(lebuf, count, brake_mul);
-    safeWriteFloat(lebuf, count, turn_mul);
-    safeWriteFloat(lebuf, count, run_mul);
-    safeWriteFloat(lebuf, count, turbo_mul);
-    safeWriteFloat(lebuf, count, flag_mul);
-    safeWriteFloat(lebuf, count, friendly_fire);
-    safeWriteFloat(lebuf, count, friendly_db);
-    safeWriteFloat(lebuf, count, rocket_speed);
+void PhysicalSettings::write(BinaryWriter& writer) const throw () {
+    writer.flt(fric);
+    writer.flt(drag);
+    writer.flt(accel);
+    writer.flt(brake_mul);
+    writer.flt(turn_mul);
+    writer.flt(run_mul);
+    writer.flt(turbo_mul);
+    writer.flt(flag_mul);
+    writer.flt(friendly_fire);
+    writer.flt(friendly_db);
+    writer.flt(rocket_speed);
     const unsigned extraBytes = 0;
-    writeByte(lebuf, count, player_collisions | (allowFreeTurning << 2) | (extraBytes << 5));
+    writer.U8(player_collisions | (allowFreeTurning << 2) | (extraBytes << 5));
 }
 
 void PowerupSettings::reset() throw () {

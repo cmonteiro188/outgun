@@ -28,6 +28,7 @@
 
 #include "../incalleg.h"
 #include "../admshell.h"
+#include "../binaryaccess.h"
 #include "../function_utility.h"
 #include "../nassert.h"
 #include "../network.h"
@@ -97,8 +98,8 @@ string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(Network::TCPSocket& sock, const void* data, int len) throw (Network::Error) {
-    sock.persistentWrite(ConstDataBlockRef(data, len), 100, 20);
+void send(Network::TCPSocket& sock, ConstDataBlockRef data) throw (Network::Error) {
+    sock.persistentWrite(data, 100, 20);
 }
 
 class IdleFunction {
@@ -131,8 +132,6 @@ public:
     }
     void operator()() throw (Network::Error, UserExit) {
         while (kbhit()) {
-            char buf[12 + sayBufLen];
-            int idx = 0;
             const int key = getch();
             if (sayIdx > -1) {
                 if (key == 27) {
@@ -141,10 +140,11 @@ public:
                 }
                 else if (key == '\r' || key == '\n') {
                     if (sayIdx > 0) {
-                        writeLong(buf, idx, ATS_SERVER_CHAT);
+                        ExpandingBinaryBuffer msg;
+                        msg.U32(ATS_SERVER_CHAT);
                         sayBuf[sayIdx] = 0;
-                        writeStr(buf, idx, decode(sayBuf));
-                        send(sock, buf, idx);
+                        msg.str(decode(sayBuf));
+                        send(sock, msg);
                     }
                     sayIdx = -1;
                     printf("\n");
@@ -170,41 +170,43 @@ public:
                 printf("Confirm quit? (Y) ");
                 fflush(stdout);
                 if (getch() == 'Y') {
-                    writeLong(buf, idx, ATS_QUIT);
-                    send(sock, buf, idx);
+                    BinaryBuffer<32> msg;
+                    msg.U32(ATS_QUIT);
+                    send(sock, msg);
                     throw UserExit();
                 }
                 else
                     printf("aborted\n");
             }
             else if (key >= '0' && key < '9') {
+                BinaryBuffer<32> msg;
                 const int pid = key - '0';
                 if (mute || kick || ban) {
                     printf("Confirm: %s player %d? (Y) ", mute == 1 ? "mute" : mute == 2 ? "silently mute" : mute == 3 ? "unmute" : kick ? "kick" : "BAN", pid);
                     fflush(stdout);
                     if (getch() == 'Y') {
-                        writeLong(buf, idx, mute ? ATS_MUTE_PLAYER : kick ? ATS_KICK_PLAYER : ATS_BAN_PLAYER);
-                        writeLong(buf, idx, pid);
+                        msg.U32(mute ? ATS_MUTE_PLAYER : kick ? ATS_KICK_PLAYER : ATS_BAN_PLAYER);
+                        msg.U32(pid);
                         if (mute)
-                            writeLong(buf, idx, mute == 3 ? 0 : mute);
+                            msg.U32(mute == 3 ? 0 : mute);
                         printf("done\n");
                     }
                     else
                         printf("aborted\n");
                 }
                 else {
-                    writeLong(buf, idx, ATS_GET_PLAYER_FRAGS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_TIME);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_KILLS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_DEATHS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_CAPTURES);
-                    writeLong(buf, idx, pid);
+                    msg.U32(ATS_GET_PLAYER_FRAGS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_TIME);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_KILLS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_DEATHS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_CAPTURES);
+                    msg.U32(pid);
                 }
-                send(sock, buf, idx);
+                send(sock, msg);
             }
             else if (toupper(key) == 'K') {
                 kick = !kick;
@@ -241,15 +243,17 @@ public:
                 fflush(stdout);
             }
             else if (toupper(key) == 'P') {
-                writeLong(buf, idx, ATS_GET_PINGS);
-                send(sock, buf, idx);
+                BinaryBuffer<32> msg;
+                msg.U32(ATS_GET_PINGS);
+                send(sock, msg);
             }
             else if (toupper(key) == 'R') {
                 printf("Confirm reset settings? (Y) ");
                 fflush(stdout);
                 if (getch() == 'Y') {
-                    writeLong(buf, idx, ATS_RESET_SETTINGS);
-                    send(sock, buf, idx);
+                    BinaryBuffer<32> msg;
+                    msg.U32(ATS_RESET_SETTINGS);
+                    send(sock, msg);
                     printf("done\n");
                 }
                 else

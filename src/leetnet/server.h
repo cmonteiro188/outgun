@@ -42,10 +42,10 @@ public:
     virtual ~server_c() throw () { }
 
     // the callbacks should not throw (but we can't say that in a typedef)
-    typedef void helloCallbackT         (void* customp, int client_id, char* data, int length, ServerHelloResult* res);
+    typedef void helloCallbackT         (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res);
     typedef void connectedCallbackT     (void* customp, int client_id);
     typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is a user one
-    typedef void dataCallbackT          (void* customp, int client_id, char* data, int length);
+    typedef void dataCallbackT          (void* customp, int client_id, ConstDataBlockRef data);
     typedef void lagStatusCallbackT     (void* customp, int client_id, int status);
     typedef void pingResultCallbackT    (void* customp, int client_id, int pingtime);
 
@@ -86,23 +86,23 @@ public:
     //like say 100ms for a 10Hz (update freq.) server. do not load too much shit in the packet, a 300-byte
     //packet is ok I guess, a 500-byte is too much IMHO (remember to give room for the reliable messages/ack
     //protocol that introduces it's own shitload)
-    virtual int broadcast_frame(const char* data, int length) throw () = 0;
+    virtual int broadcast_frame(ConstDataBlockRef data) throw () = 0;
 
     //send frame method - when broadcast_frame doesn't quite cut it
-    virtual int send_frame(int client_id, const char* data, int length) throw () = 0;
+    virtual int send_frame(int client_id, ConstDataBlockRef data) throw () = 0;
 
     //sends the given reliable message to the given client. reliable = heavy, do not use for frequent
     //world update data. use for gamestate changes, talk messages and other stuff the client can't miss, or
     //stuff he can even miss but it's better if he doesn't and the message is so infrequent and small that
     //it's worth it.
-    virtual int send_message(int client_id, const char* data, int length) throw () = 0;
+    virtual int send_message(int client_id, ConstDataBlockRef data) throw () = 0;
 
     //broadcasts the given reliable message to all active clients. for lazy people :-) like me :-))
 // disabled in Outgun to prevent problems    virtual int broadcast_message(const char* data, int length) = 0;
 
     //function to be called by the SFUNC_CLIENT_DATA callback
     //gets the next reliable message avaliable from the given client. null if no message pending
-    virtual char* receive_message(int client_id, int *length) throw () = 0;
+    virtual ConstDataBlockRef receive_message(int client_id) throw () = 0;
 
     //ping a client. results come in the SFUNC_PING_RESULT callback
     virtual int ping_client(int client_id) throw () = 0;

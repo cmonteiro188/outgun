@@ -100,10 +100,10 @@ private:
     };
 
     // server callbacks
-    static void sfunc_client_hello          (void* customp, int client_id, char* data, int length, ServerHelloResult* res) throw ();
+    static void sfunc_client_hello          (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     static void sfunc_client_connected      (void* customp, int client_id) throw ();
     static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant) throw ();
-    static void sfunc_client_data           (void* customp, int client_id, char* data, int length) throw ();
+    static void sfunc_client_data           (void* customp, int client_id, ConstDataBlockRef data) throw ();
     static void sfunc_client_lag_status     (void* customp, int client_id, int status) throw ();
     static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime) throw ();
 
@@ -193,12 +193,12 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
-    void clientHello(int client_id, char* data, int length, ServerHelloResult* res) throw ();
+    void clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     int  client_connected(int id) throw ();
     void client_disconnected(int id) throw ();
     void ping_result(int client_id, int ping_time) throw ();
-    bool processMessage(int pid, char* const msg, int msglen) throw ();
-    void incoming_client_data(int id, char *data, int length) throw ();
+    bool processMessage(int pid, ConstDataBlockRef data) throw ();
+    void incoming_client_data(int id, ConstDataBlockRef data) throw ();
 
     void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
 
@@ -207,27 +207,26 @@ private:
     void run_mastertalker_thread() throw ();
     void send_master_quit(const std::string& localAddress) const throw ();
 
-    bool writeToAdminShell(const void* data, int length) const throw ();
     bool writeToAdminShell(ConstDataBlockRef data) const throw ();
 
     bool read_string_from_TCP(Network::TCPSocket& sock, std::string& resultStr) throw (Network::ReadWriteError);
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
-    int executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, char* answer) throw (Network::Error); // returns length of answer
+    void executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, BinaryWriter& answer) throw (Network::Error);
     bool handleAdminCommand() throw (Network::Error);
     void run_shellslave_thread(volatile bool* quitFlag) throw ();
 
     void run_website_thread() throw ();
 
-    void broadcast_message(const char* data, int length) const throw ();
+    void broadcast_message(ConstDataBlockRef data) const throw ();
     void send_simple_message(Network_data_code code, int pid) const throw ();
     void broadcast_simple_message(Network_data_code code) const throw ();
-    void broadcast_screen_message(int px, int py, const char *lebuf, int count) const throw ();
+    void broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw ();
 
     void record_message(const std::string& msg) const throw ();
-    void record_message(const char* data, int length) const throw ();
+    void record_message(ConstDataBlockRef data) const throw ();
 
-    void writeMinimapPlayerPosition(char* lebuf, int& lecount, int pid) const throw ();
+    void writeMinimapPlayerPosition(BinaryWriter& writer, int pid) const throw ();
 
 public:
 

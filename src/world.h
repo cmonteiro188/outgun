@@ -37,6 +37,9 @@
 #include "nassert.h"
 #include "utility.h"
 
+class BinaryReader;
+class BinaryWriter;
+
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 
@@ -757,8 +760,8 @@ public:
 
     PhysicalSettings() throw ();
     void calc_max_run_speed() throw ();
-    void read(const char* lebuf, int& count) throw ();
-    void write(char* lebuf, int& count) const throw ();
+    void read(BinaryReader& reader) throw ();
+    void write(BinaryWriter& writer) const throw ();
 };
 
 class PhysicsCallbacksBase {
@@ -839,7 +842,7 @@ public:
 
     virtual ~WorldBase() throw () { }
 
-    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, uint8_t* rids,
+    void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, const uint8_t* rids,
                       int frameAdvance, int team, bool power, int px, int py, int x, int y) throw ();
 
     void run_server_player_physics(int pid) throw ();

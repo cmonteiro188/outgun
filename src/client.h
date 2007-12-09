@@ -46,13 +46,15 @@
 #include "thread.h"
 #include "world.h"
 
+class BinaryReader;
+
 #ifndef DEDICATED_SERVER_ONLY
 //server record
 class ServerListEntry {
 public:
-    bool        refreshed;
-    bool        noresponse;
-    int         ping;
+    bool refreshed;
+    bool noresponse;
+    int ping;
     std::string info;
 
     ServerListEntry() throw () : refreshed(false), noresponse(true), ping(0) { }
@@ -75,7 +77,7 @@ public:
     bool isActive() const throw () { return (fp != 0); }
     int progress() const throw ();
     bool start() throw ();
-    bool save(const char* buf, unsigned len) throw ();
+    bool save(ConstDataBlockRef data) throw ();
     void finish() throw ();
 
 private:
@@ -598,10 +600,10 @@ class Client : public ClientInterface {
     // network
     void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
     void disconnect_command() throw ();  // do not call from a network thread
-    void connection_update(int connect_result, const char* data, int length) throw ();
-    void client_connected(const char* data, int length) throw ();    // call with frameMutex locked
-    void client_disconnected(const char* data, int length) throw ();
-    void connect_failed_denied(const char* data, int length) throw ();
+    void connection_update(int connect_result, ConstDataBlockRef data) throw ();
+    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    void client_disconnected(ConstDataBlockRef data) throw ();
+    void connect_failed_denied(ConstDataBlockRef data) throw ();
     void connect_failed_unreachable() throw ();
     void connect_failed_socket() throw ();
     void sendMinimapBandwidthAny(int players) throw ();
@@ -621,13 +623,13 @@ class Client : public ClientInterface {
     void send_frame(bool newFrame, bool forceSend) throw ();
     #endif
     void bot_send_frame(ClientControls controls) throw ();
-    void readMinimapPlayerPosition(const char* data, int& count, int pid) throw ();
-    bool process_live_frame_data(const char* data, int length) throw (); // returns false if an error occured that requires disconnecting
+    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw ();
+    bool process_live_frame_data(ConstDataBlockRef data) throw (); // returns false if an error occured that requires disconnecting
     #ifndef DEDICATED_SERVER_ONLY
-    int process_replay_frame_data(const char* data) throw (); // returns number of bytes read
+    int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
     #endif
-    bool process_message(const char* const lebuf, int msglen) throw (); // if returns false, discard the server/replay
-    void process_incoming_data(const char* data, int length) throw ();
+    bool process_message(ConstDataBlockRef data) throw (); // if returns false, discard the server/replay
+    void process_incoming_data(ConstDataBlockRef data) throw ();
 
     #ifndef DEDICATED_SERVER_ONLY
     std::string refreshStatusAsString() const throw ();
@@ -639,7 +641,7 @@ class Client : public ClientInterface {
     bool parseServerList(std::istream& response) throw ();
 
     void check_download() throw ();  // call with downloadMutex locked
-    void process_udp_download_chunk(const char* buf, int len, bool last) throw ();
+    void process_udp_download_chunk(ConstDataBlockRef, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
     #endif
     void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
@@ -648,8 +650,8 @@ class Client : public ClientInterface {
     void handlePendingThreadMessages() throw (); // should only be called by the main thread; call with frameMutex locked
 
     // client callbacks
-    static void cfunc_connection_update(void* customp, int connect_result, const char* data, int length) throw ();
-    static void cfunc_server_data(void* customp, const char* data, int length) throw ();
+    static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
+    static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
 
     #ifndef DEDICATED_SERVER_ONLY
     WorldCoords playerPos(int pid) const throw ();

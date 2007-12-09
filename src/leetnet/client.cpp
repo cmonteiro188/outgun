@@ -54,6 +54,8 @@
 
 #include "../timer.h" // for platSleep
 
+#include "../binaryaccess.h"
+
 class client_ci;
 
 //connector thread function
@@ -65,23 +67,23 @@ void thread_reader_f(client_ci* client) throw ();
 
 class QueueSendCommand {    // base class
 protected:
-    data_c* data;
+    DataBlock data;
 
 public:
-    QueueSendCommand() throw () : data(new_data_c()) { }
-    virtual ~QueueSendCommand() throw () { delete data; }
+    QueueSendCommand(ConstDataBlockRef data_) throw () : data(data_) { }
+    virtual ~QueueSendCommand() throw () { }
     virtual void execute(client_ci* client, station_c* station) throw () = 0;
 };
 
 class QWriter : public QueueSendCommand {
 public:
-    QWriter(char* data_, int length) throw () { data->set(data_, length); }
-    void execute(client_ci*, station_c* station) throw () { station->writer(data->getbuf(), data->getlen()); }
+    QWriter(ConstDataBlockRef data_) throw () : QueueSendCommand(data_) { }
+    void execute(client_ci*, station_c* station) throw () { station->writer(data); }
 };
 
 class QSendRawPacket : public QueueSendCommand {
 public:
-    QSendRawPacket(const data_c* data_) throw () { data->set(data_); }
+    QSendRawPacket(ConstDataBlockRef data_) throw () : QueueSendCommand(data_) { }
     void execute(client_ci*, station_c* station) throw () { station->send_raw_packet(data); }
 };
 
@@ -89,13 +91,13 @@ class QSendRawPacketToPort : public QueueSendCommand {
     int port;
 
 public:
-    QSendRawPacketToPort(const data_c* data_, int port_) throw () : port(port_) { data->set(data_); }
+    QSendRawPacketToPort(ConstDataBlockRef data_, int port_) throw () : QueueSendCommand(data_), port(port_) { }
     void execute(client_ci*, station_c* station) throw () { station->send_raw_packet_to_port(data, port); }
 };
 
 class QSendFrame : public QueueSendCommand {
 public:
-    QSendFrame(char* data_, int length) throw () { data->set(data_, length); }
+    QSendFrame(ConstDataBlockRef data_) throw () : QueueSendCommand(data_) { }
     void execute(client_ci* client, station_c*) throw ();
 };
 
@@ -144,8 +146,7 @@ public:
     bool                quit_reader_thread;
 
     //connect data
-    char            connect_data[4096];
-    int             connect_data_length;
+    DataBlock connect_data;
 
     connectionCallbackT* connectionCallback;
     serverDataCallbackT* serverDataCallback;
@@ -171,9 +172,8 @@ public:
 
     //set the custom data sent with every connection packet
     //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(char *data, int length) throw () {
-        connect_data_length = length;
-        memcpy(connect_data, data, length);
+    virtual void set_connect_data(ConstDataBlockRef data) throw () {
+        connect_data = data;
     }
 
     //set connection status. if set to TRUE, engine will try to estabilish connection
@@ -282,21 +282,21 @@ public:
     }
 
     //send reliable message
-    virtual void send_message(char *data, int length) throw () {
+    virtual void send_message(ConstDataBlockRef data) throw () {
         if (packetDelay < .001)
-            station->writer(data, length);
+            station->writer(data);
         else
-            queueSend(new QWriter(data, length));
+            queueSend(new QWriter(data));
     }
 
-    void sendRawPacket(const data_c* data) throw () {
+    void sendRawPacket(ConstDataBlockRef data) throw () {
         if (packetDelay < .001)
             station->send_raw_packet(data);
         else
             queueSend(new QSendRawPacket(data));
     }
 
-    void sendRawPacketToPort(const data_c* data, int port) throw () {
+    void sendRawPacketToPort(ConstDataBlockRef data, int port) throw () {
         if (packetDelay < .001)
             station->send_raw_packet_to_port(data, port);
         else
@@ -305,20 +305,20 @@ public:
 
     //dispatches the packet with the given frame (unreliable data) and all the
     //protocol overload (reliable messages, acks...)
-    virtual void send_frame(char *data, int length) throw () {
+    virtual void send_frame(ConstDataBlockRef data) throw () {
         if (packetDelay < .001)
-            doSendFrame(data, length);
+            doSendFrame(data);
         else
-            queueSend(new QSendFrame(data, length));
+            queueSend(new QSendFrame(data));
     }
 
-    void doSendFrame(char* data, int length) throw () {
+    void doSendFrame(ConstDataBlockRef data) throw () {
         //do not send if not connected
         if (connect_status != 3)
             return;
 
-        if (length > 0)
-            station->write(data, length);
+        if (data.size() > 0)
+            station->write(data);
         int packet_id;  // unused
 
         #ifdef LEETNET_DATA_LOG
@@ -339,18 +339,8 @@ public:
 
     //function to be called by the CFUNC_SERVER_DATA callback
     //gets the next reliable message avaliable from the server. null if no message pending
-    virtual char* receive_message(int *length) throw () {
-        data_c  *msg = station->read_reliable();
-
-        // no data
-        if (msg == 0) {
-            (*length) = 0;
-            return 0;
-        }
-
-        //return the message or 0
-        (*length) = msg->getlen();
-        return msg->getbuf();
+    virtual ConstDataBlockRef receive_message() throw () {
+        return station->read_reliable();
     }
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
@@ -363,7 +353,7 @@ public:
     //------------------------------
 
     //READER thread wants to read from the station
-    int read_station(char *buf, int bufsize) throw () {
+    int read_station(DataBlockRef buf) throw () {
         if (!station) {
             log("WOW REALLY FUCKED UP!!");
             return -666;
@@ -372,7 +362,7 @@ public:
 
             //log("ST=%s", station->debug_info());
 
-            return station->receive_packet(buf, bufsize);
+            return station->receive_packet(buf);
         }
     }
 
@@ -405,11 +395,10 @@ public:
 
         // send disconnect packet via station!
         //
-        data_c  *dat = new_data_c();
-        dat->addlong(0); //special packet
-        dat->addlong(2); //disconnect ACK
-        sendRawPacket(dat);  // FIXME: deal with send erros?
-        delete dat;
+        BinaryBuffer<32> msg;
+        msg.U32(0); //special packet
+        msg.U32(2); //disconnect ACK
+        sendRawPacket(msg);  // FIXME: deal with send erros?
 
         //stop now if done
         return (tries_left <= 0);
@@ -423,9 +412,7 @@ public:
         //FIXME: DISCARDING EXTRA DATA ON THE INCOMING DISCONNECT PACKET (nao tem nada mesmo...)
         //
         const int connect_result = 1;
-        const char* data = &reason;
-        const int length = 1;
-        connectionCallback(customp, connect_result, data, length);
+        connectionCallback(customp, connect_result, ConstDataBlockRef(&reason, 1));
 
         Lock ml(readerThreadManipulationMutex);
 
@@ -464,7 +451,7 @@ public:
             log("start_connect() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
             connect_status = old_status;    //no idea if this is needed...
             // "socket problem"
-            connectionCallback(customp, 5, 0, 0);
+            connectionCallback(customp, 5, ConstDataBlockRef(0, 0));
             return;
         }
 
@@ -520,7 +507,7 @@ public:
     }
 
     //process datagram read by reader thread
-    void process_incoming_datagram(char *udp_data, int udp_length) throw () {
+    void process_incoming_datagram(ConstDataBlockRef fullData) throw () {
 DLOG_Scope s("CPIDg");
         #ifdef LEETNET_DATA_LOG
         if (datalog) {
@@ -529,33 +516,31 @@ DLOG_Scope s("CPIDg");
             fwrite(&readModeMarker, sizeof(char), 1, datalog);
             double currTime = get_time();
             fwrite(&currTime, sizeof(double), 1, datalog);
-            fwrite(&udp_length, sizeof(int), 1, datalog);
-            fwrite(udp_data, 1, udp_length, datalog);
+            const int size = fullData.size();
+            fwrite(&size, sizeof(int), 1, datalog);
+            fwrite(fullData.data(), 1, size, datalog);
         }
         #endif
         //set datagram
-        station->set_incoming_packet(udp_data, udp_length);
+        station->set_incoming_packet(fullData);
 
         //process data
         int length;
         bool special;
-        char *data = station->process_incoming_packet(&length, &special);
+        const char *data = station->process_incoming_packet(&length, &special);
 
         //special packet? (connection accepted/rejected , disconnected ...)
         if (special) {
-
-            uint32_t code;
-            int count = 0;
-            readLong(data, count, code);        //discard the "0"
-            readLong(data, count, code);
+            BinaryReader read(data, length);
+            read.U32(); //discard the "0"
+            const uint32_t code = read.U32();
 
             // ping request - send a reply immediately
             if (code == 666) {
-                data_c *dat = new_data_c();
-                dat->addlong(0);
-                dat->addlong(666);      //pong!
-                sendRawPacket(dat);
-                delete dat;
+                BinaryBuffer<32> msg;
+                msg.U32(0);
+                msg.U32(666);      //pong!
+                sendRawPacket(msg);
             }
             // connection refused by special motive: engine server doesn't support
             // additional clients. this is similar to a "server full" custom
@@ -572,7 +557,7 @@ DLOG_Scope s("CPIDg");
 
                     //connection callback w/ status = 2 (failed)
                     //also handle the rest of the packet to the gameclient
-                    connectionCallback(customp, 4, 0, 0);   // denied-by-engserver-full
+                    connectionCallback(customp, 4, ConstDataBlockRef(0, 0));   // denied-by-engserver-full
                 }
 
                 //stop connect - also quits reader thread
@@ -586,8 +571,7 @@ DLOG_Scope s("CPIDg");
 
                 log("special packet 0,2 arrived my connect_status == %i started_disc = %i", connect_status, started_disconnection);
 
-                uint32_t reason;
-                readLong(data, count, reason);
+                const uint32_t reason = read.U32();
 
                 // if was not already disconnected
                 //if (connect_status != 0) {
@@ -605,11 +589,10 @@ DLOG_Scope s("CPIDg");
                 //send raw by station!!!
                 if (!started_disconnection) {
 
-                    data_c  *dat = new_data_c();
-                    dat->addlong(0); //special packet
-                    dat->addlong(2); //disconnect ACK
-                    sendRawPacket(dat);  // FIXME: deal with send erros?
-                    delete dat;
+                    BinaryBuffer<32> msg;
+                    msg.U32(0); //special packet
+                    msg.U32(2); //disconnect ACK
+                    sendRawPacket(msg);  // FIXME: deal with send erros?
 
                     //REMENDÃO: o cliente se suicida assim que recebe noticia que o server
                     //                quer detonar ele
@@ -623,21 +606,17 @@ DLOG_Scope s("CPIDg");
 
                 // check if callback called already
                 if (connect_status != 3) {
-                    uint32_t port;
-                    readLong(data, count, port);
+                    const uint32_t port = read.U32();
                     if (port > 0 && port < 65536) {
                         // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
-                        data_c* reply = new_data_c();
-                        sendRawPacketToPort(reply, port);
-                        delete reply;
+                        BinaryBuffer<32> msg;
+                        sendRawPacketToPort(msg, port);
                     }
 
                     //connection callback w/ status = 0  (connected)
                     //also handle the rest of the packet to the gameclient
                     const int connect_result = 0;
-                    const char* newdata = data + 12;   //skip 0,3,port
-                    const int newlength = length - 12;   //skip 0,3,port
-                    connectionCallback(customp, connect_result, newdata, newlength);
+                    connectionCallback(customp, connect_result, ConstDataBlockRef(data + 12, length - 12)); //skip 0,3,port
 
                     //connected!
                     connect_status = 3;
@@ -652,12 +631,10 @@ DLOG_Scope s("CPIDg");
                     //connection callback w/ status = 2 (failed)
                     //also handle the rest of the packet to the gameclient
                     const int connect_result = 2;
-                    const char* newdata = data + 8;   //skip 0,4
-                    const int newlength = length - 8;   //skip 0,4
 
-                    log("INCOMING 0,4 REJECTION length = %i   argslength(game)=%i", length, newlength);
+                    log("INCOMING 0,4 REJECTION length = %i", length);
 
-                    connectionCallback(customp, connect_result, newdata, newlength);
+                    connectionCallback(customp, connect_result, ConstDataBlockRef(data + 8, length - 8)); //skip 0,4
                 }
 
                 //stop connect - also quits reader thread
@@ -687,7 +664,7 @@ DLOG_Scope s("CPIDg");
             //if client already disconnecting -- discard
             //else:
             if (want_connect == true)
-                serverDataCallback(customp, data, length);
+                serverDataCallback(customp, ConstDataBlockRef(data, length));
         }
     }
 
@@ -713,25 +690,23 @@ DLOG_Scope s("CPIDg");
             stop_connect();
 
             //"no response"
-            connectionCallback(customp, 3, 0, 0);
+            connectionCallback(customp, 3, ConstDataBlockRef(0, 0));
 
             //stop trying
             return true;
         }
 
         //send the packet
-        data_c  *dat = new_data_c();
-        dat->addlong(0); //special packet
-        dat->addlong(1); //want to connect
-        dat->addlong( ((uint32_t)LEETNET_VERSION) );     // LEETNET protocol/build version - must match server's
+        ExpandingBinaryBuffer msg;
+        msg.U32(0); //special packet
+        msg.U32(1); //want to connect
+        msg.U32(LEETNET_VERSION);     // LEETNET protocol/build version - must match server's
 
         //custom data?
-        dat->addlong(connect_data_length);      //amound of customdata, goes anyway
-        if (connect_data_length > 0)
-            dat->add(connect_data, connect_data_length);
+        msg.U32(connect_data.size());      //amound of customdata, goes anyway
+        msg.block(connect_data);
 
-        sendRawPacket(dat);  // FIXME: deal with send erros?
-        delete dat;
+        sendRawPacket(msg);  // FIXME: deal with send erros?
 
         //keep trying
         return false;
@@ -768,11 +743,9 @@ DLOG_Scope s("CPIDg");
         station = 0;
         want_connect = false;
         connect_status = 0;
-        connect_data_length = 0;
 
         started_disconnection = false;      //if disconnection was started by the client
         quit_reader_thread = false;
-        connect_data_length = 0;
 
         connect_threads_running = 0;
 
@@ -842,7 +815,7 @@ DLOG_ScopeNegStart("CTR");
 
     while (!client->reader_thread_quit()) {
         //read from socket
-        amount = client->read_station(buffer, THREAD_READER_BUFSIZE); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
+        amount = client->read_station(DataBlockRef(buffer, THREAD_READER_BUFSIZE)); //nlRead(clsock, buffer, THREAD_READER_BUFSIZE);
 
         client->probeSendQueue();
 
@@ -867,7 +840,7 @@ DLOG_ScopeNeg s("CTR");
         else {
             //SLEEP(50); // lag
 
-            client->process_incoming_datagram(buffer, amount);
+            client->process_incoming_datagram(ConstDataBlockRef(buffer, amount));
         }
     }
 }
@@ -879,5 +852,5 @@ client_c* new_client_c(int thread_priority, const std::string& logPostfix) throw
 }
 
 void QSendFrame::execute(client_ci* client, station_c*) throw () {
-    client->doSendFrame(data->getbuf(), data->getlen());
+    client->doSendFrame(data);
 }

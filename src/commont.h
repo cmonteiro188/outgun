@@ -92,7 +92,7 @@ bool check_name(const std::string& name) throw ();
 
 bool isFlood(const std::string& message) throw ();
 
-enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
+enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header, Message_types };
 
 static const std::string::size_type maxPlayerNameLength = 15;
 static const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).

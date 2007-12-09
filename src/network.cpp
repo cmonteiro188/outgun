@@ -26,6 +26,8 @@
 #include <sstream>
 #include <string>
 
+#include <nl.h>
+
 #include "commont.h"
 #include "language.h"
 #include "mutex.h"
@@ -472,7 +474,7 @@ void TCPSocket::persistentWrite(ConstDataBlockRef data, const volatile bool* abo
 
 void TCPSocket::readAll(ostream& out, const volatile bool* abortFlag, int timeout, int roundDelay) throw (ReadWriteError, ExternalAbort, Timeout) {
     const int buffer_size = 4000;
-    char lebuf[buffer_size];
+    char buffer[buffer_size];
 
     try {
         int tries = 0;
@@ -482,8 +484,8 @@ void TCPSocket::readAll(ostream& out, const volatile bool* abortFlag, int timeou
             if (tries * roundDelay > timeout)
                 throw Timeout(true);
 
-            const int nRead = read(lebuf, buffer_size);
-            out.write(lebuf, nRead);
+            const int nRead = read(buffer, buffer_size);
+            out.write(buffer, nRead);
 
             if (nRead == 0) {
                 platSleep(roundDelay);
