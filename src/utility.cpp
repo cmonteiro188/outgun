@@ -55,6 +55,35 @@ using std::setw;
 using std::string;
 using std::vector;
 
+DataBlock::DataBlock(const DataBlock& source) throw () :
+    d(new uint8_t[source.size()], source.size())
+{
+    memcpy(data(), source.data(), source.size());
+}
+
+DataBlock::DataBlock(const ConstDataBlockRef source) throw () :
+    d(new uint8_t[source.size()], source.size())
+{
+    if (source.size()) {
+        nAssert(source.data());
+        memcpy(data(), source.data(), source.size());
+    }
+}
+
+DataBlock::~DataBlock() throw () {
+    delete[] d.data();
+}
+
+DataBlock& DataBlock::operator=(const ConstDataBlockRef source) throw() {
+    delete[] d.data();
+    d = BlockRef<uint8_t>(new uint8_t[source.size()], source.size());
+    if (source.size()) {
+        nAssert(source.data());
+        memcpy(data(), source.data(), source.size());
+    }
+    return *this;
+}
+
 int atoi(const string& str) throw () {
     return std::atoi(str.c_str());
 }

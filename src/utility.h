@@ -220,6 +220,7 @@ public:
     ConstBlockRef(const void* data, unsigned size) throw () : pData(data), sz(size) { }
     ConstBlockRef(const std::string& str) throw () : pData(str.data()), sz(str.length()) { }
     ConstBlockRef(const BlockRef<void>& d) throw () : pData(d.data()), sz(d.size()) { }
+    template<class T> ConstBlockRef(const      BlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
     template<class T> ConstBlockRef(const ConstBlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
 
     const void* data() const throw () { return pData; }
@@ -230,6 +231,26 @@ public:
 
 typedef BlockRef<void> DataBlockRef;
 typedef ConstBlockRef<void> ConstDataBlockRef;
+
+class DataBlock {
+    BlockRef<uint8_t> d;
+
+public:
+    DataBlock() throw () : d(0, 0) { }
+    DataBlock(const DataBlock& source) throw ();
+    DataBlock(const ConstDataBlockRef source) throw ();
+    ~DataBlock() throw ();
+
+    DataBlock& operator=(const DataBlock& source) throw() { *this = static_cast<ConstDataBlockRef>(source); return *this; }
+    DataBlock& operator=(const ConstDataBlockRef source) throw();
+
+    operator      DataBlockRef()       { return d; }
+    operator ConstDataBlockRef() const { return d; }
+
+          void* data()       throw () { return d.data(); }
+    const void* data() const throw () { return d.data(); }
+    unsigned size() const throw () { return d.size(); }
+};
 
 template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 
