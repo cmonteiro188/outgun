@@ -114,8 +114,7 @@ Relay::Relay() throw () :
     first_buffer(-1, string(), 0),
     buffer_first_frame(0),
     master_talk_time(0)
-{
-}
+{ }
 
 Relay::~Relay() throw () {
     cout << "Closing sockets\n";
