@@ -72,6 +72,8 @@ public:
         virtual int get_join_end() const throw () = 0;
         virtual const std::string& get_join_limit_message() const throw () = 0;
 
+        virtual unsigned get_spectating_delay() const throw () = 0;
+
         virtual const std::vector<std::string>& get_web_servers() const throw () = 0;
         virtual const std::string& get_web_script() const throw () = 0;
         virtual const std::string& get_web_auth() const throw () = 0;
@@ -158,11 +160,18 @@ private:
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
     class RelayThread {
+        struct RelayData {
+            RelayData(int t, const std::string& d) throw () : time(t), data(d) { }
+            int time;
+            std::string data;
+        };
+
         Thread thread;
         volatile bool& quitFlag;
         Network::TCPSocket socket;
         bool newGame;
-        std::queue<std::string> dataQueue;
+        int delay;
+        std::queue<RelayData> dataQueue;
         ConditionVariable wakeup;
         mutable Mutex mutex;
         mutable LogSet log;
@@ -178,7 +187,7 @@ private:
         void start(int priority) throw ();
         void stop() throw ();
 
-        void startNewGame(const Network::Address& relayAddress, const std::string& initData) throw ();
+        void startNewGame(const Network::Address& relayAddress, const std::string& initData, int gameDelay) throw ();
         void pushFrame(const std::string& frame) throw ();
 
         bool isConnected() const throw () { Lock ml(mutex); return isConnected_locked(); }

@@ -2019,7 +2019,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             }
         }
         int8_t sender_team = -1;
-        if (protocolExtensionsS2C >= 0) {
+        if (protocolExtensionsS2C >= 0 || replaying) {
             if (type == msg_team || type == msg_normal)
                 sender_team = read.S8();
         }
