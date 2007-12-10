@@ -1,4 +1,6 @@
 #! /bin/sh
+set -o pipefail
+
 if [ $# == 2 ]; then
     LANGFILE="$1"
     SOURCEDIR="$2"
@@ -11,12 +13,13 @@ WORKDIR="/tmp"
 [ -e "$LANGFILE" -a -e "$WORKDIR" ] \
     || { echo "No $LANGFILE or $WORKDIR" >&2; exit 1; }
 
-cat "$LANGFILE" | dos2unix | grep -v '^;.*\|^$\|^English$' | sort > "$WORKDIR/phrases.langfile" \
+cat "$LANGFILE" | dos2unix | recode latin1.. | egrep -v --line-regexp ';.*||English|locale' | sort > "$WORKDIR/phrases.langfile" \
     || { echo 'Error extracting phrases.langfile' >&2; exit 1; }
 
-sed 's+×+@TIMES@+g;s+\\"+@QUOTEDQ@+g;s+get_text+_+g;s+_("\([^"]*\)"+_("\1"\n_+g' "$SOURCEDIR"/*.h "$SOURCEDIR"/*.cpp \
-       | sed -n 's+.*_("\([^"]*\)".*+\1+p' | sed 's+@QUOTEDQ@+"+g;s+@TIMES@+×+g' \
-       | sort | uniq > $WORKDIR/phrases.code \
+cat "$SOURCEDIR"/*.{h,cpp} | recode latin1.. \
+       | sed 's+\\"+@QUOTEDQ@+g;s+get_text+_+g;s+_("\([^"]*\)"+_("\1"\n_+g' \
+       | sed -n 's+.*_("\([^"]*\)".*+\1+p' | sed 's+@QUOTEDQ@+"+g' \
+       | sort | uniq > "$WORKDIR/phrases.code" \
     || { echo "Error extracting phrases.code" >&2; exit 1; }
 
 diff "$WORKDIR/phrases.langfile" "$WORKDIR/phrases.code" || exit 1
