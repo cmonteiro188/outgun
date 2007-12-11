@@ -192,132 +192,122 @@ void Relay::listen() throw () {
     }
 }
 
-void Relay::check_new_connections() throw () {
-    for (PointerVector<Peer>::iterator pi = peers.begin(); pi != peers.end(); ) {
-        const unsigned max_buffer_size = 2000;
-        char buffer[max_buffer_size];
-        int result;
-        try {
-            result = pi->socket.read(buffer, max_buffer_size);
-        } catch (const Network::Error& e) {
-            cout << e.str() << '\n';
-            pi->socket.close();
-            pi = peers.erase(pi);
-            continue;
-        }
+bool Relay::check_new_connection(Peer& p) throw () {
+    const unsigned max_buffer_size = 2000;
+    char buffer[max_buffer_size];
+    int result;
+    try {
+        result = p.socket.read(buffer, max_buffer_size);
+    } catch (const Network::Error& e) {
+        cout << e.str() << '\n';
+        return true;
+    }
 
-        if (result == 0) {
-            ++pi;
-            continue;
-        }
+    if (result == 0)
+        return false;
 
-        pi->buffer.write(buffer, result);
+    p.buffer.write(buffer, result);
 
-        istream& ist = pi->buffer;
-        string game;
-        read_string(ist, game);
-        if (game != GAME_STRING) {
-            cout << "Different game string in a connection attempt.\n";
-            pi->socket.close();
-            pi = peers.erase(pi);
-            continue;
+    istream& ist = p.buffer;
+    string game;
+    read_string(ist, game);
+    if (game != GAME_STRING) {
+        cout << "Different game string in a connection attempt.\n";
+        return true;
+    }
+    string type;
+    read_string(ist, type);
+    if (!ist) {     // Not all data received yet.
+        ist.clear();
+        ist.seekg(0);
+        return false;
+    }
+    if (type == "SPECTATOR") {
+        if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
+            cout << "New spectator couldn't join because spectator limit already reached.\n";
+            return true;
         }
-        string type;
-        read_string(ist, type);
+        unsigned replay_version;
+        string username, password;
+        read(ist, replay_version);
+        read_string(ist, username);
+        read_string(ist, password);
+
         if (!ist) {     // Not all data received yet.
             ist.clear();
             ist.seekg(0);
-            ++pi;
-            continue;
+            return false;
         }
-        if (type == "SPECTATOR") {
-            if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
-                cout << "New spectator couldn't join because spectator limit already reached.\n";
-                pi->socket.close();
-                pi = peers.erase(pi);
-                continue;
-            }
-            unsigned replay_version;
-            string username, password;
-            read(ist, replay_version);
-            read_string(ist, username);
-            read_string(ist, password);
 
-            if (!ist) {     // Not all data received yet.
-                ist.clear();
-                ist.seekg(0);
-                ++pi;
-                continue;
-            }
-
-            // TODO: Check username and password.
-            #if 0
-            if (!check_user()) {
-                cout << "New spectator couldn't join because of invalid username or password.\n";
-                pi->socket.close();
-                pi = peers.erase(pi);
-                continue;
-            }
-            #endif
-
-            spectators.push_back(give_control(new Spectator(pi->address, trashable_ref(pi->socket))));
-            cout << "Spectator connected.\n";
-            pi = peers.erase(pi);
+        // TODO: Check username and password.
+        #if 0
+        if (!check_user()) {
+            cout << "New spectator couldn't join because of invalid username or password.\n";
+            return true;
         }
-        else if (type == "SERVER") {
-            if (server_socket.isOpen()) { // if already connected, skip
-                cout << "Attempt to connect from another server blocked.\n";
-                pi->socket.close();
-                pi = peers.erase(pi);
-                continue;
-            }
-            unsigned length;
-            string identification;
-            unsigned version;
-            unsigned replay_length;
-            unsigned maxplayers;
-            string map_name;
-            read(ist, length);
-            read(ist, identification, REPLAY_IDENTIFICATION.length());
-            read(ist, version);
-            read(ist, replay_length);
-            read_string(ist, hostname);
-            read(ist, maxplayers);
-            read_string(ist, map_name);
-            read(ist, server_delay);
+        #endif
 
-            if (!ist) {     // Not all data received yet.
-                ist.clear();
-                ist.seekg(0);
-                ++pi;
-                continue;
-            }
-
-            ostringstream ost;
-            ost << identification;
-            write(ost, version);
-            write(ost, replay_length);
-            write_string(ost, hostname);
-            write(ost, maxplayers);
-            write_string(ost, string());    // Store empty map name because the server sent only the map name of the first game.
-            first_buffer = Frame(ost.str().length(), ost.str(), get_time());
-
-            server_socket = trashable_ref(pi->socket);
-            cout << "Server connected: " << hostname << '\n';
-
-            pi = peers.erase(pi);
-        }
-        else if (type == "RELAY") {
-            cout << "Subrelay connected. Just dropped it as there is no support for subrelays.\n";
-            pi->socket.close();
-            pi = peers.erase(pi);
-        }
-        else {
-            cout << "Refused an unknown program.\n";
-            pi->socket.close();
-            pi = peers.erase(pi);
-        }
+        spectators.push_back(give_control(new Spectator(p.address, trashable_ref(p.socket))));
+        cout << "Spectator connected.\n";
+        return true;
     }
+    else if (type == "SERVER") {
+        if (server_socket.isOpen()) { // if already connected, skip
+            cout << "Attempt to connect from another server blocked.\n";
+            return true;
+        }
+        unsigned length;
+        string identification;
+        unsigned version;
+        unsigned replay_length;
+        unsigned maxplayers;
+        string map_name;
+        read(ist, length);
+        read(ist, identification, REPLAY_IDENTIFICATION.length());
+        read(ist, version);
+        read(ist, replay_length);
+        read_string(ist, hostname);
+        read(ist, maxplayers);
+        read_string(ist, map_name);
+        read(ist, server_delay);
+
+        if (!ist) {     // Not all data received yet.
+            ist.clear();
+            ist.seekg(0);
+            return false;
+        }
+
+        ostringstream ost;
+        ost << identification;
+        write(ost, version);
+        write(ost, replay_length);
+        write_string(ost, hostname);
+        write(ost, maxplayers);
+        write_string(ost, string());    // Store empty map name because the server sent only the map name of the first game.
+        first_buffer = Frame(ost.str().length(), ost.str(), get_time());
+
+        server_socket = trashable_ref(p.socket);
+        cout << "Server connected: " << hostname << '\n';
+        return true;
+    }
+    else if (type == "RELAY") {
+        cout << "Subrelay connected. Just dropped it as there is no support for subrelays.\n";
+        return true;
+    }
+    else {
+        cout << "Refused an unknown program.\n";
+        return true;
+    }
+}
+
+void Relay::check_new_connections() throw () {
+    for (PointerVector<Peer>::iterator pi = peers.begin(); pi != peers.end(); )
+        if (check_new_connection(*pi)) {
+            pi->socket.closeIfOpen();
+            pi = peers.erase(pi);
+        }
+        else
+            ++pi;
 }
 
 void Relay::get_server_data() throw () {

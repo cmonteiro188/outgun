@@ -123,6 +123,7 @@ private:
 
     /// Handle connections just opened
     void check_new_connections() throw ();
+    bool check_new_connection(Peer& p) throw (); // returns true if the peer was handled and can be removed
 
     /// Read game data from the Outgun server
     void get_server_data() throw ();
