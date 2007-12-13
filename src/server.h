@@ -309,7 +309,7 @@ class Server : private NoCopying {
     bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
-    mutable ExpandingBinaryBuffer record_frame;
+    mutable ExpandingBinaryBuffer record_messages;
     uint32_t record_start_frame;
     std::string record_map;
     int end_game_human_count;  // used for deciding whether to keep the record file
@@ -399,7 +399,7 @@ public:
     bool reset_settings(bool reload) throw ();   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
     bool recording_active() const throw ();
-    BinaryWriter& record_stream() const throw () { return record_frame; }
+    BinaryWriter& recordMessageWriter() const throw () { return record_messages; }
     const std::string& record_map_data() const throw () { return record_map; }
 };
 

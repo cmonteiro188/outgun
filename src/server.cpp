@@ -613,7 +613,7 @@ void Server::start_recording() throw () {
         return;
 
     record_start_frame = world.frame;
-    record_frame.clear();
+    record_messages.clear();
 
     ExpandingBinaryBuffer data;
     data.constLengthStr(REPLAY_IDENTIFICATION, REPLAY_IDENTIFICATION.length());
@@ -1571,7 +1571,7 @@ void Server::simulate_and_broadcast_frame() throw () {
         }
         recordFrame.U16(world.player[world.frame % maxplayers].ping);
 
-        recordFrame.block(record_frame);
+        recordFrame.block(record_messages);
 
         {
             const unsigned frame_length = recordFrame.size() - 4; // the space for frame length isn't counted
@@ -1586,7 +1586,7 @@ void Server::simulate_and_broadcast_frame() throw () {
         if (record)
             record << recordFrame;
         network.send_relay_data(recordFrame);
-        record_frame.clear();
+        record_messages.clear();
     }
 }
 
