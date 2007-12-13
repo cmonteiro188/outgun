@@ -179,19 +179,11 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
     }
 }
 
-void ServerNetworking::record_message(const string& msg) const throw () {
-    if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, static_cast<unsigned>(msg.length()));
-        out << msg;
-    }
-}
-
 void ServerNetworking::record_message(ConstDataBlockRef data) const throw () {
     if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, data.size());
-        out.write(static_cast<const char*>(data.data()), data.size());
+        BinaryWriter& writer = host->record_stream();
+        writer.U32(data.size());
+        writer.block(data);
     }
 }
 
@@ -896,11 +888,11 @@ void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRe
             server->send_message(world.player[i].cid, msg);
 
     if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, msg.size() + 2);
-        out.write(static_cast<const char*>(msg.data()), msg.size());
-        write(out, static_cast<unsigned char>(px));
-        write(out, static_cast<unsigned char>(py));
+        BinaryWriter& writer = host->record_stream();
+        writer.U32(msg.size() + 2);
+        writer.block(msg);
+        writer.U8(px);
+        writer.U8(py);
     }
 }
 
@@ -1135,11 +1127,11 @@ bool ServerNetworking::is_relay_active() const throw () {
     return relayThread.isConnected();
 }
 
-void ServerNetworking::send_first_relay_data(const string& data) throw () {
+void ServerNetworking::send_first_relay_data(ConstDataBlockRef data) throw () {
     relayThread.startNewGame(relay_address, data, settings.get_spectating_delay());
 }
 
-void ServerNetworking::send_relay_data(const string& data) throw () {
+void ServerNetworking::send_relay_data(ConstDataBlockRef data) throw () {
     relayThread.pushFrame(data);
 }
 
@@ -2792,7 +2784,7 @@ void ServerNetworking::RelayThread::threadMain() throw () {
             break;
         nAssert(isConnected_locked());
         nAssert(!dataQueue.empty());
-        const string data = dataQueue.front().data;
+        const DataBlock data = dataQueue.front().data;
         dataQueue.pop();
 
         try {
@@ -2808,7 +2800,7 @@ void ServerNetworking::RelayThread::threadMain() throw () {
     }
 }
 
-void ServerNetworking::RelayThread::pushData_locked(const string& data) throw () {
+void ServerNetworking::RelayThread::pushData_locked(ConstDataBlockRef data) throw () {
     dataQueue.push(RelayData(static_cast<int>(get_time()), data));
     wakeup.signal();
 }
@@ -2832,7 +2824,7 @@ void ServerNetworking::RelayThread::stop() throw () {
     thread.join();
 }
 
-void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAddress, const string& initData, int gameDelay) throw () {
+void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAddress, ConstDataBlockRef initData, int gameDelay) throw () {
     Lock ml(mutex);
 
     newGame = true;
@@ -2852,20 +2844,23 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
         return;
     }
 
-    ostringstream ost;
-    write_string(ost, GAME_STRING);
-    write_string(ost, "SERVER");
-    write(ost, static_cast<unsigned>(initData.length()));
-    ost << initData;
+    ExpandingBinaryBuffer msg;
+    msg.str(GAME_STRING);
+    msg.str("SERVER");
+    msg.U32(initData.size());
+    msg.block(initData);
 
-    pushData_locked(ost.str());
+    pushData_locked(msg);
 }
 
-void ServerNetworking::RelayThread::pushFrame(const string& frame) throw () {
+void ServerNetworking::RelayThread::pushFrame(ConstDataBlockRef frame) throw () {
     Lock ml(mutex);
     if (!isConnected_locked())  // Try again in the next game.
         return;
-    pushData_locked(static_cast<char>(newGame ? relay_data_game_start : relay_data_frame) + frame);
+    ExpandingBinaryBuffer data;
+    data.U8(newGame ? relay_data_game_start : relay_data_frame);
+    data.block(frame);
+    pushData_locked(data);
     newGame = false;
 }
 

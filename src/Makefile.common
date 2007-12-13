@@ -168,7 +168,7 @@ ifdef WITH_PNG
 endif
 LEETNET_OBJ_NAMES := rudp.o client.o server.o Time.o Timer.o dlog.o
 
-RELAY_OBJ_NAMES := tools/relay.o commont.o debug.o globals.o language.o log.o mutex.o nassert_simple.o network.o timer.o utility.o version.o $(PLATFORM_OBJ_NAMES)
+RELAY_OBJ_NAMES := tools/relay.o binaryaccess.o commont.o debug.o globals.o language.o log.o mutex.o nassert_simple.o network.o timer.o utility.o version.o $(PLATFORM_OBJ_NAMES)
 MAKEDEP_OBJ_NAMES := tools/makedep.o
 WRITEIFDIFF_OBJ_NAMES := tools/writeifdifferent.o
 MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o version.o debug.o mutex.o binaryaccess.o $(PLATFORM_OBJ_NAMES)

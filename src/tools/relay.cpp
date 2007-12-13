@@ -25,6 +25,7 @@
 #include <map>
 #include <string>
 
+#include "../binaryaccess.h"
 #include "../commont.h"
 #include "../function_utility.h"
 #include "../network.h"
@@ -208,95 +209,66 @@ bool Relay::check_new_connection(Peer& p) throw () {
 
     p.buffer.write(buffer, result);
 
-    istream& ist = p.buffer;
-    string game;
-    read_string(ist, game);
-    if (game != GAME_STRING) {
-        cout << "Different game string in a connection attempt.\n";
-        return true;
-    }
-    string type;
-    read_string(ist, type);
-    if (!ist) {     // Not all data received yet.
-        ist.clear();
-        ist.seekg(0);
+    BinaryStreamReader read(p.buffer);
+    try {
+        if (read.str() != GAME_STRING) {
+            cout << "Different game string in a connection attempt.\n";
+            return true;
+        }
+        const string type = read.str();
+        if (type == "SPECTATOR") {
+            if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
+                cout << "New spectator couldn't join because spectator limit already reached.\n";
+                return true;
+            }
+            read.U32(); // ignore replay version
+            read.str(); // ignore username
+            read.str(); // ignore password
+            // TODO: Check username and password.
+            #if 0
+            if (!check_user()) {
+                cout << "New spectator couldn't join because of invalid username or password.\n";
+                return true;
+            }
+            #endif
+
+            spectators.push_back(give_control(new Spectator(p.address, trashable_ref(p.socket))));
+            cout << "Spectator connected.\n";
+            return true;
+        }
+        else if (type == "SERVER") {
+            if (server_socket.isOpen()) { // if already connected, skip
+                cout << "Attempt to connect from another server blocked.\n";
+                return true;
+            }
+            read.U32(); // ignore total packet length
+            ExpandingBinaryBuffer data;
+            data.block(read.constLengthStr(REPLAY_IDENTIFICATION.length()));
+            data.U32(read.U32()); // version
+            data.U32(read.U32()); // replay length
+            data.str(hostname = read.str());
+            data.U32(read.U32()); // maxplayers
+            read.str(); data.str(string()); // Store empty map name because the server sent only the map name of the first game.
+            server_delay = read.U32();
+
+            first_buffer = Frame(data.size(), data, get_time());
+
+            server_socket = trashable_ref(p.socket);
+            cout << "Server connected: " << hostname << '\n';
+            return true;
+        }
+        else if (type == "RELAY") {
+            cout << "Subrelay connected. Just dropped it as there is no support for subrelays.\n";
+            return true;
+        }
+        else {
+            cout << "Refused an unknown program.\n";
+            return true;
+        }
+    } catch (BinaryReader::ReadOutside) { // Not all data received yet.
+        p.buffer.clear();
+        p.buffer.seekg(0);
         return false;
-    }
-    if (type == "SPECTATOR") {
-        if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
-            cout << "New spectator couldn't join because spectator limit already reached.\n";
-            return true;
-        }
-        unsigned replay_version;
-        string username, password;
-        read(ist, replay_version);
-        read_string(ist, username);
-        read_string(ist, password);
-
-        if (!ist) {     // Not all data received yet.
-            ist.clear();
-            ist.seekg(0);
-            return false;
-        }
-
-        // TODO: Check username and password.
-        #if 0
-        if (!check_user()) {
-            cout << "New spectator couldn't join because of invalid username or password.\n";
-            return true;
-        }
-        #endif
-
-        spectators.push_back(give_control(new Spectator(p.address, trashable_ref(p.socket))));
-        cout << "Spectator connected.\n";
-        return true;
-    }
-    else if (type == "SERVER") {
-        if (server_socket.isOpen()) { // if already connected, skip
-            cout << "Attempt to connect from another server blocked.\n";
-            return true;
-        }
-        unsigned length;
-        string identification;
-        unsigned version;
-        unsigned replay_length;
-        unsigned maxplayers;
-        string map_name;
-        read(ist, length);
-        read(ist, identification, REPLAY_IDENTIFICATION.length());
-        read(ist, version);
-        read(ist, replay_length);
-        read_string(ist, hostname);
-        read(ist, maxplayers);
-        read_string(ist, map_name);
-        read(ist, server_delay);
-
-        if (!ist) {     // Not all data received yet.
-            ist.clear();
-            ist.seekg(0);
-            return false;
-        }
-
-        ostringstream ost;
-        ost << identification;
-        write(ost, version);
-        write(ost, replay_length);
-        write_string(ost, hostname);
-        write(ost, maxplayers);
-        write_string(ost, string());    // Store empty map name because the server sent only the map name of the first game.
-        first_buffer = Frame(ost.str().length(), ost.str(), get_time());
-
-        server_socket = trashable_ref(p.socket);
-        cout << "Server connected: " << hostname << '\n';
-        return true;
-    }
-    else if (type == "RELAY") {
-        cout << "Subrelay connected. Just dropped it as there is no support for subrelays.\n";
-        return true;
-    }
-    else {
-        cout << "Refused an unknown program.\n";
-        return true;
     }
 }
 
@@ -311,8 +283,8 @@ void Relay::check_new_connections() throw () {
 }
 
 void Relay::get_server_data() throw () {
-    stringstream data;
-    data << waiting_data;
+    ExpandingBinaryBuffer data;
+    data.block(waiting_data);
     waiting_data.clear();
     while (server_socket.isOpen()) {
         try {
@@ -321,7 +293,7 @@ void Relay::get_server_data() throw () {
             const int result = server_socket.read(buffer, max_buffer_size);
             if (result == 0)
                 break;
-            data.write(buffer, result);
+            data.block(ConstDataBlockRef(buffer, result));
         } catch (const Network::ReadWriteError& e) {
             if (e.disconnected())
                 cout << "Server disconnected.\n";
@@ -332,34 +304,35 @@ void Relay::get_server_data() throw () {
         }
     }
 
-    if (data.str().empty())
+    if (data.empty())
         return;
 
-    while (data) {
-        const bool skipped = !add_data(data);
+    BinaryDataBlockReader read(data);
+
+    while (read.hasMore()) {
+        const bool skipped = !add_data(read);
         if (skipped) {  // not enough data to create frame
-            data >> noskipws >> waiting_data;
+            waiting_data.block(read.unreadPart());
             break;
         }
         //cout << "Frame data\n";
     }
 }
 
-bool Relay::add_data(istream& in) throw () {
+bool Relay::add_data(SeekableBinaryReader& reader) throw () {
     if (games.empty())
         games.push_back(Game());
     vector<Frame>* data_buffer = &games.back().buffer();
     if (!data_buffer->empty() && !data_buffer->back().full()) {
-        string temp;
-        read(in, temp, data_buffer->back().remaining());
-        data_buffer->back().add(temp, get_time());
-        //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes.\n";
+        ConstDataBlockRef data = reader.blockUpTo(data_buffer->back().remaining());
+        data_buffer->back().add(data, get_time());
+        //cout << "Frame " << data_buffer->size() - 1 << ", " << data.size() << " bytes.\n";
     }
     else {
-        const istream::pos_type pos = in.tellg();
-        unsigned char data_code;
-        unsigned length;
-        if (read(in, data_code) && read(in, length)) {
+        const istream::pos_type startPos = reader.getPosition();
+        try {
+            const uint8_t data_code = reader.U8();
+            const uint32_t length = reader.U32();
             switch (data_code) {
             /*break;*/ case relay_data_game_start:
                     games.back().finish();
@@ -368,16 +341,13 @@ bool Relay::add_data(istream& in) throw () {
                     data_buffer = &games.back().buffer();
                     cout << "New game started.\n";
                 break; case relay_data_frame:
-                break; default: nAssert(0);
+                break; default: nAssert(0); //#fix
             }
-            string temp;
-            read(in, temp, length);
-            data_buffer->push_back(Frame(length, temp, get_time()));
-            //cout << "Frame " << data_buffer->size() - 1 << ", " << temp.length() << " bytes of " << length << ".\n";
-        }
-        else {
-            in.clear();
-            in.seekg(pos);
+            ConstDataBlockRef data = reader.blockUpTo(length);
+            data_buffer->push_back(Frame(length, data, get_time()));
+            //cout << "Frame " << data_buffer->size() - 1 << ", " << data.size() << " bytes of " << length << ".\n";
+        } catch (BinaryReader::ReadOutside) {
+            reader.setPosition(startPos);
             return false;
         }
     }
@@ -409,16 +379,11 @@ void Relay::send_data() throw () {
             if (bpsout > bandwidth_limit / spectators.size())
                 continue;
         }
-        string chunk;
-        unsigned protocol_size;
-        if (!si->first_buffer_sent) {
-            chunk = first_buffer.data().substr(si->bytes_sent);
-            protocol_size = 0;
-        }
-        else {
-            chunk = frame_data(si->next_frame, si->bytes_sent);
-            protocol_size = sizeof(unsigned);
-        }
+        ExpandingBinaryBuffer chunk;
+        if (!si->first_buffer_sent)
+            chunk.block(first_buffer.data().tail(si->bytes_sent));
+        else
+            frame_data(chunk, si->next_frame, si->bytes_sent);
         if (chunk.empty()) {    // Nothing to send yet
             ++si;
             continue;
@@ -429,9 +394,7 @@ void Relay::send_data() throw () {
             continue;
         }
         si->bytes_sent += result;
-        const Frame& frame = si->first_buffer_sent ? *get_frame(si->next_frame) : first_buffer;
-        nAssert(si->bytes_sent <= frame.length() + protocol_size);
-        if (si->bytes_sent == frame.length() + protocol_size) { // A frame has entirely been sent
+        if (static_cast<unsigned>(result) == chunk.size()) { // A frame has entirely been sent
             si->bytes_sent = 0;
             if (!si->first_buffer_sent) {   // Send next the last game available
                 cout << "Init data sent to a client.\n";
@@ -449,7 +412,7 @@ void Relay::send_data() throw () {
     }
 }
 
-int Relay::send_data(Network::TCPSocket& socket, const string& data) const throw () {
+int Relay::send_data(Network::TCPSocket& socket, ConstDataBlockRef data) const throw () {
     if (!socket.isOpen()) {
         cout << "Closed spectator socket in send_data().\n";
         return -1;
@@ -496,7 +459,7 @@ const Frame* Relay::get_frame(unsigned frame_nr) const throw () {
     return frame;
 }
 
-string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
+bool Relay::frame_data(BinaryWriter& target, unsigned frame_nr, unsigned pos) const throw () {
     const Frame* frame = 0;
     unsigned game_start_buffer = buffer_first_frame;
     bool current_game_finished = false;
@@ -509,15 +472,24 @@ string Relay::frame_data(unsigned frame_nr, unsigned pos) const throw () {
         game_start_buffer += gi->size();
     }
     if (!frame || !frame->full())
-        return string();
+        return false;
     // Do not send too recent frames if the game is still going on.
     if (!current_game_finished && frame->time() + game_delay > get_time() + server_delay)
-        return string();
-    ostringstream ost;
-    if (pos == 0)
-        write(ost, frame->length());
-    ost << frame->data().substr(pos);
-    return ost.str();
+        return false;
+    if (pos < 4) {
+        if (pos == 0)
+            target.U32(frame->length());
+        else {
+            BinaryBuffer<4> lengthData;
+            lengthData.U32(frame->length());
+            target.block(lengthData.ref().tail(pos));
+        }
+        pos = 0;
+    }
+    else
+        pos -= 4;
+    target.block(frame->data().tail(pos));
+    return true;
 }
 
 void Relay::send_master_server() throw () {

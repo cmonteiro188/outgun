@@ -42,51 +42,6 @@ std::istream& getline_smart(std::istream& in, std::string& str) throw ();
 // Read a line like getline_smart, but additionally skip lines that begin with a ;
 std::istream& getline_skip_comments(std::istream& in, std::string& str) throw ();
 
-inline std::ostream& write_string(std::ostream& out, const std::string& str) throw () {
-    out << str;
-    return out.put('\0');
-}
-
-inline std::ostream& write_string(std::ostream& out, const char* str, int size) throw () {
-    out.write(str, size);
-    return out.put('\0');
-}
-
-template<typename T>
-std::ostream& write(std::ostream& out, const T& val) throw () {
-    const char* mem = reinterpret_cast<const char*>(&val);
-    #ifdef NL_BIG_ENDIAN
-    return out.write(mem, sizeof(T));
-    #else
-    for (int i = sizeof(T) - 1; i >= 0; --i)
-        out.put(mem[i]);
-    #endif
-    return out;
-}
-
-inline std::istream& read_string(std::istream& in, std::string& target) throw () {
-    return getline(in, target, '\0');
-}
-
-inline std::istream& read(std::istream& in, std::string& target, std::string::size_type length) throw () {
-    target.clear();
-    for (std::string::size_type i = 0; in && i < length; ++i)
-        target += in.get();
-    return in;
-}
-
-template<typename T>
-std::istream& read(std::istream& in, T& val) throw () {
-    char* mem = reinterpret_cast<char*>(&val);
-    #ifdef NL_BIG_ENDIAN
-    return in.read(mem, sizeof(T));
-    #else
-    for (int i = sizeof(T) - 1; i >= 0; --i)
-        in.get(mem[i]);
-    #endif
-    return in;
-}
-
 // Check player name validity.
 bool check_name(const std::string& name) throw ();
 

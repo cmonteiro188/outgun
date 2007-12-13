@@ -161,9 +161,9 @@ private:
 
     class RelayThread {
         struct RelayData {
-            RelayData(int t, const std::string& d) throw () : time(t), data(d) { }
+            RelayData(int t, ConstDataBlockRef d) throw () : time(t), data(d) { }
             int time;
-            std::string data;
+            DataBlock data;
         };
 
         Thread thread;
@@ -177,7 +177,7 @@ private:
         mutable LogSet log;
 
         void threadMain() throw ();
-        void pushData_locked(const std::string& data) throw ();
+        void pushData_locked(ConstDataBlockRef data) throw ();
         bool isConnected_locked() const throw () { return socket.isOpen(); }
 
     public:
@@ -187,8 +187,8 @@ private:
         void start(int priority) throw ();
         void stop() throw ();
 
-        void startNewGame(const Network::Address& relayAddress, const std::string& initData, int gameDelay) throw ();
-        void pushFrame(const std::string& frame) throw ();
+        void startNewGame(const Network::Address& relayAddress, ConstDataBlockRef initData, int gameDelay) throw ();
+        void pushFrame(ConstDataBlockRef frame) throw ();
 
         bool isConnected() const throw () { Lock ml(mutex); return isConnected_locked(); }
     };
@@ -232,7 +232,6 @@ private:
     void broadcast_simple_message(Network_data_code code) const throw ();
     void broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw ();
 
-    void record_message(const std::string& msg) const throw ();
     void record_message(ConstDataBlockRef data) const throw ();
 
     void writeMinimapPlayerPosition(BinaryWriter& writer, int pid) const throw ();
@@ -341,8 +340,8 @@ public:
     std::string get_relay_server() const throw ();
     bool is_relay_used() const throw ();
     bool is_relay_active() const throw ();
-    void send_first_relay_data(const std::string& data) throw ();
-    void send_relay_data(const std::string& data) throw ();
+    void send_first_relay_data(ConstDataBlockRef data) throw ();
+    void send_relay_data(ConstDataBlockRef data) throw ();
 
     void forwardSayadminMessage(int cid, const std::string& message) const throw ();
     void sendTextToAdminShell(const std::string& text) const throw ();

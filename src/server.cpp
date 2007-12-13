@@ -613,15 +613,15 @@ void Server::start_recording() throw () {
         return;
 
     record_start_frame = world.frame;
-    record_frame.str("");
+    record_frame.clear();
 
-    ostringstream ost;
-    ost << REPLAY_IDENTIFICATION;
-    write(ost, REPLAY_VERSION);
-    write(ost, 0);                      // reserve space for the frame count
-    write_string(ost, settings.get_hostname());
-    write(ost, maxplayers);
-    write_string(ost, world.map.title); // just for easy loading of the map name
+    ExpandingBinaryBuffer data;
+    data.constLengthStr(REPLAY_IDENTIFICATION, REPLAY_IDENTIFICATION.length());
+    data.U32(REPLAY_VERSION);
+    data.U32(0); // reserve space for the frame count
+    data.str(settings.get_hostname());
+    data.U32(maxplayers);
+    data.str(world.map.title); // just for easy loading of the map name
 
     if (settings.get_recording()) {
         const time_t tt = time(0);
@@ -637,24 +637,29 @@ void Server::start_recording() throw () {
         else
             log("Could not create record file %s.", record_filename.c_str());
 
-        record << ost.str();
+        record << data;
     }
 
     record_init_data();
-    write(ost, settings.get_spectating_delay());
-    network.send_first_relay_data(ost.str());
+    data.U32(settings.get_spectating_delay());
+    network.send_first_relay_data(data);
 
     recording_started = true;
-    log("First data %lu bytes.", static_cast<long unsigned>(ost.str().length()));
+    log("First data %u bytes.", data.size());
 }
 
 void Server::stop_recording() throw () {
     recording_started = false;
     if (record) {
         if (gameover && end_game_human_count >= settings.get_recording() ||
-            !gameover && network.get_human_count() >= settings.get_recording()) {
-            record.seekp(16);   // write the length of the record
-            write(record, world.frame - record_start_frame);
+                !gameover && network.get_human_count() >= settings.get_recording()) {
+            // write the length of the record
+            record.seekp(16);
+            {
+                BinaryBuffer<4> data;
+                data.U32(world.frame - record_start_frame);
+                record << data;
+            }
             record.close();
             record.clear();
         }
@@ -1509,20 +1514,21 @@ void Server::simulate_and_broadcast_frame() throw () {
 
     network.broadcast_frame(!gameover);
     if (recording_active()) {
-        stringstream temp_frame;
-        write(temp_frame, world.frame);
-        unsigned players_present = 0;
+        ExpandingBinaryBuffer recordFrame;
+        recordFrame.U32(0); // leave space for frame length
+        recordFrame.U32(world.frame);
+        uint32_t players_present = 0;
         for (int i = 0; i < maxplayers; i++)
             if (world.player[i].used)
                 players_present |= (1 << i);
-        write(temp_frame, players_present);
+        recordFrame.U32(players_present);
         for (int i = 0; i < maxplayers; i++) {
             const ServerPlayer& pl = world.player[i];
             if (!pl.used)
                 continue;
 
             // Dead and powerup flags
-            unsigned char byte = 0;
+            uint8_t byte = 0;
             if (pl.dead) byte |= (1 << 0);
             if (pl.item_deathbringer) byte |= (1 << 1);
             if (pl.deathbringer_end > get_time()) byte |= (1 << 2);
@@ -1533,18 +1539,18 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (preciseGundir) byte |= (1 << 6);
 
             /*if (pl.record_position) */byte |= (1 << 7);
-            write(temp_frame, byte);
+            recordFrame.U8(byte);
 
-            if (true || pl.record_position) {   // test
+            if (true || pl.record_position) {
                 world.player[i].record_position = false;
                 // Position
-                write(temp_frame, static_cast<unsigned char>(pl.roomx));
-                write(temp_frame, static_cast<unsigned char>(pl.roomy));
-                write(temp_frame, static_cast<unsigned short>(pl.lx));
-                write(temp_frame, static_cast<unsigned short>(pl.ly));
+                recordFrame.U8(pl.roomx);
+                recordFrame.U8(pl.roomy);
+                recordFrame.U16(static_cast<uint16_t>(pl.lx));
+                recordFrame.U16(static_cast<uint16_t>(pl.ly));
                 // Speed
-                write(temp_frame, static_cast<float>(pl.sx));
-                write(temp_frame, static_cast<float>(pl.sy));
+                recordFrame.flt(pl.sx);
+                recordFrame.flt(pl.sy);
             }
 
             // Controls
@@ -1555,32 +1561,32 @@ void Server::simulate_and_broadcast_frame() throw () {
 
             if (preciseGundir) {
                 const uint16_t gundir = pl.gundir.toNetworkLongForm();
-                byte |= (gundir >> 8) << 5;
-                write(temp_frame, byte);
-                byte = gundir & 0xFF;
-                write(temp_frame, byte);
+                recordFrame.U8(byte | (gundir >> 8) << 5);
+                recordFrame.U8(gundir & 0xFF);
             }
-            else {
-                byte |= pl.gundir.toNetworkShortForm() << 5;
-                write(temp_frame, byte);
-            }
+            else
+                recordFrame.U8(byte | pl.gundir.toNetworkShortForm() << 5);
 
-            byte = pl.visibility;
-            write(temp_frame, byte);
+            recordFrame.U8(pl.visibility);
         }
-        write(temp_frame, static_cast<unsigned short>(world.player[world.frame % maxplayers].ping));
+        recordFrame.U16(world.player[world.frame % maxplayers].ping);
 
-        const unsigned frame_length = temp_frame.str().length() + record_frame.str().length();
-        //log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
-        ostringstream ost;
-        write(ost, frame_length);
-        ost << temp_frame.str();
-        ost << record_frame.str();
+        recordFrame.block(record_frame);
+
+        {
+            const unsigned frame_length = recordFrame.size() - 4; // the space for frame length isn't counted
+            //log("Recording frame %lu, total %u bytes.", static_cast<long unsigned>(world.frame), frame_length);
+
+            const unsigned pos = recordFrame.getPosition();
+            recordFrame.setPosition(0);
+            recordFrame.U32(frame_length);
+            recordFrame.setPosition(pos);
+        }
 
         if (record)
-            record << ost.str();
-        network.send_relay_data(ost.str());
-        record_frame.str("");
+            record << recordFrame;
+        network.send_relay_data(recordFrame);
+        record_frame.clear();
     }
 }
 

@@ -4317,26 +4317,26 @@ void Client::start_replay(const std::string& filename) throw () {
 }
 
 bool Client::start_replay(istream& replay) throw () {
-    string identification;
-    read(replay, identification, REPLAY_IDENTIFICATION.length());
+    BinaryStreamReader read(replay);
+
+    const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
     log("Identification: %s", identification.c_str());
     if (identification != REPLAY_IDENTIFICATION) {
         log.error(_("This is not an Outgun replay."));
         return false;
     }
 
-    unsigned replay_version;
-    read(replay, replay_version);
-    log("Replay version: %d", replay_version);
+    unsigned replay_version = read.U32();
+    log("Replay version: %u", replay_version);
     if (replay_version > REPLAY_VERSION) {   // incompatible replay
         log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
         return false;
     }
 
-    read(replay, replay_length);
+    replay_length = read.U32();
     replay_first_frame_loaded = false;
 
-    read_string(replay, hostname);
+    hostname = read.str();
     string caption;
     if (spectating)
         caption = _("Spectating on $1", hostname.substr(0, 32));
@@ -4344,12 +4344,8 @@ bool Client::start_replay(istream& replay) throw () {
         caption = _("Replay on $1", hostname.substr(0, 32));
     extConfig.statusOutput(caption);
 
-    int maxplayers;
-    read(replay, maxplayers);
-    setMaxPlayers(maxplayers);
-
-    string map_name;
-    read_string(replay, map_name);
+    setMaxPlayers(read.U32());
+    read.str(); // ignore map name
 
     replaying = true;
     replay_rate = 1;
@@ -4423,18 +4419,10 @@ void Client::continue_replay() throw () {
 
 void Client::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
-    unsigned length;
-    if (read(in, length)) {
-        char* data = new char[length];
-        if (in.read(data, length))
-            process_incoming_data(ConstDataBlockRef(data, length));
-        else {
-            in.clear();
-            in.seekg(pos);
-        }
-        delete [] data;
-    }
-    else {
+    BinaryStreamReader read(in);
+    try {
+        process_incoming_data(read.block(read.U32()));
+    } catch (BinaryReader::ReadOutside) {
         in.clear();
         in.seekg(pos);
         if (replay_length > 0)
@@ -4474,15 +4462,15 @@ void Client::start_spectating(const Network::Address& address) throw () {
         spectate_socket.open(Network::NonBlocking, 0);
         spectate_socket.connect(serverIP);
 
-        ostringstream ost;
-        write_string(ost, GAME_STRING);
-        write_string(ost, "SPECTATOR");
-        write(ost, REPLAY_VERSION);
-        write_string(ost, ""); // username
-        write_string(ost, ""); // password
+        BinaryBuffer<512> request;
+        request.str(GAME_STRING);
+        request.str("SPECTATOR");
+        request.U32(REPLAY_VERSION);
+        request.str(string()); // username
+        request.str(string()); // password
 
-        spectate_socket.persistentWrite(ost.str(), 500, 5);
-        log("Init data sent to the relay (%lu bytes).", static_cast<long unsigned>(ost.str().length()));
+        spectate_socket.persistentWrite(request, 500, 5);
+        log("Init data sent to the relay (%u bytes).", request.size());
     } catch (const Network::Error& e) {
         spectate_socket.closeIfOpen();
         log.error(_("Connecting to relay: $1", e.str()));
@@ -5983,28 +5971,30 @@ void Client::MCF_prepareReplayMenu() throw () {
         const string name = FileName(replay_files->next()).getBaseName();
         const string replay_file = wheregamedir + "replay" + directory_separator + name + ".replay";
         ifstream in(replay_file.c_str(), ios::binary);
-        string identification;
-        read(in, identification, REPLAY_IDENTIFICATION.length());
-        bool error = identification != REPLAY_IDENTIFICATION;
-        unsigned replay_version;
-        read(in, replay_version);
-        if (replay_version > REPLAY_VERSION) {
-            log.error(_("Replay $1 is a newer version ($2).", replay_file, itoa(replay_version)));
-            continue;
-        }
-        unsigned length;
-        read(in, length);
-        string server_name, map_name;
-        unsigned skip;
-        if (!error && read_string(in, server_name) && read(in, skip) && read_string(in, map_name)) {
+        BinaryStreamReader read(in);
+        try {
+            if (read.constLengthStr(REPLAY_IDENTIFICATION.length()) != REPLAY_IDENTIFICATION) {
+                log.error(_("Replay file $1 is not an Outgun replay.", replay_file));
+                continue;
+            }
+            const unsigned replay_version = read.U32();
+            if (replay_version > REPLAY_VERSION) {
+                log.error(_("Replay $1 is a newer version ($2).", replay_file, itoa(replay_version)));
+                continue;
+            }
+            const unsigned length = read.U32();
+            const string server_name = read.str();
+            read.U32(); // skip maxplayers
+            const string map_name = read.str();
+
             ostringstream text;
             text << name << ' ' << server_name << " - " << map_name;
             if (length > 0)
                 text << ' ' << length / 600 << ':' << setw(2) << setfill('0') << length / 10 % 60;
             replays.push_back(pair<string, string>(name, text.str()));
-        }
-        else
+        } catch (BinaryReader::ReadOutside) {
             log("Replay file %s is invalid.", replay_file.c_str());
+        }
     }
     delete replay_files;
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
