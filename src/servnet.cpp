@@ -1857,7 +1857,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             shadowIters[t][1] = -1;
     }
 
-    const unsigned commonDataSize = frame.getPosition();
+    const unsigned commonDataSize = frame.size();
 
     // ==================================================================
     //   BUILD AND SEND EVERY DAMN PACKET
@@ -2763,7 +2763,7 @@ bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
     ExpandingBinaryBuffer answer;
     executeAdminCommand(code, cid, pid, dwArg, answer);
 
-    if (answer.getPosition() != 0)
+    if (!answer.empty())
         return writeToAdminShell(answer);
     else
         return true;
@@ -3170,7 +3170,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
             }
         }
     }
-    res->customDataLength = reply.getPosition();
+    res->customDataLength = reply.size();
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {

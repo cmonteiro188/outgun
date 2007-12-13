@@ -565,7 +565,7 @@ DLOG_Scope s("USP");
 
             #ifdef LEETNET_DATA_LOG
             if (datalog) {
-                const int size = sendbuf.getPosition();
+                const int size = sendbuf.size();
                 fwrite(&size, sizeof(int), 1, datalog);
                 fwrite(sendbuf.accessData(), 1, size, datalog);
             }
