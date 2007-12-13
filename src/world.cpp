@@ -3570,7 +3570,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
     out << "<H3>Player stats</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
     vector<const PlayerBase*> players;
-    for (vector<PointerContainer<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
+    for (vector<PointerAsReference<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
         if (pl->getPtr()->used)
             players.push_back(pl->getPtr());
     stable_sort(players.begin(), players.end(), compare_players);

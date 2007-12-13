@@ -731,12 +731,12 @@ public:
     uint32_t playersOutsideMask; // bit set for every player that was on the previous frame in the same room but outside the db ring, kind of waiting to be hit (only those can be hit on this frame); additionally, every player when the deathbringer is new (even if they happen to be in another room, it doesn't matter in the calculations)
 };
 
-template<class Type> class PointerContainer {   // doesn't delete the objects!
+template<class Type> class PointerAsReference {   // doesn't delete the objects!
     Type* ptr;
 
 public:
-    PointerContainer() throw () : ptr(0) { }
-    PointerContainer(Type* p) throw () : ptr(p) { }
+    PointerAsReference() throw () : ptr(0) { }
+    PointerAsReference(Type* p) throw () : ptr(p) { }
 
     void setPtr(Type* p) throw () { ptr = p; }
 
@@ -830,7 +830,7 @@ public:
     Map map;
 
     int maxplayers; // actual
-    std::vector<PointerContainer<PlayerBase> > player;
+    std::vector<PointerAsReference<PlayerBase> > player;
     Team teams[2];
 
     std::vector<Flag> wild_flags;   // both teams can capture these (team ID is 2)
