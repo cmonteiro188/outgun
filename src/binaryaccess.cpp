@@ -313,10 +313,10 @@ ExpandingBinaryBuffer::ExpandingBinaryBuffer() throw () :
 }
 
 ExpandingBinaryBuffer::ExpandingBinaryBuffer(const ExpandingBinaryBuffer& o) throw () :
-    BinaryWriter(0, 0)
+    BinaryWriter(o)
 {
-    reallocate(o.capacity);
-    memcpy(data, o.data, o.capacity);
+    data = static_cast<uint8_t*>(malloc(capacity));
+    memcpy(data, o.data, capacity);
 }
 
 ExpandingBinaryBuffer::~ExpandingBinaryBuffer() throw () {
@@ -327,5 +327,6 @@ ExpandingBinaryBuffer& ExpandingBinaryBuffer::operator=(const ExpandingBinaryBuf
     if (capacity < o.capacity)
         reallocate(o.capacity);
     memcpy(data, o.data, o.capacity);
+    pos = o.pos;
     return *this;
 }
