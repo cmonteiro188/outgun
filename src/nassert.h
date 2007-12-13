@@ -66,6 +66,6 @@ extern uint32_t* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to
 
 template<bool> class STATIC_ASSERTION_FAILURE;
 template<> class STATIC_ASSERTION_FAILURE<true> { };
-#define STATIC_ASSERT(test) typedef int STATIC_ASSERT_hack[sizeof(STATIC_ASSERTION_FAILURE<test>)];
+#define STATIC_ASSERT(test) typedef int STATIC_ASSERT_hack[sizeof(STATIC_ASSERTION_FAILURE<test>)]
 
 #endif
