@@ -136,8 +136,8 @@ public:
     }
 };
 
-FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
-    return new AllegroFileFinder(path, extension, directories);
+ControlledPtr<FileFinder> platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
+    return give_control(new AllegroFileFinder(path, extension, directories));
 }
 
 bool platIsFile(const string& name) throw () {
