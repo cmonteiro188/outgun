@@ -105,7 +105,7 @@ string Network::ReadWriteError::str() const throw () {
 bool Network::ConnectError  ::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
 
 bool Network::ReadWriteError::connectionRefused() const throw () { return nlError == NL_CON_REFUSED; }
-bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END; }
+bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END || nlError == NL_SOCK_DISCONNECT; }
 
 string Network::Timeout::str() const throw () {
     return inRead ? _("Error reading from socket: Operation timed out")
@@ -336,7 +336,7 @@ int Socket::read(DataBlockRef buffer) throw (ReadWriteError) {
     const NLenum err = nlGetError();
     if (err == NL_CON_PENDING)
         return 0;
-    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+    numAssert(err == NL_BUFFER_SIZE || err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END || err == NL_SOCK_DISCONNECT, err);
     throw ReadWriteError(true);
 }
 
@@ -348,7 +348,7 @@ void Socket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteErr
         if (err == NL_CON_PENDING)
             val = 0;
         else {
-            numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+            numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END || err == NL_SOCK_DISCONNECT, err);
             throw ReadWriteError(false);
         }
     }
@@ -433,7 +433,7 @@ bool TCPSocket::connectPending() throw (ReadWriteError) {
         const NLenum err = nlGetError();
         if (err == NL_CON_PENDING)
             return true;
-        numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END, err);
+        numAssert(err == NL_CON_REFUSED || err == NL_SYSTEM_ERROR || err == NL_MESSAGE_END || err == NL_SOCK_DISCONNECT, err);
         throw ReadWriteError(true); // while we're using nlWrite, this operation is conceptually more like reading
     }
     nAssert(val == 0);
