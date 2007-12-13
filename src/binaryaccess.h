@@ -31,32 +31,21 @@
 #include "utility.h"
 
 class BinaryReader {
-protected:
-    const uint8_t* data;
-    unsigned dataLength;
-
-private:
-    unsigned pos;
-
 public:
-    // a read exception invalidates the read position
     class ReadOutside { };
     class DataOutOfRange { };
 
-    BinaryReader(const void* data_, unsigned size) throw () : data(static_cast<const uint8_t*>(data_)), dataLength(size), pos(0) { }
-    BinaryReader(ConstDataBlockRef block) throw () : data(static_cast<const uint8_t*>(block.data())), dataLength(block.size()), pos(0) { }
+    virtual ~BinaryReader() throw () { }
 
-    void setPosition(unsigned position) throw () { numAssert2(position < dataLength, position, dataLength); pos = position; }
-    unsigned getPosition() const throw () { return pos; }
-    bool hasMore() const throw () { return pos < dataLength; }
+    virtual bool hasMore() const throw () = 0;
 
-     uint8_t U8 () throw (ReadOutside);
+     uint8_t U8 () throw (ReadOutside) { return getU8 (); }
       int8_t S8 () throw (ReadOutside) { return static_cast<int8_t >(U8 ()); }
-    uint16_t U16() throw (ReadOutside);
+    uint16_t U16() throw (ReadOutside) { return getU16(); }
      int16_t S16() throw (ReadOutside) { return static_cast<int16_t>(U16()); }
-    uint32_t U32() throw (ReadOutside);
+    uint32_t U32() throw (ReadOutside) { return getU32(); }
      int32_t S32() throw (ReadOutside) { return static_cast<int32_t>(U32()); }
-    uint64_t U64() throw (ReadOutside);
+    uint64_t U64() throw (ReadOutside) { return getU64(); }
      int64_t S64() throw (ReadOutside) { return static_cast<int64_t>(U64()); }
 
     float  flt() throw (ReadOutside);
@@ -77,19 +66,43 @@ public:
     std::string constLengthStr(unsigned length) throw (ReadOutside);
     std::string str() throw (ReadOutside);
 
-    ConstDataBlockRef block(unsigned length) throw (ReadOutside);
+    void block(DataBlockRef buffer) throw (ReadOutside) { storeBlock(buffer); }
+    ConstDataBlockRef blockUpTo(DataBlockRef buffer) throw () { return storeBlockUpTo(buffer); } // make sure to check from the return value, how much was read
+    /* If you have access to the final storage for the data, the block reading methods
+     * above are potentially more efficient.
+     * Trying to read with the following methods much more than is likely available
+     * isn't smart, since they might allocate storage for the given length. Repeat
+     * reading of manageable sized blocks if a large amount is required.
+     * The returned block reference is only valid until the next non-const operation.
+     */
+    ConstDataBlockRef block(unsigned length) throw (ReadOutside) { return getBlock(length); }
+    ConstDataBlockRef blockUpTo(unsigned length) throw () { return getBlockUpTo(length); }
+
+protected:
+    virtual  uint8_t getU8 () throw (ReadOutside) = 0;
+    virtual uint16_t getU16() throw (ReadOutside) = 0;
+    virtual uint32_t getU32() throw (ReadOutside) = 0;
+    virtual uint64_t getU64() throw (ReadOutside) = 0;
+    virtual ConstDataBlockRef getBlock(unsigned length) throw (ReadOutside) = 0;
+    virtual void storeBlock(DataBlockRef buffer) throw (ReadOutside) = 0;
+    virtual ConstDataBlockRef getBlockUpTo(unsigned length) throw () = 0;
+    virtual ConstDataBlockRef storeBlockUpTo(DataBlockRef buffer) throw () = 0;
+};
+
+class SeekableBinaryReader : public BinaryReader {
+public:
+    virtual void setPosition(unsigned position) throw () = 0;
+    virtual unsigned getPosition() const throw () = 0;
 };
 
 class BinaryWriter {
 protected:
     uint8_t* data;
     unsigned capacity;
+    unsigned pos;
 
     void reserve(unsigned capacityRequired) throw () { if (capacityRequired > capacity) reallocate(capacityRequired); }
     virtual void reallocate(unsigned capacityRequired) throw () { numAssert2(0, capacity, capacityRequired); }
-
-private:
-    unsigned pos;
 
 public:
     BinaryWriter(void* buffer, unsigned bufSize) throw () : data(static_cast<uint8_t*>(buffer)), capacity(bufSize), pos(0) { }
@@ -99,12 +112,19 @@ public:
           uint8_t* accessData()       throw () { return data; }
     const uint8_t* accessData() const throw () { return data; }
 
-    void setPosition(unsigned position) throw () { numAssert2(position <= capacity, position, capacity); pos = position; }
+    void setPosition(unsigned position) throw () { if (position > capacity) reallocate(capacity + 100); pos = position; }
     unsigned getPosition() const throw () { return pos; }
     unsigned getCapacity() const throw () { return capacity; }
 
-    operator      DataBlockRef()       throw () { return      DataBlockRef(data, pos); }
-    operator ConstDataBlockRef() const throw () { return ConstDataBlockRef(data, pos); }
+    void clear() throw () { pos = 0; }
+    bool empty() const throw () { return pos == 0; }
+    unsigned size() const throw () { return pos; }
+
+    operator      DataBlockRef()       throw () { return ref(); }
+    operator ConstDataBlockRef() const throw () { return ref(); }
+
+         DataBlockRef ref()       throw () { return      DataBlockRef(data, pos); }
+    ConstDataBlockRef ref() const throw () { return ConstDataBlockRef(data, pos); }
 
     void uncheckedU8 ( uint8_t wData) throw ();
     void uncheckedS8 (  int8_t wData) throw () { uncheckedU8 (static_cast< uint8_t>(wData)); }
@@ -143,19 +163,78 @@ public:
     void block(ConstDataBlockRef wData) throw ();
 };
 
-template<unsigned size> class BinaryBuffer : public BinaryWriter {
-    uint8_t buffer[size];
+class BinaryDataBlockReader : public SeekableBinaryReader {
+    const uint8_t* data;
+    unsigned dataLength;
+    unsigned pos;
+
+    virtual  uint8_t getU8 () throw (ReadOutside);
+    virtual uint16_t getU16() throw (ReadOutside);
+    virtual uint32_t getU32() throw (ReadOutside);
+    virtual uint64_t getU64() throw (ReadOutside);
+
+    virtual ConstDataBlockRef getBlock(unsigned length) throw (ReadOutside);
+    virtual void storeBlock(DataBlockRef buffer) throw (ReadOutside);
+    virtual ConstDataBlockRef getBlockUpTo(unsigned length) throw ();
+    virtual ConstDataBlockRef storeBlockUpTo(DataBlockRef buffer) throw ();
 
 public:
-    BinaryBuffer() throw () : BinaryWriter(buffer, size) { }
+    BinaryDataBlockReader(const void* data_, unsigned size) throw () : data(static_cast<const uint8_t*>(data_)), dataLength(size), pos(0) { }
+    BinaryDataBlockReader(ConstDataBlockRef block) throw () : data(static_cast<const uint8_t*>(block.data())), dataLength(block.size()), pos(0) { }
+
+    // a read exception invalidates the position
+    virtual void setPosition(unsigned position) throw () { pos = position; }
+    virtual unsigned getPosition() const throw () { return pos; }
+    virtual bool hasMore() const throw () { return pos < dataLength; }
+
+    ConstDataBlockRef unreadPart() const throw () { return ConstDataBlockRef(data + pos, dataLength - pos); }
 };
 
-class ExpandingBinaryBuffer : public BinaryWriter, private NoCopying {
+/** Read binary data off an istream.
+ * The stream needs to be seekable in order to use setPosition/getPosition.
+ */
+class BinaryStreamReader : public SeekableBinaryReader {
+    std::istream& stream; // read position always at bufStartOffset + dataLength
+    char* temporaryBuffer;
+
+    virtual  uint8_t getU8 () throw (ReadOutside);
+    virtual uint16_t getU16() throw (ReadOutside);
+    virtual uint32_t getU32() throw (ReadOutside);
+    virtual uint64_t getU64() throw (ReadOutside);
+
+    virtual ConstDataBlockRef getBlock(unsigned length) throw (ReadOutside); // this uses temporaryBuffer and isn't efficient
+    virtual void storeBlock(DataBlockRef buffer) throw (ReadOutside);
+    virtual ConstDataBlockRef getBlockUpTo(unsigned length) throw (); // this uses temporaryBuffer and isn't efficient
+    virtual ConstDataBlockRef storeBlockUpTo(DataBlockRef buffer) throw ();
+
+public:
+    BinaryStreamReader(std::istream& is) throw () : stream(is), temporaryBuffer(0) { }
+    ~BinaryStreamReader() throw () { delete[] temporaryBuffer; }
+
+    // a read exception invalidates the (stream) position
+    virtual void setPosition(unsigned position) throw ();
+    virtual unsigned getPosition() const throw ();
+    virtual bool hasMore() const throw ();
+
+    void releaseTemporaryBuffer() { delete[] temporaryBuffer; temporaryBuffer = 0; }
+};
+
+template<unsigned sz> class BinaryBuffer : public BinaryWriter {
+    uint8_t buffer[sz];
+
+public:
+    BinaryBuffer() throw () : BinaryWriter(buffer, sz) { }
+};
+
+class ExpandingBinaryBuffer : public BinaryWriter {
     virtual void reallocate(unsigned capacityRequired) throw ();
 
 public:
     ExpandingBinaryBuffer() throw ();
+    ExpandingBinaryBuffer(const ExpandingBinaryBuffer& o) throw ();
     ~ExpandingBinaryBuffer() throw ();
+
+    ExpandingBinaryBuffer& operator=(const ExpandingBinaryBuffer& o) throw ();
 };
 
 #endif

@@ -1474,7 +1474,7 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const throw () {
 }
 
 bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () {
-    BinaryReader msg(data);
+    BinaryDataBlockReader msg(data);
 
     ServerPlayer& sender = world.player[pid];
 
@@ -1682,7 +1682,7 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
 
     //1. process client's frame data
 
-    BinaryReader frame(data);
+    BinaryDataBlockReader frame(data);
 
     const uint8_t clFrame = frame.U8();
 
@@ -2716,7 +2716,7 @@ bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
         return false;
     }
 
-    BinaryReader rd(rbuf, result);
+    BinaryDataBlockReader rd(rbuf, result);
 
     const uint32_t code = rd.U32();
 
@@ -2745,7 +2745,7 @@ bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
             log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
             return false;
         }
-        rd = BinaryReader(rbuf, result);
+        rd = BinaryDataBlockReader(rbuf, result);
         if (argPid[code]) {
             cid = rd.U32();
             if (cid > 255) {
@@ -3070,7 +3070,7 @@ Network::Address ServerNetworking::get_client_address(int cid) const throw () {
 }
 
 void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
-    BinaryReader msg(data);
+    BinaryDataBlockReader msg(data);
     BinaryWriter reply(res->customData, sizeof(res->customData));
 
     // free reservedPlayerSlots that have been left unused, they might be needed now

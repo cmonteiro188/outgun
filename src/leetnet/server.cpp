@@ -568,7 +568,7 @@ public:
         // mensagem 0 666 = ping request
         // mensagem 0 200 = serverinfo request
 
-        BinaryReader read(data);
+        BinaryDataBlockReader read(data);
         const uint32_t packid = read.U32(); //packet id
         const uint32_t smsgid = read.U32(); // special message id (if packet id == 0)
 
@@ -874,7 +874,7 @@ public:
         //
 
         if (is_special) {
-            BinaryReader read(data, len);
+            BinaryDataBlockReader read(data, len);
             read.U32(); //skip "0"
             const uint32_t code = read.U32();
 

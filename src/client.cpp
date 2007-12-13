@@ -1075,7 +1075,7 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     connected = true;
     gameshow = true;
 
-    BinaryReader read(data);
+    BinaryDataBlockReader read(data);
 
     setMaxPlayers(read.U8(0, MAX_PLAYERS));
 
@@ -1247,7 +1247,7 @@ void Client::client_disconnected(ConstDataBlockRef data) throw () {
     connected = false;
     gameshow = false;
 
-    BinaryReader read(data);
+    BinaryDataBlockReader read(data);
 
     if (botmode) {
         const uint8_t reason = read.U8();
@@ -1300,7 +1300,7 @@ void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
     string message;
     bool userHandled = false;
     if (data.size() > 1) {
-        BinaryReader read(data);
+        BinaryDataBlockReader read(data);
         message = read.str();
         const string str1 = "Protocol mismatch: server: ";
         const string str2 = ", client: " + GAME_PROTOCOL;
@@ -1312,7 +1312,7 @@ void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
         // otherwise leave message at its value of whatever the server sent
     }
     else if (data.size() == 1) {
-        BinaryReader read(data);
+        BinaryDataBlockReader read(data);
         const uint8_t rb = read.U8();
         if (rb > reject_last)
             message = _("Unknown reason code ($1).", itoa(rb));
@@ -1708,7 +1708,7 @@ void Client::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
 }
 
 bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
-    BinaryReader read(data);
+    BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32();    //server's frame
 
@@ -1901,7 +1901,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
 
 #ifndef DEDICATED_SERVER_ONLY
 int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
-    BinaryReader read(data);
+    BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
 
@@ -1966,7 +1966,7 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
 // process a message (update fx, and add the non frame-related messages to messageQueue)
 bool Client::process_message(ConstDataBlockRef data) throw () {
     const double time = fx.frame / 10;
-    BinaryReader read(data);
+    BinaryDataBlockReader read(data);
 
     const uint8_t code = read.U8();
 
@@ -3239,7 +3239,7 @@ void Client::process_incoming_data(ConstDataBlockRef data) throw () {
     if (replaying) {
         #ifndef DEDICATED_SERVER_ONLY
         const int frameSize = process_replay_frame_data(data);
-        BinaryReader read(data);
+        BinaryDataBlockReader read(data);
         read.block(frameSize);
         while (read.hasMore())
             if (!process_message(read.block(read.U32()))) {
@@ -3470,7 +3470,7 @@ bool Client::refresh_all_servers() throw () {
                 if (result.length < 10)
                     continue;
 
-                BinaryReader msg(buffer, result.length);
+                BinaryDataBlockReader msg(buffer, result.length);
 
                 const uint32_t dw1 = msg.U32(), dw2 = msg.U32();
                 if (dw1 != 0 || dw2 != 200)
@@ -3575,7 +3575,7 @@ bool Client::get_local_servers() throw () {
 
             log("Response from %s: '%s'", result.source.toString().c_str(), formatForLogging(buffer).c_str());
 
-            BinaryReader read(buffer, result.length);
+            BinaryDataBlockReader read(buffer, result.length);
             if (read.str() != broadcast_string)
                 continue;   // Not an Outgun server.
 

@@ -531,7 +531,7 @@ DLOG_Scope s("CPIDg");
 
         //special packet? (connection accepted/rejected , disconnected ...)
         if (special) {
-            BinaryReader read(data, length);
+            BinaryDataBlockReader read(data, length);
             read.U32(); //discard the "0"
             const uint32_t code = read.U32();
 

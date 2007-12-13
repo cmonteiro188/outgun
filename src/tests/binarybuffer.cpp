@@ -70,7 +70,7 @@ void binaryBufferTest() throw () {
     nAssert(b1.getPosition() == 19);
     testAssertion(VMFbind1(b1, S16, 0));
 
-    BinaryReader r1(b1);
+    BinaryDataBlockReader r1(b1);
     nAssert(r1.U8(0, 0) == 0);
     nAssert(r1.U64() == 0x0102030405060708);
     nAssert(r1.S8() == 9);
@@ -78,7 +78,7 @@ void binaryBufferTest() throw () {
     b1.setPosition(0);
     nAssert(r1.S8() == 0);
 
-    BinaryReader r2(b2);
+    BinaryDataBlockReader r2(b2);
     nAssert(r2.U8(200, 200) == 200);
     nAssert(r2.S8(-128, -1) == -100);
     nAssert(r2.U16() == 65535);

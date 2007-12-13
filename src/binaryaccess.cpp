@@ -21,37 +21,10 @@
  *
  */
 
+#include <iostream>
 #include <limits>
 
 #include "binaryaccess.h"
-
-uint8_t BinaryReader::U8() throw (ReadOutside) {
-    if (pos + 1 > dataLength)
-        throw ReadOutside();
-    return data[pos++];
-}
-
-uint16_t BinaryReader::U16() throw (ReadOutside) {
-    if (pos + 2 > dataLength)
-        throw ReadOutside();
-    pos += 2;
-    return (uint16_t(data[pos - 2]) << 8) | uint16_t(data[pos - 1]);
-}
-
-uint32_t BinaryReader::U32() throw (ReadOutside) {
-    if (pos + 4 > dataLength)
-        throw ReadOutside();
-    pos += 4;
-    return (uint32_t(data[pos - 4]) << 24) | (uint32_t(data[pos - 3]) << 16) | (uint32_t(data[pos - 2]) << 8) | uint32_t(data[pos - 1]);
-}
-
-uint64_t BinaryReader::U64() throw (ReadOutside) {
-    if (pos + 8 > dataLength)
-        throw ReadOutside();
-    pos += 8;
-    return (uint64_t(data[pos - 8]) << 56) | (uint64_t(data[pos - 7]) << 48) | (uint64_t(data[pos - 6]) << 40) | (uint64_t(data[pos - 5]) << 32)
-         | (uint64_t(data[pos - 4]) << 24) | (uint64_t(data[pos - 3]) << 16) | (uint64_t(data[pos - 2]) <<  8) |  uint64_t(data[pos - 1]);
-}
 
 float BinaryReader::flt() throw (ReadOutside) {
     STATIC_ASSERT(sizeof(uint32_t) == sizeof(float));
@@ -68,17 +41,8 @@ double BinaryReader::dbl() throw (ReadOutside) {
 }
 
 std::string BinaryReader::constLengthStr(unsigned length) throw (ReadOutside) {
-    if (pos + length > dataLength)
-        throw ReadOutside();
-    pos += length;
-    #if CHAR_BIT == 8
-     return std::string(reinterpret_cast<const char*>(data + pos - length), length);
-    #else
-     std::string s;
-     for (unsigned p = pos - length; p < pos; ++p)
-         s += static_cast<char>(data[p]);
-     return s;
-    #endif
+    STATIC_ASSERT(CHAR_BIT == 8);
+    return std::string(static_cast<const char*>(getBlock(length).data()), length);
 }
 
 std::string BinaryReader::str() throw (ReadOutside) {
@@ -89,13 +53,6 @@ std::string BinaryReader::str() throw (ReadOutside) {
             return s;
         s += static_cast<char>(byte);
     }
-}
-
-ConstDataBlockRef BinaryReader::block(unsigned length) throw (ReadOutside) {
-    if (pos + length > dataLength)
-        throw ReadOutside();
-    pos += length;
-    return ConstDataBlockRef(data + pos - length, length);
 }
 
 void BinaryWriter::uncheckedU8(uint8_t wData) throw () {
@@ -206,6 +163,138 @@ DEFINE_METHODS_WITHOUT_CHECKED(double, double, dbl)
 #undef DEFINE_METHODS_WITHOUT_CHECKED
 #undef DEFINE_METHODS_WITH_CHECKED
 
+uint8_t BinaryDataBlockReader::getU8() throw (ReadOutside) {
+    if (pos + 1 > dataLength)
+        throw ReadOutside();
+    return data[pos++];
+}
+
+uint16_t BinaryDataBlockReader::getU16() throw (ReadOutside) {
+    if (pos + 2 > dataLength)
+        throw ReadOutside();
+    pos += 2;
+    return (uint16_t(data[pos - 2]) << 8) | uint16_t(data[pos - 1]);
+}
+
+uint32_t BinaryDataBlockReader::getU32() throw (ReadOutside) {
+    if (pos + 4 > dataLength)
+        throw ReadOutside();
+    pos += 4;
+    return (uint32_t(data[pos - 4]) << 24) | (uint32_t(data[pos - 3]) << 16) | (uint32_t(data[pos - 2]) << 8) | uint32_t(data[pos - 1]);
+}
+
+uint64_t BinaryDataBlockReader::getU64() throw (ReadOutside) {
+    if (pos + 8 > dataLength)
+        throw ReadOutside();
+    pos += 8;
+    return (uint64_t(data[pos - 8]) << 56) | (uint64_t(data[pos - 7]) << 48) | (uint64_t(data[pos - 6]) << 40) | (uint64_t(data[pos - 5]) << 32)
+         | (uint64_t(data[pos - 4]) << 24) | (uint64_t(data[pos - 3]) << 16) | (uint64_t(data[pos - 2]) <<  8) |  uint64_t(data[pos - 1]);
+}
+
+ConstDataBlockRef BinaryDataBlockReader::getBlock(unsigned length) throw (ReadOutside) {
+    if (pos + length > dataLength)
+        throw ReadOutside();
+    pos += length;
+    return ConstDataBlockRef(data + pos - length, length);
+}
+
+ConstDataBlockRef BinaryDataBlockReader::getBlockUpTo(unsigned length) throw () {
+    if (pos + length > dataLength)
+        length = dataLength - pos;
+    pos = dataLength;
+    return ConstDataBlockRef(data + pos - length, length);
+}
+
+void BinaryDataBlockReader::storeBlock(DataBlockRef buffer) throw (ReadOutside) {
+    ConstDataBlockRef data = getBlock(buffer.size());
+    memcpy(buffer.data(), data.data(), buffer.size());
+}
+
+ConstDataBlockRef BinaryDataBlockReader::storeBlockUpTo(DataBlockRef buffer) throw () {
+    const unsigned length = std::min(buffer.size(), dataLength - pos);
+    memcpy(buffer.data(), data + pos, length);
+    pos += length;
+    return ConstDataBlockRef(buffer.data(), length);
+}
+
+STATIC_ASSERT(CHAR_BIT == 8); // the whole of BinaryStreamReader depends on this
+
+void BinaryStreamReader::setPosition(unsigned position) throw () {
+    stream.clear();
+    stream.seekg(position);
+}
+
+unsigned BinaryStreamReader::getPosition() const throw () {
+    return stream.tellg();
+}
+
+bool BinaryStreamReader::hasMore() const throw () {
+    return !stream.eof();
+}
+
+uint8_t BinaryStreamReader::getU8() throw (ReadOutside) {
+    uint8_t buf[1];
+    stream.read(reinterpret_cast<char*>(buf), 1);
+    if (!stream)
+        throw ReadOutside();
+    return buf[0];
+}
+
+uint16_t BinaryStreamReader::getU16() throw (ReadOutside) {
+    uint8_t buf[2];
+    stream.read(reinterpret_cast<char*>(buf), 2);
+    if (!stream)
+        throw ReadOutside();
+    return (uint16_t(buf[0]) << 8) | uint16_t(buf[1]);
+}
+
+uint32_t BinaryStreamReader::getU32() throw (ReadOutside) {
+    uint8_t buf[4];
+    stream.read(reinterpret_cast<char*>(buf), 4);
+    if (!stream)
+        throw ReadOutside();
+    return (uint32_t(buf[0]) << 24) | (uint32_t(buf[1]) << 16) | (uint32_t(buf[2]) << 8) | uint32_t(buf[3]);
+}
+
+uint64_t BinaryStreamReader::getU64() throw (ReadOutside) {
+    uint8_t buf[8];
+    stream.read(reinterpret_cast<char*>(buf), 8);
+    if (!stream)
+        throw ReadOutside();
+    return (uint64_t(buf[0]) << 56) | (uint64_t(buf[1]) << 48) | (uint64_t(buf[2]) << 40) | (uint64_t(buf[3]) << 32)
+         | (uint64_t(buf[4]) << 24) | (uint64_t(buf[5]) << 16) | (uint64_t(buf[6]) <<  8) |  uint64_t(buf[7]);
+}
+
+ConstDataBlockRef BinaryStreamReader::getBlock(unsigned length) throw (ReadOutside) {
+    delete[] temporaryBuffer;
+    temporaryBuffer = new char[length];
+    stream.read(temporaryBuffer, length);
+    if (!stream) {
+        delete[] temporaryBuffer;
+        temporaryBuffer = 0;
+        throw ReadOutside();
+    }
+    return ConstDataBlockRef(temporaryBuffer, length);
+}
+
+void BinaryStreamReader::storeBlock(DataBlockRef buffer) throw (ReadOutside) {
+    stream.read(static_cast<char*>(buffer.data()), buffer.size());
+    if (!stream)
+        throw ReadOutside();
+}
+
+ConstDataBlockRef BinaryStreamReader::getBlockUpTo(unsigned length) throw () {
+    delete[] temporaryBuffer;
+    temporaryBuffer = new char[length];
+    stream.read(temporaryBuffer, length);
+    return ConstDataBlockRef(temporaryBuffer, stream.gcount());
+}
+
+ConstDataBlockRef BinaryStreamReader::storeBlockUpTo(DataBlockRef buffer) throw () {
+    stream.read(static_cast<char*>(buffer.data()), buffer.size());
+    return ConstDataBlockRef(buffer.data(), stream.gcount());
+}
+
 void ExpandingBinaryBuffer::reallocate(unsigned capacityRequired) throw () {
     nAssert(capacityRequired > capacity);
     capacity = std::max(capacity * 2, capacityRequired);
@@ -223,6 +312,20 @@ ExpandingBinaryBuffer::ExpandingBinaryBuffer() throw () :
     reallocate(100);
 }
 
+ExpandingBinaryBuffer::ExpandingBinaryBuffer(const ExpandingBinaryBuffer& o) throw () :
+    BinaryWriter(0, 0)
+{
+    reallocate(o.capacity);
+    memcpy(data, o.data, o.capacity);
+}
+
 ExpandingBinaryBuffer::~ExpandingBinaryBuffer() throw () {
     free(data);
+}
+
+ExpandingBinaryBuffer& ExpandingBinaryBuffer::operator=(const ExpandingBinaryBuffer& o) throw () {
+    if (capacity < o.capacity)
+        reallocate(o.capacity);
+    memcpy(data, o.data, o.capacity);
+    return *this;
 }

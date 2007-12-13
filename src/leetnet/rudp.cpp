@@ -360,7 +360,7 @@ DLOG_Scope s("UPIP");
         // int8_t[unreliable data size]     all the unreliable data glued in a big chunk
         //
 
-        BinaryReader read(udp_data, udp_size);
+        BinaryDataBlockReader read(udp_data, udp_size);
 
         const uint32_t packet_id = read.U32();
 
