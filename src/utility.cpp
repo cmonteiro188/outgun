@@ -55,6 +55,12 @@ using std::setw;
 using std::string;
 using std::vector;
 
+ostream& operator<<(ostream& os, ConstDataBlockRef data) throw () {
+    STATIC_ASSERT(CHAR_BIT == 8);
+    os.write(static_cast<const char*>(data.data()), data.size());
+    return os;
+}
+
 DataBlock::DataBlock(const DataBlock& source) throw () :
     d(new uint8_t[source.size()], source.size())
 {

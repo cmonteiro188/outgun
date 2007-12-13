@@ -208,6 +208,9 @@ public:
     unsigned size() const throw () { return sz; }
 
     T& operator[](unsigned index) const throw () { return pData[index]; }
+
+    void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
+    BlockRef tail(unsigned numToSkip) const throw () { BlockRef r(*this); r.skipFront(numToSkip); return r; }
 };
 
 template<> class BlockRef<void> { // interface differs in not having operator[]; plus additional conversion from other BlockRefs
@@ -220,6 +223,9 @@ public:
 
     void* data() const throw () { return pData; }
     unsigned size() const throw () { return sz; }
+
+    void skipFront(unsigned bytes) throw () { nAssert(sz >= bytes); pData = static_cast<uint8_t*>(pData) + bytes; sz -= bytes; }
+    BlockRef tail(unsigned bytesToSkip) const throw () { BlockRef r(*this); r.skipFront(bytesToSkip); return r; }
 };
 
 template<class T> class ConstBlockRef {
@@ -236,6 +242,7 @@ public:
     const T& operator[](unsigned index) const throw () { return pData[index]; }
 
     void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
+    ConstBlockRef tail(unsigned numToSkip) const throw () { ConstBlockRef r(*this); r.skipFront(numToSkip); return r; }
 };
 
 template<> class ConstBlockRef<void> { // interface differs in not having operator[], and sizes are in bytes; plus additional conversion from string and other ConstBlockRefs
@@ -244,7 +251,7 @@ template<> class ConstBlockRef<void> { // interface differs in not having operat
 
 public:
     ConstBlockRef(const void* data, unsigned size) throw () : pData(data), sz(size) { }
-    ConstBlockRef(const std::string& str) throw () : pData(str.data()), sz(str.length()) { }
+    ConstBlockRef(const std::string& str) throw () : pData(str.data()), sz(str.length()) { } //#fix: does making this explicit cause too much ugly code?
     ConstBlockRef(const BlockRef<void>& d) throw () : pData(d.data()), sz(d.size()) { }
     template<class T> ConstBlockRef(const      BlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
     template<class T> ConstBlockRef(const ConstBlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
@@ -253,10 +260,13 @@ public:
     unsigned size() const throw () { return sz; }
 
     void skipFront(unsigned bytes) throw () { nAssert(sz >= bytes); pData = static_cast<const uint8_t*>(pData) + bytes; sz -= bytes; }
+    ConstBlockRef tail(unsigned bytesToSkip) const throw () { ConstBlockRef r(*this); r.skipFront(bytesToSkip); return r; }
 };
 
 typedef BlockRef<void> DataBlockRef;
 typedef ConstBlockRef<void> ConstDataBlockRef;
+
+std::ostream& operator<<(std::ostream& os, ConstDataBlockRef data) throw ();
 
 class DataBlock {
     BlockRef<uint8_t> d;
@@ -265,6 +275,7 @@ public:
     DataBlock() throw () : d(0, 0) { }
     DataBlock(const DataBlock& source) throw ();
     DataBlock(const ConstDataBlockRef source) throw ();
+    explicit DataBlock(unsigned size) throw () : d(new uint8_t[size], size) { }
     ~DataBlock() throw ();
 
     DataBlock& operator=(const DataBlock& source) throw() { *this = static_cast<ConstDataBlockRef>(source); return *this; }
