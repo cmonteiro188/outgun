@@ -244,7 +244,7 @@ public:
     public:
         TCPListenerSocket(bool autoClose_ = false) throw () : Socket(autoClose_) { }
         TCPListenerSocket(BlockingMode b, uint16_t port, bool autoClose_ = false) throw (OpenError, ListenError) : Socket(b, TCP, port, autoClose_) { listen(); }
-        TCPListenerSocket(TrashableRef<TCPListenerSocket> s) throw () : Socket(trashable_ref(static_cast<Socket&>(s))) { } /// "move constructor": assume the identity of s and clear s
+        TCPListenerSocket(TrashableRef<TCPListenerSocket> s) throw () : Socket(TrashableRef<Socket>(s)) { } /// "move constructor": assume the identity of s and clear s
 
         TCPListenerSocket& operator=(TrashableRef<TCPListenerSocket> s) throw (); /// "move assignment": assume the identity of s and clear s
 
@@ -291,7 +291,7 @@ public:
     public:
         UDPSocket(bool autoClose_ = false) throw () : Socket(autoClose_) { }
         UDPSocket(BlockingMode b, uint16_t port, bool autoClose_ = false, bool broadcast = false) throw (OpenError) : Socket(b, broadcast ? Broadcast : UDP, port, autoClose_) { }
-        UDPSocket(TrashableRef<UDPSocket> s) throw () : Socket(trashable_ref(static_cast<Socket&>(s))) { } /// "move constructor": assume the identity of s and clear s
+        UDPSocket(TrashableRef<UDPSocket> s) throw () : Socket(TrashableRef<Socket>(s)) { } /// "move constructor": assume the identity of s and clear s
 
         UDPSocket& operator=(TrashableRef<UDPSocket> s) throw (); /// "move assignment": assume the identity of s and clear s
 

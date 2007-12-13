@@ -359,7 +359,7 @@ void Socket::write(ConstDataBlockRef data, int* writtenSize) throw (ReadWriteErr
 }
 
 TCPListenerSocket& TCPListenerSocket::operator=(TrashableRef<TCPListenerSocket> s) throw () {
-    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    Socket::operator=(TrashableRef<Socket>(s));
     return *this;
 }
 
@@ -381,7 +381,7 @@ TCPSocket::TCPSocket(BlockingMode b, uint16_t port, bool autoClose_) throw (Open
 { }
 
 TCPSocket::TCPSocket(TrashableRef<TCPSocket> s) throw () :
-    Socket(trashable_ref(static_cast<Socket&>(s))),
+    Socket(TrashableRef<Socket>(s)),
     connected(s->connected)
 {
     s->connected = false;
@@ -389,7 +389,7 @@ TCPSocket::TCPSocket(TrashableRef<TCPSocket> s) throw () :
 
 TCPSocket& TCPSocket::operator=(TrashableRef<TCPSocket> s) throw () {
     connected = s->connected;
-    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    Socket::operator=(TrashableRef<Socket>(s));
     s->connected = false;
     return *this;
 }
@@ -512,7 +512,7 @@ void TCPSocket::readAll(std::ostream& out, int timeout, int roundDelay) throw (R
 }
 
 UDPSocket& UDPSocket::operator=(TrashableRef<UDPSocket> s) throw () {
-    Socket::operator=(trashable_ref(static_cast<Socket&>(s)));
+    Socket::operator=(TrashableRef<Socket>(s));
     return *this;
 }
 
