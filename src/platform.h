@@ -53,7 +53,7 @@ public:
 /** Create a FileFinder object to list matching files in a directory.
  * @param path         the directory to search in (can't include wildcards)
  * @param extension    a string of characters to be found at the end of a filename for it to be matched (can't include wildcards or '/' or '\'): include . if you want to limit to a strict extension
- * @parma directories  if true, matched files are directories; if false, regular files
+ * @param directories  if true, matched files are directories; if false, regular files
  */
 ControlledPtr<FileFinder> platMakeFileFinder(const std::string& path, const std::string& extension, bool directories) throw ();
 
