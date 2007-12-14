@@ -309,6 +309,7 @@ inline int sqr(int value) throw () {
 }
 
 template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) throw () {
+    STATIC_ASSERT(std::numeric_limits<Int1T>::is_integer && std::numeric_limits<Int2T>::is_integer);
     nAssert(modulus > 0);
     return val >= 0 ? val % modulus : modulus - (-val % modulus);
 }
@@ -316,13 +317,43 @@ template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus
 double positiveFmod(double val, double modulus) throw ();
 
 template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits) throw () {
-    nAssert(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
     const unsigned typew = sizeof(UnsignedIntT) * CHAR_BIT;
     bits = positiveModulo(bits, typew);
     return (val >> bits) | (val << (typew - bits));
 }
 
 template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) throw () { rotateRight(val, -bits); }
+
+template<class UnsignedIntT> UnsignedIntT shiftLeft(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    nAssert(bits < sizeof(UnsignedIntT) * CHAR_BIT);
+    return val << bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT shiftRight(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    nAssert(bits < sizeof(UnsignedIntT) * CHAR_BIT);
+    return val >> bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShiftLeft(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    if (bits >= sizeof(UnsignedIntT) * CHAR_BIT)
+        return 0;
+    return val << bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShiftRight(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    if (bits >= sizeof(UnsignedIntT) * CHAR_BIT)
+        return 0;
+    return val >> bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShift(UnsignedIntT val, int bitsLeft) throw () {
+    return bitsLeft >= 0 ? safeShiftLeft(val, bitsLeft) : safeShiftRight(val, -bitsLeft);
+}
 
 /// Returns the current time in the standard format.
 std::string date_and_time() throw ();
