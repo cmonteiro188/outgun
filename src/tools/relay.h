@@ -147,10 +147,10 @@ private:
     void send_master_server() throw ();
 
     Network::TCPListenerSocket listen_socket;     /// Socket for all incoming connections
-    unsigned short listen_port; /// Port for all incoming connections
+    unsigned short listen_port;       /// Port for all incoming connections
 
-    Network::Address server_address;   /// Game server address
-    Network::TCPSocket server_socket;     /// Game server socket
+    Network::Address server_address;  /// Game server address
+    Network::TCPSocket server_socket; /// Game server socket
     std::string hostname;
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
@@ -159,12 +159,12 @@ private:
     unsigned server_delay;      /// Delay from the live game on the game server, in seconds
 
     PointerVector<Spectator> spectators;
-    PointerVector<Peer> peers;    /// Just connected "things"
+    PointerVector<Peer> peers;  /// Just connected "things"
     std::deque<Game> games;     /// Game data
 
     ExpandingBinaryBuffer waiting_data;
 
-    Frame first_buffer;         /// Initial buffer that basically has the same data as in the start of the replay
+    Frame first_buffer;          /// Initial buffer that basically has the same data as in the start of the replay
     unsigned buffer_first_frame; /// Frame number of the start frame of the first game in list
 
     std::string master_name;
