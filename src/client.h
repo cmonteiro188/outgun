@@ -46,24 +46,26 @@
 #include "thread.h"
 #include "world.h"
 
+class BinaryReader;
+
 #ifndef DEDICATED_SERVER_ONLY
 //server record
 class ServerListEntry {
 public:
-    bool        refreshed;
-    bool        noresponse;
-    int         ping;
+    bool refreshed;
+    bool noresponse;
+    int ping;
     std::string info;
 
     ServerListEntry() throw () : refreshed(false), noresponse(true), ping(0) { }
 
-    const NLaddress& address() const throw () { return addr; }
+    const Network::Address& address() const throw () { return addr; }
     std::string addressString() const throw ();
     bool setAddress(const std::string& address) throw ();    // returns false if address is invalid
-    void setAddress(const NLaddress& address) throw ();
+    void setAddress(const Network::Address& address) throw ();
 
 private:
-    NLaddress   addr;
+    Network::Address addr;
 };
 
 class FileDownload {
@@ -75,7 +77,7 @@ public:
     bool isActive() const throw () { return (fp != 0); }
     int progress() const throw ();
     bool start() throw ();
-    bool save(const char* buf, unsigned len) throw ();
+    bool save(ConstDataBlockRef data) throw ();
     void finish() throw ();
 
 private:
@@ -237,7 +239,7 @@ class Client : public ClientInterface {
     // network
     client_c *client;
     double lastpackettime;
-    NLubyte clFrameSent, clFrameWorld;
+    uint8_t clFrameSent, clFrameWorld;
     double botReactedFrame;
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
@@ -269,8 +271,8 @@ class Client : public ClientInterface {
 
     TournamentPasswordManager tournamentPassword;
 
-    NLulong fdp;
-    NLulong max_world_rank;
+    uint32_t fdp;
+    uint32_t max_world_rank;
     #endif
 
     #ifndef DEDICATED_SERVER_ONLY
@@ -292,7 +294,7 @@ class Client : public ClientInterface {
     int map_end_time;
     bool extra_time_running;
     #endif
-    NLbyte remove_flags;
+    int8_t remove_flags;
     bool lock_team_flags_in_effect;
     bool lock_wild_flags_in_effect;
     bool capture_on_team_flags_in_effect;
@@ -338,7 +340,7 @@ class Client : public ClientInterface {
     #endif
 
     std::string playername;
-    NLaddress serverIP;
+    Network::Address serverIP;
 
     // for bots:
     std::string bot_password;
@@ -472,7 +474,7 @@ class Client : public ClientInterface {
     double visible_rooms;
 
     bool spectating;
-    NLsocket spectate_socket;
+    Network::TCPSocket spectate_socket;
     bool spectate_data_received;
     std::stringstream spectate_buffer;
     #else
@@ -598,10 +600,10 @@ class Client : public ClientInterface {
     // network
     void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
     void disconnect_command() throw ();  // do not call from a network thread
-    void connection_update(int connect_result, const char* data, int length) throw ();
-    void client_connected(const char* data, int length) throw ();    // call with frameMutex locked
-    void client_disconnected(const char* data, int length) throw ();
-    void connect_failed_denied(const char* data, int length) throw ();
+    void connection_update(int connect_result, ConstDataBlockRef data) throw ();
+    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    void client_disconnected(ConstDataBlockRef data) throw ();
+    void connect_failed_denied(ConstDataBlockRef data) throw ();
     void connect_failed_unreachable() throw ();
     void connect_failed_socket() throw ();
     void sendMinimapBandwidthAny(int players) throw ();
@@ -621,13 +623,13 @@ class Client : public ClientInterface {
     void send_frame(bool newFrame, bool forceSend) throw ();
     #endif
     void bot_send_frame(ClientControls controls) throw ();
-    void readMinimapPlayerPosition(const char* data, int& count, int pid) throw ();
-    bool process_live_frame_data(const char* data, int length) throw (); // returns false if an error occured that requires disconnecting
+    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw ();
+    bool process_live_frame_data(ConstDataBlockRef data) throw (); // returns false if an error occured that requires disconnecting
     #ifndef DEDICATED_SERVER_ONLY
-    int process_replay_frame_data(const char* data) throw (); // returns number of bytes read
+    int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
     #endif
-    bool process_message(const char* const lebuf, int msglen) throw (); // if returns false, discard the server/replay
-    void process_incoming_data(const char* data, int length) throw ();
+    bool process_message(ConstDataBlockRef data) throw (); // if returns false, discard the server/replay
+    void process_incoming_data(ConstDataBlockRef data) throw ();
 
     #ifndef DEDICATED_SERVER_ONLY
     std::string refreshStatusAsString() const throw ();
@@ -639,17 +641,17 @@ class Client : public ClientInterface {
     bool parseServerList(std::istream& response) throw ();
 
     void check_download() throw ();  // call with downloadMutex locked
-    void process_udp_download_chunk(const char* buf, int len, bool last) throw ();
+    void process_udp_download_chunk(ConstDataBlockRef, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
     #endif
-    void server_map_command(const std::string& mapname, NLushort server_crc) throw ();
-    bool load_map(const std::string& directory, const std::string& mapname, NLushort server_crc) throw ();
+    void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
+    bool load_map(const std::string& directory, const std::string& mapname, uint16_t server_crc) throw ();
 
     void handlePendingThreadMessages() throw (); // should only be called by the main thread; call with frameMutex locked
 
     // client callbacks
-    static void cfunc_connection_update(void* customp, int connect_result, const char* data, int length) throw ();
-    static void cfunc_server_data(void* customp, const char* data, int length) throw ();
+    static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
+    static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
 
     #ifndef DEDICATED_SERVER_ONLY
     WorldCoords playerPos(int pid) const throw ();
@@ -698,7 +700,7 @@ class Client : public ClientInterface {
     void continue_replay() throw ();
     void continue_replay(std::istream& in) throw ();
     void stop_replay() throw ();
-    void start_spectating(const NLaddress& address) throw ();
+    void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
     #endif
 
@@ -722,7 +724,7 @@ public:
     #endif
     void stop() throw ();
 
-    void bot_start(const NLaddress& addr, int ping, const std::string& name_lang, int botId) throw ();
+    void bot_start(const Network::Address& addr, int ping, const std::string& name_lang, int botId) throw ();
     void bot_loop() throw ();
     void set_ping(int ping) throw ();
     bool is_connected() const throw () { return connected; }

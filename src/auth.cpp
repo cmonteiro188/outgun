@@ -25,8 +25,6 @@
 #include <fstream>
 #include <sstream>
 
-#include <nl.h>
-
 #include "commont.h"
 #include "language.h"
 #include "nassert.h"
@@ -150,10 +148,10 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw (FileErr
             if (!isValidIP(data))
                 throw FileError(_("Invalid ban command (IP address) in auth.txt: \"$1\"", line));
             else {
-                NLaddress addr;
-                if (!nlStringToAddr(data.c_str(), &addr))
-                    nAssert(0);
-                nlSetAddrPort(&addr, 0);
+                Network::Address addr;
+                addr.fromValidIP(data);
+                nAssert(addr.valid());
+                addr.setPort(0);
                 time_t endTime;
                 strl >> endTime;
                 if (!strl)
@@ -196,7 +194,7 @@ void AuthorizationDatabase::save() const throw (FileError) {
         << '\n';
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
         if (bi->endTime > time(0))  // if the ban isn't in effect any more, don't save
-            out << "ban\t" << bi->name << '\t' << addressToString(bi->address) << '\t' << bi->endTime << '\n';
+            out << "ban\t" << bi->name << '\t' << bi->address.toString() << '\t' << bi->endTime << '\n';
     for (map<string, AccessDescriptor>::const_iterator ci = classes.begin(); ci != classes.end(); ++ci) {
         out << "class\t" << ci->first << '\t';
         const AccessDescriptor& a = ci->second;
@@ -228,15 +226,15 @@ bool AuthorizationDatabase::checkNamePassword(const string& name, const string& 
     return (idx == -1 || names[idx].password == password);
 }
 
-bool AuthorizationDatabase::isBanned(NLaddress addr) const throw () {
-    nlSetAddrPort(&addr, 0);
+bool AuthorizationDatabase::isBanned(Network::Address addr) const throw () {
+    addr.setPort(0);
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
-        if (nlAddrCompare(&addr, &bi->address) && bi->endTime > time(0))
+        if (addr == bi->address && bi->endTime > time(0))
             return true;
     return false;
 }
 
-void AuthorizationDatabase::ban(NLaddress addr, const string& name, int minutes) throw () {
-    nlSetAddrPort(&addr, 0);
+void AuthorizationDatabase::ban(Network::Address addr, const string& name, int minutes) throw () {
+    addr.setPort(0);
     bans.push_back(BanEntry(name, addr, time(0) + minutes * 60));
 }

@@ -56,6 +56,7 @@
 using std::ifstream;
 using std::ostringstream;
 using std::string;
+using std::vector;
 
 #ifndef DEDICATED_SERVER_ONLY
 
@@ -477,12 +478,13 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         else
             log.error(_("Unknown command-line argument '$1'.", argv[i]));
     }
-    if (nlInit() == NL_FALSE)
-        log.error(_("Can't init HawkNL. $1", getNlErrorString()));
-    if (nlSelectNetwork(NL_IP) == NL_FALSE)
-        log.error(_("No IP network."));
-    // enable statistics
-    nlEnable(NL_SOCKET_STATS);
+    try {
+        Network::init();
+    } catch (const Network::InitError& e) {
+        log.error(e.str());
+        return;
+    }
+    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
 
     if (serverCfg.ipAddress.empty())
         serverCfg.ipAddress = getPublicIP(log, false);
@@ -509,10 +511,6 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         if (memoryErrorLog.size() != acceptedErrorCount)  // not continuing if there were errors
             return;
 
-        //get all local addresses
-        NLint locsize;
-        const NLaddress* locals = nlGetAllLocalAddr(&locsize);
-
         string infobuf =
             _("Possible thread priorities (-prio <val>):") + '\n' +
             _("* Minimum: $1", itoa(pmin)) + '\n' +
@@ -521,8 +519,9 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
             _("* Outgun default: $1", itoa((pmax - 1 < pmin) ? pdef : pmax - 1)) + "\n\n" +
             _("IP addresses:") + '\n';
 
-        for (int i = 0; i < locsize; i++) {
-            infobuf += addressToString(locals[i]);
+        const vector<Network::Address> locals = Network::getAllLocalAddresses();
+        for (vector<Network::Address>::const_iterator li = locals.begin(); li != locals.end(); ++li) {
+            infobuf += li->toString();
             infobuf += '\n';
         }
 
@@ -651,8 +650,4 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
     #endif
 
     log("Exiting");
-    // exit HawkNL
-    nlShutdown();
-
-    return;
 }

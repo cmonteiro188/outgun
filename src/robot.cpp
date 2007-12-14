@@ -25,6 +25,7 @@
 #include <queue>
 #include <vector>
 
+#include "binaryaccess.h"
 #include "leetnet/client.h"
 #include "nassert.h"
 #include "protocol.h"
@@ -1641,9 +1642,9 @@ ClientControls Client::Robot() throw () {
                     fx.player[me].roomx >= fx.map.w || fx.player[me].roomy >= fx.map.h) {
         myGundir = -1;
         if (botPrevFire) {
-            char lebuf[16]; int count = 0;
-            writeByte(lebuf, count, data_fire_off);
-            client->send_message(lebuf, count);
+            BinaryBuffer<16> msg;
+            msg.U8(data_fire_off);
+            client->send_message(msg);
             botPrevFire = false;
         }
         return ClientControls();
@@ -1681,16 +1682,16 @@ ClientControls Client::Robot() throw () {
     }
     if (actuallyShoot) {
         if (!botPrevFire) {
-            char lebuf[16]; int count = 0;
-            writeByte(lebuf, count, data_fire_on);
-            client->send_message(lebuf, count);
+            BinaryBuffer<16> msg;
+            msg.U8(data_fire_on);
+            client->send_message(msg);
             botPrevFire = true;
         }
     }
     else if (botPrevFire) {
-        char lebuf[16]; int count = 0;
-        writeByte(lebuf, count, data_fire_off);
-        client->send_message(lebuf, count);
+        BinaryBuffer<16> msg;
+        msg.U8(data_fire_off);
+        client->send_message(msg);
         botPrevFire = false;
     }
 

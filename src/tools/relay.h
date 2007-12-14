@@ -29,23 +29,21 @@
 #include <sstream>
 #include <vector>
 
-#include <nl.h>
+#include "../network.h"
+#include "../pointervector.h"
 
-class Peer {
+class Peer : private NoCopying {
 public:
-    Peer(const NLaddress& addr, const NLsocket& sock) throw () : address(addr), socket(sock) { }
-    Peer(const Peer& peer) throw ();
+    Peer(const Network::Address& addr, TrashableRef<Network::TCPSocket> sock) throw () : address(addr), socket(sock) { }
 
-    Peer& operator=(const Peer& peer) throw ();
-
-    NLaddress address;
-    NLsocket  socket;
+    Network::Address address;
+    Network::TCPSocket socket;
     std::stringstream buffer;
 };
 
-class Spectator {
+class Spectator : private NoCopying {
 public:
-    Spectator(const NLaddress& addr, const NLsocket& sock) throw () :
+    Spectator(const Network::Address& addr, TrashableRef<Network::TCPSocket> sock) throw () :
         address(addr),
         socket(sock),
         local(isLocalIP(addr)),
@@ -54,8 +52,8 @@ public:
         first_buffer_sent(false)
     { }
 
-    NLaddress address;
-    NLsocket  socket;
+    Network::Address address;
+    Network::TCPSocket socket;
     bool local;
     unsigned  next_frame;
     unsigned  bytes_sent;
@@ -64,20 +62,20 @@ public:
 
 class Frame {
 public:
-    Frame(int l, const std::string& d, double t) throw () : len(l), data_(d), time_(t) { }
+    Frame(int l, ConstDataBlockRef d, double t) throw () : len(l), time_(t) { data_.block(d); }
 
-    void add(const std::string& d, double t) throw () { data_.append(d); time_ = t; }
+    void add(ConstDataBlockRef d, double t) throw () { data_.block(d); time_ = t; }
 
     unsigned length() const throw () { return len; }
-    unsigned used() const throw () { return data_.length(); }
+    unsigned used() const throw () { return data_.size(); }
     unsigned remaining() const throw () { return length() - used(); }
     bool full() const throw () { return used() == length(); }
-    const std::string& data() const throw () { return data_; }
+    ConstDataBlockRef data() const throw () { return data_; }
     double time() const throw () { return time_; }
 
 private:
     unsigned    len;
-    std::string data_;
+    ExpandingBinaryBuffer data_;
     double      time_;
 };
 
@@ -125,33 +123,34 @@ private:
 
     /// Handle connections just opened
     void check_new_connections() throw ();
+    bool check_new_connection(Peer& p) throw (); // returns true if the peer was handled and can be removed
 
     /// Read game data from the Outgun server
     void get_server_data() throw ();
 
     /// Add game data to buffer
-    bool add_data(std::istream& in) throw ();
+    bool add_data(SeekableBinaryReader& reader) throw ();
 
     /// Send data to every spectator
     void send_data() throw ();
 
     /// Send data to the socket
-    int send_data(NLsocket& socket, const std::string& data) const throw ();
+    int send_data(Network::TCPSocket& socket, ConstDataBlockRef data) const throw ();
 
     /// Remove the oldest game if it is not needed anymore
     void remove_oldest_game() throw ();
 
     const Frame* get_frame(unsigned frame_nr) const throw ();
-    std::string frame_data(unsigned frame_nr, unsigned pos) const throw ();
+    bool frame_data(BinaryWriter& target, unsigned frame_nr, unsigned pos) const throw ();
 
     void load_master_settings() throw ();
     void send_master_server() throw ();
 
-    NLsocket listen_socket;     /// Socket for all incoming connections
-    unsigned short listen_port; /// Port for all incoming connections
+    Network::TCPListenerSocket listen_socket;     /// Socket for all incoming connections
+    unsigned short listen_port;       /// Port for all incoming connections
 
-    NLaddress server_address;   /// Game server address
-    NLsocket server_socket;     /// Game server socket
+    Network::Address server_address;  /// Game server address
+    Network::TCPSocket server_socket; /// Game server socket
     std::string hostname;
 
     unsigned bandwidth_limit;   /// Total bandwidth limit, bytes per second
@@ -159,18 +158,18 @@ private:
     unsigned game_delay;        /// Delay from the live game in seconds
     unsigned server_delay;      /// Delay from the live game on the game server, in seconds
 
-    std::vector<Spectator> spectators;
-    std::vector<Peer> peers;    /// Just connected "things"
+    PointerVector<Spectator> spectators;
+    PointerVector<Peer> peers;  /// Just connected "things"
     std::deque<Game> games;     /// Game data
 
-    std::string waiting_data;
+    ExpandingBinaryBuffer waiting_data;
 
-    Frame first_buffer;         /// Initial buffer that basically has the same data as in the start of the replay
+    Frame first_buffer;          /// Initial buffer that basically has the same data as in the start of the replay
     unsigned buffer_first_frame; /// Frame number of the start frame of the first game in list
 
     std::string master_name;
     std::string master_submit;
-    NLaddress master_socket;
+    Network::Address master_socket;
     double master_talk_time;
 };
 

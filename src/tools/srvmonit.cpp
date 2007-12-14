@@ -23,12 +23,13 @@
  */
 
 #include <string>
-#include <nl.h>
 #include <cstdio>
 #include <ctime>
 
 #include "../incalleg.h"
 #include "../admshell.h"
+#include "../binaryaccess.h"
+#include "../function_utility.h"
 #include "../nassert.h"
 #include "../network.h"
 #include "../platform.h"
@@ -87,9 +88,6 @@ using std::string;
 
 typedef unsigned char uchar;
 
-class ReadFail { };
-class SendFail { };
-class ConnectFail { };
 class UserExit { };
 
 string encode(const string& str) throw () {
@@ -100,28 +98,27 @@ string decode(const string& str) throw () {
     return utf8_mode ? utf8_to_latin1(str) : str;
 }
 
-void send(NLsocket sock, const void* data, int len) throw (SendFail) {
-    if (nlWrite(sock, data, len) != len)
-        throw SendFail();
+void send(Network::TCPSocket& sock, ConstDataBlockRef data) throw (Network::Error) {
+    sock.persistentWrite(data, 100, 20);
 }
 
 class IdleFunction {
 public:
     virtual ~IdleFunction() throw () { }
-    virtual void operator()() throw (SendFail, UserExit) = 0;
+    virtual void operator()() throw (Network::Error, UserExit) = 0;
 };
 
 class DelayHandler : public IdleFunction {
     enum { sayBufLen = 1024 };
     char sayBuf[sayBufLen + 1];
-    NLsocket sock;
+    Network::TCPSocket& sock;
     int sayIdx; // -1 when not typing
     bool kick, ban;
     int mute;
     bool* messageBoxSetting;
 
 public:
-    DelayHandler(NLsocket socket, bool* messageBox) throw () : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
+    DelayHandler(Network::TCPSocket& socket, bool* messageBox) throw () : sock(socket), sayIdx(-1), kick(false), ban(false), mute(0), messageBoxSetting(messageBox) { }
     void pauseSay() const throw () {
         if (sayIdx != -1)
             printf("\r%79s\r", "");
@@ -133,10 +130,8 @@ public:
             fflush(stdout);
         }
     }
-    void operator()() throw (SendFail, UserExit) {
+    void operator()() throw (Network::Error, UserExit) {
         while (kbhit()) {
-            char buf[12 + sayBufLen];
-            int idx = 0;
             const int key = getch();
             if (sayIdx > -1) {
                 if (key == 27) {
@@ -145,10 +140,11 @@ public:
                 }
                 else if (key == '\r' || key == '\n') {
                     if (sayIdx > 0) {
-                        writeLong(buf, idx, ATS_SERVER_CHAT);
+                        ExpandingBinaryBuffer msg;
+                        msg.U32(ATS_SERVER_CHAT);
                         sayBuf[sayIdx] = 0;
-                        writeStr(buf, idx, decode(sayBuf));
-                        send(sock, buf, idx);
+                        msg.str(decode(sayBuf));
+                        send(sock, msg);
                     }
                     sayIdx = -1;
                     printf("\n");
@@ -174,41 +170,43 @@ public:
                 printf("Confirm quit? (Y) ");
                 fflush(stdout);
                 if (getch() == 'Y') {
-                    writeLong(buf, idx, ATS_QUIT);
-                    send(sock, buf, idx);
+                    BinaryBuffer<32> msg;
+                    msg.U32(ATS_QUIT);
+                    send(sock, msg);
                     throw UserExit();
                 }
                 else
                     printf("aborted\n");
             }
             else if (key >= '0' && key < '9') {
+                BinaryBuffer<32> msg;
                 const int pid = key - '0';
                 if (mute || kick || ban) {
                     printf("Confirm: %s player %d? (Y) ", mute == 1 ? "mute" : mute == 2 ? "silently mute" : mute == 3 ? "unmute" : kick ? "kick" : "BAN", pid);
                     fflush(stdout);
                     if (getch() == 'Y') {
-                        writeLong(buf, idx, mute ? ATS_MUTE_PLAYER : kick ? ATS_KICK_PLAYER : ATS_BAN_PLAYER);
-                        writeLong(buf, idx, pid);
+                        msg.U32(mute ? ATS_MUTE_PLAYER : kick ? ATS_KICK_PLAYER : ATS_BAN_PLAYER);
+                        msg.U32(pid);
                         if (mute)
-                            writeLong(buf, idx, mute == 3 ? 0 : mute);
+                            msg.U32(mute == 3 ? 0 : mute);
                         printf("done\n");
                     }
                     else
                         printf("aborted\n");
                 }
                 else {
-                    writeLong(buf, idx, ATS_GET_PLAYER_FRAGS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_TIME);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_KILLS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_DEATHS);
-                    writeLong(buf, idx, pid);
-                    writeLong(buf, idx, ATS_GET_PLAYER_TOTAL_CAPTURES);
-                    writeLong(buf, idx, pid);
+                    msg.U32(ATS_GET_PLAYER_FRAGS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_TIME);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_KILLS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_DEATHS);
+                    msg.U32(pid);
+                    msg.U32(ATS_GET_PLAYER_TOTAL_CAPTURES);
+                    msg.U32(pid);
                 }
-                send(sock, buf, idx);
+                send(sock, msg);
             }
             else if (toupper(key) == 'K') {
                 kick = !kick;
@@ -245,15 +243,17 @@ public:
                 fflush(stdout);
             }
             else if (toupper(key) == 'P') {
-                writeLong(buf, idx, ATS_GET_PINGS);
-                send(sock, buf, idx);
+                BinaryBuffer<32> msg;
+                msg.U32(ATS_GET_PINGS);
+                send(sock, msg);
             }
             else if (toupper(key) == 'R') {
                 printf("Confirm reset settings? (Y) ");
                 fflush(stdout);
                 if (getch() == 'Y') {
-                    writeLong(buf, idx, ATS_RESET_SETTINGS);
-                    send(sock, buf, idx);
+                    BinaryBuffer<32> msg;
+                    msg.U32(ATS_RESET_SETTINGS);
+                    send(sock, msg);
                     printf("done\n");
                 }
                 else
@@ -269,29 +269,27 @@ public:
 
 class DelaySocketReader {
     enum { rbufSz = 1024 };
-    NLsocket sock;
+    Network::TCPSocket& sock;
     IdleFunction* ifp;
     char rbuf[rbufSz];
     int rbufUsed, rbufRd;
 
 public:
-    DelaySocketReader(NLsocket socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
-    NLulong getLong() throw (ReadFail, SendFail, UserExit) {
-        NLulong val = 0;
+    DelaySocketReader(Network::TCPSocket& socket, IdleFunction* handlerFn) throw () : sock(socket), ifp(handlerFn), rbufUsed(0), rbufRd(0) { }
+    uint32_t getLong() throw (Network::Error, UserExit) {
+        uint32_t val = 0;
         val =              getByte();
         val = (val << 8) | getByte();
         val = (val << 8) | getByte();
         val = (val << 8) | getByte();
         return val;
     }
-    uchar getByte() throw (ReadFail, SendFail, UserExit) {
+    uchar getByte() throw (Network::Error, UserExit) {
         for (;;) {
             if (rbufRd < rbufUsed)
                 return rbuf[rbufRd++];
-            rbufUsed = nlRead(sock, rbuf, rbufSz);
+            rbufUsed = sock.read(rbuf, rbufSz);
             rbufRd = 0;
-            if (rbufUsed == NL_INVALID)
-                throw ReadFail();
             if (rbufUsed == 0) {
                 (*ifp)();
                 Sleep(100);
@@ -327,25 +325,16 @@ const char* plyName(int idx) throw () {
 }
 
 bool runMonitor(int port, bool messageBoxes) throw () {
-    NLsocket sock;
-
-    nlDisable(NL_BLOCKING_IO);
-    sock = nlOpen(0, NL_RELIABLE);
-    nAssert(sock != NL_INVALID);
-
     try {
-        NLaddress addr;
-        nlStringToAddr("127.0.0.1", &addr);
-        nlSetAddrPort(&addr, port);
+        Network::TCPSocket sock(Network::NonBlocking, 0, true);
 
-        if (nlConnect(sock, &addr) != NL_TRUE)
-            throw ConnectFail();
-        char nul;
-        while (nlWrite(sock, &nul, 0) != 0) {
-            if (nlGetError() != NL_CON_PENDING)
-                throw ConnectFail();
+        Network::Address addr("127.0.0.1");
+        addr.setPort(port);
+
+        sock.connect(addr);
+        while (sock.connectPending())
             Sleep(10);
-        }
+
         DelayHandler dh(sock, &messageBoxes);
         printf("Connected!\n");
         DelaySocketReader reader(sock, &dh);
@@ -393,7 +382,7 @@ bool runMonitor(int port, bool messageBoxes) throw () {
                 break; case STA_PLAYER_TOTAL_DEATHS:   dualprintf("| %s has %u deaths\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_TOTAL_CAPTURES: dualprintf("| %s has %u captures\n", plyName(ival[0]), ival[1]);
                 break; case STA_GAME_TEXT:             dualprintf("%s\n", encode(strBuf).c_str());
-                break; case STA_QUIT:                  dualprintf("| Quit received\n"); nlClose(sock); return true;
+                break; case STA_QUIT:                  dualprintf("| Quit received\n"); sock.close(); return true;
                 break; case STA_PLAYER_PING:           dualprintf("| %s has ping %u\n", plyName(ival[0]), ival[1]);
                 break; case STA_PLAYER_IP:             dualprintf("| %s has IP %s\n", plyName(ival[0]), strBuf);
                 break; case STA_ADMIN_MESSAGE: {
@@ -407,25 +396,9 @@ bool runMonitor(int port, bool messageBoxes) throw () {
         }
     } catch (UserExit) {
         printf("<User abort>\n");
-        nlClose(sock);
         return true;
-    } catch (...) {
-        try {
-            throw;
-        } catch (SendFail) {
-            printf("<Send failed>\n");
-        } catch (ReadFail) {
-            printf("<Read failed>\n");
-        } catch (ConnectFail) {
-            printf("<Connect failed>\n");
-        } catch (...) {
-            printf("<unknown exception>\n");
-        }
-        if (nlGetError() == NL_SYSTEM_ERROR)
-            printf("sys: %s\n", nlGetSystemErrorStr(nlGetSystemError()));
-        else
-            printf("nl: %s\n", nlGetErrorStr(nlGetError()));
-        nlClose(sock);
+    } catch (const Network::Error& e) {
+        printf("%s\n", e.str().c_str());
         return false;
     }
 }
@@ -433,6 +406,7 @@ bool runMonitor(int port, bool messageBoxes) throw () {
 int main(int argc, const char* argv[]) {
     check_utf8_mode();
     initKeyboard();
+    AtScopeExit autoResetKeyboard(newRedirectToFun0(resetKeyboard));
     int port = 24500;
     bool messageBoxes = true;
     if (argc > 1) {
@@ -449,14 +423,14 @@ int main(int argc, const char* argv[]) {
             }
         }
     }
-    if (nlInit() == NL_FALSE) {
-        printf("ERROR: cannot init HawkNL!\n");
+    try {
+        Network::init();
+    } catch (const Network::Error& e) {
+        printf("%s\n", e.str().c_str());
         return 1;
     }
-    if (nlSelectNetwork(NL_IP) == NL_FALSE) {
-        printf("ERROR: no IP network!\n");
-        return 1;
-    }
+    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+
     outfile = fopen("srvmonit.log", "at");
     if (!outfile) {
         printf("Can't open srvmonit.log for append!\n");
@@ -464,8 +438,6 @@ int main(int argc, const char* argv[]) {
     }
     const int r = runMonitor(port, messageBoxes) ? 0 : 1;
     fclose(outfile);
-    nlShutdown();
-    resetKeyboard();
     return r;
 }
 #ifdef END_OF_MAIN

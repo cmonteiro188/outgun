@@ -32,14 +32,16 @@
 
 #include <string>
 
+#include "../network.h"
+
 //the client class
 class client_c {
 public:
     virtual ~client_c() throw () { }
 
     // the callbacks should not throw (but we can't say that in a typedef)
-    typedef void connectionCallbackT(void* customp, int connect_result, const char* data, int length);
-    typedef void serverDataCallbackT(void* customp, const char* data, int length);
+    typedef void connectionCallbackT(void* customp, int connect_result, ConstDataBlockRef data);
+    typedef void serverDataCallbackT(void* customp, ConstDataBlockRef data);
 
     virtual void setConnectionCallback(connectionCallbackT* fn) throw () = 0;
     virtual void setServerDataCallback(serverDataCallbackT* fn) throw () = 0;
@@ -51,7 +53,7 @@ public:
 
     //set the custom data sent with every connection packet
     //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(char *data, int length) throw () = 0;
+    virtual void set_connect_data(ConstDataBlockRef data) throw () = 0;
 
     //set connection status. if set to TRUE, engine will try to estabilish connection
     //with the server. if set to FALSE, will stop trying to connect or will disconnect
@@ -59,18 +61,18 @@ public:
     virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () = 0;
 
     //send reliable message
-    virtual void send_message(char *data, int length) throw () = 0;
+    virtual void send_message(ConstDataBlockRef data) throw () = 0;
 
     //dispatches the packet with the given frame (unreliable data) and all the
     //protocol overload (reliable messages, acks...)
-    virtual void send_frame(char *data, int length) throw () = 0;
+    virtual void send_frame(ConstDataBlockRef data) throw () = 0;
 
     //function to be called by the CFUNC_SERVER_DATA callback
     //gets the next reliable message avaliable from the server. null if no message pending
-    virtual char* receive_message(int *length) throw () = 0;
+    virtual ConstDataBlockRef receive_message() throw () = 0;
 
     //get a statistic from the socket. stat = HawkNL socket-stats id
-    virtual int get_socket_stat(int stat) throw () = 0;
+    virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () = 0;
 
     virtual double increasePacketDelay(double amount = 0.01) throw () = 0;
     virtual double decreasePacketDelay(double amount = 0.01) throw () = 0;

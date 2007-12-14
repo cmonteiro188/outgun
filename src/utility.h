@@ -124,6 +124,171 @@ public:
     ~ConstUnlock() throw () { t.lock(); }
 };
 
+/** Create a named reference type template.
+ *
+ * The point is to only provide an explicit conversion from the raw reference.
+ * For example any function taking such a named reference type as an argument
+ * can only be called by mentioning the type (or using the associated creator
+ * function). That helps to remember any special properties attached to the
+ * argument.
+ *
+ * To use members of the wrapped reference, use either:
+ *    ert->member;
+ * or:
+ *    T& t = ert;
+ *    t.member;
+ */
+#define DEFINE_EXPLICIT_REFERENCE_TYPE(Name, creatorFn)                 \
+    template<class T> class Name {                                      \
+        T& t;                                                           \
+                                                                        \
+    public:                                                             \
+        explicit Name(T& t_) throw () : t(t_) { }                       \
+        template<class DerivT> Name(Name<DerivT> o) throw () : t(o) { } \
+                                                                        \
+        operator       T&()       throw () { return t; }                \
+        operator const T&() const throw () { return t; }                \
+                                                                        \
+        T* operator->()       throw () { return &t; }                   \
+        const T* operator->() const throw () { return &t; }             \
+    };                                                                  \
+    template<class T> Name<T> creatorFn(T& t) throw () { return Name<T>(t); }
+
+/** Reference to an object that may be trashed by the recipient.
+ * Provides a means to indicate in code that a function will manipulate its reference argument
+ * without guaranteeing anything to the caller.
+ */
+DEFINE_EXPLICIT_REFERENCE_TYPE(TrashableRef, trashable_ref)
+
+/** Reference to an object that won't be usable outside the recipient while the recipient is alive.
+ * Provides a means to indicate in code that an object or a process will need exclusive access to its reference argument.
+ */
+DEFINE_EXPLICIT_REFERENCE_TYPE(ExclusiveLifetimeAccessRef, for_lifetime)
+
+/** Create a named pointer type template.
+ *
+ * The point is to only provide an explicit conversion from the raw pointer.
+ * For example any function taking such a named pointer type as an argument
+ * can only be called by mentioning the type (or using the associated creator
+ * function). That helps to remember any special properties attached to the
+ * pointer.
+ */
+#define DEFINE_EXPLICIT_POINTER_TYPE(Name, creatorFn)                   \
+    template<class T> class Name {                                      \
+        T* p;                                                           \
+                                                                        \
+    public:                                                             \
+        explicit Name(T* p_) throw () : p(p_) { }                       \
+        template<class DerivedT> Name(Name<DerivedT> o) throw () : p(o) { } \
+                                                                        \
+        operator       T*()       throw () { return p; }                \
+        operator const T*() const throw () { return p; }                \
+                                                                        \
+              T* operator->()       throw () { return p; }              \
+        const T* operator->() const throw () { return p; }              \
+                                                                        \
+              T& operator*()       throw () { return *p; }              \
+        const T& operator*() const throw () { return *p; }              \
+    };                                                                  \
+    template<class T> Name<T> creatorFn(T* p) throw () { return Name<T>(p); }
+
+/** Pointer to an object whose destruction is to be taken care of by the recipient.
+ * Provides a means to indicate in code that a function will assume control over the destruction of its pointer argument.
+ */
+DEFINE_EXPLICIT_POINTER_TYPE(ControlledPtr, give_control)
+
+template<class T> class BlockRef {
+    T* pData;
+    unsigned sz;
+
+public:
+    BlockRef(T* data, unsigned size) throw () : pData(data), sz(size) { }
+
+    T* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    T& operator[](unsigned index) const throw () { return pData[index]; }
+
+    void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
+    BlockRef tail(unsigned numToSkip) const throw () { BlockRef r(*this); r.skipFront(numToSkip); return r; }
+};
+
+template<> class BlockRef<void> { // interface differs in not having operator[]; plus additional conversion from other BlockRefs
+    void* pData;
+    unsigned sz;
+
+public:
+    BlockRef(void* data, unsigned size) throw () : pData(data), sz(size) { }
+    template<class T> BlockRef(const BlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
+
+    void* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    void skipFront(unsigned bytes) throw () { nAssert(sz >= bytes); pData = static_cast<uint8_t*>(pData) + bytes; sz -= bytes; }
+    BlockRef tail(unsigned bytesToSkip) const throw () { BlockRef r(*this); r.skipFront(bytesToSkip); return r; }
+};
+
+template<class T> class ConstBlockRef {
+    const T* pData;
+    unsigned sz;
+
+public:
+    ConstBlockRef(const T* data, unsigned size) throw () : pData(data), sz(size) { }
+    ConstBlockRef(const BlockRef<T>& d) throw () : pData(d.data()), sz(d.size()) { }
+
+    const T* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    const T& operator[](unsigned index) const throw () { return pData[index]; }
+
+    void skipFront(unsigned num) throw () { nAssert(sz >= num); pData += num; sz -= num; }
+    ConstBlockRef tail(unsigned numToSkip) const throw () { ConstBlockRef r(*this); r.skipFront(numToSkip); return r; }
+};
+
+template<> class ConstBlockRef<void> { // interface differs in not having operator[], and sizes are in bytes; plus additional conversion from string and other ConstBlockRefs
+    const void* pData;
+    unsigned sz;
+
+public:
+    ConstBlockRef(const void* data, unsigned size) throw () : pData(data), sz(size) { }
+    ConstBlockRef(const std::string& str) throw () : pData(str.data()), sz(str.length()) { } //#fix: does making this explicit cause too much ugly code?
+    ConstBlockRef(const BlockRef<void>& d) throw () : pData(d.data()), sz(d.size()) { }
+    template<class T> ConstBlockRef(const      BlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
+    template<class T> ConstBlockRef(const ConstBlockRef<T>& d) throw () : pData(d.data()), sz(d.size() * sizeof(T)) { }
+
+    const void* data() const throw () { return pData; }
+    unsigned size() const throw () { return sz; }
+
+    void skipFront(unsigned bytes) throw () { nAssert(sz >= bytes); pData = static_cast<const uint8_t*>(pData) + bytes; sz -= bytes; }
+    ConstBlockRef tail(unsigned bytesToSkip) const throw () { ConstBlockRef r(*this); r.skipFront(bytesToSkip); return r; }
+};
+
+typedef BlockRef<void> DataBlockRef;
+typedef ConstBlockRef<void> ConstDataBlockRef;
+
+std::ostream& operator<<(std::ostream& os, ConstDataBlockRef data) throw ();
+
+class DataBlock {
+    BlockRef<uint8_t> d;
+
+public:
+    DataBlock() throw () : d(0, 0) { }
+    DataBlock(const DataBlock& source) throw ();
+    DataBlock(const ConstDataBlockRef source) throw ();
+    explicit DataBlock(unsigned size) throw () : d(new uint8_t[size], size) { }
+    ~DataBlock() throw ();
+
+    DataBlock& operator=(const DataBlock& source) throw() { *this = static_cast<ConstDataBlockRef>(source); return *this; }
+    DataBlock& operator=(const ConstDataBlockRef source) throw();
+
+    operator      DataBlockRef()       { return d; }
+    operator ConstDataBlockRef() const { return d; }
+
+          void* data()       throw () { return d.data(); }
+    const void* data() const throw () { return d.data(); }
+    unsigned size() const throw () { return d.size(); }
+};
+
 template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 
 int atoi(const std::string& str) throw ();
@@ -144,6 +309,7 @@ inline int sqr(int value) throw () {
 }
 
 template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) throw () {
+    STATIC_ASSERT(std::numeric_limits<Int1T>::is_integer && std::numeric_limits<Int2T>::is_integer);
     nAssert(modulus > 0);
     return val >= 0 ? val % modulus : modulus - (-val % modulus);
 }
@@ -151,13 +317,43 @@ template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus
 double positiveFmod(double val, double modulus) throw ();
 
 template<class UnsignedIntT> UnsignedIntT rotateRight(UnsignedIntT val, int bits) throw () {
-    nAssert(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
     const unsigned typew = sizeof(UnsignedIntT) * CHAR_BIT;
     bits = positiveModulo(bits, typew);
     return (val >> bits) | (val << (typew - bits));
 }
 
 template<class UnsignedIntT> UnsignedIntT rotateLeft(UnsignedIntT val, int bits) throw () { rotateRight(val, -bits); }
+
+template<class UnsignedIntT> UnsignedIntT shiftLeft(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    nAssert(bits < sizeof(UnsignedIntT) * CHAR_BIT);
+    return val << bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT shiftRight(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    nAssert(bits < sizeof(UnsignedIntT) * CHAR_BIT);
+    return val >> bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShiftLeft(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    if (bits >= sizeof(UnsignedIntT) * CHAR_BIT)
+        return 0;
+    return val << bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShiftRight(UnsignedIntT val, unsigned bits) throw () {
+    STATIC_ASSERT(std::numeric_limits<UnsignedIntT>::is_integer && !std::numeric_limits<UnsignedIntT>::is_signed);
+    if (bits >= sizeof(UnsignedIntT) * CHAR_BIT)
+        return 0;
+    return val >> bits;
+}
+
+template<class UnsignedIntT> UnsignedIntT freeShift(UnsignedIntT val, int bitsLeft) throw () {
+    return bitsLeft >= 0 ? safeShiftLeft(val, bitsLeft) : safeShiftRight(val, -bitsLeft);
+}
 
 /// Returns the current time in the standard format.
 std::string date_and_time() throw ();
@@ -303,5 +499,7 @@ public:
     int i1() const throw () { return val1; }
     int i2() const throw () { return val2; }
 };
+
+uint16_t CRC16(const void* buf, unsigned size) throw (); // implemented in network.cpp because HawkNL is used
 
 #endif

@@ -136,7 +136,7 @@ public:
     void videoMemoryCorrupted() throw ();    // call this when that happens with page flipping
 
     void setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) throw (); // call before any playfield draw operation, including the playfield version of draw_background
-    typedef std::vector<std::vector<NLubyte> > VisibilityMap;
+    typedef std::vector<std::vector<uint8_t> > VisibilityMap;
     void draw_background(bool map_ready) throw ();
     void draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) throw ();
 

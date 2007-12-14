@@ -191,6 +191,4 @@ public:
     const ObjT& access() const throw () { return obj; }  // use obj only between lock() and unlock()
 };
 
-extern Mutex nlOpenMutex;
-
 #endif

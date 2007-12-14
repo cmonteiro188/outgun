@@ -406,4 +406,14 @@ public:
 template<class RetT>
 HookFnStripConstRef0<RetT>* newHookFnStripConstRef0(HookFunctionBase0<const RetT&>& base_) throw () { return new HookFnStripConstRef0<RetT>(base_); }
 
+// simple utility classes that utilize hook functions
+
+class AtScopeExit {
+    HookFunctionHolder0<void> action;
+
+public:
+    AtScopeExit(HookFunctionBase0<void>* action_) throw () : action(action_) { }
+    ~AtScopeExit() throw () { action(); }
+};
+
 #endif

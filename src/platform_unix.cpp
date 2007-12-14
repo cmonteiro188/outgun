@@ -124,8 +124,8 @@ public:
     }
 };
 
-FileFinder* platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
-    return new LinuxFileFinder(path, extension, directories);
+ControlledPtr<FileFinder> platMakeFileFinder(const string& path, const string& extension, bool directories) throw () {
+    return give_control(new LinuxFileFinder(path, extension, directories));
 }
 
 int platMkdir(const string& path) throw () {

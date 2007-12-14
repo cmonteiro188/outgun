@@ -26,6 +26,7 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 
+#include "binaryaccess.h"
 #include "world.h"
 #include "gameserver_interface.h"
 #include "log.h"
@@ -98,7 +99,7 @@ class Server : private NoCopying {
 
     // client control
     double          team_smul[2];
-    NLulong         next_vote_announce_frame;
+    uint32_t         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
     ClientData      client[MAX_PLAYERS];
     std::vector<bool> fav_colors[2];
@@ -308,8 +309,8 @@ class Server : private NoCopying {
     bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
-    mutable std::ostringstream record_frame;
-    NLulong record_start_frame;
+    mutable ExpandingBinaryBuffer record_messages;
+    uint32_t record_start_frame;
     std::string record_map;
     int end_game_human_count;  // used for deciding whether to keep the record file
 
@@ -398,7 +399,7 @@ public:
     bool reset_settings(bool reload) throw ();   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 
     bool recording_active() const throw ();
-    std::ostream& record_stream() const throw () { return record_frame; }
+    BinaryWriter& recordMessageWriter() const throw () { return record_messages; }
     const std::string& record_map_data() const throw () { return record_map; }
 };
 

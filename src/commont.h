@@ -34,7 +34,7 @@
 
 #include <cmath>
 
-#include <nl.h>
+#include "network.h"
 
 // Reads a line, stops to \n or \r and skips empty lines.
 std::istream& getline_smart(std::istream& in, std::string& str) throw ();
@@ -42,57 +42,12 @@ std::istream& getline_smart(std::istream& in, std::string& str) throw ();
 // Read a line like getline_smart, but additionally skip lines that begin with a ;
 std::istream& getline_skip_comments(std::istream& in, std::string& str) throw ();
 
-inline std::ostream& write_string(std::ostream& out, const std::string& str) throw () {
-    out << str;
-    return out.put('\0');
-}
-
-inline std::ostream& write_string(std::ostream& out, const char* str, int size) throw () {
-    out.write(str, size);
-    return out.put('\0');
-}
-
-template<typename T>
-std::ostream& write(std::ostream& out, const T& val) throw () {
-    const char* mem = reinterpret_cast<const char*>(&val);
-    #ifdef NL_BIG_ENDIAN
-    return out.write(mem, sizeof(T));
-    #else
-    for (int i = sizeof(T) - 1; i >= 0; --i)
-        out.put(mem[i]);
-    #endif
-    return out;
-}
-
-inline std::istream& read_string(std::istream& in, std::string& target) throw () {
-    return getline(in, target, '\0');
-}
-
-inline std::istream& read(std::istream& in, std::string& target, std::string::size_type length) throw () {
-    target.clear();
-    for (std::string::size_type i = 0; in && i < length; ++i)
-        target += in.get();
-    return in;
-}
-
-template<typename T>
-std::istream& read(std::istream& in, T& val) throw () {
-    char* mem = reinterpret_cast<char*>(&val);
-    #ifdef NL_BIG_ENDIAN
-    return in.read(mem, sizeof(T));
-    #else
-    for (int i = sizeof(T) - 1; i >= 0; --i)
-        in.get(mem[i]);
-    #endif
-    return in;
-}
-
 // Check player name validity.
 bool check_name(const std::string& name) throw ();
 
 bool isFlood(const std::string& message) throw ();
 
-enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header };
+enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header, Message_types };
 
 static const std::string::size_type maxPlayerNameLength = 15;
 static const std::string::size_type max_chat_message_length = 200; // How long messages players can send (3 lines).
@@ -109,8 +64,8 @@ class ClientControls {
 public:
     ClientControls() throw () : data(0) { }
 
-    NLubyte toNetwork(bool server) const throw () { if (server) return data & 31; else return data; }
-    void fromNetwork(NLubyte d, bool server) throw () { data = d; if (server) data &= 31; }
+    uint8_t toNetwork(bool server) const throw () { if (server) return data & 31; else return data; }
+    void fromNetwork(uint8_t d, bool server) throw () { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad, bool use_cursor_keys) throw ();
     void fromJoystick(int moving_stick, int run_button, int strafe_button) throw (); // uses pseudo button ids like readJoystickButton
 
@@ -145,7 +100,7 @@ public:
     int getDirection() const throw (); // returns -1 for no direction, else between 0..7
 
 private:
-    NLubyte data;
+    uint8_t data;
 
     enum {
         up     =  1,
@@ -161,8 +116,8 @@ class ClientLoginStatus {
 public:
     ClientLoginStatus() throw () : data(0) { }
 
-    NLubyte toNetwork() const throw () { return data; }
-    void fromNetwork(NLubyte byte) throw () { data = byte; }
+    uint8_t toNetwork() const throw () { return data; }
+    void fromNetwork(uint8_t byte) throw () { data = byte; }
 
     std::string strFlags() const throw () {
         std::string s;
@@ -197,7 +152,7 @@ private:
         SB_admin = 16
     };
 
-    NLubyte data;
+    uint8_t data;
 };
 
 class GlobalDisplaySwitchHook {
@@ -234,20 +189,20 @@ public:
 class LogSet;
 
 class MasterSettings {
-    NLaddress masterAddress;
+    Network::Address masterAddress;
     std::string hostName;
     std::string queryScript;
     std::string submitScript;
-    NLaddress bugAddress;
+    Network::Address bugAddress;
     int configCRC;
 
 public:
-    MasterSettings() throw () : configCRC(0) { masterAddress.valid = bugAddress.valid = NL_FALSE; }
-    const NLaddress& address() const throw () { return masterAddress; }
+    MasterSettings() throw () : configCRC(0) { }
+    const Network::Address& address() const throw () { return masterAddress; }
     const std::string& host() const throw () { return hostName; }
     const std::string& query() const throw () { return queryScript; }
     const std::string& submit() const throw () { return submitScript; }
-    const NLaddress& bugReportAddress() const throw () { return bugAddress; }
+    const Network::Address& bugReportAddress() const throw () { return bugAddress; }
     int crc() const throw () { return configCRC; }
 
     void load(LogSet& log) throw ();
@@ -310,7 +265,7 @@ extern const std::string TK1_VERSION_STRING;
 //************************************************************
 
 //the default game port
-const NLushort DEFAULT_UDP_PORT = 25000;
+const uint16_t DEFAULT_UDP_PORT = 25000;
 
 //directories for save/load maps
 extern const std::string SERVER_MAPS_DIR;

@@ -50,4 +50,4 @@ BareMutex g_threadLogMutex(BareMutex::NoLogging); // from debug.h
 ThreadLog g_threadLog; // from debug.h
 // Mutexes and ConditionVariables depend on the above
 Mutex g_threadRandomSeedMutex("g_threadRandomSeedMutex"); // from thread.cpp
-Mutex nlOpenMutex("nlOpenMutex"); // from mutex.h
+Mutex nlOpenMutex("network.cpp:nlOpenMutex"); // from network.cpp

@@ -274,7 +274,7 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
         }
     vector<string> files;
     const string dir = wheregamedir + "mapgen" + directory_separator;
-    FileFinder* finder = platMakeFileFinder(dir, "txt", false);
+    FileFinder* finder = platMakeFileFinder(dir, ".txt", false);
     string filename;
     for (int files = 1; finder->hasNext(); files++)
         if (rand() % files == 0)

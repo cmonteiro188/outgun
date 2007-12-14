@@ -129,7 +129,7 @@ public:
 };
 
 class Menu_serverList {
-    std::vector<std::pair<NLaddress, Textarea> > servers;   // address and server info
+    std::vector<std::pair<Network::Address, Textarea> > servers;   // address and server info
 
 public:
     Textarea            update;
@@ -146,10 +146,10 @@ public:
     Menu_serverList() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void add(const NLaddress& address, const std::string& serverInfo) throw ();
+    void add(const Network::Address& address, const std::string& serverInfo) throw ();
     void reset() throw ();
     void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) throw ();
-    NLaddress getAddress(const Textarea& target) throw ();
+    Network::Address getAddress(const Textarea& target) throw ();
 };
 
 class Menu_player {

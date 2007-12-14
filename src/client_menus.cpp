@@ -154,8 +154,8 @@ void Menu_serverList::initialize(MenuHookable<Menu>::HookFunctionT* opener, Sett
     // meaningful adding of components is only in reset()
 }
 
-void Menu_serverList::add(const NLaddress& address, const string& serverInfo) throw () {
-    servers.push_back(pair<NLaddress, Textarea>(address, Textarea(serverInfo)));
+void Menu_serverList::add(const Network::Address& address, const string& serverInfo) throw () {
+    servers.push_back(pair<Network::Address, Textarea>(address, Textarea(serverInfo)));
 }
 
 void Menu_serverList::reset() throw () {
@@ -177,7 +177,7 @@ void Menu_serverList::reset() throw () {
 
 void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) throw () {
     BasicComponentAdder add(menu);
-    for (vector<pair<NLaddress, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+    for (vector<pair<Network::Address, Textarea> >::iterator servi = servers.begin(); servi != servers.end(); ++servi) {
         servi->second.setHook(hook->clone());
         servi->second.setKeyHook(keyHook->clone());
         add(&servi->second);
@@ -186,13 +186,13 @@ void Menu_serverList::addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyH
     delete keyHook;
 }
 
-NLaddress Menu_serverList::getAddress(const Textarea& target) throw () {
-    for (vector<pair<NLaddress, Textarea> >::const_iterator servi = servers.begin(); servi != servers.end(); ++servi) {
+Network::Address Menu_serverList::getAddress(const Textarea& target) throw () {
+    for (vector<pair<Network::Address, Textarea> >::const_iterator servi = servers.begin(); servi != servers.end(); ++servi) {
         if (&servi->second == &target)
             return servi->first;
     }
     nAssert(0);
-    return NLaddress();
+    return Network::Address();
 }
 
 Menu_player::Menu_player() throw () :

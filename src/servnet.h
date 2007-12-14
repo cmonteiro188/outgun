@@ -89,7 +89,7 @@ private:
     public:
         bool        serving_udp_file;
         std::string data;
-        NLulong     dp, old_dp;
+        uint32_t     dp, old_dp;
 
     public:
         ClientTransferData() throw () {
@@ -102,10 +102,10 @@ private:
     };
 
     // server callbacks
-    static void sfunc_client_hello          (void* customp, int client_id, char* data, int length, ServerHelloResult* res) throw ();
+    static void sfunc_client_hello          (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     static void sfunc_client_connected      (void* customp, int client_id) throw ();
     static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant) throw ();
-    static void sfunc_client_data           (void* customp, int client_id, char* data, int length) throw ();
+    static void sfunc_client_data           (void* customp, int client_id, ConstDataBlockRef data) throw ();
     static void sfunc_client_lag_status     (void* customp, int client_id, int status) throw ();
     static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime) throw ();
 
@@ -137,7 +137,7 @@ private:
     ClientTransferData fileTransfer[MAX_PLAYERS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
-    NLsocket        shellssock; // set NL_INVALID when no connection; otherwise admin shell messages can be sent to this socket
+    mutable Network::TCPSocket shellssock; // if open, admin shell messages are sent to this socket
     Thread          shellmthread;
 
     Thread          mthread;
@@ -148,27 +148,27 @@ private:
     int             ctop[256];          // client id-to-player id index
     int             player_count;       // number of players including bots
     int             bot_count;
-    std::vector< std::pair<NLaddress, int> > distinctRemotePlayers;
+    std::vector< std::pair<Network::Address, int> > distinctRemotePlayers;
     int             localPlayers;
     Mutex           addPlayerMutex;
     unsigned        newUniqueId;
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
-    NLulong         accelerationModeMask;
-    NLubyte         flagModeMask;
+    uint32_t         accelerationModeMask;
+    uint8_t         flagModeMask;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 
     class RelayThread {
         struct RelayData {
-            RelayData(int t, const std::string& d) throw () : time(t), data(d) { }
+            RelayData(int t, ConstDataBlockRef d) throw () : time(t), data(d) { }
             int time;
-            std::string data;
+            DataBlock data;
         };
 
         Thread thread;
         volatile bool& quitFlag;
-        NLsocket socket;
+        Network::TCPSocket socket;
         bool newGame;
         int delay;
         std::queue<RelayData> dataQueue;
@@ -176,26 +176,25 @@ private:
         mutable Mutex mutex;
         mutable LogSet log;
 
-        bool send(const std::string& data) throw ();
         void threadMain() throw ();
-        void pushData_locked(const std::string& data) throw ();
-        bool isConnected_locked() const throw () { return socket != NL_INVALID; }
+        void pushData_locked(ConstDataBlockRef data) throw ();
+        bool isConnected_locked() const throw () { return socket.isOpen(); }
 
     public:
         RelayThread(LogSet logs, volatile bool& quitFlag_) throw ();
-        ~RelayThread() throw () { nlClose(socket); }
+        ~RelayThread() throw () { socket.closeIfOpen(); }
 
         void start(int priority) throw ();
         void stop() throw ();
 
-        void startNewGame(const NLaddress& relayAddress, const std::string& initData, int gameDelay) throw ();
-        void pushFrame(const std::string& frame) throw ();
+        void startNewGame(const Network::Address& relayAddress, ConstDataBlockRef initData, int gameDelay) throw ();
+        void pushFrame(ConstDataBlockRef frame) throw ();
 
         bool isConnected() const throw () { Lock ml(mutex); return isConnected_locked(); }
     };
 
-    NLaddress       relay_address;
-    RelayThread     relayThread;
+    Network::Address relay_address;
+    RelayThread relayThread;
 
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
@@ -203,33 +202,39 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
-    void clientHello(int client_id, char* data, int length, ServerHelloResult* res) throw ();
+    void clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     int  client_connected(int id) throw ();
     void client_disconnected(int id) throw ();
     void ping_result(int client_id, int ping_time) throw ();
-    bool processMessage(int pid, char* const msg, int msglen) throw ();
-    void incoming_client_data(int id, char *data, int length) throw ();
+    bool processMessage(int pid, ConstDataBlockRef data) throw ();
+    void incoming_client_data(int id, ConstDataBlockRef data) throw ();
+
+    void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
 
     void master_job_response(MasterQuery *j) throw ();
     void run_masterjob_thread(MasterQuery* job) throw ();
     void run_mastertalker_thread() throw ();
     void send_master_quit(const std::string& localAddress) const throw ();
 
-    bool read_string_from_TCP(NLsocket sock, char *buf) throw ();
+    bool writeToAdminShell(ConstDataBlockRef data) const throw ();
+
+    bool read_string_from_TCP(Network::TCPSocket& sock, std::string& resultStr) throw (Network::ReadWriteError);
+    void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
+    void executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, BinaryWriter& answer) throw (Network::Error);
+    bool handleAdminCommand() throw (Network::Error);
     void run_shellslave_thread(volatile bool* quitFlag) throw ();
 
     void run_website_thread() throw ();
 
-    void broadcast_message(const char* data, int length) const throw ();
+    void broadcast_message(ConstDataBlockRef data) const throw ();
     void send_simple_message(Network_data_code code, int pid) const throw ();
     void broadcast_simple_message(Network_data_code code) const throw ();
-    void broadcast_screen_message(int px, int py, const char *lebuf, int count) const throw ();
+    void broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw ();
 
-    void record_message(const std::string& msg) const throw ();
-    void record_message(const char* data, int length) const throw ();
+    void record_message(ConstDataBlockRef data) const throw ();
 
-    void writeMinimapPlayerPosition(char* lebuf, int& lecount, int pid) const throw ();
+    void writeMinimapPlayerPosition(BinaryWriter& writer, int pid) const throw ();
 
 public:
 
@@ -311,14 +316,14 @@ public:
     void sendWorldReset() const throw ();
     void sendStartGame() const throw ();
     void sendWeaponPower(int pid) const throw ();
-    void sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int pid, bool power, int px, int py, int x, int y, NLulong vislist) const throw (); // sid = shot-id: array of NLubyte[shots]
+    void sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power, int px, int py, int x, int y, uint32_t vislist) const throw (); // sid = shot-id: array of uint8_t[shots]
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const throw ();
-    void sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const throw ();
+    void sendRocketDeletion(uint32_t plymask, int rid, int16_t hitx, int16_t hity, int targ) const throw ();
     void sendDeathbringer(int pid, const ServerPlayer& ply) const throw ();
     void sendPowerupVisible(int pid, int pup_id, const Powerup& it) const throw ();
     void broadcastPowerupPicked(int roomx, int roomy, int pup_id) const throw ();
-    void sendPupTime(int pid, NLubyte pupType, double timeLeft) const throw ();
-    void sendFragUpdate(int pid, NLulong frags) const throw ();
+    void sendPupTime(int pid, uint8_t pupType, double timeLeft) const throw ();
+    void sendFragUpdate(int pid, uint32_t frags) const throw ();
     void sendNameAuthorizationRequest(int pid) const throw ();
 
     void broadcast_sample(int code) const throw ();
@@ -335,15 +340,15 @@ public:
     std::string get_relay_server() const throw ();
     bool is_relay_used() const throw ();
     bool is_relay_active() const throw ();
-    void send_first_relay_data(const std::string& data) throw ();
-    void send_relay_data(const std::string& data) throw ();
+    void send_first_relay_data(ConstDataBlockRef data) throw ();
+    void send_relay_data(ConstDataBlockRef data) throw ();
 
     void forwardSayadminMessage(int cid, const std::string& message) const throw ();
     void sendTextToAdminShell(const std::string& text) const throw ();
 
     void broadcast_frame(bool gameRunning) throw ();
 
-    NLaddress get_client_address(int cid) const throw ();
+    Network::Address get_client_address(int cid) const throw ();
     int get_player_count() const throw () { return player_count; }
     int get_human_count() const throw () { return player_count - bot_count; }
     int get_bot_count() const throw () { return bot_count; }

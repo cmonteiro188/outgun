@@ -32,6 +32,7 @@
 
 #include <cmath>
 
+#include "binaryaccess.h"
 #include "language.h"
 #include "mapgen.h"
 #include "network.h"    // for safeReadFloat, safeWriteFloat
@@ -429,7 +430,7 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         else                            // labels have started
             label_lines.back().second.push_back(line);
     }
-    crc = nlGetCRC16(const_cast<NLubyte*>(reinterpret_cast<const NLubyte*>(crcData.data())), crcData.length());
+    crc = CRC16(crcData.data(), crcData.length());
     crcData.clear();    // free the memory; crcData is not needed from here on
     for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
         if (!parse_line(log, *line, label_lines, crx, cry, scalex, scaley))
@@ -1339,7 +1340,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         cb.rocketOutOfBounds(i);
 }
 
-void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, NLubyte* rids, int frameAdvance,
+void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, const uint8_t* rids, int frameAdvance,
                              int team, bool power, int px, int py, int x, int y) throw () {
     struct RocketFormation {
         int nForward;
@@ -1415,48 +1416,45 @@ void PhysicalSettings::calc_max_run_speed() throw () {
     max_run_speed = (run_mul * accel - fric) / drag;
 }
 
-void PhysicalSettings::read(const char* lebuf, int& count) throw () {
-    fric            = safeReadFloat(lebuf, count);
-    drag            = safeReadFloat(lebuf, count);
-    accel           = safeReadFloat(lebuf, count);
-    brake_mul       = safeReadFloat(lebuf, count);
-    turn_mul        = safeReadFloat(lebuf, count);
-    run_mul         = safeReadFloat(lebuf, count);
-    turbo_mul       = safeReadFloat(lebuf, count);
-    flag_mul        = safeReadFloat(lebuf, count);
-    friendly_fire   = safeReadFloat(lebuf, count);
-    friendly_db     = safeReadFloat(lebuf, count);
-    rocket_speed    = safeReadFloat(lebuf, count);
+void PhysicalSettings::read(BinaryReader& reader) throw () {
+    fric            = reader.flt();
+    drag            = reader.flt();
+    accel           = reader.flt();
+    brake_mul       = reader.flt();
+    turn_mul        = reader.flt();
+    run_mul         = reader.flt();
+    turbo_mul       = reader.flt();
+    flag_mul        = reader.flt();
+    friendly_fire   = reader.flt();
+    friendly_db     = reader.flt();
+    rocket_speed    = reader.flt();
 
-    NLubyte bitField;
-    readByte(lebuf, count, bitField);
+    const uint8_t bitField = reader.U8();
     player_collisions = static_cast<PlayerCollisions>(bitField & 0x03);
     allowFreeTurning = (bitField & 0x04) != 0;
 
     unsigned extraBytes = bitField >> 5;
-    if (extraBytes == 7) {
-        readByte(lebuf, count, bitField);
-        extraBytes = unsigned(bitField) + 7;
-    }
-    count += extraBytes; // ignore data we don't understand
+    if (extraBytes == 7)
+        extraBytes = unsigned(reader.U8()) + 7;
+    reader.block(extraBytes); // ignore data we don't understand
 
     calc_max_run_speed();
 }
 
-void PhysicalSettings::write(char* lebuf, int& count) const throw () {
-    safeWriteFloat(lebuf, count, fric);
-    safeWriteFloat(lebuf, count, drag);
-    safeWriteFloat(lebuf, count, accel);
-    safeWriteFloat(lebuf, count, brake_mul);
-    safeWriteFloat(lebuf, count, turn_mul);
-    safeWriteFloat(lebuf, count, run_mul);
-    safeWriteFloat(lebuf, count, turbo_mul);
-    safeWriteFloat(lebuf, count, flag_mul);
-    safeWriteFloat(lebuf, count, friendly_fire);
-    safeWriteFloat(lebuf, count, friendly_db);
-    safeWriteFloat(lebuf, count, rocket_speed);
+void PhysicalSettings::write(BinaryWriter& writer) const throw () {
+    writer.flt(fric);
+    writer.flt(drag);
+    writer.flt(accel);
+    writer.flt(brake_mul);
+    writer.flt(turn_mul);
+    writer.flt(run_mul);
+    writer.flt(turbo_mul);
+    writer.flt(flag_mul);
+    writer.flt(friendly_fire);
+    writer.flt(friendly_db);
+    writer.flt(rocket_speed);
     const unsigned extraBytes = 0;
-    writeByte(lebuf, count, player_collisions | (allowFreeTurning << 2) | (extraBytes << 5));
+    writer.U8(player_collisions | (allowFreeTurning << 2) | (extraBytes << 5));
 }
 
 void PowerupSettings::reset() throw () {
@@ -2333,7 +2331,7 @@ void ServerWorld::suicide(int pid) throw () {
     killPlayer(pid, true);
 }
 
-NLubyte ServerWorld::getFreeRocket() throw () {
+uint8_t ServerWorld::getFreeRocket() throw () {
     for (int i = 0; i < MAX_ROCKETS; i++)
         if (rock[i].owner == -1) {
             rock[i].owner = 0;
@@ -2363,7 +2361,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
     player[pid].stats().add_shot();
     teams[pid / TSIZE].add_shot();
 
-    NLubyte sid[16];
+    uint8_t sid[16];
     for (int i = 0; i < shots; ++i)
         sid[i] = getFreeRocket();
 
@@ -2372,7 +2370,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
-    NLulong vislist = 0;
+    uint32_t vislist = 0;
     for (int p = 0; p < maxplayers; p++)
         if (player[p].used && doesPlayerSeeRocket(player[p], px, py))
             vislist |= (1u << p);
@@ -2384,7 +2382,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
     net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, px, py, x, y, vislist);
 }
 
-void ServerWorld::deleteRocket(int rid, NLshort hitx, NLshort hity, int targ) throw () {
+void ServerWorld::deleteRocket(int rid, int16_t hitx, int16_t hity, int targ) throw () {
     Rocket& r = rock[rid];
     net->sendRocketDeletion(r.vislist, rid, hitx, hity, targ);
     r.owner = -1;
@@ -2468,9 +2466,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
     }
 
     if (had_shield)
-        deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, 252);     //do not blink
+        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, 252);     //do not blink
     else
-        deleteRocket(rid, (NLshort)rock[rid].x, (NLshort)rock[rid].y, pid);     //blink
+        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
     return player[pid].dead;
 }
 
@@ -3113,7 +3111,7 @@ void ServerWorld::simulateFrame() throw () {
         const WorldCoords& pos = db.position();
         const double radius = db.radius(frame);
 
-        NLulong newOutsideMask = 0;
+        uint32_t newOutsideMask = 0;
         for (int ti = 0; ti < maxplayers; ++ti) {
             ServerPlayer& target = player[ti];
             if (!target.used || target.dead || target.roomx != pos.px || target.roomy != pos.py)
@@ -3382,7 +3380,7 @@ void ServerWorld::simulateFrame() throw () {
         }
 
     // check time limit
-    const NLulong time_limit = config.getTimeLimit();
+    const uint32_t time_limit = config.getTimeLimit();
     if (host->get_player_count() > 1 && time_limit > 0) {
         const int timeLeft = getTimeLeft();
         if      (time_limit >= 10*60 * 10 && timeLeft == 5*60 * 10)
@@ -3488,7 +3486,7 @@ void ServerWorld::team_gets_carrying_point(int team, bool forTournament) throw (
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                              ClientControls* ctrlTab, NLubyte ctrlFirst, NLubyte ctrlLast, double subFrameAfter) throw () {
+                              ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw () {
     if (source.skipped) {
         skipped = true;
         return;
@@ -3514,7 +3512,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
     }
 
     static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network
-    for (NLubyte ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
+    for (uint8_t ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
         if (me != -1)
             player[me].controls = ctrlTab[ctrli];
         applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, 1.); // 1 is full frame
@@ -3572,7 +3570,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
     out << "<H3>Player stats</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
     vector<const PlayerBase*> players;
-    for (vector<PointerContainer<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
+    for (vector<PointerAsReference<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
         if (pl->getPtr()->used)
             players.push_back(pl->getPtr());
     stable_sort(players.begin(), players.end(), compare_players);

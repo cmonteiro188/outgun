@@ -33,8 +33,8 @@
 #include <cctype>
 
 #include "leetnet/server.h"
-#include "leetnet/rudp.h"   // get_self_IP
 #include "admshell.h"
+#include "binaryaccess.h"
 #include "debug.h"
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
@@ -106,6 +106,20 @@ ServerNetworking::~ServerNetworking() throw () {
     }
 }
 
+bool ServerNetworking::writeToAdminShell(ConstDataBlockRef data) const throw () {
+    try {
+        int written;
+        shellssock.write(data, &written);
+        if (static_cast<unsigned>(written) == data.size())
+            return true;
+        log.error(_("Admin shell connection: Not all written."));
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell connection: $1", e.str()));
+    }
+    shellssock.close();
+    return false;
+}
+
 void ServerNetworking::upload_next_file_chunk(int i) throw () {
     const int max_chunksize = 128;      // the max chunk size in bytes
 
@@ -114,15 +128,14 @@ void ServerNetworking::upload_next_file_chunk(int i) throw () {
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const NLubyte islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
+    const uint8_t islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
 
-    //send
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_file_download);
-    writeShort(lebuf, count, static_cast<NLushort>(chunksize));
-    writeByte(lebuf, count, islast);
-    writeBlock(lebuf, count, fileTransfer[i].data.data() + fileTransfer[i].dp, chunksize);
-    server->send_message(i, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_file_download);
+    msg.U16(chunksize);
+    msg.U8(islast);
+    msg.block(ConstDataBlockRef(fileTransfer[i].data.data() + fileTransfer[i].dp, chunksize));
+    server->send_message(i, msg);
 
     //save old dp for the ack
     fileTransfer[i].old_dp = fileTransfer[i].dp;
@@ -166,53 +179,42 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
     }
 }
 
-void ServerNetworking::record_message(const string& msg) const throw () {
+void ServerNetworking::record_message(ConstDataBlockRef data) const throw () {
     if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, static_cast<unsigned>(msg.length()));
-        out << msg;
+        BinaryWriter& writer = host->recordMessageWriter();
+        writer.U32(data.size());
+        writer.block(data);
     }
 }
 
-void ServerNetworking::record_message(const char* data, int length) const throw () {
-    if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, length);
-        out.write(data, length);
-    }
-}
-
-void ServerNetworking::broadcast_message(const char* data, int length) const throw () {
+void ServerNetworking::broadcast_message(ConstDataBlockRef data) const throw () {
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used)
-            server->send_message(world.player[i].cid, data, length);
+            server->send_message(world.player[i].cid, data);
 }
 
 void ServerNetworking::send_simple_message(Network_data_code code, int pid) const throw () {
-    int count = 0;
-    char lebuf[4];
-    writeByte(lebuf, count, code);
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<1> msg;
+    msg.U8(code);
+    server->send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcast_simple_message(Network_data_code code) const throw () {
-    int count = 0;
-    char lebuf[4];
-    writeByte(lebuf, count, code);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<1> msg;
+    msg.U8(code);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::send_me_packet(int pid) const throw () {
-    int count = 0;
-    char lebuf[1024];
-    writeByte(lebuf, count, data_first_packet);
-    writeByte(lebuf, count, ((NLubyte)pid));                    // who am I
-    writeByte(lebuf, count, ((NLubyte)world.player[pid].color()));
-    writeByte(lebuf, count, ((NLubyte)host->current_map_nr())); // current map
-    writeByte(lebuf, count, ((NLubyte)world.teams[0].score())); // team 0 current score
-    writeByte(lebuf, count, ((NLubyte)world.teams[1].score())); // team 1 current score
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_first_packet);
+    msg.U8(pid);                    // who am I
+    msg.U8(world.player[pid].color());
+    msg.U8(host->current_map_nr()); // current map
+    msg.U8(world.teams[0].score()); // team 0 current score
+    msg.U8(world.teams[1].score()); // team 1 current score
+    server->send_message(world.player[pid].cid, msg);
 }
 
 // send a player name update to a client (cid = pid_all: to all clients; pid_record: record only)
@@ -220,27 +222,27 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const throw () 
     if (world.player[pid].name.empty())
         return;
 
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_name_update);
-    writeByte(lebuf, count, pid);       // what player id
-    writeStr(lebuf, count, world.player[pid].name);
+    BinaryBuffer<256> msg;
+    msg.U8(data_name_update);
+    msg.U8(pid);       // what player id
+    msg.str(world.player[pid].name);
 
     if (cid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else if (cid == pid_all) {
-        broadcast_message(lebuf, count);
-        record_message(lebuf, count);
+        broadcast_message(msg);
+        record_message(msg);
 
-        if (shellssock != NL_INVALID) {
-            char lebuf[256]; int count = 0;
-            writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-            writeLong(lebuf, count, world.player[pid].cid);
-            writeStr(lebuf, count, world.player[pid].name);
-            nlWrite(shellssock, lebuf, count);
+        if (shellssock.isOpen()) {
+            BinaryBuffer<256> msg;
+            msg.U32(STA_PLAYER_NAME_UPDATE);
+            msg.U32(world.player[pid].cid);
+            msg.str(world.player[pid].name);
+            writeToAdminShell(msg);
         }
     }
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 void ServerNetworking::broadcast_player_name(int pid) const throw () {
@@ -251,8 +253,8 @@ void ServerNetworking::broadcast_player_name(int pid) const throw () {
 void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
     const ClientData& clid = host->getClientData(world.player[pid].cid);
 
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_crap_update);
+    BinaryBuffer<256> msg;
+    msg.U8(data_crap_update);
 
     // --- RECALC CRAP ---
     ClientLoginStatus st;
@@ -263,22 +265,22 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
     st.setAdmin(host->isAdmin(pid));
     world.player[pid].reg_status = st;
 
-    writeByte(lebuf, count, (NLubyte)pid);
-    writeByte(lebuf, count, (NLubyte)world.player[pid].color());
-    writeByte(lebuf, count,          world.player[pid].reg_status.toNetwork());
-    writeLong(lebuf, count, (NLulong)clid.rank);
-    writeLong(lebuf, count, (NLulong)clid.score);
-    writeLong(lebuf, count, (NLulong)clid.neg_score);
-    writeLong(lebuf, count, (NLulong)max_world_rank);
+    msg.U8(pid);
+    msg.U8(world.player[pid].color());
+    msg.U8(world.player[pid].reg_status.toNetwork());
+    msg.U32(clid.rank);
+    msg.U32(clid.score);
+    msg.U32(clid.neg_score);
+    msg.U32(max_world_rank);
 
     if (cid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else if (cid == pid_all) {
-        record_message(lebuf, count);
-        broadcast_message(lebuf, count);
+        record_message(msg);
+        broadcast_message(msg);
     }
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 void ServerNetworking::broadcast_player_crap(int pid) throw () {
@@ -286,30 +288,30 @@ void ServerNetworking::broadcast_player_crap(int pid) throw () {
 }
 
 void ServerNetworking::send_acceleration_modes(int pid) const throw () {
-    char lebuf[10]; int count = 0;
-    writeByte(lebuf, count, data_acceleration_modes);
-    writeLong(lebuf, count, accelerationModeMask);
+    BinaryBuffer<10> msg;
+    msg.U8(data_acceleration_modes);
+    msg.U32(accelerationModeMask);
     if (pid != pid_all)
-        server->send_message(world.player[pid].cid, lebuf, count);
+        server->send_message(world.player[pid].cid, msg);
     else {
         for (int i = 0; i < maxplayers; ++i)
             if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, lebuf, count);
-        record_message(lebuf, count);
+                server->send_message(world.player[i].cid, msg);
+        record_message(msg);
     }
 }
 
 void ServerNetworking::send_flag_modes(int pid) const throw () {
-    char lebuf[10]; int count = 0;
-    writeByte(lebuf, count, data_flag_modes);
-    writeByte(lebuf, count, flagModeMask);
+    BinaryBuffer<10> msg;
+    msg.U8(data_flag_modes);
+    msg.U8(flagModeMask);
     if (pid != pid_all)
-        server->send_message(world.player[pid].cid, lebuf, count);
+        server->send_message(world.player[pid].cid, msg);
     else {
         for (int i = 0; i < maxplayers; ++i)
             if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, lebuf, count);
-        record_message(lebuf, count);
+                server->send_message(world.player[i].cid, msg);
+        record_message(msg);
     }
 }
 
@@ -325,39 +327,39 @@ void ServerNetworking::move_update_player(int a) throw () {
 }
 
 void ServerNetworking::broadcast_team_change(int from, int to, bool swap) const throw () {
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_team_change);
-    writeByte(lebuf, count, static_cast<NLubyte>(from));
-    writeByte(lebuf, count, static_cast<NLubyte>(to));
-    writeByte(lebuf, count, static_cast<NLubyte>(world.player[to].color()));
+    BinaryBuffer<64> msg;
+    msg.U8(data_team_change);
+    msg.U8(from);
+    msg.U8(to);
+    msg.U8(world.player[to].color());
     if (swap)
-        writeByte(lebuf, count, static_cast<NLubyte>(world.player[from].color()));
+        msg.U8(world.player[from].color());
     else
-        writeByte(lebuf, count, 255);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+        msg.U8(255);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_sample(int code) const throw () {
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_sound);
-    writeByte(lebuf, count, static_cast<NLubyte>(code));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_sound);
+    msg.U8(code);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_screen_sample(int p, int code) const throw () {
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_sound);
-    writeByte(lebuf, count, static_cast<NLubyte>(code));
-    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_sound);
+    msg.U8(code);
+    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, msg);
 }
 
 void ServerNetworking::broadcast_screen_power_collision(int p) const throw () {
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_power_collision);
-    writeByte(lebuf, count, p);
-    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, (char*)lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_power_collision);
+    msg.U8(p);
+    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, msg);
 }
 
 //send current flag status (cid == pid_all : broadcast)
@@ -366,52 +368,50 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) const throw () {
     if (!server)
         return;
 
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_flag_update);
+    BinaryBuffer<256> msg;
+    msg.U8(data_flag_update);
 
-    writeByte(lebuf, count, static_cast<NLubyte>(team));    //what team
+    msg.U8(team);
 
     // how many flags
-    NLubyte size;
     if (team == 2)
-        size = static_cast<NLubyte>(world.wild_flags.size());
+        msg.U8(world.wild_flags.size());
     else
-        size = static_cast<NLubyte>(world.teams[team].flags().size());
-    writeByte(lebuf, count, size);
+        msg.U8(world.teams[team].flags().size());
 
     const vector<Flag>& flags = team == 2 ? world.wild_flags : world.teams[team].flags();
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
         if (fi->carried())  {
-            writeByte(lebuf, count, 1); // carried
+            msg.U8(1); // carried
             //new flag carrier
-            writeByte(lebuf, count, static_cast<NLubyte>(fi->carrier()));   //player who took it
+            msg.U8(fi->carrier());   //player who took it
         }
         else {
-            writeByte(lebuf, count, 0); // not carried
+            msg.U8(0); // not carried
             //new flag position
-            writeByte(lebuf, count, static_cast<NLubyte>(fi->position().px));
-            writeByte(lebuf, count, static_cast<NLubyte>(fi->position().py));
-            writeShort(lebuf, count, static_cast<NLshort>(fi->position().x));
-            writeShort(lebuf, count, static_cast<NLshort>(fi->position().y));
+            msg.U8(fi->position().px);
+            msg.U8(fi->position().py);
+            msg.S16(static_cast<int>(fi->position().x));
+            msg.S16(static_cast<int>(fi->position().y));
         }
 
     if (cid == pid_all || cid == pid_record) {
         if (cid == pid_all)
-            broadcast_message(lebuf, count);
-        record_message(lebuf, count);
+            broadcast_message(msg);
+        record_message(msg);
     }
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 //update team scores
 void ServerNetworking::ctf_update_teamscore(int t) const throw () {
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_score_update);
-    writeByte(lebuf, count, static_cast<NLubyte>(t));       // the team
-    writeByte(lebuf, count, static_cast<NLubyte>(world.teams[t].score()));  //the score
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_score_update);
+    msg.U8(t);       // the team
+    msg.U8(world.teams[t].score());  //the score
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_reset_map_list() throw () {
@@ -420,11 +420,10 @@ void ServerNetworking::broadcast_reset_map_list() throw () {
 }
 
 void ServerNetworking::broadcast_current_map(int mapNr) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_current_map);
-    writeByte(lebuf, count, mapNr);
-    broadcast_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_current_map);
+    msg.U8(mapNr);
+    broadcast_message(msg);
 }
 
 // Tell that stats are ready for saving.
@@ -453,64 +452,58 @@ void ServerNetworking::broadcast_extra_time_out() const throw () {
 }
 
 void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_normal_time_out);
-    writeByte(lebuf, count, sudden_death ? 0x01 : 0x00);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_normal_time_out);
+    msg.U8(sudden_death ? 0x01 : 0x00);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_capture);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
-        writeLong(lebuf, count, STA_PLAYER_CAPTURES);
-        writeLong(lebuf, count, player.cid);
-        nlWrite(shellssock, lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_capture);
+    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    broadcast_message(msg);
+    record_message(msg);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_PLAYER_CAPTURES);
+        msg.U32(player.cid);
+        writeToAdminShell(msg);
     }
 }
 
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_flag_take);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_flag_take);
+    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_flag_return);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_flag_return);
+    msg.U8(player.id);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 // player dropped the flag on purpose
 void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_flag_drop);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (flag_team == 2 ? 0x80 : 0x00));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_flag_drop);
+    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
                                       DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_kill);
+    BinaryBuffer<64> msg;
+    msg.U8(data_kill);
     // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
-    NLubyte attacker_info = attacker.id;
+    uint8_t attacker_info = attacker.id;
     if (cause == DT_deathbringer)
         attacker_info |= 0x80;
     if (carrier_defended)
@@ -518,48 +511,47 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     if (flag_defended)
         attacker_info |= 0x20;
     // second byte: flag bit, wild flag bit, collision bit, and target id
-    NLubyte tar_flag = target.id;
+    uint8_t tar_flag = target.id;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
         tar_flag |= 0x40;
     if (cause == DT_collision)
         tar_flag |= 0x20;
-    writeByte(lebuf, count, attacker_info);
-    writeByte(lebuf, count, tar_flag);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
+    msg.U8(attacker_info);
+    msg.U8(tar_flag);
+    broadcast_message(msg);
+    record_message(msg);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
         if (attacker.used) {
-            writeLong(lebuf, count, STA_PLAYER_KILLS);
-            writeLong(lebuf, count, attacker.cid);
+            msg.U32(STA_PLAYER_KILLS);
+            msg.U32(attacker.cid);
         }
         if (target.used) {  // should be
-            writeLong(lebuf, count, STA_PLAYER_DIES);
-            writeLong(lebuf, count, target.cid);
+            msg.U32(STA_PLAYER_DIES);
+            msg.U32(target.cid);
         }
-        nlWrite(shellssock, lebuf, count);
+        writeToAdminShell(msg);
     }
 }
 
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_suicide);
-    NLubyte id_flag = player.id;
+    BinaryBuffer<64> msg;
+    msg.U8(data_suicide);
+    uint8_t id_flag = player.id;
     if (flag)
         id_flag |= 0x80;
     if (wild_flag)
         id_flag |= 0x40;
-    writeByte(lebuf, count, id_flag);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
-        writeLong(lebuf, count, STA_PLAYER_DIES);
-        writeLong(lebuf, count, player.cid);
-        nlWrite(shellssock, lebuf, count);
+    msg.U8(id_flag);
+    broadcast_message(msg);
+    record_message(msg);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_PLAYER_DIES);
+        msg.U32(player.cid);
+        writeToAdminShell(msg);
     }
 }
 
@@ -567,75 +559,71 @@ void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw
     nAssert(player.extra_frames_to_respawn >= 0);
     if (player.protocolExtensionsLevel < 0 || player.frames_to_respawn < 100 || player.frames_to_respawn > 65535 || player.extra_frames_to_respawn)
         return;
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_waiting_time);
-    writeShort(lebuf, count, static_cast<NLushort>(player.frames_to_respawn));
-    server->send_message(player.cid, lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_waiting_time);
+    msg.U16(player.frames_to_respawn);
+    server->send_message(player.cid, msg);
 }
 
 void ServerNetworking::record_players_present() const throw () {
-    NLulong players_present = 0;
+    uint32_t players_present = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
             players_present |= (1 << i);
-    char buffer[32]; int count = 0;
-    writeByte(buffer, count, data_players_present);
-    writeLong(buffer, count, players_present);
-    record_message(buffer, count);
+    BinaryBuffer<32> msg;
+    msg.U8(data_players_present);
+    msg.U32(players_present);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_new_player);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_new_player);
+    msg.U8(player.id);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::new_player_to_admin_shell(int pid) const throw () {
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
-        writeLong(lebuf, count, STA_PLAYER_IP);
-        writeLong(lebuf, count, world.player[pid].cid);
-        NLaddress addr = get_client_address(world.player[pid].cid);
-        nlSetAddrPort(&addr, 0);
-        writeStr(lebuf, count, addressToString(addr));
-        nlWrite(shellssock, lebuf, count);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_PLAYER_IP);
+        msg.U32(world.player[pid].cid);
+        Network::Address addr = get_client_address(world.player[pid].cid);
+        addr.setPort(0);
+        msg.str(addr.toString());
+        writeToAdminShell(msg);
     }
 }
 
 void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_player_left);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_player_left);
+    msg.U8(player.id);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_spawn);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    BinaryBuffer<64> msg;
+    msg.U8(data_spawn);
+    msg.U8(player.id);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 // Send player's movement and shots to everyone.
 void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_movements_shots);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id));
+    BinaryBuffer<64> msg;
+    msg.U8(data_movements_shots);
+    msg.U8(player.id);
     const Statistics& stats = player.stats();
-    writeLong(lebuf, count, static_cast<NLlong>(stats.movement()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.shots()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.hits()));
-    writeShort(lebuf, count, static_cast<NLshort>(stats.shots_taken()));
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    msg.U32(static_cast<unsigned>(stats.movement()));
+    msg.U16(stats.shots());
+    msg.U16(stats.hits());
+    msg.U16(stats.shots_taken());
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 // Send player's stats to everyone.
@@ -654,95 +642,90 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const throw () {
 
 // Send player's stats to client cid.
 void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const throw () {
-    char lebuf[64];
-    int count = 0;
-    writeByte(lebuf, count, data_stats);
-    writeByte(lebuf, count, static_cast<NLubyte>(player.id) | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
+    BinaryBuffer<64> msg;
+    msg.U8(data_stats);
+    msg.U8(player.id | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
     const Statistics& stats = player.stats();
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.kills()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.deaths()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_kills()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_kills()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.cons_deaths()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.current_cons_deaths()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.suicides()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.captures()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_taken()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_dropped()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.flags_returned()));
-    writeByte(lebuf, count, static_cast<NLubyte>(stats.carriers_killed()));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.playtime(get_time())));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.lifetime(get_time())));
-    writeLong(lebuf, count, static_cast<NLlong>(stats.flag_carrying_time(get_time())));
+    msg.U8(stats.kills());
+    msg.U8(stats.deaths());
+    msg.U8(stats.cons_kills());
+    msg.U8(stats.current_cons_kills());
+    msg.U8(stats.cons_deaths());
+    msg.U8(stats.current_cons_deaths());
+    msg.U8(stats.suicides());
+    msg.U8(stats.captures());
+    msg.U8(stats.flags_taken());
+    msg.U8(stats.flags_dropped());
+    msg.U8(stats.flags_returned());
+    msg.U8(stats.carriers_killed());
+    msg.U32(static_cast<unsigned>(stats.playtime(get_time())));
+    msg.U32(static_cast<unsigned>(stats.lifetime(get_time())));
+    msg.U32(static_cast<unsigned>(stats.flag_carrying_time(get_time())));
     if (cid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_team_movements_shots);
+    BinaryBuffer<256> msg;
+    msg.U8(data_team_movements_shots);
     for (int i = 0; i < 2; i++) {
         const Team& team = world.teams[i];
-        writeLong(lebuf, count, static_cast<NLlong>(team.movement()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.shots()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.hits()));
-        writeShort(lebuf, count, static_cast<NLshort>(team.shots_taken()));
+        msg.U32(static_cast<unsigned>(team.movement()));
+        msg.U16(team.shots());
+        msg.U16(team.hits());
+        msg.U16(team.shots_taken());
     }
     if (cid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_team_stats);
+    BinaryBuffer<256> msg;
+    msg.U8(data_team_stats);
     for (int i = 0; i < 2; i++) {
         const Team& team = world.teams[i];
-        writeByte(lebuf, count, static_cast<NLubyte>(team.kills()));
-        writeByte(lebuf, count, static_cast<NLubyte>(team.deaths()));
-        writeByte(lebuf, count, static_cast<NLubyte>(team.suicides()));
-        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_taken()));
-        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_dropped()));
-        writeByte(lebuf, count, static_cast<NLubyte>(team.flags_returned()));
+        msg.U8(team.kills());
+        msg.U8(team.deaths());
+        msg.U8(team.suicides());
+        msg.U8(team.flags_taken());
+        msg.U8(team.flags_dropped());
+        msg.U8(team.flags_returned());
     }
-    server->send_message(player.cid, lebuf, count);
+    server->send_message(player.cid, msg);
 }
 
 void ServerNetworking::send_map_info(const ServerPlayer& player) const throw () {
-    int count = 0;
-    char lebuf[256];
-    writeByte(lebuf, count, data_map_list);
+    BinaryBuffer<256> msg;
+    msg.U8(data_map_list);
     const MapInfo& map = host->maplist()[player.current_map_list_item];
-    writeStr(lebuf, count, map.title);
-    writeStr(lebuf, count, map.author);
-    writeByte(lebuf, count, static_cast<NLchar>(map.width));
-    writeByte(lebuf, count, static_cast<NLchar>(map.height));
-    writeByte(lebuf, count, static_cast<NLchar>(map.votes));
+    msg.str(map.title);
+    msg.str(map.author);
+    msg.U8(map.width);
+    msg.U8(map.height);
+    msg.U8(map.votes);
     if (map.random)
-        writeByte(lebuf, count, static_cast<NLchar>(map.random));
-    server->send_message(player.cid, lebuf, count);
+        msg.U8(map.random);
+    server->send_message(player.cid, msg);
 }
 
 void ServerNetworking::send_map_vote(const ServerPlayer& player) const throw () {
-    int count = 0;
-    char lebuf[256];
-    writeByte(lebuf, count, data_map_vote);
-    writeByte(lebuf, count, static_cast<NLbyte>(player.mapVote));
-    server->send_message(player.cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_map_vote);
+    msg.S8(player.mapVote);
+    server->send_message(player.cid, msg);
 }
 
 void ServerNetworking::broadcast_map_votes_update() throw () {
     // check changed votes
-    vector<pair<NLchar, NLchar> > votes;    // map number and votes
-    NLchar i = 0;
+    vector<pair<uint8_t, uint8_t> > votes;    // map number and votes
+    uint8_t i = 0;
     for (vector<MapInfo>::iterator mi = host->maplist().begin(); mi != host->maplist().end(); ++mi, ++i)
         if (mi->sentVotes != mi->votes) {
-            votes.push_back(pair<NLchar, NLchar>(i, mi->votes));
+            votes.push_back(pair<uint8_t, uint8_t>(i, mi->votes));
             mi->sentVotes = mi->votes;
         }
 
@@ -750,23 +733,22 @@ void ServerNetworking::broadcast_map_votes_update() throw () {
         return;
 
     // build packet
-    int count = 0;
-    char lebuf[256];
-    writeByte(lebuf, count, data_map_votes_update);
-    writeByte(lebuf, count, static_cast<NLchar>(votes.size()));
-    for (vector<pair<NLchar, NLchar> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
-        writeByte(lebuf, count, vi->first);
-        writeByte(lebuf, count, vi->second);
+    BinaryBuffer<256> msg;
+    msg.U8(data_map_votes_update);
+    msg.U8(votes.size());
+    for (vector<pair<uint8_t, uint8_t> >::const_iterator vi = votes.begin(); vi != votes.end(); ++vi) {
+        msg.U8(vi->first);
+        msg.U8(vi->second);
     }
 
     // send packet
-    broadcast_message(lebuf, count);
+    broadcast_message(msg);
 }
 
 //send map time and time left
 void ServerNetworking::send_map_time(int cid) const throw () {
-    const NLulong current_time = world.getMapTime() / 10;
-    NLlong time_left;
+    const uint32_t current_time = world.getMapTime() / 10;
+    int32_t time_left;
     if (world.getTimeLeft() <= 0) {
         time_left = world.getExtraTimeLeft() / 10;
         if (time_left < 0)
@@ -774,16 +756,16 @@ void ServerNetworking::send_map_time(int cid) const throw () {
     }
     else
         time_left = world.getTimeLeft() / 10;
-    char lebuf[64]; int count = 0;
-    writeByte(lebuf, count, data_map_time);
-    writeLong(lebuf, count, current_time);
-    writeLong(lebuf, count, time_left);
+    BinaryBuffer<64> msg;
+    msg.U8(data_map_time);
+    msg.U32(current_time);
+    msg.U32(time_left);
     if (cid == pid_all) {
-        broadcast_message(lebuf, count);
-        record_message(lebuf, count);
+        broadcast_message(msg);
+        record_message(msg);
     }
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 void ServerNetworking::send_server_settings(const ServerPlayer& player) const throw () {
@@ -791,15 +773,14 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) const th
 }
 
 void ServerNetworking::send_server_settings(int cid) const throw () {
-    int count = 0;
-    char lebuf[256];
+    BinaryBuffer<256> msg;
     const WorldSettings& config = world.getConfig();
     const PowerupSettings& pupConfig = world.getPupConfig();
-    writeByte(lebuf, count, data_server_settings);
-    writeByte(lebuf, count, static_cast<NLubyte>(config.getCaptureLimit()));
-    writeByte(lebuf, count, static_cast<NLubyte>(config.getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
-    writeByte(lebuf, count, static_cast<NLubyte>(config.getExtraTime() / 600));
-    NLushort settings = 0;
+    msg.U8(data_server_settings);
+    msg.U8(config.getCaptureLimit());
+    msg.U8(config.getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
+    msg.U8(config.getExtraTime() / 600);
+    uint16_t settings = 0;
     int i = 0;
     if (config.balanceTeams())
         settings |= (1 << i);
@@ -819,21 +800,21 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     settings |= (pupConfig.pup_weapon_max << i);
     i += 4; // 4 bits are required to transfer pup_weapon_max, in range [1, 9]
     nAssert(i <= 16);
-    writeShort(lebuf, count, settings);
-    writeShort(lebuf, count, pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
-    writeShort(lebuf, count, pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0));
-    writeShort(lebuf, count, pupConfig.pup_add_time);
-    writeShort(lebuf, count, pupConfig.pup_max_time);
-    world.physics.write(lebuf, count);
-    writeShort(lebuf, count, static_cast<NLushort>(10 * config.flag_return_delay));
+    msg.U16(settings);
+    msg.U16(pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
+    msg.U16(pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0));
+    msg.U16(pupConfig.pup_add_time);
+    msg.U16(pupConfig.pup_max_time);
+    world.physics.write(msg);
+    msg.U16(static_cast<unsigned>(10 * config.flag_return_delay));
     /* TODO: 1.0.4 send more settings
        - locked flags?
        - captureable flags?
     */
     if (cid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else
-        server->send_message(cid, lebuf, count);
+        server->send_message(cid, msg);
 }
 
 //enqueue a job to the master server to update a client's delta score
@@ -874,43 +855,44 @@ void ServerNetworking::client_report_status(int id) throw () {
 void ServerNetworking::broadcast_team_message(int team, const string& text) const throw () {
     nAssert(text.length() <= max_chat_message_length + maxPlayerNameLength + 2); // 2 = ": "
 
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_text_message);
-    writeByte(lebuf, count, msg_team);
-    writeStr(lebuf, count, text);
-    writeByte(lebuf, count, static_cast<NLbyte>(team));
+    BinaryBuffer<256> msg;
+    msg.U8(data_text_message);
+    msg.U8(msg_team);
+    msg.str(text);
+    const ConstDataBlockRef oldProtocolMsg = msg;
+    msg.S8(team);
 
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && i / TSIZE == team)  // only to teammates
             if (world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, lebuf, count);
+                server->send_message(world.player[i].cid, msg);
             else
-                server->send_message(world.player[i].cid, lebuf, count - 1); // don't send team info
+                server->send_message(world.player[i].cid, oldProtocolMsg);
 
-    record_message(lebuf, count);
+    record_message(msg);
 
     //send to the admin shell
-    if (shellssock != NL_INVALID) {
-        count = 0;
-        writeLong(lebuf, count, STA_GAME_TEXT);
-        writeByte(lebuf, count, '.');
-        writeStr(lebuf, count, text);
-        nlWrite(shellssock, lebuf, count);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_GAME_TEXT);
+        msg.U8('.');
+        msg.str(text);
+        writeToAdminShell(msg);
     }
 }
 
 //broadcast message to all players in one screen
-void ServerNetworking::broadcast_screen_message(int px, int py, const char* lebuf, int count) const throw () {
+void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw () {
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
-            server->send_message(world.player[i].cid, lebuf, count);
+            server->send_message(world.player[i].cid, msg);
 
     if (host->recording_active()) {
-        ostream& out = host->record_stream();
-        write(out, count + 2);
-        out.write(lebuf, count);
-        write(out, static_cast<unsigned char>(px));
-        write(out, static_cast<unsigned char>(py));
+        BinaryWriter& writer = host->recordMessageWriter();
+        writer.U32(msg.size() + 2);
+        writer.block(msg);
+        writer.U8(px);
+        writer.U8(py);
     }
 }
 
@@ -938,39 +920,37 @@ void ServerNetworking::plprintf(int pid, Message_type type, const char* fmt, ...
 void ServerNetworking::player_message(int pid, Message_type type, const string& text) const throw () {
     if (pid >= 0 && !world.player[pid].used)
         return;
-    char lebuf[256];
     if (text.length() <= max_chat_message_length + maxPlayerNameLength + 2) {    // 2 = ": "
-        int count = 0;
-        writeByte(lebuf, count, data_text_message);
-        writeByte(lebuf, count, type);
-        writeStr(lebuf, count, text);
-        int extended_length = count;
+        BinaryBuffer<256> msg;
+        msg.U8(data_text_message);
+        msg.U8(type);
+        msg.str(text);
+        const ConstDataBlockRef oldProtocolMsg = msg;
         if (type == msg_normal || type == msg_team) // It should really never be a team message in this method.
-            writeByte(lebuf, extended_length, static_cast<NLbyte>(pid / TSIZE));
+            msg.S8(pid / TSIZE);
         if (pid == pid_record)
-            record_message(lebuf, extended_length);
+            record_message(msg);
         else if (pid == shell_pid) {
-            //send to the admin shell
-            if (shellssock != NL_INVALID) {
-                count = 0;
-                writeLong(lebuf, count, STA_GAME_TEXT);
-                writeStr(lebuf, count, text);
-                nlWrite(shellssock, lebuf, count);
+            if (shellssock.isOpen()) {
+                BinaryBuffer<256> msg;
+                msg.U32(STA_GAME_TEXT);
+                msg.str(text);
+                writeToAdminShell(msg);
             }
         }
         else if (pid == pid_all) {
             for (int i = 0; i < maxplayers; ++i)
                 if (world.player[i].used)
                     if (world.player[i].protocolExtensionsLevel >= 0)
-                        server->send_message(world.player[i].cid, lebuf, extended_length);
+                        server->send_message(world.player[i].cid, msg);
                     else
-                        server->send_message(world.player[i].cid, lebuf, count); // don't send the possible team info
-            record_message(lebuf, extended_length);
+                        server->send_message(world.player[i].cid, oldProtocolMsg); // don't send the possible team info
+            record_message(msg);
         }
         else if (world.player[pid].protocolExtensionsLevel >= 0)
-            server->send_message(world.player[pid].cid, lebuf, extended_length);
+            server->send_message(world.player[pid].cid, msg);
         else
-            server->send_message(world.player[pid].cid, lebuf, count);
+            server->send_message(world.player[pid].cid, oldProtocolMsg);
     }
     else {
         vector<string> lines = split_to_lines(text, 79, 4); // this makes more sense than splitting to max_chat_message_length and letting it get split again on the client end
@@ -981,75 +961,70 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
 
 void ServerNetworking::broadcast_text(Message_type type, const string& text) const throw () {
     player_message(pid_all, type, text);
-    //send to the admin shell
-    if (shellssock != NL_INVALID) {
-        char* lebuf = new char[text.length() + 10];
-        int count = 0;
-        writeLong(lebuf, count, STA_GAME_TEXT);
-        writeStr(lebuf, count, text);
-        nlWrite(shellssock, lebuf, count);
-        delete[] lebuf;
+    if (shellssock.isOpen()) {
+        ExpandingBinaryBuffer msg;
+        msg.U32(STA_GAME_TEXT);
+        msg.str(text);
+        writeToAdminShell(msg);
     }
 }
 
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) const throw () {
-    char lebuf[256];
-    int count = 0;
-
     //send a show gameover plaque message, if that is the case
     if (reason != NEXTMAP_NONE) {
-        writeByte(lebuf, count, data_gameover_show);
-        writeByte(lebuf, count, static_cast<NLubyte>(reason));      //capture limit plaque or vote exit plaque
+        BinaryBuffer<256> msg;
+        msg.U8(data_gameover_show);
+        msg.U8(reason);      //capture limit plaque or vote exit plaque
         if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
-            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[0].score()));  //RED team final score
-            writeByte(lebuf, count, static_cast<NLubyte>(world.teams[1].score()));  //BLUE team final score
-            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getCaptureLimit()));
-            writeByte(lebuf, count, static_cast<NLubyte>(world.getConfig().getTimeLimit() / 600)); // note: max time 255 mins ~ 4 hours
+            msg.U8(world.teams[0].score());  //RED team final score
+            msg.U8(world.teams[1].score());  //BLUE team final score
+            msg.U8(world.getConfig().getCaptureLimit());
+            msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
         }
         if (pid == pid_record)
-            record_message(lebuf, count);
+            record_message(msg);
         else if (pid == pid_all) {
-            broadcast_message(lebuf, count);
-            record_message(lebuf, count);
+            broadcast_message(msg);
+            record_message(msg);
         }
         else
-            server->send_message(world.player[pid].cid, lebuf, count);
+            server->send_message(world.player[pid].cid, msg);
     }
 
-    count = 0;
-    writeByte(lebuf, count, data_map_change);
+    BinaryBuffer<256> msg;
+    msg.U8(data_map_change);
 
-    writeShort(lebuf, count, world.map.crc);
-    writeString(lebuf, count, mapname);
-    writeStr(lebuf, count, world.map.title);
-    writeByte(lebuf, count, static_cast<NLubyte>(host->current_map_nr()));
-    writeByte(lebuf, count, static_cast<NLubyte>(host->maplist().size()));
+    msg.U16(world.map.crc);
+    msg.str(mapname);
+    msg.str(world.map.title);
+    msg.U8(host->current_map_nr());
+    msg.U8(host->maplist().size());
 
-    NLbyte remove_flags = 0;
+    int8_t remove_flags = 0;
     remove_flags |= (world.map.tinfo[0].flags.empty() ? 0x01 : 0);
     remove_flags |= (world.map.tinfo[1].flags.empty() ? 0x02 : 0);
     remove_flags |= (world.map.wild_flags    .empty() ? 0x04 : 0);
-    writeByte(lebuf, count, remove_flags);
+    msg.S8(remove_flags);
 
     if (pid == pid_record) {
-        ostringstream ost;
-        ost.write(lebuf, count);
-        write(ost, static_cast<unsigned>(host->record_map_data().length()));
-        ost << host->record_map_data();
-        record_message(ost.str());
+        ExpandingBinaryBuffer recMsg;
+        recMsg.block(msg);
+        recMsg.U32(host->record_map_data().length());
+        recMsg.block(host->record_map_data());
+        record_message(recMsg);
         return;
     }
     else if (pid == pid_all) {
-        broadcast_message(lebuf, count);
-        if (shellssock != NL_INVALID) {
-            char lebuf[256]; int count = 0;
-            writeLong(lebuf, count, STA_GAME_OVER);
-            nlWrite(shellssock, lebuf, count);
+        broadcast_message(msg);
+        if (shellssock.isOpen()) {
+            BinaryBuffer<256> msg;
+            msg.U32(STA_GAME_OVER);
+            writeToAdminShell(msg);
             sendTextToAdminShell("Map is " + host->current_map().title);
         }
     }
     else
-        server->send_message(world.player[pid].cid, lebuf, count);
+        server->send_message(world.player[pid].cid, msg);
 
     //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
     if (pid == pid_all) {
@@ -1065,14 +1040,13 @@ void ServerNetworking::broadcast_map_change_message(int reason, const char* mapn
 }
 
 void ServerNetworking::broadcast_map_change_info(int votes, int needed, int vote_block_time) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_map_change_info);
-    writeByte(lebuf, count, static_cast<NLubyte>(votes));
-    writeByte(lebuf, count, static_cast<NLubyte>(needed));
-    writeShort(lebuf, count, static_cast<NLshort>(vote_block_time));
+    BinaryBuffer<256> msg;
+    msg.U8(data_map_change_info);
+    msg.U8(votes);
+    msg.U8(needed);
+    msg.U16(vote_block_time);
 
-    broadcast_message(lebuf, count);
+    broadcast_message(msg);
 }
 
 void ServerNetworking::send_too_much_talk(int pid) const throw () {
@@ -1088,44 +1062,41 @@ void ServerNetworking::send_tournament_update_failed(int pid) const throw () {
 }
 
 void ServerNetworking::broadcast_mute_message(int pid, int mode, const string& admin, bool inform_target) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_player_mute);
-    writeByte(lebuf, count, static_cast<NLubyte>(pid));
-    writeByte(lebuf, count, static_cast<NLubyte>(mode));
-    writeStr(lebuf, count, admin);
+    BinaryBuffer<256> msg;
+    msg.U8(data_player_mute);
+    msg.U8(pid);
+    msg.U8(mode);
+    msg.str(admin);
 
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && (inform_target || i != pid))
-            server->send_message(world.player[i].cid, lebuf, count);
+            server->send_message(world.player[i].cid, msg);
 }
 
 void ServerNetworking::broadcast_kick_message(int pid, int minutes, const string& admin) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_player_kick);
-    writeByte(lebuf, count, static_cast<NLubyte>(pid));
-    writeLong(lebuf, count, static_cast<NLlong>(minutes));
-    writeStr(lebuf, count, admin);
+    nAssert(minutes >= 0);
+    BinaryBuffer<256> msg;
+    msg.U8(data_player_kick);
+    msg.U8(pid);
+    msg.U32(minutes);
+    msg.str(admin);
 
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::send_idlekick_warning(int pid, int seconds) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_idlekick_warning);
-    writeByte(lebuf, count, static_cast<NLubyte>(seconds));
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_idlekick_warning);
+    msg.U8(seconds);
+    server->send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::send_disconnecting_message(int pid, int seconds) const throw () {
-    char lebuf[256];
-    int count = 0;
-    writeByte(lebuf, count, data_disconnecting);
-    writeByte(lebuf, count, static_cast<NLubyte>(seconds));
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_disconnecting);
+    msg.U8(seconds);
+    server->send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcast_broken_map() const throw () {
@@ -1133,11 +1104,11 @@ void ServerNetworking::broadcast_broken_map() const throw () {
 }
 
 void ServerNetworking::set_relay_server(const string& address) throw () {
-    if (!nlGetAddrFromName(address.c_str(), &relay_address)) {
+    if (!relay_address.tryResolve(address)) {
         log("Relay address could not be resolved from %s.", address.c_str());
         return;
     }
-    const NLushort port = nlGetPortFromAddr(&relay_address);
+    const uint16_t port = relay_address.getPort();
     if (port == 0)
         log("Invalid or missing relay port in %s.", address.c_str());
     else
@@ -1145,25 +1116,22 @@ void ServerNetworking::set_relay_server(const string& address) throw () {
 }
 
 string ServerNetworking::get_relay_server() const throw () {
-    char buf[NL_MAX_STRING_LENGTH];
-    if (!nlAddrToString(&relay_address, buf))
-        return string();
-    return string(buf);
+    return is_relay_used() ? relay_address.toString() : string();
 }
 
 bool ServerNetworking::is_relay_used() const throw () {
-    return nlGetPortFromAddr(&relay_address);
+    return relay_address.valid() && relay_address.getPort() != 0;
 }
 
 bool ServerNetworking::is_relay_active() const throw () {
     return relayThread.isConnected();
 }
 
-void ServerNetworking::send_first_relay_data(const string& data) throw () {
+void ServerNetworking::send_first_relay_data(ConstDataBlockRef data) throw () {
     relayThread.startNewGame(relay_address, data, settings.get_spectating_delay());
 }
 
-void ServerNetworking::send_relay_data(const string& data) throw () {
+void ServerNetworking::send_relay_data(ConstDataBlockRef data) throw () {
     relayThread.pushFrame(data);
 }
 
@@ -1206,8 +1174,6 @@ bool ServerNetworking::start() throw () {
     mjob_count = 0;
     mjob_exit = false;              //flag for all pending master jobs to quit now
     mjob_fastretry = false;     //flag for all pending master jobs to stop waiting and retry immediately
-
-    shellssock = NL_INVALID;    // not in use
 
     //start TCP shell master thread in the port number 500 less than server UDP port
     shellmthread.start_assert("ServerNetworking::run_shellmaster_thread",
@@ -1301,15 +1267,14 @@ int ServerNetworking::client_connected(int id) throw () {
     ctop[cid] = myself;
 
     // send players_present before "myself" is present, so new_player can be broadcast to "myself" too
-    NLulong players_present = 0;
+    uint32_t players_present = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
             players_present |= (1 << i);
-    char lebuf[8];
-    int count = 0;
-    writeByte(lebuf, count, data_players_present);
-    writeLong(lebuf, count, players_present);
-    server->send_message(cid, lebuf, count);
+    BinaryBuffer<8> msg;
+    msg.U8(data_players_present);
+    msg.U32(players_present);
+    server->send_message(cid, msg);
 
     unsigned uniqueId;
     if (!freedUniqueIds.empty() && freedUniqueIds.front().second < get_time()) {
@@ -1330,16 +1295,16 @@ int ServerNetworking::client_connected(int id) throw () {
     if (world.player[myself].localIP)
         ++localPlayers;
     else {
-        NLaddress ip = get_client_address(id);
-        nlSetAddrPort(&ip, 0);
-        vector< pair<NLaddress, int> >::iterator pi;
+        Network::Address ip = get_client_address(id);
+        ip.setPort(0);
+        vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
-            if (nlAddrCompare(&pi->first, &ip)) {
+            if (pi->first == ip) {
                 ++pi->second;
                 break;
             }
         if (pi == distinctRemotePlayers.end())
-            distinctRemotePlayers.push_back(pair<NLaddress, int>(ip, 1));
+            distinctRemotePlayers.push_back(pair<Network::Address, int>(ip, 1));
     }
 
     const vector<string>& welcome_message = host->getWelcomeMessage();
@@ -1362,11 +1327,11 @@ int ServerNetworking::client_connected(int id) throw () {
     world.player[myself].stats().set_lifetime(0);
 
     //first update the ADMIN SHELL
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count = 0;
-        writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-        writeLong(lebuf, count, world.player[myself].cid);
-        nlWrite(shellssock, lebuf, count);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_PLAYER_CONNECTED);
+        msg.U32(world.player[myself].cid);
+        writeToAdminShell(msg);
     }
 
     host->check_fav_colors(myself);
@@ -1393,11 +1358,11 @@ int ServerNetworking::client_connected(int id) throw () {
         send_player_name_update(id, i);
 
         //frags update
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, data_frags_update);
-        writeByte(lebuf, count, static_cast<NLubyte>(i));       // what player id
-        writeLong(lebuf, count, world.player[i].stats().frags());
-        server->send_message(id, lebuf, count);
+        BinaryBuffer<256> msg;
+        msg.U8(data_frags_update);
+        msg.U8(i);       // what player id
+        msg.U32(world.player[i].stats().frags());
+        server->send_message(id, msg);
 
         send_player_crap_update(id, i);
     }
@@ -1431,12 +1396,11 @@ void ServerNetworking::client_disconnected(int id) throw () {
     const bool was_bot = world.player[pid].is_bot();
 
     //first update the ADMIN SHELL
-    if (shellssock != NL_INVALID) {
-        char lebuf[256]; int count;
-        count = 0;
-        writeLong(lebuf, count, STA_PLAYER_DISCONNECTED);
-        writeLong(lebuf, count, world.player[pid].cid);
-        nlWrite(shellssock, lebuf, count);
+    if (shellssock.isOpen()) {
+        BinaryBuffer<256> msg;
+        msg.U32(STA_PLAYER_DISCONNECTED);
+        msg.U32(world.player[pid].cid);
+        writeToAdminShell(msg);
     }
 
     //report the latest player achievements to the master server
@@ -1445,10 +1409,10 @@ void ServerNetworking::client_disconnected(int id) throw () {
     if (world.player[pid].localIP)
         --localPlayers;
     else {
-        NLaddress ip = get_client_address(id);
-        nlSetAddrPort(&ip, 0);
-        vector< pair<NLaddress, int> >::iterator pi;
-        for (pi = distinctRemotePlayers.begin(); !nlAddrCompare(&pi->first, &ip); ++pi)
+        Network::Address ip = get_client_address(id);
+        ip.setPort(0);
+        vector< pair<Network::Address, int> >::iterator pi;
+        for (pi = distinctRemotePlayers.begin(); pi->first != ip; ++pi)
             nAssert(pi != distinctRemotePlayers.end());
         --pi->second;
         if (pi->second == 0)
@@ -1482,58 +1446,56 @@ void ServerNetworking::ping_result(int client_id, int ping_time) throw () {
 }
 
 void ServerNetworking::forwardSayadminMessage(int cid, const string& message) const throw () {
-    if (shellssock == NL_INVALID)
+    if (!shellssock.isOpen())
         return;
-    char lebuf[256];
-    int count = 0;
-    writeLong(lebuf, count, STA_ADMIN_MESSAGE);
-    writeLong(lebuf, count, cid);
-    writeStr(lebuf, count, message);
-    nlWrite(shellssock, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U32(STA_ADMIN_MESSAGE);
+    msg.U32(cid);
+    msg.str(message);
+    writeToAdminShell(msg);
 }
 
 void ServerNetworking::sendTextToAdminShell(const string& text) const throw () {
-    if (shellssock == NL_INVALID)
+    if (!shellssock.isOpen())
         return;
-    char buf[512];
-    int count = 0;
-    writeLong(buf, count, STA_GAME_TEXT);
-    buf[count++] = '|';
-    buf[count++] = ' ';
-    writeStr(buf, count, text);
-    nlWrite(shellssock, buf, count);
+    ExpandingBinaryBuffer msg;
+    msg.U32(STA_GAME_TEXT);
+    msg.constLengthStr("| ", 2);
+    msg.str(text);
+    writeToAdminShell(msg);
 }
 
-bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) throw () {
+bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () {
+    BinaryDataBlockReader msg(data);
+
     ServerPlayer& sender = world.player[pid];
 
-    int count = 0;
-    NLubyte code;
-    readByte(msg, count, code);
+    const uint8_t code = msg.U8();
     if (LOG_MESSAGE_TRAFFIC)
         log("Message from client, code = %i", code);
     switch (code) {
     /*break;*/ case data_name_update: {
-        string name, password;
-        readStr(msg, count, name);
-        readStr(msg, count, password);
+        const string name = msg.str();
+        const string password = msg.str();
         host->nameChange(sender.cid, pid, name, password);
         // not related to name update, but this is a convenient place that's always (with a normal client) entered soon after making the connection but after data_set_extension_level
         sender.protocolExtensionsLevelSet = true; // the point is that if we haven't received a data_set_extensions_level so far, that's because the client actually is unextended
         if (sender.protocolExtensionsLevel < 0)
             sender.needSignalFrameExtensions = false; // unextended clients don't need to know, since we aren't using any extensions with them
     }
-    break; case data_text_message:
-        if (find_nonprintable_char(msg + 1)) {
+    break; case data_text_message: {
+        const string text = msg.str();
+        if (find_nonprintable_char(text)) {
             log("Received unprintable characters.");
             return false;
         }
-        else if (string(msg + 1).length() > max_chat_message_length) {
-            log("Received a too long message (%lu characters).", (unsigned long)string(msg + 1).length());
+        else if (text.length() > max_chat_message_length) {
+            log("Received a too long message (%u characters).", static_cast<unsigned>(text.length()));
             return false;
         }
         else
-            host->chat(pid, msg + 1);
+            host->chat(pid, text);
+    }
     break; case data_fire_on:
         sender.attackOnce = sender.attack = true;
         sender.attackGunDir = sender.gundir;
@@ -1569,9 +1531,8 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
             host->check_map_exit();
         }
     break; case data_file_request: {
-        string ftype, fname;
-        readStr(msg, count, ftype);
-        readStr(msg, count, fname);
+        const string ftype = msg.str();
+        const string fname = msg.str();
         if (fileTransfer[sender.cid].serving_udp_file) {
             log("Another download already in progress.");
             return false;
@@ -1601,8 +1562,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
             upload_next_file_chunk(sender.cid);
         }
     break; case data_registration_token: {
-        string tok;
-        readStr(msg, count, tok);
+        const string tok = msg.str();
         if (host->changeRegistration(sender.cid, tok)) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
@@ -1625,8 +1585,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
         }
     }
     break; case data_tournament_participation: {
-        NLubyte data;
-        readByte(msg, count, data);
+        const uint8_t data = msg.U8();
         ClientData& clid = host->getClientData(sender.cid);
         clid.next_participation = data;
         if (!clid.participation_info_received) {
@@ -1642,8 +1601,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
     break; case data_stop_drop_flag:
         sender.drop_key = false;
     break; case data_map_vote: {
-        NLubyte vote;
-        readByte(msg, count, vote);
+        const uint8_t vote = msg.U8();
         if (sender.mapVote != vote) {
             if (vote < 255 && vote < static_cast<int>(host->maplist().size()))
                 sender.mapVote = vote;
@@ -1657,30 +1615,24 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
         }
     }
     break; case data_fav_colors: {
-        NLbyte size;
-        readByte(msg, count, size);
+        const int8_t size = msg.S8();
         vector<char> fav_colors;
         // two colours in a byte
         for (int i = 0; i < size; i++) {
-            NLubyte col;
-            readByte(msg, count, col);
-            int c = (col & 0x0F);
-            if (c >= 0 && c < 16)
-                fav_colors.push_back(c);
-            c = (col >> 4);
-            if (++i < size && c >= 0 && c < 16)
-                fav_colors.push_back(c);
+            const uint8_t cols = msg.U8();
+            fav_colors.push_back(cols & 0x0F);
+            if (++i < size)
+                fav_colors.push_back(cols >> 4);
         }
         host->set_fav_colors(pid, fav_colors);
         broadcast_player_crap(pid);
     }
     break; case data_bot: {
-        NLaddress address = get_client_address(sender.cid);
-        nlSetAddrPort(&address, 0);
-        char buf[NL_MAX_STRING_LENGTH];
-        nlAddrToString(&address, buf);
-        if (strcmp(buf, "127.0.0.1"))
-            log("Remote bot from %s.", buf);
+        Network::Address address = get_client_address(sender.cid);
+        address.setPort(0);
+        const string addrStr = address.toString();
+        if (addrStr != "127.0.0.1")
+            log("Remote bot from %s.", addrStr.c_str());
         if (!sender.is_bot()) {
             ++bot_count;
             sender.set_bot();
@@ -1688,8 +1640,7 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
         }
     }
     break; case data_set_extension_level: {
-        NLubyte level;
-        readByte(msg, count, level);
+        const uint8_t level = msg.U8();
         if (level > PROTOCOL_EXTENSIONS_VERSION) {
             log("Tried to set unknown extension level %d.", level);
             return false;
@@ -1700,16 +1651,13 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
         send_acceleration_modes(pid);
         send_flag_modes(pid);
     }
-    break; case data_set_minimap_player_bandwidth: {
-        NLubyte number;
-        readByte(msg, count, number);
-        sender.minimapPlayersPerFrame = number;
-    }
+    break; case data_set_minimap_player_bandwidth:
+        sender.minimapPlayersPerFrame = msg.U8();
     break; case data_acknowledge_frame_extensions:
         sender.needSignalFrameExtensions = false;
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
-            log("Invalid message code: %i, length %i.", code, msglen);
+            log("Invalid message code: %i, length %i.", code, data.size());
             return false;
         }
         // just ignore commands in reserved range: they're probably some extension we don't have to care about
@@ -1718,41 +1666,39 @@ bool ServerNetworking::processMessage(int pid, char* const msg, int msglen) thro
 }
 
 //process incoming client data (callback function)
-void ServerNetworking::incoming_client_data(int id, char *data, int length) throw () {
+void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) throw () {
     if (ctop[id] == -1)
         return;
 
     int pid = ctop[id];
 
     //1. process client's frame data
-    int count = 0;
 
-    NLubyte clFrame;
-    readByte(data, count, clFrame);
+    BinaryDataBlockReader frame(data);
+
+    const uint8_t clFrame = frame.U8();
+
     ServerPlayer& pl = world.player[pid];
     if (WATCH_CONNECTION && pl.lastClientFrame != clFrame) {
-        if (static_cast<NLubyte>(pl.lastClientFrame - clFrame) < 128)
+        if (static_cast<uint8_t>(pl.lastClientFrame - clFrame) < 128)
             plprintf(pid, msg_warning, "C>S packet order: prev %d this %d", pl.lastClientFrame, clFrame);
-        else if (static_cast<NLubyte>(pl.lastClientFrame + 1) != clFrame)
+        else if (static_cast<uint8_t>(pl.lastClientFrame + 1) != clFrame)
             plprintf(pid, msg_warning, "C>S packet lost : prev %d this %d", pl.lastClientFrame, clFrame);
     }
-    if (static_cast<NLubyte>(clFrame - pl.lastClientFrame) < 128) { // this frame is very likely newer or the same as the previous one
+    if (static_cast<uint8_t>(clFrame - pl.lastClientFrame) < 128) { // this frame is very likely newer or the same as the previous one
         if (clFrame != pl.lastClientFrame) {
             g_timeCounter.refresh(); // we prefer an exact time here
             pl.frameOffset = 10. * (get_time() - frameSentTime);
         }
         pl.lastClientFrame = clFrame;
 
-        NLubyte ccb;
-        readByte(data, count, ccb);
-        pl.controls.fromNetwork(ccb, false);
+        pl.controls.fromNetwork(frame.U8(), false);
         pl.controls.clearModifiersIfIdle();
 
         GunDirection newDir;
         bool newDirReceived = false;
-        if (count < length) {
-            NLushort gd;
-            readShort(data, count, gd);
+        if (frame.hasMore()) {
+            const uint16_t gd = frame.U16();
             pl.accelerationMode = (gd & 0x800) != 0 && world.physics.allowFreeTurning ? AM_Gun : AM_World;
             newDir.fromNetworkLongForm(gd & 0x7FF);
             newDirReceived = true;
@@ -1770,11 +1716,10 @@ void ServerNetworking::incoming_client_data(int id, char *data, int length) thro
 
     //2. process messages
     for (;;) {
-        int msglen;
-        char* const msg = server->receive_message(id, &msglen);
-        if (msg == 0)
+        ConstDataBlockRef msg = server->receive_message(id);
+        if (msg.data() == 0)
             break;
-        if (!processMessage(pid, msg, msglen)) {
+        if (!processMessage(pid, msg)) {
             log("Kicked player %d for client misbehavior.", pid);
             host->disconnectPlayer(pid, disconnect_client_misbehavior);
             break;
@@ -1802,25 +1747,23 @@ void ServerNetworking::sendStartGame() const throw () {
     send_map_time(pid_all);
 }
 
-void ServerNetworking::writeMinimapPlayerPosition(char* lebuf, int& lecount, int pid) const throw () {
+void ServerNetworking::writeMinimapPlayerPosition(BinaryWriter& writer, int pid) const throw () {
     nAssert(world.player[pid].used);
     const int xmul = 255 / world.map.w;
     const int ymul = 255 / world.map.h;
-    const NLubyte mx = world.player[pid].roomx * xmul + static_cast<NLubyte>(xmul * (world.player[pid].lx - 1e-5) / plw);
-    const NLubyte my = world.player[pid].roomy * ymul + static_cast<NLubyte>(ymul * (world.player[pid].ly - 1e-5) / plh);
-    writeByte(lebuf, lecount, mx);
-    writeByte(lebuf, lecount, my);
+    writer.U8(world.player[pid].roomx * xmul + static_cast<uint8_t>(xmul * (world.player[pid].lx - 1e-5) / plw));
+    writer.U8(world.player[pid].roomy * ymul + static_cast<uint8_t>(ymul * (world.player[pid].ly - 1e-5) / plh));
 }
 
 //simulate and broadcast frame
 void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     {
         // check if player acceleration modes have changed
-        NLulong newMask = 0;
+        uint32_t newMask = 0;
         if (world.physics.allowFreeTurning)
             for (int i = 0; i < maxplayers; ++i)
                 if (world.player[i].used && world.player[i].accelerationMode == AM_Gun)
-                    newMask |= NLulong(1) << i;
+                    newMask |= uint32_t(1) << i;
         if (newMask != accelerationModeMask) {
             accelerationModeMask = newMask;
             send_acceleration_modes(pid_all);
@@ -1828,7 +1771,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     }
     {
         // check if flag lock/capture settings have changed
-        const NLubyte newMask = world.lock_team_flags_in_effect() << 3 | world.lock_wild_flags_in_effect() << 2 | world.capture_on_team_flags_in_effect() << 1 | world.capture_on_wild_flags_in_effect();
+        const uint8_t newMask = world.lock_team_flags_in_effect() << 3 | world.lock_wild_flags_in_effect() << 2 | world.capture_on_team_flags_in_effect() << 1 | world.capture_on_wild_flags_in_effect();
         if (newMask != flagModeMask) {
             flagModeMask = newMask;
             send_flag_modes(pid_all);
@@ -1838,22 +1781,19 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     // ============================
     //   build common data buffer
     // ============================
-    char lebuf[4096];       //common frame data
-    int count = 0;
+    BinaryBuffer<4096> frame;       //common frame data
 
     //frame
-    writeLong(lebuf, count, world.frame);
+    frame.U32(world.frame);
 
     //===============================
     //  build packet for each client
     //      with custom data
     //===============================
-    int lecount;    //count after "count"
-
     static int normalViewI[2] = { 0, 0 };   // each team's normal view player iterator
     static int shadowViewI[2] = { 0, 0 };   // each team's shadow view player iterator
-    NLulong normalView[2];  // players shown on minimap to each team, without shadow
-    NLulong shadowView[2];  // players shown on minimap to each team, with shadow
+    uint32_t normalView[2];  // players shown on minimap to each team, without shadow
+    uint32_t shadowView[2];  // players shown on minimap to each team, with shadow
 
     for (int t = 0; t < 2; ++t) {
         normalView[t] = shadowView[t] = 0;
@@ -1870,7 +1810,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                         normalView[t] |= 1 << j;
             }
             else if (!world.player[i].item_shadow() || world.player[i].stats().has_flag())
-                shadowView[t] += static_cast<NLulong>(1 << i);
+                shadowView[t] += static_cast<uint32_t>(1 << i);
         }
         shadowView[t] |= normalView[t];
     }
@@ -1909,6 +1849,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             shadowIters[t][1] = -1;
     }
 
+    const unsigned commonDataSize = frame.size();
+
     // ==================================================================
     //   BUILD AND SEND EVERY DAMN PACKET
     // ==================================================================
@@ -1919,13 +1861,12 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             continue;
 
         // start writing at end of common data
-        lecount = count;
+        frame.setPosition(commonDataSize);
 
         // first send client prediction synchronization data
-        const NLubyte clFrame = recipient.lastClientFrame;
-        writeByte(lebuf, lecount, clFrame);
+        frame.U8(recipient.lastClientFrame);
 
-        NLubyte fo = static_cast<NLubyte>(bound<double>(recipient.frameOffset, 0., .999) * 256.);
+        uint8_t fo = static_cast<uint8_t>(bound<double>(recipient.frameOffset, 0., .999) * 256.);
         // the frame offset field is now hijacked to signal whether extensions are enabled in this frame, for the first few frames until the client is certain to know that future frames are all extended
         if (recipient.needSignalFrameExtensions) {
             if (recipient.protocolExtensionsLevel < 0)
@@ -1933,32 +1874,32 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             else if (fo == 127)
                 fo = 128;
         }
-        writeByte(lebuf, lecount, fo);
+        frame.U8(fo);
 
         const bool skip_frame = recipient.awaiting_client_readies || !gameRunning;
 
         // first byte: player ID, tob bits of health and energy and a bit telling if the rest of the frame is skipped
-        NLubyte xtra = i << 3;
+        uint8_t xtra = i << 3;
         if (iround(recipient.health) & 256)
             xtra |= 1;
         if (iround(recipient.energy) & 256)
             xtra |= 2;
         if (skip_frame)
             xtra |= 4;
-        writeByte(lebuf, lecount, xtra);
+        frame.U8(xtra);
 
         // send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
         if (!skip_frame) {
             // 2 bytes with the screen of self
-            writeByte(lebuf, lecount, static_cast<NLubyte>(recipient.roomx));
-            writeByte(lebuf, lecount, static_cast<NLubyte>(recipient.roomy));
+            frame.U8(recipient.roomx);
+            frame.U8(recipient.roomy);
 
             // player data field to indicate which players are on screen (and therefore sent on the frame)
-            NLulong players_onscreen = 0;
+            uint32_t players_onscreen = 0;
 
             // players_onscreen will be written here in the end
-            int p_on_count = lecount;
-            writeLong(lebuf, lecount, 0);
+            const unsigned players_onscreen_position = frame.getPosition();
+            frame.U32(0);
 
             for (int j = 0; j < maxplayers; j++) {
                 const ServerPlayer& h = world.player[j];
@@ -1967,26 +1908,26 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     players_onscreen |= (1 << j);
 
                     // position in 3 bytes
-                    NLubyte xy;
-                    NLushort hx, hy;
-                    hx = static_cast<NLushort>(h.lx * (double(0xFFF) / plw) + .5);
-                    hy = static_cast<NLushort>(h.ly * (double(0xFFF) / plh) + .5);
-                    xy = static_cast<NLubyte>(hx & 0x0FF);
-                    writeByte(lebuf, lecount, xy);
-                    xy = static_cast<NLubyte>(hy & 0x0FF);
-                    writeByte(lebuf, lecount, xy);
-                    xy = static_cast<NLubyte>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
-                    writeByte(lebuf, lecount, xy);
+                    uint8_t xy;
+                    uint16_t hx, hy;
+                    hx = static_cast<uint16_t>(h.lx * (double(0xFFF) / plw) + .5);
+                    hy = static_cast<uint16_t>(h.ly * (double(0xFFF) / plh) + .5);
+                    xy = static_cast<uint8_t>(hx & 0x0FF);
+                    frame.U8(xy);
+                    xy = static_cast<uint8_t>(hy & 0x0FF);
+                    frame.U8(xy);
+                    xy = static_cast<uint8_t>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
+                    frame.U8(xy);
 
                     if (recipient.protocolExtensionsLevel < 0) {
                         // speed in 2 bytes
                         typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                        writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
-                        writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
+                        frame.U8(SpeedType::toByte(h.sx));
+                        frame.U8(SpeedType::toByte(h.sy));
                     }
 
                     // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
-                    NLubyte extra = 0;
+                    uint8_t extra = 0;
                     if (h.dead)
                         extra |= 1;
                     if (h.item_deathbringer)
@@ -2002,46 +1943,51 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     const bool preciseGundir = recipient.protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
                     if (preciseGundir)
                         extra |= 64;
-                    writeByte(lebuf, lecount, extra);
+                    frame.U8(extra);
 
                     if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
                         // speed in 2 bytes
                         typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                        writeByte(lebuf, lecount, SpeedType::toByte(h.sx));
-                        writeByte(lebuf, lecount, SpeedType::toByte(h.sy));
+                        frame.U8(SpeedType::toByte(h.sx));
+                        frame.U8(SpeedType::toByte(h.sy));
                     }
 
                     // controls and gundirection in 1 byte
-                    NLubyte ccb;
+                    uint8_t ccb;
                     if (!h.dead) // if dead player, don't send keys
                         ccb = h.controls.toNetwork(true);
                     else
                         ccb = ClientControls().toNetwork(true);
                     if (preciseGundir) {
-                        const NLushort gundir = h.gundir.toNetworkLongForm();
+                        const uint16_t gundir = h.gundir.toNetworkLongForm();
                         ccb |= (gundir >> 8) << 5;
-                        writeByte(lebuf, lecount, ccb);
+                        frame.U8(ccb);
                         ccb = gundir & 0xFF;
-                        writeByte(lebuf, lecount, ccb);
+                        frame.U8(ccb);
                     }
                     else {
                         ccb |= h.gundir.toNetworkShortForm() << 5;
-                        writeByte(lebuf, lecount, ccb);
+                        frame.U8(ccb);
                     }
 
                     if (!h.dead || recipient.protocolExtensionsLevel < 0) {
                         // visibility in 1 byte
                         const bool safeAfterSpawn = world.frame < h.start_take_damage_frame;
                         if (safeAfterSpawn)
-                            writeByte(lebuf, lecount, world.frame & 2 ? 128 : 220);
+                            frame.U8(world.frame & 2 ? 128 : 220);
                         else
-                            writeByte(lebuf, lecount, static_cast<NLubyte>(h.visibility));
+                            frame.U8(h.visibility);
                     }
                 }
             }
 
             // write players_onscreen in its place (reserved before the above loop)
-            writeLong(lebuf, p_on_count, players_onscreen);
+            {
+                const unsigned pos = frame.getPosition();
+                frame.setPosition(players_onscreen_position);
+                frame.U32(players_onscreen);
+                frame.setPosition(pos);
+            }
 
             /* minimap player position protocol:
              * old protocol:
@@ -2069,23 +2015,23 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
              *  }
              */
             if (recipient.protocolExtensionsLevel >= 0) {
-                NLulong P = (recipient.item_shadow() ? shadowView : normalView)[i / TSIZE];
+                uint32_t P = (recipient.item_shadow() ? shadowView : normalView)[i / TSIZE];
                 for (int pi = 0; pi < maxplayers; ++pi)
                     if (world.player[pi].roomx == recipient.roomx && world.player[pi].roomy == recipient.roomy)
-                        P &= ~(NLulong(1) << pi);
+                        P &= ~(uint32_t(1) << pi);
                 const unsigned maxPlayers = min(settings.minimapSendLimit(), recipient.minimapPlayersPerFrame);
                 if (P == 0 || maxPlayers == 0) {
-                    writeByte(lebuf, lecount, 0x00); // start from bit 0 (irrelevant), only 1 (mandatory) extra byte
-                    writeByte(lebuf, lecount, 0x00);
+                    frame.U8(0x00); // start from bit 0 (irrelevant), only 1 (mandatory) extra byte
+                    frame.U8(0x00);
                 }
                 else {
                     int nextPlayer = recipient.nextMinimapPlayer;
-                    while ((P & (NLulong(1) << nextPlayer)) == 0)
+                    while ((P & (uint32_t(1) << nextPlayer)) == 0)
                         nextPlayer = (nextPlayer + 1) % MAX_PLAYERS;
                     const int sendBoundary = nextPlayer & ~3;
-                    NLulong rotP = rotateRight(P, sendBoundary);
+                    uint32_t rotP = rotateRight(P, sendBoundary);
                     nextPlayer -= sendBoundary; // now nextPlayer is relative to rotP
-                    rotP &= ~NLulong(0) << nextPlayer;
+                    rotP &= ~uint32_t(0) << nextPlayer;
                     vector<int> players;
                     players.reserve(maxPlayers);
                     int bits;
@@ -2096,47 +2042,45 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                             players.push_back((bits + sendBoundary) % 32);
                     }
                     recipient.nextMinimapPlayer = (sendBoundary + bits) % 32;
-                    rotP &= ~NLulong(0) >> (32 - bits);
+                    rotP &= ~uint32_t(0) >> (32 - bits);
                     const int extraBytes = max(1, (bits - 3 + 7) / 8);
-                    writeByte(lebuf, lecount, ((sendBoundary / 4) << 5) | ((extraBytes - 1) << 3) | (rotP & 7));
+                    frame.U8(((sendBoundary / 4) << 5) | ((extraBytes - 1) << 3) | (rotP & 7));
                     rotP >>= 3;
                     for (int eb = 0; eb < extraBytes; ++eb) {
-                        writeByte(lebuf, lecount, rotP & 0xFF);
+                        frame.U8(rotP & 0xFF);
                         rotP >>= 8;
                     }
                     for (vector<int>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
-                        writeMinimapPlayerPosition(lebuf, lecount, *pi);
+                        writeMinimapPlayerPosition(frame, *pi);
                 }
             }
             else
                 for (int round = 0; round < 2; ++round) {
                     const int who = (recipient.item_shadow() ? shadowIters : normalIters)[i / TSIZE][round];
                     if (who == -1)
-                        writeByte(lebuf, lecount, 255);
+                        frame.U8(255);
                     else {
-                        writeByte(lebuf, lecount, static_cast<NLubyte>(who));
-                        writeMinimapPlayerPosition(lebuf, lecount, who);
+                        frame.U8(who);
+                        writeMinimapPlayerPosition(frame, who);
                     }
                 }
 
             // send 8 bits of player's health
             nAssert(recipient.health >= 0);
             nAssert((recipient.health == 0) == recipient.dead);
-            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(recipient.health) & 255));
+            frame.U8(iround(recipient.health) & 255);
 
             // send 8 bits of player's energy
             nAssert(recipient.energy >= 0);
-            writeByte(lebuf, lecount, static_cast<NLubyte>(iround(recipient.energy) & 255));
+            frame.U8(iround(recipient.energy) & 255);
 
             // ping of player frame# % maxplayers
-            if (recipient.protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used) {
-                const NLushort theping = static_cast<NLushort>(world.player[world.frame % maxplayers].ping);
-                writeShort(lebuf, lecount, theping);
-            }
+            if (recipient.protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used)
+                frame.U16(static_cast<uint16_t>(world.player[world.frame % maxplayers].ping));
         }
 
         //send the packet
-        server->send_frame(recipient.cid, lebuf, lecount);
+        server->send_frame(recipient.cid, frame);
 
         //send server map list if not sent yet
         if (recipient.current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
@@ -2171,7 +2115,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 }
 
 double ServerNetworking::getTraffic() const throw () {
-    return server->get_socket_stat(NL_AVE_BYTES_RECEIVED) + server->get_socket_stat(NL_AVE_BYTES_SENT);
+    return server->get_socket_stat(Network::Socket::Stat_AvgBytesReceived) + server->get_socket_stat(Network::Socket::Stat_AvgBytesSent);
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
@@ -2186,43 +2130,22 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         }
         delay = 60000;  // default to one minute
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        NLsocket sock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (sock == NL_INVALID) {
-            log("Tournament thread: Can't open socket. %s", getNlErrorString());
-            delay = 10000;
-            continue;
-        }
-
-        NLaddress tournamentServer;
-        if (!nlGetAddrFromName("www.mycgiserver.com", &tournamentServer))
-            nlStringToAddr("64.69.35.205", &tournamentServer);
-
-        nlSetAddrPort(&tournamentServer, 80);
-        nlConnect(sock, &tournamentServer);
-
-        const NetworkResult result = writeToUnblockingTCP(sock, job->request.data(), job->request.length(), &mjob_exit, 30000);
-        if (result != NR_ok) {
-            nlClose(sock);
-            if (mjob_exit)
-                break;
-            log("Tournament thread: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-            continue;
-        }
-
         string response;
-        {
+
+        try {
+            Network::TCPSocket sock(Network::NonBlocking, 0, true);
+
+            Network::Address tournamentServer;
+            if (!tournamentServer.tryResolve("www.mycgiserver.com"))
+                tournamentServer.fromValidIP("64.69.35.205");
+            tournamentServer.setPort(80);
+            sock.connect(tournamentServer);
+
+            sock.persistentWrite(job->request, &mjob_exit, 30000);
+
             ostringstream respStream;
-            const NetworkResult result = save_http_response(sock, respStream, &mjob_exit, 30000);
-            nlClose(sock);
-            if (result != NR_ok) {
-                if (mjob_exit)
-                    break;
-                log("Tournament thread: Error receiving response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-                continue;
-            }
+            save_http_response(sock, respStream, &mjob_exit, 30000);
+            sock.close();
             string fullResponse = respStream.str();
 
             // find the start and end of the body: after the last "<html>" and before the last "</html>"
@@ -2239,6 +2162,12 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 continue;
             }
             response = fullResponse.substr(startPos, endPos - startPos);
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            log("Tournament thread: %s", e.str().c_str());
+            delay = 15000; // faster retry
+            continue;
         }
 
         // parse the response
@@ -2272,10 +2201,10 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
                 if (job->code == MasterQuery::JT_login) {
                     log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
-                    char lebuf[128]; int count = 0;
-                    writeByte(lebuf, count, data_registration_response);
-                    writeByte(lebuf, count, 1); // registration ok
-                    server->send_message(job->cid, lebuf, count);
+                    BinaryBuffer<128> msg;
+                    msg.U8(data_registration_response);
+                    msg.U8(1); // registration ok
+                    server->send_message(job->cid, msg);
                     clid.token_valid = true;
                 }
                 else if (job->code == MasterQuery::JT_score)
@@ -2295,11 +2224,11 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             if (pid != -1) {
                 if (job->code == MasterQuery::JT_login) {
                     log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
-                                world.player[pid].name.c_str(), addressToString(get_client_address(job->cid)).c_str(), formatForLogging(job->request).c_str());
-                    char lebuf[128]; int count = 0;
-                    writeByte(lebuf, count, data_registration_response);
-                    writeByte(lebuf, count, 0); // registration failed
-                    server->send_message(job->cid, lebuf, count);
+                                 world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
+                    BinaryBuffer<128> msg;
+                    msg.U8(data_registration_response);
+                    msg.U8(0); // registration failed
+                    server->send_message(job->cid, msg);
                     host->getClientData(job->cid).token_have = false;
                     broadcast_player_crap(pid);
                 }
@@ -2322,6 +2251,13 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         --mjob_count;
     }
     delete job;
+}
+
+void ServerNetworking::logTCPThreadError(const Network::Error& error, const string& text) throw () {
+    if (dynamic_cast<const Network::ReadWriteError*>(&error) || dynamic_cast<const Network::Timeout*>(&error)) // these are too mundane errors to bother the user with
+        log(text);
+    else
+        log.error(text);
 }
 
 void ServerNetworking::run_mastertalker_thread() throw () {
@@ -2351,64 +2287,44 @@ void ServerNetworking::run_mastertalker_thread() throw () {
 
         // note: most the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        if (!g_masterSettings.address().valid)
+        if (!g_masterSettings.address().valid())
             continue;
 
-        //open socket
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        NLsocket msock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (msock == NL_INVALID) {
-            log.error(_("Master talker: Can't open socket to connect to master server."));
-            continue;
-        }
+        try {
+            Network::TCPSocket msock(Network::NonBlocking, 0, true);
+            msock.connect(g_masterSettings.address());
 
-        if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
-            log("Master talker: Can't connect to master server.");
-            nlClose(msock);
-            continue;
-        }
+            //now we have talked
+            master_never_talked = false;
 
-        //now we have talked
-        master_never_talked = false;
-
-        // build and send data
-        map<string, string> parameters = master_parameters(localAddress);
-        const string data = format_http_parameters(parameters);
-        NetworkResult result = post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
-        if (result != NR_ok)
-            log("Master talker: Error sending info: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-        else {
+            // build and send data
+            map<string, string> parameters = master_parameters(localAddress);
+            const string data = format_http_parameters(parameters);
+            post_http_data(msock, &file_threads_quit, 30000, g_masterSettings.host(), g_masterSettings.submit(), data);
             stringstream response;
-            result = save_http_response(msock, response, &file_threads_quit, 30000);
-            if (result == NR_ok) {
-                // save transaction to a file
-                ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-                out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-                out << "--- Query ---\n";
-                out << data << "\n";
-                out << "\n--- Response ---\n";
-                out << response.str();
-                out.close();
-                if (response.str().find("VERSION ERROR") != string::npos) {
-                    log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
-                    nlClose(msock);
-                    return;
-                }
-                if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
-                    log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
-                else if (response.str().find("[OK]") == string::npos) // this happens when the master server has problems
-                    log("Master talker: There was an unexpected error while sending information to the master list. See log/master.log.");
+            save_http_response(msock, response, &file_threads_quit, 30000);
+            // save transaction to a file
+            ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+            out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+            out << "--- Query ---\n";
+            out << data << "\n";
+            out << "\n--- Response ---\n";
+            out << response.str();
+            out.close();
+            if (response.str().find("VERSION ERROR") != string::npos) {
+                log.error(_("Master talker: You have a deprecated Outgun version. The server is not accepted on the master list. Please update."));
+                return;
             }
-            else {
-                log("Master talker: Error while waiting for a response: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
-                master_talk_time = get_time() + 30.0;   // faster retry: in 30 seconds
-            }
+            if (response.str().find("[ERROR]") != string::npos) // this means a more permanent problem
+                log.error(_("Master talker: There was an unexpected error while sending information to the master list. See log/master.log. To suppress this error, make the server private by using the -priv argument."));
+            else if (response.str().find("[OK]") == string::npos) // this happens when the master server has problems
+                log("Master talker: There was an unexpected error while sending information to the master list. See log/master.log.");
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            logTCPThreadError(e, _("Master talker: $1", e.str()));
+            master_talk_time = get_time() + 30.0; // faster retry
         }
-
-        //close socket
-        nlClose(msock);
     }
 
     log("Master talker: time to say goodbye.");
@@ -2421,52 +2337,30 @@ void ServerNetworking::run_mastertalker_thread() throw () {
 
 // Quitting: Delete my IP from the master so clients won't see it.
 void ServerNetworking::send_master_quit(const string& localAddress) const throw () {
-    if (!g_masterSettings.address().valid)
+    if (!g_masterSettings.address().valid())
         return;
 
-    //open socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    NLsocket msock = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
+    try {
+        Network::TCPSocket msock(Network::NonBlocking, 0, true);
 
-    if (msock == NL_INVALID) {
-        log.error(_("Master talker: (Quit) Can't open socket to connect to master server."));
-        return;
-    }
-
-    //connect
-    if (nlConnect(msock, &g_masterSettings.address()) == NL_FALSE) {
-        log.error(_("Master talker: (Quit) Can't connect to master server."));
-        nlClose(msock);
-        return;
-    }
-
-    const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
-    const string data = format_http_parameters(parameters);
-    NetworkResult result = post_http_data(msock, 0, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
-    if (result != NR_ok)
-        log.error(_("Master talker: (Quit) Error sending info: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
-    else {
+        const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
+        const string data = format_http_parameters(parameters);
+        post_http_data(msock, 5000, g_masterSettings.host(), g_masterSettings.submit(), data); // only 5 seconds allowed; it's not so crucial
         stringstream response;
-        result = save_http_response(msock, response, 0, 5000);  // only 5 seconds allowed; it's not so crucial
-        if (result == NR_ok) {
-            // save transaction to a file
-            ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
-            out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
-            out << "--- Query ---\n";
-            out << data << "\n";
-            out << "\n--- Response ---\n";
-            out << response.str();
-            out.close();
-            if (response.str().find("[OK]") == string::npos)
-                log.error(_("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log."));
-        }
-        else
-            log.error(_("Master talker: (Quit) Error while waiting for a response: $1", result == NR_timeout ? "Timeout" : getNlErrorString()));
+        save_http_response(msock, response, 5000);  // only 5 seconds allowed; it's not so crucial
+        // save transaction to a file
+        ofstream out((wheregamedir + "log" + directory_separator + "master.log").c_str());
+        out << "This file contains the server's latest successfully completed communications\nwith the server list master server\n\n";
+        out << "--- Query ---\n";
+        out << data << "\n";
+        out << "\n--- Response ---\n";
+        out << response.str();
+        out.close();
+        if (response.str().find("[OK]") == string::npos)
+            log.error(_("Master talker: (Quit) There was an unexpected error while sending information to the master list. See log/master.log."));
+    } catch (const Network::Error& e) {
+        log.error(_("Master talker: (Quit) $1", e.str()));
     }
-
-    nlClose(msock);
 }
 
 void ServerNetworking::run_website_thread() throw () {
@@ -2476,7 +2370,7 @@ void ServerNetworking::run_website_thread() throw () {
     const string& localAddress = settings.ip();
     // use it even if not public
 
-    NLaddress website_address;
+    Network::Address website_address;
     string working_address_string;
     double website_talk_time = 0.0;
     bool first_connection = true;
@@ -2492,59 +2386,47 @@ void ServerNetworking::run_website_thread() throw () {
 
         // note: most of the code from here down is repeated in the quitting phase; make changes there too (//#fixme)
 
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        NLsocket websock = nlOpen(0, NL_RELIABLE);
-        nlOpenMutex.unlock();
-        if (websock == NL_INVALID) {
-            log.error(_("Website thread: Can't open socket to connect to server website."));
-            continue;
-        }
         bool success = false;
-        for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri)
-            if (nlGetAddrFromName(addri->c_str(), &website_address)) {
+        for (vector<string>::const_iterator addri = settings.get_web_servers().begin(); addri != settings.get_web_servers().end(); ++addri) {
+            Network::ResolveError err;
+            if (website_address.tryResolve(*addri, &err)) {
                 success = true;
                 working_address_string = *addri;
                 break;
             }
             else
-                log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), getNlErrorString());
+                log("Website thread: Can't get address from %s. Reason: %s", addri->c_str(), err.str().c_str());
+        }
         if (!success) {
             log("Website thread: Can't get any address from the list!");
             continue;
         }
-        int web_port = nlGetPortFromAddr(&website_address);
-        if (!web_port) {
-            web_port = 80;
-            nAssert(nlSetAddrPort(&website_address, web_port));
-        }
-        if (!website_address.valid || nlConnect(websock, &website_address) == NL_FALSE) {       // connect
-            log("Website thread: Server can't connect to server website! Reason: %s", getNlErrorString());
-            nlClose(websock);
-            continue;
-        }
+        if (website_address.getPort() == 0)
+            website_address.setPort(80);
 
-        // build and send data
-        map<string, string> parameters = website_parameters(localAddress);
-        const int sending_maplist_revision = maplist_revision;
-        if (first_connection || sending_maplist_revision != sent_maplist_revision) {
-            parameters["maplist"] = website_maplist();
-            first_connection = false;
-        }
-        const string data = format_http_parameters(parameters);
-        NetworkResult result = post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
-        if (result == NR_ok) {
+        try {
+            Network::TCPSocket websock(Network::NonBlocking, 0, true);
+            websock.connect(website_address);
+
+            // build and send data
+            map<string, string> parameters = website_parameters(localAddress);
+            const int sending_maplist_revision = maplist_revision;
+            if (first_connection || sending_maplist_revision != sent_maplist_revision) {
+                parameters["maplist"] = website_maplist();
+                first_connection = false;
+            }
+            const string data = format_http_parameters(parameters);
+            post_http_data(websock, &file_threads_quit, 30000, working_address_string, settings.get_web_script(), data, settings.get_web_auth());
             // save response to a file
             ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-            result = save_http_response(websock, out, &file_threads_quit, 30000);
-        }
-        if (result != NR_ok)
-            website_talk_time = get_time() + 30.0;  // faster retry: in 30 seconds
-        else
+            save_http_response(websock, out, &file_threads_quit, 30000);
             sent_maplist_revision = sending_maplist_revision;
-
-        //close socket
-        nlClose(websock);
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            logTCPThreadError(e, _("Website thread: $1", e.str()));
+            website_talk_time = get_time() + 30.0; // faster retry
+        }
     }
 
     log("Website thread: time to say goodbye");
@@ -2553,36 +2435,20 @@ void ServerNetworking::run_website_thread() throw () {
         return;
 
     //quitting: send server shutdown message to web script
-    //open socket
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    NLsocket websock = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
+    try {
+        Network::TCPSocket websock(Network::NonBlocking, 0, true);
+        websock.connect(website_address);
 
-    if (websock == NL_INVALID) {
-        log.error(_("Website thread: (Quit) Can't open socket to connect to server website."));
-        return;
-    }
+        const string quit = "quit=1";
+        post_http_data(websock, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
+        log("Website thread: Sent information to server website: \"%s\"", formatForLogging(quit).c_str());
 
-    //connect
-    if (nlConnect(websock, &website_address) == NL_FALSE) {
-        log.error(_("Website thread: (Quit) Can't connect to server website."));
-        nlClose(websock);
-        return;
-    }
-
-    // send quit message
-    const string quit = "quit=1";
-    const NetworkResult result = post_http_data(websock, 0, 5000, working_address_string, settings.get_web_script(), quit, settings.get_web_auth());  // only 5 seconds allowed; it's not so crucial
-    log("Website thread: Sent information to server website: \"%s\", result %d", formatForLogging(quit).c_str(), result);
-
-    if (result == NR_ok) {
         // save response to a file
         ofstream out((wheregamedir + "log" + directory_separator + "web.log").c_str());
-        save_http_response(websock, out, 0, 5000);  // only 5 seconds allowed; it's not so crucial
+        save_http_response(websock, out, 5000);  // only 5 seconds allowed; it's not so crucial
+    } catch (Network::Error& e) {
+        log.error(_("Website thread: (Quit) $1", e.str()));
     }
-
-    nlClose(websock);
 }
 
 map<string, string> ServerNetworking::master_parameters(const string& address, bool quitting) const throw () {
@@ -2671,15 +2537,62 @@ string ServerNetworking::website_maplist() const throw () {
 }
 
 // read a string from a TCP stream, one char at a time; it doesn't tolerate breaks and is very slow but the admin shell system doesn't need more reliability
-bool ServerNetworking::read_string_from_TCP(NLsocket sock, char *buf) throw () {
+bool ServerNetworking::read_string_from_TCP(Network::TCPSocket& sock, string& resultStr) throw (Network::ReadWriteError) {
     for (;;) {
-        NLint result = nlRead(sock, buf, 1);
+        uint8_t ch;
+        const int result = sock.read(DataBlockRef(&ch, 1));
         if (result != 1)    // message not completely received
             return false;
-        if (*buf == '\0')
+        if (ch == '\0')
             return true;
-        ++buf;
+        resultStr += static_cast<char>(ch);
     }
+}
+
+void ServerNetworking::handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error) {
+    log("Incoming admin shell connection");
+
+    // accept connections only from localhost
+    Network::Address addr = shellssock.getRemoteAddress(), c1("127.0.0.1"), c2 = Network::getDefaultLocalAddress();
+    addr.setPort(0);
+
+    if (addr != c1 && addr != c2) {
+        log("Attempt to connect a remote admin shell blocked.");
+        shellssock.close();
+        return;
+    }
+
+    log("Admin shell connection accepted");
+
+    // tell about the current situation
+    BinaryBuffer<4096> msg;
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used) {
+            msg.U32(STA_PLAYER_CONNECTED);
+            msg.U32(world.player[i].cid);
+
+            msg.U32(STA_PLAYER_NAME_UPDATE);
+            msg.U32(world.player[i].cid);
+            msg.str(world.player[i].name);
+
+            msg.U32(STA_PLAYER_IP);
+            msg.U32(world.player[i].cid);
+            Network::Address addr = get_client_address(world.player[i].cid);
+            addr.setPort(0);
+            msg.str(addr.toString());
+
+            msg.U32(STA_PLAYER_FRAGS);
+            msg.U32(world.player[i].cid);
+            msg.U32(world.player[i].stats().frags());
+        }
+    writeToAdminShell(msg);
+
+    if (slaveThread.isRunning())
+        slaveThread.join();
+    slaveRunning = true;    // slave will set it false when exiting
+    slaveThread.start("ServerNetworking::run_shellslave_thread",
+                      RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
+                      settings.lowerPriority());
 }
 
 //run a admin shell master thread
@@ -2689,264 +2602,177 @@ void ServerNetworking::run_shellmaster_thread(int port) throw () {
 
     log("Admin shell master thread running");
 
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    NLsocket shellmsock = nlOpen(port, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (shellmsock == NL_INVALID) {
-        log.error(_("Admin shell: Can't open socket on port $1.", itoa(port)));
+    Network::TCPListenerSocket shellmsock(true);
+    try {
+        shellmsock.open(Network::NonBlocking, port);
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell: $1", e.str()));
         return;
     }
-    if (!nlListen(shellmsock)) {
-        log.error(_("Admin shell: Can't set socket to listen mode."));
-        return;
-    }
-
     while (!file_threads_quit) {
         platSleep(1000); // this thread definitely is no priority
 
-        //accept one connection
-        nlOpenMutex.lock();
-        nlDisable(NL_BLOCKING_IO);
-        NLsocket newSock = nlAcceptConnection(shellmsock);
-        nlOpenMutex.unlock();
-
-        if (newSock == NL_INVALID) {
-            if (nlGetError() == NL_NO_PENDING)
-                continue;
-            log.error(_("Admin shell: Can't accept connection."));
-            return;
-        }
-
-        log("Incoming admin shell connection");
-
-        //accept connections only from localhost
-        NLaddress addr, c1, c2;
-        nlGetRemoteAddr(newSock, &addr);
-        nlStringToAddr("127.0.0.1", &c1);
-        get_self_IP(&c2);
-        nlSetAddrPort(&addr, 0);
-        nlSetAddrPort(&c1, 0);
-        nlSetAddrPort(&c2, 0);
-
-        if (nlAddrCompare(&addr, &c1) == NL_FALSE && nlAddrCompare(&addr, &c2) == NL_FALSE) {
-            log("Attempt to connect a remote admin shell blocked.");
-            nlClose(newSock);
+        if (shellssock.isOpen()) {
+            Network::TCPSocket newSock(true);
+            if (newSock.acceptConnection(Network::NonBlocking, shellmsock))
+                log("Attempt to connect two simultaneous admin shells blocked.");
             continue;
         }
 
-        if (slaveRunning) { // if already connected, skip
-            log("Attempt to connect two simultaneous admin shells blocked.");
-            nlClose(newSock);
+        if (!shellssock.acceptConnection(Network::NonBlocking, shellmsock))
             continue;
+
+        try {
+            handleNewAdminShell(slaveThread, slaveRunning);
+        } catch (const Network::Error& e) {
+            shellssock.close();
+            log("Admin shell: %s", e.str().c_str());
         }
-
-        log("Admin shell connection accepted");
-
-        // tell about the current situation
-        char lebuf[4096];
-        int count = 0;
-        for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used) {
-                writeLong(lebuf, count, STA_PLAYER_CONNECTED);
-                writeLong(lebuf, count, world.player[i].cid);
-
-                writeLong(lebuf, count, STA_PLAYER_NAME_UPDATE);
-                writeLong(lebuf, count, world.player[i].cid);
-                writeStr(lebuf, count, world.player[i].name);
-
-                writeLong(lebuf, count, STA_PLAYER_IP);
-                writeLong(lebuf, count, world.player[i].cid);
-                NLaddress addr = get_client_address(world.player[i].cid);
-                nlSetAddrPort(&addr, 0);
-                writeStr(lebuf, count, addressToString(addr));
-
-                writeLong(lebuf, count, STA_PLAYER_FRAGS);
-                writeLong(lebuf, count, world.player[i].cid);
-                writeLong(lebuf, count, world.player[i].stats().frags());
-            }
-        nlWrite(newSock, lebuf, count);
-
-        if (slaveThread.isRunning())
-            slaveThread.join();
-        slaveRunning = true;    // slave will set it false when exiting
-        shellssock = newSock;
-        slaveThread.start("ServerNetworking::run_shellslave_thread",
-                          RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
-                          settings.lowerPriority());
     }
-    nlClose(shellmsock);
+
+    shellmsock.close();
     log("Admin shell master thread quitting");
     if (slaveThread.isRunning())
         slaveThread.join();
 }
 
-void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw () {  // sets *runningFlag = true when quitting
-    while (!file_threads_quit) {
-        char rbuf[256];
-        int rcount = 0;
 
-        //read request code
-        NLint result = nlRead(shellssock, rbuf, 4);
-
-        if (result == NL_INVALID) {
-            log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-            break;
-        }
-
-        if (result == 0) {
-            platSleep(500);  // no need to be more responsive
-            continue;
-        }
-
-        if (result != 4) {
-            log.error("Admin shell: bad data length");
-            break;
-        }
-
-        NLulong code;
-        readLong(rbuf, rcount, code);
-
-        // parse the code
-        if (code >= NUMBER_OF_ATS) {
-            log.error("Admin shell: invalid command " + itoa(code));
-            break;
-        }
-
-        if (code == ATS_QUIT) {
-            log("Admin shell: received quit command");
-            break;
-        }
-
-        NLulong cid = 0;
-        int pid = 0;    // pid and cid set if argPid[code]
-        NLulong dwArg = 0;  // set if argDw[code]
-        //                                      noop, get-functions,ch,qu,pi,kckbanmte,reset
-        static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
-        static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
-        const int argsLen = (argPid[code] + argDw[code]) * 4;
-
-        if (argsLen) {
-            result = nlRead(shellssock, rbuf, argsLen);
-            if (result != argsLen) {
-                if (result == NL_INVALID)
-                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-                else
-                    log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
+void ServerNetworking::executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, BinaryWriter& answer) throw (Network::Error) {
+    Lock ml(threadLockMutex);
+    switch (code) {
+    /*break;*/ case ATS_GET_PLAYER_FRAGS:
+            answer.U32(STA_PLAYER_FRAGS);
+            answer.U32(cid);
+            answer.U32(world.player[pid].stats().frags());
+        break; case ATS_GET_PLAYER_TOTAL_TIME:
+            answer.U32(STA_PLAYER_TOTAL_TIME);
+            answer.U32(cid);
+            answer.U32(static_cast<unsigned>(get_time() - world.player[pid].stats().start_time()));
+        break; case ATS_GET_PLAYER_TOTAL_KILLS:
+            answer.U32(STA_PLAYER_TOTAL_KILLS);
+            answer.U32(cid);
+            answer.U32(world.player[pid].stats().kills());
+        break; case ATS_GET_PLAYER_TOTAL_DEATHS:
+            answer.U32(STA_PLAYER_TOTAL_DEATHS);
+            answer.U32(cid);
+            answer.U32(world.player[pid].stats().deaths());
+        break; case ATS_GET_PLAYER_TOTAL_CAPTURES:
+            answer.U32(STA_PLAYER_TOTAL_CAPTURES);
+            answer.U32(cid);
+            answer.U32(world.player[pid].stats().captures());
+        break; case ATS_SERVER_CHAT: {
+            string str;
+            read_string_from_TCP(shellssock, str);
+            if (str.empty())
                 break;
-            }
-            rcount = 0;
-            if (argPid[code]) {
-                readLong(rbuf, rcount, cid);
-                if (cid > 255) {
-                    log.error("Admin shell: bad client id");
-                    break;
-                }
-                pid = ctop[cid];
-                if (pid == -1 || !world.player[pid].used)   // player not in the game; just ignore the command
-                    continue;
-            }
-            if (argDw[code])
-                readLong(rbuf, rcount, dwArg);
+            if (find_nonprintable_char(str))
+                log.error(_("Admin shell: unprintable characters, message ignored."));
+            else if (str[0] == '/')
+                host->chat(shell_pid, str);
+            else
+                bprintf(msg_normal, "ADMIN: %s", str.c_str());
         }
-
-        if (threadLock)
-            threadLockMutex.lock();
-
-        char answer[1000];
-        int ansLen = 0;
-        bool error = false;
-        switch (code) {
-        /*break;*/ case ATS_GET_PLAYER_FRAGS:
-                writeLong(answer, ansLen, STA_PLAYER_FRAGS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().frags());
-            break; case ATS_GET_PLAYER_TOTAL_TIME:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_TIME);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, static_cast<int>(get_time() - world.player[pid].stats().start_time()));
-            break; case ATS_GET_PLAYER_TOTAL_KILLS:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_KILLS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().kills());
-            break; case ATS_GET_PLAYER_TOTAL_DEATHS:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_DEATHS);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().deaths());
-            break; case ATS_GET_PLAYER_TOTAL_CAPTURES:
-                writeLong(answer, ansLen, STA_PLAYER_TOTAL_CAPTURES);
-                writeLong(answer, ansLen, cid);
-                writeLong(answer, ansLen, world.player[pid].stats().captures());
-            break; case ATS_SERVER_CHAT: {
-                char buf[500];
-                if (!read_string_from_TCP(shellssock, buf)) {
-                    log.error(_("Admin shell: read failed. Reason: $1", getNlErrorString()));
-                    error = true;
+        break; case ATS_GET_PINGS:
+            for (int p = 0; p < maxplayers; ++p)
+                if (world.player[p].used) {
+                    answer.U32(STA_PLAYER_PING);
+                    answer.U32(world.player[p].cid);
+                    answer.U32(world.player[p].ping);
                 }
-                else {
-                    if (find_nonprintable_char(buf))
-                        log.error(_("Admin shell: unprintable characters, message ignored."));
-                    else if (buf[0] == '/')
-                        host->chat(shell_pid, buf);
-                    else
-                        bprintf(msg_normal, "ADMIN: %s", buf);
-                }
-            }
-            break; case ATS_GET_PINGS:
-                for (int p = 0; p < maxplayers; ++p)
-                    if (world.player[p].used) {
-                        writeLong(answer, ansLen, STA_PLAYER_PING);
-                        writeLong(answer, ansLen, world.player[p].cid);
-                        writeLong(answer, ansLen, world.player[p].ping);
-                    }
-            break; case ATS_MUTE_PLAYER:
-                host->mutePlayer(pid, dwArg, shell_pid);
-            break; case ATS_KICK_PLAYER:
-                host->kickPlayer(pid, shell_pid);
-            break; case ATS_BAN_PLAYER:
-                host->banPlayer(pid, shell_pid, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
-            break; case ATS_RESET_SETTINGS:
-                host->reset_settings(true);
-            break; default:
-                nAssert(0);
-        }
-
-        if (threadLock)
-            threadLockMutex.unlock();
-
-        if (error)
-            break;
-
-        if (ansLen) {
-            result = nlWrite(shellssock, answer, ansLen);
-            if (result != ansLen) {
-                log.error(_("Admin shell: sending response failed. Reason: $1", getNlErrorString()));
-                break;
-            }
-        }
+        break; case ATS_MUTE_PLAYER:
+            host->mutePlayer(pid, dwArg, shell_pid);
+        break; case ATS_KICK_PLAYER:
+            host->kickPlayer(pid, shell_pid);
+        break; case ATS_BAN_PLAYER:
+            host->banPlayer(pid, shell_pid, 60 * 24 * 365);    // ban for a year; this can be later adjusted in auth.txt
+        break; case ATS_RESET_SETTINGS:
+            host->reset_settings(true);
+        break; default:
+            nAssert(0);
     }
-
-    nlClose(shellssock);
-    shellssock = NL_INVALID;    // not in use
-    *runningFlag = false;
-    log("Admin shell slave thread quitting");
 }
 
-bool ServerNetworking::RelayThread::send(const string& data) throw () {
-    // Test the connection
-    const unsigned max_buffer_size = 100;
-    NLbyte buffer[max_buffer_size];
-    const int receive = nlRead(socket, buffer, max_buffer_size);
-    if (receive == NL_INVALID) {
-        log("Relay disconnected: %s", getNlErrorString());
+bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
+    char rbuf[256];
+
+    //read request code
+    int result = shellssock.read(DataBlockRef(rbuf, 4));
+
+    if (result == 0) {
+        platSleep(500);  // no need to be more responsive
+        return true;
+    }
+
+    if (result != 4) {
+        log.error("Admin shell: bad data length");
         return false;
     }
-    const NetworkResult result = writeToUnblockingTCP(socket, data.data(), data.length(), &quitFlag, 100, 50); // 5 second timeout
-    if (result != NR_ok) {
-        log("Could not send spectator data to the relay: %s", result == NR_timeout ? "Timeout" : getNlErrorString());
+
+    BinaryDataBlockReader rd(rbuf, result);
+
+    const uint32_t code = rd.U32();
+
+    // parse the code
+    if (code >= NUMBER_OF_ATS) {
+        log.error("Admin shell: invalid command " + itoa(code));
         return false;
     }
-    return true;
+
+    if (code == ATS_QUIT) {
+        log("Admin shell: received quit command");
+        return false;
+    }
+
+    uint32_t cid = 0;
+    int pid = 0;    // pid and cid set if argPid[code]
+    uint32_t dwArg = 0;  // set if argDw[code]
+    //                                      noop, get-functions,ch,qu,pi,kckbanmte,reset
+    static const int argPid[NUMBER_OF_ATS] = { 0, 1, 1, 1, 1, 1, 0, 0, 0, 1, 1, 1, 0 };
+    static const int argDw [NUMBER_OF_ATS] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0 };
+    const int argsLen = (argPid[code] + argDw[code]) * 4;
+
+    if (argsLen) {
+        result = shellssock.read(DataBlockRef(rbuf, argsLen));
+        if (result != argsLen) {
+            log.error("Admin shell: bad data length (args: " + itoa(result) + '/' + itoa(argsLen) + ')');
+            return false;
+        }
+        rd = BinaryDataBlockReader(rbuf, result);
+        if (argPid[code]) {
+            cid = rd.U32();
+            if (cid > 255) {
+                log.error("Admin shell: bad client id");
+                return false;
+            }
+            pid = ctop[cid];
+            if (pid == -1 || !world.player[pid].used)   // player not in the game; just ignore the command
+                return true;
+        }
+        if (argDw[code])
+            dwArg = rd.U32();
+    }
+
+    ExpandingBinaryBuffer answer;
+    executeAdminCommand(code, cid, pid, dwArg, answer);
+
+    if (!answer.empty())
+        return writeToAdminShell(answer);
+    else
+        return true;
+}
+
+void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw () {  // sets *runningFlag = true when quitting
+    try {
+        while (!file_threads_quit)
+            if (!handleAdminCommand())
+                break;
+    } catch (const Network::Error& e) {
+        log.error(_("Admin shell: $1", e.str()));
+    }
+
+    shellssock.closeIfOpen();
+    *runningFlag = false;
+    log("Admin shell slave thread quitting");
 }
 
 void ServerNetworking::RelayThread::threadMain() throw () {
@@ -2958,30 +2784,29 @@ void ServerNetworking::RelayThread::threadMain() throw () {
             break;
         nAssert(isConnected_locked());
         nAssert(!dataQueue.empty());
-        const string data = dataQueue.front().data;
+        const DataBlock data = dataQueue.front().data;
         dataQueue.pop();
 
-        bool result;
-        {
+        try {
             Unlock mu(mutex);
-            result = send(data);
-        }
-        if (!result) {
-            nlClose(socket);
-            socket = NL_INVALID;
+            socket.persistentWrite(data, &quitFlag, 100, 50); // 5 second timeout
+        } catch (Network::ExternalAbort) {
+            break;
+        } catch (const Network::Error& e) {
+            log("Relay thread: %s", e.str().c_str());
+            socket.close();
             dataQueue = queue<RelayData>();
         }
     }
 }
 
-void ServerNetworking::RelayThread::pushData_locked(const string& data) throw () {
+void ServerNetworking::RelayThread::pushData_locked(ConstDataBlockRef data) throw () {
     dataQueue.push(RelayData(static_cast<int>(get_time()), data));
     wakeup.signal();
 }
 
 ServerNetworking::RelayThread::RelayThread(LogSet logs, volatile bool& quitFlag_) throw () :
     quitFlag(quitFlag_),
-    socket(NL_INVALID),
     wakeup("ServerNetworking::RelayThread::wakeup"),
     mutex("ServerNetworking::RelayThread::mutex"),
     log(logs)
@@ -2999,7 +2824,7 @@ void ServerNetworking::RelayThread::stop() throw () {
     thread.join();
 }
 
-void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, const string& initData, int gameDelay) throw () {
+void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAddress, ConstDataBlockRef initData, int gameDelay) throw () {
     Lock ml(mutex);
 
     newGame = true;
@@ -3010,36 +2835,32 @@ void ServerNetworking::RelayThread::startNewGame(const NLaddress& relayAddress, 
 
     dataQueue = queue<RelayData>();
 
-    nlOpenMutex.lock();
-    nlDisable(NL_BLOCKING_IO);
-    socket = nlOpen(0, NL_RELIABLE);
-    nlOpenMutex.unlock();
-    if (socket == NL_INVALID) {
-        log("Could not open relay socket.");
+    try {
+        socket.open(Network::NonBlocking, 0);
+        socket.connect(relayAddress);
+    } catch (const Network::Error& e) {
+        log("Relay thread: %s", e.str().c_str());
+        socket.closeIfOpen();
         return;
     }
 
-    if (!nlConnect(socket, &relayAddress)) {
-        log("Could not connect to relay.");
-        nlClose(socket);
-        socket = NL_INVALID;
-        return;
-    }
+    ExpandingBinaryBuffer msg;
+    msg.str(GAME_STRING);
+    msg.str("SERVER");
+    msg.U32(initData.size());
+    msg.block(initData);
 
-    ostringstream ost;
-    write_string(ost, GAME_STRING);
-    write_string(ost, "SERVER");
-    write(ost, static_cast<unsigned>(initData.length()));
-    ost << initData;
-
-    pushData_locked(ost.str());
+    pushData_locked(msg);
 }
 
-void ServerNetworking::RelayThread::pushFrame(const string& frame) throw () {
+void ServerNetworking::RelayThread::pushFrame(ConstDataBlockRef frame) throw () {
     Lock ml(mutex);
     if (!isConnected_locked())  // Try again in the next game.
         return;
-    pushData_locked(static_cast<char>(newGame ? relay_data_game_start : relay_data_frame) + frame);
+    ExpandingBinaryBuffer data;
+    data.U8(newGame ? relay_data_game_start : relay_data_frame);
+    data.block(frame);
+    pushData_locked(data);
     newGame = false;
 }
 
@@ -3096,195 +2917,187 @@ void ServerNetworking::stop() throw () {
 }
 
 void ServerNetworking::sendWeaponPower(int pid) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_weapon_change);
-    writeByte(lebuf, count, static_cast<NLubyte>(world.player[pid].weapon));
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_weapon_change);
+    msg.U8(world.player[pid].weapon);
+    server->send_message(world.player[pid].cid, msg);
 }
 
-void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, NLubyte* sid, int pid, bool power,
-                                         int px, int py, int x, int y, NLulong vislist) const throw () { // sid = shot-id; array of NLubyte[shots]
+void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power,
+                                         int px, int py, int x, int y, uint32_t vislist) const throw () { // sid = shot-id; array of uint8_t[shots]
     for (int iProto = 0; iProto < 2; ++iProto) {
         const bool preciseGundir = iProto == 1 && world.physics.allowFreeTurning;
-        char lebuf[256]; int count = 0;
-        writeByte(lebuf, count, data_rocket_fire);
-        writeByte(lebuf, count, shots);
+        BinaryBuffer<256> msg;
+        msg.U8(data_rocket_fire);
+        msg.U8(shots);
         if (preciseGundir) {
-            const NLushort dirData = gundir.toNetworkLongForm();
-            writeByte(lebuf, count, (dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
-            writeByte(lebuf, count, dirData & 0xFF);
+            const uint16_t dirData = gundir.toNetworkLongForm();
+            msg.U8((dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
+            msg.U8(dirData & 0xFF);
         }
         else
-            writeByte(lebuf, count, gundir.toNetworkShortForm());
+            msg.U8(gundir.toNetworkShortForm());
         for (int i = 0; i < shots; i++)
-            writeByte(lebuf, count, sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
-        writeLong(lebuf, count, world.frame);   // time of shot of the rocket: current (last simulated) frame
-        NLubyte shotType = power;
+            msg.U8(sid[i]);    // rocket-object id (needed because client-side rockets can be deleted by the server)
+        msg.U32(world.frame);   // time of shot of the rocket: current (last simulated) frame
+        uint8_t shotType = power;
         if (iProto == 0)
             shotType |= (pid / TSIZE) << 1;
         else
             shotType |= 2 | (pid << 2); // we're always sending the pid, but this might change in the future
-        writeByte(lebuf, count, static_cast<NLubyte>(shotType));    // owner of all rockets
-        writeByte(lebuf, count, static_cast<NLubyte>(px));  //coord
-        writeByte(lebuf, count, static_cast<NLubyte>(py));
-        writeShort(lebuf, count, static_cast<NLshort>(x));
-        writeShort(lebuf, count, static_cast<NLshort>(y));
+        msg.U8(shotType);    // owner of all rockets
+        msg.U8(px);  //coord
+        msg.U8(py);
+        msg.S16(x);
+        msg.S16(y);
 
         for (int i = 0; i < maxplayers; i++)
             if ((vislist & (1 << i)) && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
-                server->send_message(world.player[i].cid, lebuf, count);
+                server->send_message(world.player[i].cid, msg);
 
         if (iProto == 1)
-            record_message(lebuf, count);
+            record_message(msg);
     }
 }
 
 void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const throw () {
     const bool preciseGundir = world.player[pid].protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
-    char lebuf[256]; int count = 0;
-    const NLubyte shotType = (rocket.team << 1) | rocket.power;
-    writeByte(lebuf, count, data_old_rocket_visible);
-    writeByte(lebuf, count, static_cast<NLubyte>(rid));
+    BinaryBuffer<256> msg;
+    const uint8_t shotType = (rocket.team << 1) | rocket.power;
+    msg.U8(data_old_rocket_visible);
+    msg.U8(rid);
     if (preciseGundir) {
-        const NLushort dirData = rocket.direction.toNetworkLongForm();
-        writeByte(lebuf, count, (dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
-        writeByte(lebuf, count, dirData & 0xFF);
+        const uint16_t dirData = rocket.direction.toNetworkLongForm();
+        msg.U8((dirData >> 8) | 0x80); // high bit signals extended form (it's never set in 1-byte directions)
+        msg.U8(dirData & 0xFF);
     }
     else
-        writeByte(lebuf, count, rocket.direction.toNetworkShortForm());
-    writeLong(lebuf, count, world.frame);
-    writeByte(lebuf, count, shotType);
-    writeByte(lebuf, count, rocket.px);
-    writeByte(lebuf, count, rocket.py);
-    writeShort(lebuf, count, static_cast<NLshort>(rocket.x));
-    writeShort(lebuf, count, static_cast<NLshort>(rocket.y));
+        msg.U8(rocket.direction.toNetworkShortForm());
+    msg.U32(world.frame);
+    msg.U8(shotType);
+    msg.U8(rocket.px);
+    msg.U8(rocket.py);
+    msg.S16(static_cast<int>(rocket.x));
+    msg.S16(static_cast<int>(rocket.y));
 
-    server->send_message(world.player[pid].cid, lebuf, count);
+    server->send_message(world.player[pid].cid, msg);
 }
 
-void ServerNetworking::sendRocketDeletion(NLulong plymask, int rid, NLshort hitx, NLshort hity, int targ) const throw () {
+void ServerNetworking::sendRocketDeletion(uint32_t plymask, int rid, int16_t hitx, int16_t hity, int targ) const throw () {
     //assembly rocket delete message
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_rocket_delete);
-    writeByte(lebuf, count, static_cast<NLubyte>(rid));     // rocket-object id
-    writeByte(lebuf, count, static_cast<NLubyte>(targ));        // player-target. if 255, no player in particular was hit
+    BinaryBuffer<256> msg;
+    msg.U8(data_rocket_delete);
+    msg.U8(rid);     // rocket-object id
+    msg.U8(targ);        // player-target. if 255, no player in particular was hit
 
-    writeShort(lebuf, count, hitx);     // HIT X,Y OF ROCKET
-    writeShort(lebuf, count, hity);
+    msg.S16(hitx);     // HIT X,Y OF ROCKET
+    msg.S16(hity);
 
     //send message to players that received the rocket
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && (plymask & (1 << i)))
-            server->send_message(world.player[i].cid, lebuf, count);
+            server->send_message(world.player[i].cid, msg);
 
-    record_message(lebuf, count);
+    record_message(msg);
 }
 
 void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_deathbringer);
-    writeByte(lebuf, count, static_cast<NLubyte>(pid / TSIZE)); // team
-    writeLong(lebuf, count, world.frame);                       // frame # of the bringer shot (message can be delayed)
-    writeByte(lebuf, count, static_cast<NLubyte>(ply.roomx));
-    writeByte(lebuf, count, static_cast<NLubyte>(ply.roomy));
-    writeShort(lebuf, count, static_cast<NLushort>(ply.lx));
-    writeShort(lebuf, count, static_cast<NLushort>(ply.ly));
+    BinaryBuffer<256> msg;
+    msg.U8(data_deathbringer);
+    msg.U8(pid / TSIZE); // team
+    msg.U32(world.frame);                       // frame # of the bringer shot (message can be delayed)
+    msg.U8(ply.roomx);
+    msg.U8(ply.roomy);
+    msg.U16(static_cast<unsigned>(ply.lx));
+    msg.U16(static_cast<unsigned>(ply.ly));
 
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::sendPowerupVisible(int pid, int pup_id, const Powerup& it) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_pup_visible);
-    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));  //what item
-    writeByte(lebuf, count, static_cast<NLubyte>(it.kind)); //kind
-    writeByte(lebuf, count, static_cast<NLubyte>(it.px));       //screen
-    writeByte(lebuf, count, static_cast<NLubyte>(it.py));
-    writeShort(lebuf, count, static_cast<NLushort>(it.x));  //pos in screen
-    writeShort(lebuf, count, static_cast<NLushort>(it.y));
+    BinaryBuffer<256> msg;
+    msg.U8(data_pup_visible);
+    msg.U8(pup_id);  //what item
+    msg.U8(it.kind); //kind
+    msg.U8(it.px);       //screen
+    msg.U8(it.py);
+    msg.U16(it.x);  //pos in screen
+    msg.U16(it.y);
     if (pid == pid_record)
-        record_message(lebuf, count);
+        record_message(msg);
     else
-        server->send_message(world.player[pid].cid, lebuf, count);
+        server->send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcastPowerupPicked(int roomx, int roomy, int pup_id) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_pup_picked);
-    writeByte(lebuf, count, static_cast<NLubyte>(pup_id));
-    broadcast_screen_message(roomx, roomy, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_pup_picked);
+    msg.U8(pup_id);
+    broadcast_screen_message(roomx, roomy, msg);
 }
 
-void ServerNetworking::sendPupTime(int pid, NLubyte pupType, double timeLeft) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_pup_timer);
-    writeByte(lebuf, count, pupType);
-    writeShort(lebuf, count, static_cast<NLushort>(timeLeft));
-    server->send_message(world.player[pid].cid, lebuf, count);
+void ServerNetworking::sendPupTime(int pid, uint8_t pupType, double timeLeft) const throw () {
+    BinaryBuffer<256> msg;
+    msg.U8(data_pup_timer);
+    msg.U8(pupType);
+    msg.U16(static_cast<unsigned>(timeLeft));
+    server->send_message(world.player[pid].cid, msg);
 }
 
-void ServerNetworking::sendFragUpdate(int pid, NLulong frags) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_frags_update);
-    writeByte(lebuf, count, pid);       // what player id
-    writeLong(lebuf, count, frags);
-    broadcast_message(lebuf, count);
-    record_message(lebuf, count);
+void ServerNetworking::sendFragUpdate(int pid, uint32_t frags) const throw () {
+    BinaryBuffer<256> msg;
+    msg.U8(data_frags_update);
+    msg.U8(pid);       // what player id
+    msg.U32(frags);
+    broadcast_message(msg);
+    record_message(msg);
 }
 
 void ServerNetworking::sendNameAuthorizationRequest(int pid) const throw () {
-    char lebuf[256]; int count = 0;
-    writeByte(lebuf, count, data_name_authorization_request);
-    server->send_message(world.player[pid].cid, lebuf, count);
+    BinaryBuffer<256> msg;
+    msg.U8(data_name_authorization_request);
+    server->send_message(world.player[pid].cid, msg);
 }
 
-NLaddress ServerNetworking::get_client_address(int cid) const throw () {
+Network::Address ServerNetworking::get_client_address(int cid) const throw () {
     return server->get_client_address(cid);
 }
 
-void ServerNetworking::clientHello(int client_id, char* data, int length, ServerHelloResult* res) throw () {
-    res->customDataLength = 0;
-
-    //check versions
-    string stri;
-    ostringstream temp;
-    int count = 0;
+void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+    BinaryDataBlockReader msg(data);
+    BinaryWriter reply(res->customData, sizeof(res->customData));
 
     // free reservedPlayerSlots that have been left unused, they might be needed now
     if (playerSlotReservationTime < get_time() - 60.) // in 60 seconds Leetnet should drop the client
         reservedPlayerSlots = 0;
 
-    if (length > 0)
-        readStr(data, count, stri); //read gamestring
-
-    if (stri != GAME_STRING) {
-        log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING.c_str(), stri.c_str());
+    const string gameStr = msg.str();
+    if (gameStr != GAME_STRING) {
+        log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING.c_str(), gameStr.c_str());
         res->accepted = false;      // not accepted
-
-        temp << "This game is " << GAME_STRING;
-        writeStr(res->customData, res->customDataLength, temp.str());
+        reply.str("This game is " + GAME_STRING);
     }
     else {
-        readStr(data, count, stri); //read protocol string
+        string protoStr = msg.str();
         const time_t tt = time(0);
         const tm* tmb = gmtime(&tt);
         const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
         const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
-        if (stri != GAME_PROTOCOL) {
-            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), stri.c_str());
+        if (protoStr != GAME_PROTOCOL) {
+            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), protoStr.c_str());
             res->accepted = false;
 
-            if (stri.length() > 50)
-                stri = "<unknown>";
-            temp << "Protocol mismatch: server: " << GAME_PROTOCOL << ", client: " << stri; // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
-            writeStr(res->customData, res->customDataLength, temp.str());
+            if (protoStr.length() > 50)
+                protoStr = "<unknown>";
+            reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
         }
         else if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
                  join_start > join_end && (seconds < join_start && seconds > join_end))) {
             log("Rejected a client because the server is not open at this time.");
             res->accepted = false;
 
+            ostringstream temp;
             temp << "This server is open from ";
             temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
             temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
@@ -3298,70 +3111,68 @@ void ServerNetworking::clientHello(int client_id, char* data, int length, Server
                 temp << "a minute.";
             if (!settings.get_join_limit_message().empty())
                 temp << ' ' << settings.get_join_limit_message();
-            writeStr(res->customData, res->customDataLength, temp.str());
+            reply.str(temp.str());
         }
         else if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
             log("Rejected a client because the server is full.");
             res->accepted = false;
-            writeByte(res->customData, res->customDataLength, reject_server_full);
+            reply.U8(reject_server_full);
         }
         else if (host->isBanned(client_id)) {
-            log("Rejected a client because their IP is banned (%s).", addressToString(get_client_address(client_id)).c_str());
+            log("Rejected a client because their IP is banned (%s).", get_client_address(client_id).toString().c_str());
             res->accepted = false;
-            writeByte(res->customData, res->customDataLength, reject_banned);
+            reply.U8(reject_banned);
         }
         else {
-            string name;
-            readStr(data, count, name);
-            string password;
-            readStr(data, count, password);
+            const string name = msg.str();
+            const string password = msg.str();
             if (!check_name(name)) {
                 res->accepted = false;
                 // no need to explain, the client must not allow this
             }
             else if (password == settings.get_server_password()) {
-                string player_password;
-                readStr(data, count, player_password);
+                const string player_password = msg.str();
                 if (host->check_name_password(name, player_password)) {
                     if (player_count + reservedPlayerSlots >= maxplayers)
                         host->remove_bot();
                     ++reservedPlayerSlots;
                     playerSlotReservationTime = get_time();
                     res->accepted = true;
-                    writeByte(res->customData, res->customDataLength, static_cast<NLubyte>(maxplayers));
-                    writeStr(res->customData, res->customDataLength, settings.get_hostname());
-                    writeByte(res->customData, res->customDataLength, PROTOCOL_EXTENSIONS_VERSION);
+                    reply.U8(maxplayers);
+                    reply.str(settings.get_hostname());
+                    reply.U8(PROTOCOL_EXTENSIONS_VERSION);
                 }
                 else {
                     res->accepted = false;
                     if (player_password.empty())
-                        writeByte(res->customData, res->customDataLength, reject_player_password_needed);
+                        reply.U8(reject_player_password_needed);
                     else {
                         log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                name.c_str(), player_password.c_str(), addressToString(get_client_address(client_id)).c_str());
-                        writeByte(res->customData, res->customDataLength, reject_wrong_player_password);
+                                     name.c_str(), player_password.c_str(), get_client_address(client_id).toString().c_str());
+                        reply.U8(reject_wrong_player_password);
                     }
                 }
             }
             else {
                 res->accepted = false;
                 if (password.empty())
-                    writeByte(res->customData, res->customDataLength, reject_server_password_needed);
+                    reply.U8(reject_server_password_needed);
                 else {
                     log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-                            password.c_str(), addressToString(get_client_address(client_id)).c_str(), name.c_str());
-                    writeByte(res->customData, res->customDataLength, reject_wrong_server_password);
+                                 password.c_str(), get_client_address(client_id).toString().c_str(), name.c_str());
+                    reply.U8(reject_wrong_server_password);
                 }
             }
         }
     }
+    res->customDataLength = reply.size();
 }
 
-void ServerNetworking::sfunc_client_hello(void* customp, int client_id, char* data, int length, ServerHelloResult* res) throw () {
+void ServerNetworking::sfunc_client_hello(void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->clientHello(client_id, data, length, res);
+    sn->clientHello(client_id, data, res);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }
@@ -3388,11 +3199,11 @@ void ServerNetworking::sfunc_client_lag_status(void* customp, int client_id, int
     (void)(customp && client_id && status);
 }
 
-void ServerNetworking::sfunc_client_data(void* customp, int client_id, char* data, int length) throw () {
+void ServerNetworking::sfunc_client_data(void* customp, int client_id, ConstDataBlockRef data) throw () {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->incoming_client_data(client_id, data, length);
+    sn->incoming_client_data(client_id, data);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }
