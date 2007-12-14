@@ -26,6 +26,8 @@
 
 #include "binaryaccess.h"
 
+using std::string;
+
 float BinaryReader::flt() throw (ReadOutside) {
     STATIC_ASSERT(sizeof(uint32_t) == sizeof(float));
     union { uint32_t i; float f; } conversionHack;
@@ -40,13 +42,13 @@ double BinaryReader::dbl() throw (ReadOutside) {
     return conversionHack.d;
 }
 
-std::string BinaryReader::constLengthStr(unsigned length) throw (ReadOutside) {
+string BinaryReader::constLengthStr(unsigned length) throw (ReadOutside) {
     STATIC_ASSERT(CHAR_BIT == 8);
-    return std::string(static_cast<const char*>(getBlock(length).data()), length);
+    return string(static_cast<const char*>(getBlock(length).data()), length);
 }
 
-std::string BinaryReader::str() throw (ReadOutside) {
-    std::string s;
+string BinaryReader::str() throw (ReadOutside) {
+    string s;
     for (;;) {
         const uint8_t byte = U8();
         if (byte == 0)
@@ -104,7 +106,7 @@ void BinaryWriter::dbl(double wData) throw () {
     U64(conversionHack.i);
 }
 
-void BinaryWriter::constLengthStr(const std::string& wData, unsigned length) throw () {
+void BinaryWriter::constLengthStr(const string& wData, unsigned length) throw () {
     numAssert2(wData.length() == length, wData.length(), length);
     reserve(pos + length);
     for (unsigned i = 0; i < length; ++i)
@@ -112,8 +114,8 @@ void BinaryWriter::constLengthStr(const std::string& wData, unsigned length) thr
     pos += length;
 }
 
-void BinaryWriter::str(const std::string& wData) throw () {
-    nAssert(wData.find_first_of('\0') == std::string::npos);
+void BinaryWriter::str(const string& wData) throw () {
+    nAssert(wData.find_first_of('\0') == string::npos);
     constLengthStr(wData, wData.length());
     uncheckedU8(0);
 }
