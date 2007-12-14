@@ -4671,7 +4671,7 @@ bool Client::start_replay(istream& replay) throw () {
 
     unsigned replay_version;
     read(replay, replay_version);
-    log("Replay version: %d", replay_version);
+    log("Replay version: %u", replay_version);
     if (replay_version > REPLAY_VERSION) {   // incompatible replay
         log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
         return false;
@@ -4768,17 +4768,14 @@ void Client::continue_replay() throw () {
 void Client::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
     unsigned length;
-    if (read(in, length)) {
+    bool read_success;
+    if (read_success = read(in, length)) {
         char* data = new char[length];
-        if (in.read(data, length))
+        if (read_success = in.read(data, length))
             process_incoming_data(data, length);
-        else {
-            in.clear();
-            in.seekg(pos);
-        }
         delete [] data;
     }
-    else {
+    if (!read_success) {
         in.clear();
         in.seekg(pos);
         if (replay_length > 0)
