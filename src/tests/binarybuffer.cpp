@@ -72,7 +72,7 @@ void binaryBufferTest() throw () {
 
     BinaryDataBlockReader r1(b1);
     nAssert(r1.U8(0, 0) == 0);
-    nAssert(r1.U64() == 0x0102030405060708);
+    nAssert(r1.U64() == uint64_t(0x01020304) << 32 | 0x05060708);
     nAssert(r1.S8() == 9);
     nAssert(r1.dbl() == testFloat);
     b1.setPosition(0);
