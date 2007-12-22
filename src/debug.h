@@ -35,7 +35,13 @@ class ThreadLog {
 
     typedef uint32_t ThreadId;
     typedef uint64_t ObjectId;
-    static ThreadId idThread(pthread_t t) throw () { return static_cast<ThreadId>(t); }
+    static ThreadId idThread(pthread_t t) throw () {
+        #ifdef WIN32
+        return static_cast<ThreadId>(t.x);
+        #else
+        return static_cast<ThreadId>(t);
+        #endif
+    }
     static ObjectId idObject(void* p)     throw () { return static_cast<ObjectId>(reinterpret_cast<intptr_t>(p)); }
 
     friend class ThreadLogWriter;

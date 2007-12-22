@@ -78,7 +78,7 @@ class MMSystemTimer : public SystemTimer {
     Mutex readMutex; // read needs to be locked to avoid extra additions to base
 
 public:
-    MMSystemTimer() throw () {
+    MMSystemTimer() throw () : readMutex(Mutex::NoLogging) {
         base = 0;
         prev = static_cast<uint32_t>(timeGetTime());
     }
@@ -178,15 +178,17 @@ void platInit() throw () {
     }
 }
 
-#ifndef DEDICATED_SERVER_ONLY
 void platInitAfterAllegro() throw () {
+    #ifndef DEDICATED_SERVER_ONLY
     static const int bufSize = 1000;
     char pathBuf[bufSize];
     get_executable_name(pathBuf, bufSize);
     replace_filename(pathBuf, pathBuf, "", bufSize);
     wheregamedir = pathBuf;
+    #else
+    wheregamedir = "./";
+    #endif
 }
-#endif
 
 void platUninit() throw () {
     delete g_systemTimer;

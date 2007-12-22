@@ -23,6 +23,8 @@
  *
  */
 
+#include "incalleg.h"
+
 #include <fstream>
 #include <iomanip>
 #include <iostream>
