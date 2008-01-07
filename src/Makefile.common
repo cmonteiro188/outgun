@@ -90,6 +90,8 @@ ifdef LINUX
 
 else
 
+ CFLAGS ?= $(CFLAGS) -mthreads
+
  WINDRES ?= windres
  RM ?= del
  MKDIR ?= mkdir
@@ -102,11 +104,11 @@ else
  ALLEG_CFLAGS :=
  PLATFORM_OBJ_NAMES := platform_win.o
  OUTGUN_COMMON_OBJ_NAMES += icon.res
- OUTGUN_LDFLAGS := -mwindows
+ OUTGUN_LDFLAGS := -mwindows -mthreads
  BUILDTOOL_LDFLAGS := -mconsole
- MON_LDFLAGS := -mconsole
- RELAY_LDFLAGS := -mconsole
- TEST_LDFLAGS := -mconsole
+ MON_LDFLAGS := -mconsole -mthreads
+ RELAY_LDFLAGS := -mconsole -mthreads
+ TEST_LDFLAGS := -mconsole -mthreads
 
  $(OBJDIR)/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
