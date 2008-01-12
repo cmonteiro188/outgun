@@ -2631,7 +2631,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         #endif
         attacker &= 0x1F;
         target &= 0x1F;
-        if (attacker >= maxplayers || target >= maxplayers)
+        if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
             return false;
         const bool attacker_team = attacker / TSIZE;
         const bool target_team = target / TSIZE;
@@ -4438,7 +4438,7 @@ void Client::stop_replay() throw () {
 
     replay.close();
     spectate_socket.closeIfOpen();
-    
+
     if (spectating)
         spectate_buffer.str("");
 
