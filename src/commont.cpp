@@ -2,7 +2,7 @@
  *  commont.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2008 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.

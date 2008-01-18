@@ -1,7 +1,7 @@
 /*
  *  auth.h
  *
- *  Copyright (C) 2003, 2004 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *

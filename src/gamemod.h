@@ -1,8 +1,8 @@
 /*
  *  gamemod.h
  *
- *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

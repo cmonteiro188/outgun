@@ -1,7 +1,7 @@
 /*
  *  platform.h
  *
- *  Copyright (C) 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2004, 2006, 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *

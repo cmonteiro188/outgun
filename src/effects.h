@@ -3,6 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *

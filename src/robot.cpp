@@ -1,8 +1,8 @@
 /*
  *  robot.cpp
  *
- *  Copyright (C) 2006 - Peter Kosyh
- *  Copyright (C) 2006 - Niko Ritari
+ *  Copyright (C) 2006, 2008 - Peter Kosyh
+ *  Copyright (C) 2006, 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *

@@ -1,7 +1,7 @@
 /*
  *  debug.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
