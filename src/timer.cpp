@@ -1,7 +1,7 @@
 /*
  *  timer.cpp
  *
- *  Copyright (C) 2006, 2007 - Niko Ritari
+ *  Copyright (C) 2006, 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *

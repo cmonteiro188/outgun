@@ -1,7 +1,7 @@
 /*
  *  colour.cpp
  *
- *  Copyright (C) 2007 - Jani Rivinoja
+ *  Copyright (C) 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

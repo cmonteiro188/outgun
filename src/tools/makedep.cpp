@@ -1,7 +1,7 @@
 /*
  *  makedep.cpp - fast and simple dependency to makefile reader
  *
- *  Copyright (C) 2004, 2007 - Niko Ritari
+ *  Copyright (C) 2004, 2008 - Niko Ritari
  *
  *  Makedep is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by

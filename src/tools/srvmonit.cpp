@@ -1,8 +1,8 @@
 /*
  *  srvmonit.cpp
  *
- *  Copyright (C) 2003, 2004, 2007 - Niko Ritari
- *  Copyright (C) 2007 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

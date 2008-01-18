@@ -1,7 +1,7 @@
 /*
  *  map_with_helpers.h
  *
- *  Copyright (C) 2007 - Niko Ritari
+ *  Copyright (C) 2008 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
