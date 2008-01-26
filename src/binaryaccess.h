@@ -112,7 +112,7 @@ public:
           uint8_t* accessData()       throw () { return data; }
     const uint8_t* accessData() const throw () { return data; }
 
-    void setPosition(unsigned position) throw () { if (position > capacity) reallocate(capacity + 100); pos = position; }
+    void setPosition(unsigned position) throw () { if (position > capacity) reallocate(position + 100); pos = position; }
     unsigned getPosition() const throw () { return pos; }
     unsigned getCapacity() const throw () { return capacity; }
 
