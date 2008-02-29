@@ -30,6 +30,7 @@
 #include "utility.h"
 
 #ifndef DISABLE_ENHANCED_NASSERT
+ #include "binaryaccess.h"
  #include "commont.h"
  #include "debugconfig.h"
  #include "language.h"
@@ -45,7 +46,8 @@
 uint32_t* stackGuardHackPtr;
 
 #ifndef DISABLE_ENHANCED_NASSERT
-void stackDump(FILE* dst) throw () { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
+
+static void stackDump(FILE* dst) throw () { // makes heavy assumptions about processor architecture wrt stack! Should work fine on any x86 platform.
     uint32_t unused;
     for (uint32_t* stackPtr = (&unused) + 1; *stackPtr != STACK_GUARD; ++stackPtr) {
         uint32_t value = *stackPtr;
@@ -54,16 +56,17 @@ void stackDump(FILE* dst) throw () { // makes heavy assumptions about processor 
     }
 }
 
-int stackDump(char* buf, int bufCap) throw () {  // returns the size used; max bufCap
+#ifdef OFFICIAL_BUILD_ID
+static void stackDump(BinaryWriter& b) throw () {
     uint32_t unused;
-    bufCap -= 4;    // make it better work as a stopper
-    int bufSize = 0;
+    const unsigned maxPosition = b.getCapacity() - 4; // - 4 since it's used to check whether we can write another 4 bytes
     uint32_t* stackPtr = (&unused) + 1;
-    writeLong(buf, bufSize, reinterpret_cast<intptr_t>(stackPtr)); // only 32 bits saved -> information lost on 64-bit platforms
-    for (; *stackPtr != STACK_GUARD && bufSize <= bufCap; ++stackPtr)
-        writeLong(buf, bufSize, *stackPtr);
-    return bufSize;
+    b.U32(reinterpret_cast<intptr_t>(stackPtr)); // only 32 bits saved -> information lost on 64-bit platforms
+    for (; *stackPtr != STACK_GUARD && b.getPosition() <= maxPosition; ++stackPtr)
+        b.U32(*stackPtr);
 }
+#endif
+
 #endif
 
 void nasprintf(const char* file, int line, const char* expr, ...) throw () PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
@@ -104,36 +107,37 @@ void nasprintf(const char* file, int line, const char* expr, ...) throw () {
         return;
     static const int stackDumpSize = 10000; // it splits into 7 Ethernet frames and so has a good chance of getting lost, but much less size isn't useful
     char* mbuf = new char[stackDumpSize];   // must allocate from heap, otherwise this fills the stack dump; no need to free as we're already exiting
-    int len = 0;
-    writeStr(mbuf, len, GAME_STRING);
-    writeStr(mbuf, len, getVersionString());
+    BinaryWriter msg(mbuf, stackDumpSize);
+    msg.str(GAME_STRING);
+    msg.str(getVersionString());
     #ifdef OFFICIAL_BUILD_ID
     // please don't define OFFICIAL_BUILD_ID unless you've set up your own bug report server, configured it in MasterSettings::load, and agreed about it with whoever is keeping the server list master server your version uses so that the master won't override the setting in what is downloaded to master.txt
-    writeByte(mbuf, len, OFFICIAL_BUILD_ID);
+    msg.U8(OFFICIAL_BUILD_ID);
     #else
-    writeByte(mbuf, len, 0);
+    msg.U8(0);
     #endif
-    writeString(mbuf, len, file);
-    writeLong(mbuf, len, line);
+    msg.str(file);
+    msg.U32(line);
     if (g_autoBugReporting == ABR_withDump) {
         buf[200] = '\0';    // truncate extremely long messages
-        writeString(mbuf, len, buf);
+        msg.str(buf);
     }
-    Network::Socket dbgSock(Network::NonBlocking, Network::UDP, 0);
-    if (!dbgSock.isOpen())
-        return;
-    dbgSock.setRemoteAddress(g_masterSettings.bugReportAddress());
-    dbgSock.write(mbuf, len);
-    #ifdef OFFICIAL_BUILD_ID
-    // see note about OFFICIAL_BUILD_ID above
-    // the stack dumps are only useful from known executables
-    if (g_autoBugReporting == ABR_withDump) {
-        // generate a secondary packet with the top of stack dump information
-        len = stackDump(mbuf, stackDumpSize);
-        dbgSock.write(mbuf, len);
+    try {
+        Network::UDPSocket dbgSock(Network::NonBlocking, 0, true);
+        dbgSock.write(g_masterSettings.bugReportAddress(), msg);
+        #ifdef OFFICIAL_BUILD_ID
+        // see note about OFFICIAL_BUILD_ID above
+        // the stack dumps are only useful from known executables
+        if (g_autoBugReporting == ABR_withDump) {
+            // generate a secondary packet with the top of stack dump information
+            msg.clear();
+            stackDump(msg);
+            dbgSock.write(g_masterSettings.bugReportAddress(), msg);
+        }
+        #endif
+    } catch (Network::Error&) {
+        // can't do much about it, don't bother reporting
     }
-    #endif
-    dbgSock.close();
     #endif // DISABLE_ENHANCED_NASSERT
 }
 
