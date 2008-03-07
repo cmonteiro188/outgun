@@ -94,6 +94,45 @@ void binaryBufferTest() throw () {
         r2.S8();
         nAssert(0);
     } catch (BinaryReader::ReadOutside) { }
+
+    {
+        static const unsigned K = 1024, M = K * K;
+        static const uint32_t tests[] = { 0, 1, 239, 240, 3071, 3072, 128*K-1, 128*K, 16*M-1, 16*M, 0xFFFFFFFF };
+        static const unsigned sizes[] = { 1, 1,   1,   2,    2,    3,       3,     4,      4,    5,          5, 99 };
+        for (unsigned i = 0; sizes[i] != 99; ++i) {
+            b1.clear();
+            b1.U32dyn8(tests[i]);
+            nAssert(b1.size() == sizes[i]);
+            BinaryDataBlockReader r(b1);
+            nAssert(r.U32dyn8() == tests[i]);
+            nAssert(r.getPosition() == b1.size());
+        }
+    }
+    {
+        static const  int32_t tests[] = { 0, 1, 119, 120, 1535, 1536, 0x7FFFFFFF, -1, -120, -121, -1536, -1537, -(0x80000000) };
+        static const unsigned sizes[] = { 1, 1,   1,   2,    2,    3,          5,  1,    1,    2,     2,     3,             5, 99 };
+        for (unsigned i = 0; sizes[i] != 99; ++i) {
+            b1.clear();
+            b1.S32dyn8(tests[i]);
+            nAssert(b1.size() == sizes[i]);
+            BinaryDataBlockReader r(b1);
+            nAssert(r.S32dyn8() == tests[i]);
+            nAssert(r.getPosition() == b1.size());
+        }
+    }
+    {
+        static const unsigned K = 1024, M = K * K;
+        static const uint32_t tests[] = { 0, 48*K-1, 48*K, 2*M-1, 2*M, 496*M-1, 496*M, 0xFFFFFFFF };
+        static const unsigned sizes[] = { 2,      2,    3,     3,   4,       4,     5,          5, 99 };
+        for (unsigned i = 0; sizes[i] != 99; ++i) {
+            b1.clear();
+            b1.U32dyn16(tests[i]);
+            nAssert(b1.size() == sizes[i]);
+            BinaryDataBlockReader r(b1);
+            nAssert(r.U32dyn16() == tests[i]);
+            nAssert(r.getPosition() == b1.size());
+        }
+    }
 }
 
 int main() {

@@ -70,6 +70,14 @@ void BinaryWriter::uncheckedU16(uint16_t wData) throw () {
     pos += 2;
 }
 
+void BinaryWriter::uncheckedU24(uint32_t wData) throw () {
+    reserve(pos + 3);
+    data[pos    ] = wData >> 16;
+    data[pos + 1] = wData >> 8;
+    data[pos + 2] = wData;
+    pos += 3;
+}
+
 void BinaryWriter::uncheckedU32(uint32_t wData) throw () {
     reserve(pos + 4);
     data[pos    ] = wData >> 24;
@@ -165,6 +173,112 @@ DEFINE_METHODS_WITHOUT_CHECKED(double, double, dbl)
 #undef DEFINE_METHODS_WITHOUT_CHECKED
 #undef DEFINE_METHODS_WITH_CHECKED
 
+// 24-bit data requires special care since we don't have an appropriately sized built-in type
+uint32_t BinaryReader::U24(uint32_t minBound, uint32_t maxBound) throw (ReadOutside, DataOutOfRange) {
+    const uint32_t ret = U24();
+    if (ret < minBound || ret > maxBound)
+        throw DataOutOfRange();
+    return ret;
+}
+void BinaryWriter::U24(unsigned wData, uint32_t minBound, uint32_t maxBound) throw () {
+    nAssert(maxBound <= 0xFFFFFF);
+    numAssert3(wData >= minBound && wData <= maxBound, wData, minBound, maxBound);
+    uncheckedU24(static_cast<uint32_t>(wData));
+}
+void BinaryWriter::U24(unsigned wData) throw () {
+    U24(wData, 0, 0xFFFFFF);
+}
+int32_t BinaryReader::S24(int32_t minBound, int32_t maxBound) throw (ReadOutside, DataOutOfRange) {
+    const int32_t ret = S24();
+    if (ret < minBound || ret > maxBound)
+        throw DataOutOfRange();
+    return ret;
+}
+void BinaryWriter::S24(signed wData, int32_t minBound, int32_t maxBound) throw () {
+    nAssert(minBound >= -(0x800000) && maxBound <= 0x7FFFFF);
+    numAssert3(wData >= minBound && wData <= maxBound, wData, minBound, maxBound);
+    uncheckedS24(static_cast<int32_t>(wData));
+}
+void BinaryWriter::S24(signed wData) throw () {
+    S24(wData, -(0x800000), 0x7FFFFF);
+}
+
+/* U32dyn8 encoding:
+ *
+ * xxxxxxxx  < 11110000
+ * 1111xxxx xxxxxxxx  < 1100 00000000
+ * 1111110x xxxxxxxx xxxxxxxx
+ * 11111110 xxxxxxxx xxxxxxxx xxxxxxxx
+ * 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
+ */
+uint32_t BinaryReader::U32dyn8() throw (ReadOutside) {
+    const uint8_t b0 = U8();
+    if      (b0 < 0xF0) return          b0;
+    else if (b0 < 0xFC) return uint32_t(b0 & 0x0F) <<  8 | U8();
+    else if (b0 < 0xFE) return uint32_t(b0 & 0x01) << 16 | U16();
+    else if (b0 < 0xFF) return                             U24();
+    else                return                             U32();
+}
+void BinaryWriter::U32dyn8(uint32_t wData) throw () {
+    if      (wData <      0xF0) uncheckedU8 (             wData);
+    else if (wData <     0xC00) uncheckedU16(0xF000     | wData);
+    else if (wData <=  0x1FFFF) uncheckedU24(0xFC0000   | wData);
+    else if (wData <= 0xFFFFFF) uncheckedU32(0xFE000000 | wData);
+    else {
+        uncheckedU8(0xFF);
+        uncheckedU32(wData);
+    }
+}
+
+/* U32dyn16 encoding:
+ *
+ * xxxxxxxx xxxxxxxx  < 11000000 00000000
+ * 110xxxxx xxxxxxxx xxxxxxxx
+ * 111xxxxx xxxxxxxx xxxxxxxx xxxxxxxx  < 11111 0...
+ * 11111111 xxxxxxxx xxxxxxxx xxxxxxxx xxxxxxxx
+ */
+uint32_t BinaryReader::U32dyn16() throw (ReadOutside) {
+    const uint16_t d0 = U16();
+    if      (d0 < 0xC000) return          d0;
+    else if (d0 < 0xE000) return uint32_t(d0 & 0x1FFF) <<  8 | U8();
+    else if (d0 < 0xFF00) return uint32_t(d0 & 0x1FFF) << 16 | U16();
+    else                  return uint32_t(d0         ) << 24 | U24();
+}
+void BinaryWriter::U32dyn16(uint32_t wData) throw () {
+    if      (wData <      0xC000) uncheckedU16(             wData);
+    else if (wData <=   0x1FFFFF) uncheckedU24(0xC00000   | wData);
+    else if (wData <  0x1F000000) uncheckedU32(0xE0000000 | wData);
+    else {
+        uncheckedU8(0xFF);
+        uncheckedU32(wData);
+    }
+}
+
+/* Signed dynamic length types:
+ *
+ * A trick is performed to save on code complexity: The sign bit is moved to the low end, and
+ * bits are flipped for negative numbers so that smaller absolute values always have 0s in front.
+ * When processed like that, the unsigned storage code works just fine.
+ */
+int32_t BinaryReader::decodeSignedDynamic(uint32_t value) {
+    return int32_t((value >> 1) ^ (0xFFFFFFFF * (value & 1)));
+    /* equivalent code:
+    if (value & 1)
+        return int32_t(~(value >> 1));
+    else
+        return int32_t(  value >> 1 );
+    */
+}
+uint32_t BinaryWriter::encodeSignedDynamic(int32_t value) {
+    return uint32_t(uint32_t(value) << 1) ^ (0xFFFFFFFF * (uint32_t(value) >> 31));
+    /* equivalent code:
+    if (value < 0)
+        return ~(uint32_t(value) << 1);
+    else
+        return   uint32_t(value) << 1 ;
+    */
+}
+
 uint8_t BinaryDataBlockReader::getU8() throw (ReadOutside) {
     if (pos + 1 > dataLength)
         throw ReadOutside();
@@ -176,6 +290,13 @@ uint16_t BinaryDataBlockReader::getU16() throw (ReadOutside) {
         throw ReadOutside();
     pos += 2;
     return (uint16_t(data[pos - 2]) << 8) | uint16_t(data[pos - 1]);
+}
+
+uint32_t BinaryDataBlockReader::getU24() throw (ReadOutside) {
+    if (pos + 3 > dataLength)
+        throw ReadOutside();
+    pos += 3;
+    return (uint32_t(data[pos - 3]) << 16) | (uint32_t(data[pos - 2]) << 8) | uint32_t(data[pos - 1]);
 }
 
 uint32_t BinaryDataBlockReader::getU32() throw (ReadOutside) {
@@ -248,6 +369,14 @@ uint16_t BinaryStreamReader::getU16() throw (ReadOutside) {
     if (!stream)
         throw ReadOutside();
     return (uint16_t(buf[0]) << 8) | uint16_t(buf[1]);
+}
+
+uint32_t BinaryStreamReader::getU24() throw (ReadOutside) {
+    uint8_t buf[3];
+    stream.read(reinterpret_cast<char*>(buf), 3);
+    if (!stream)
+        throw ReadOutside();
+    return (uint32_t(buf[0]) << 16) | (uint32_t(buf[1]) << 8) | uint32_t(buf[2]);
 }
 
 uint32_t BinaryStreamReader::getU32() throw (ReadOutside) {

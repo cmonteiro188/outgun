@@ -43,10 +43,18 @@ public:
       int8_t S8 () throw (ReadOutside) { return static_cast<int8_t >(U8 ()); }
     uint16_t U16() throw (ReadOutside) { return getU16(); }
      int16_t S16() throw (ReadOutside) { return static_cast<int16_t>(U16()); }
+    uint32_t U24() throw (ReadOutside) { return getU24(); }
+     int32_t S24() throw (ReadOutside) { return static_cast<int32_t>(U24() ^ 0x800000) - 0x800000; }
     uint32_t U32() throw (ReadOutside) { return getU32(); }
      int32_t S32() throw (ReadOutside) { return static_cast<int32_t>(U32()); }
     uint64_t U64() throw (ReadOutside) { return getU64(); }
      int64_t S64() throw (ReadOutside) { return static_cast<int64_t>(U64()); }
+
+    // see the comment about dynamic length datatypes in BinaryWriter
+    uint32_t U32dyn8 () throw (ReadOutside);
+     int32_t S32dyn8 () throw (ReadOutside) { return decodeSignedDynamic(U32dyn8()); }
+    uint32_t U32dyn16() throw (ReadOutside);
+     int32_t S32dyn16() throw (ReadOutside) { return decodeSignedDynamic(U32dyn16()); }
 
     float  flt() throw (ReadOutside);
     double dbl() throw (ReadOutside);
@@ -55,6 +63,8 @@ public:
       int8_t S8 (  int8_t minBound,   int8_t maxBound) throw (ReadOutside, DataOutOfRange);
     uint16_t U16(uint16_t minBound, uint16_t maxBound) throw (ReadOutside, DataOutOfRange);
      int16_t S16( int16_t minBound,  int16_t maxBound) throw (ReadOutside, DataOutOfRange);
+    uint32_t U24(uint32_t minBound, uint32_t maxBound) throw (ReadOutside, DataOutOfRange);
+     int32_t S24( int32_t minBound,  int32_t maxBound) throw (ReadOutside, DataOutOfRange);
     uint32_t U32(uint32_t minBound, uint32_t maxBound) throw (ReadOutside, DataOutOfRange);
      int32_t S32( int32_t minBound,  int32_t maxBound) throw (ReadOutside, DataOutOfRange);
     uint64_t U64(uint64_t minBound, uint64_t maxBound) throw (ReadOutside, DataOutOfRange);
@@ -81,12 +91,16 @@ public:
 protected:
     virtual  uint8_t getU8 () throw (ReadOutside) = 0;
     virtual uint16_t getU16() throw (ReadOutside) = 0;
+    virtual uint32_t getU24() throw (ReadOutside) = 0;
     virtual uint32_t getU32() throw (ReadOutside) = 0;
     virtual uint64_t getU64() throw (ReadOutside) = 0;
     virtual ConstDataBlockRef getBlock(unsigned length) throw (ReadOutside) = 0;
     virtual void storeBlock(DataBlockRef buffer) throw (ReadOutside) = 0;
     virtual ConstDataBlockRef getBlockUpTo(unsigned length) throw () = 0;
     virtual ConstDataBlockRef storeBlockUpTo(DataBlockRef buffer) throw () = 0;
+
+private:
+    int32_t decodeSignedDynamic(uint32_t value);
 };
 
 class SeekableBinaryReader : public BinaryReader {
@@ -130,6 +144,8 @@ public:
     void uncheckedS8 (  int8_t wData) throw () { uncheckedU8 (static_cast< uint8_t>(wData)); }
     void uncheckedU16(uint16_t wData) throw ();
     void uncheckedS16( int16_t wData) throw () { uncheckedU16(static_cast<uint16_t>(wData)); }
+    void uncheckedU24(uint32_t wData) throw (); // high 8 bits of wData are silently ignored
+    void uncheckedS24( int32_t wData) throw () { uncheckedU24(static_cast<uint32_t>(wData)); }
     void uncheckedU32(uint32_t wData) throw ();
     void uncheckedS32( int32_t wData) throw () { uncheckedU32(static_cast<uint32_t>(wData)); }
 
@@ -137,10 +153,38 @@ public:
     void S8 (  signed wData) throw ();
     void U16(unsigned wData) throw ();
     void S16(  signed wData) throw ();
+    void U24(unsigned wData) throw ();
+    void S24(  signed wData) throw ();
     void U32(unsigned wData) throw ();
     void S32(  signed wData) throw ();
     void U64(uint64_t wData) throw ();
     void S64( int64_t wData) throw () { U64(static_cast<uint64_t>(wData)); }
+
+    /* Dynamic length datatypes:
+     *
+     * U32dyn8 is equal in range to U32 (0 .. 2^32-1), but packed with the expectation of approximately the range of U8 (0 .. 255).
+     *
+     * An U32dyn8 packed value takes the following amount of storage depending on the actual value:
+     *   1 byte:     0 ..  239
+     *   2 bytes:  240 .. 3071
+     *   3 bytes: 3072 .. 128k
+     *   4 bytes: 128k ..  16M
+     *   5 bytes:  16M ..   4G
+     *
+     * An U32dyn16 packed value takes the following amount of storage depending on the actual value:
+     *   2 bytes:    0 ..  48k
+     *   3 bytes:  48k ..   2M
+     *   4 bytes:   2M .. 496M
+     *   5 bytes: 496M ..   4G
+     *
+     * Signed types have essentially halved limits on both sides of 0: 240 .. 3071 becomes -121 .. -1536 and 120 .. 1535.
+     * Be careful with the signedness: data written signed is corrupted if read unsigned and vice versa,
+     * even if the actual value is within the range of both int32_t and uint32_t.
+     */
+    void U32dyn8 (uint32_t wData) throw ();
+    void S32dyn8 ( int32_t wData) throw () { U32dyn8 (encodeSignedDynamic(wData)); }
+    void U32dyn16(uint32_t wData) throw ();
+    void S32dyn16( int32_t wData) throw () { U32dyn16(encodeSignedDynamic(wData)); }
 
     void flt(float  wData) throw ();
     void dbl(double wData) throw ();
@@ -149,6 +193,8 @@ public:
     void S8 (  signed wData,   int8_t minBound,   int8_t maxBound) throw ();
     void U16(unsigned wData, uint16_t minBound, uint16_t maxBound) throw ();
     void S16(  signed wData,  int16_t minBound,  int16_t maxBound) throw ();
+    void U24(unsigned wData, uint32_t minBound, uint32_t maxBound) throw (); // minBound and maxBound must be within the 24-bit range
+    void S24(  signed wData,  int32_t minBound,  int32_t maxBound) throw (); // minBound and maxBound must be within the 24-bit range
     void U32(unsigned wData, uint32_t minBound, uint32_t maxBound) throw ();
     void S32(  signed wData,  int32_t minBound,  int32_t maxBound) throw ();
     void U64(uint64_t wData, uint64_t minBound, uint64_t maxBound) throw ();
@@ -161,6 +207,9 @@ public:
     void str(const std::string& wData) throw ();
 
     void block(ConstDataBlockRef wData) throw ();
+
+private:
+    uint32_t encodeSignedDynamic(int32_t value);
 };
 
 class BinaryDataBlockReader : public SeekableBinaryReader {
@@ -170,6 +219,7 @@ class BinaryDataBlockReader : public SeekableBinaryReader {
 
     virtual  uint8_t getU8 () throw (ReadOutside);
     virtual uint16_t getU16() throw (ReadOutside);
+    virtual uint32_t getU24() throw (ReadOutside);
     virtual uint32_t getU32() throw (ReadOutside);
     virtual uint64_t getU64() throw (ReadOutside);
 
@@ -199,6 +249,7 @@ class BinaryStreamReader : public SeekableBinaryReader {
 
     virtual  uint8_t getU8 () throw (ReadOutside);
     virtual uint16_t getU16() throw (ReadOutside);
+    virtual uint32_t getU24() throw (ReadOutside);
     virtual uint32_t getU32() throw (ReadOutside);
     virtual uint64_t getU64() throw (ReadOutside);
 
