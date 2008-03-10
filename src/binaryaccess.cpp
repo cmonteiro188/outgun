@@ -431,7 +431,8 @@ void ExpandingBinaryBuffer::reallocate(unsigned capacityRequired) throw () {
     capacity = std::max(capacity * 2, capacityRequired);
     uint8_t* const newPtr = static_cast<uint8_t*>(realloc(data, capacity));
     if (!newPtr) {
-        new char[0xFFFFFFFF]; // try to provoke normal out of memory behaviour
+        volatile unsigned s = 0xFFFFFFFF;
+        new char[s]; // try to provoke normal out of memory behaviour
         nAssert(0);
     }
     data = newPtr;
