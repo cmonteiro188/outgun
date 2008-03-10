@@ -309,7 +309,7 @@ bool GS_IntT<ValT>::set(LogSet& log, const std::string& value) throw () {
 template<class ValT>
 std::string GS_IntT<ValT>::get() throw () {
     std::ostringstream str;
-    str << *var;
+    str << (*var - add) / mul;
     return str.str();
 }
 
@@ -350,7 +350,7 @@ bool GS_FloatT<ValT>::set(LogSet& log, const std::string& value) throw () {
 template<class ValT>
 std::string GS_FloatT<ValT>::get() throw () {
     std::ostringstream str;
-    str << *var;
+    str << (*var - add) / mul;
     return str.str();
 }
 
