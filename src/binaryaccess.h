@@ -149,6 +149,7 @@ public:
     void uncheckedU32(uint32_t wData) throw ();
     void uncheckedS32( int32_t wData) throw () { uncheckedU32(static_cast<uint32_t>(wData)); }
 
+    // the data is verified (asserted) to be within range
     void U8 (unsigned wData) throw ();
     void S8 (  signed wData) throw ();
     void U16(unsigned wData) throw ();
@@ -189,6 +190,7 @@ public:
     void flt(float  wData) throw ();
     void dbl(double wData) throw ();
 
+    // the data is verified (asserted) to be within range
     void U8 (unsigned wData,  uint8_t minBound,  uint8_t maxBound) throw ();
     void S8 (  signed wData,   int8_t minBound,   int8_t maxBound) throw ();
     void U16(unsigned wData, uint16_t minBound, uint16_t maxBound) throw ();
@@ -203,7 +205,7 @@ public:
     void flt(float  wData, float  minBound, float  maxBound) throw ();
     void dbl(double wData, double minBound, double maxBound) throw ();
 
-    void constLengthStr(const std::string& wData, unsigned length) throw ();
+    void constLengthStr(const std::string& wData, unsigned length) throw (); // the data is verified (asserted) to be of the given length
     void str(const std::string& wData) throw ();
 
     void block(ConstDataBlockRef wData) throw ();
