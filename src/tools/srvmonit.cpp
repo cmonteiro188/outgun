@@ -179,7 +179,7 @@ public:
                     printf("aborted\n");
             }
             else if (key >= '0' && key < '9') {
-                BinaryBuffer<32> msg;
+                BinaryBuffer<64> msg;
                 const int pid = key - '0';
                 if (mute || kick || ban) {
                     printf("Confirm: %s player %d? (Y) ", mute == 1 ? "mute" : mute == 2 ? "silently mute" : mute == 3 ? "unmute" : kick ? "kick" : "BAN", pid);
