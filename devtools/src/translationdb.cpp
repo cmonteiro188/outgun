@@ -67,17 +67,19 @@ struct Translations {
 bool dbimport(FILE* base, FILE* lang, Translations& db, bool verbose) {
     FileLineReader br(base);
     FileLineReader lr(lang);
-    // compare first line first, it should be equal
-    if (br.next() < 0 || lr.next() < 0 || strcmp(br.read(), lr.read())) {
-        printf("Difference: first line.\n");
-        return false;
-    }
-    if (br.read()[0] != ';' || lr.read()[0] != ';') {
-        printf("Error: first line not a comment.\n");
-        return false;
+    // compare first two lines first, they should be equal ("; This is an Outgun translation file." and original copyright)
+    for (int i = 0; i < 2; ++i) {
+        if (br.next() < 0 || lr.next() < 0 || strcmp(br.read(), lr.read())) {
+            printf("Difference: first two lines.\n");
+            return false;
+        }
+        if (br.read()[0] != ';' || lr.read()[0] != ';') {
+            printf("Error: first two lines not comments.\n");
+            return false;
+        }
     }
     db.credits.clear();
-    // initial comment, after the first line, is allowed to vary in length and content
+    // initial comment, after the first lines, is allowed to vary in length and content
     while (br.next() > 0 && br.read()[0] == ';');
     while (lr.next() > 0 && lr.read()[0] == ';')
         db.credits.push_back(lr.read());
@@ -128,15 +130,20 @@ bool dbimport(FILE* base, FILE* lang, Translations& db, bool verbose) {
 
 bool dbexport(FILE* base, const Translations& db, FILE* lang, const string& dbFile, bool verbose) {
     FileLineReader br(base);
-    if (br.next() < 0 || br.read()[0] != ';')
-        return false;
-    fprintf(lang, "%s\n", br.read());
+    // copy the first comment lines from en.txt: "This is an Outgun translation file." and "Original copyright --"
+    for (int i = 0; i < 2; ++i) {
+        if (br.next() < 0 || br.read()[0] != ';')
+            return false;
+        fprintf(lang, "%s\n", br.read());
+    }
+    // replace the rest of the comment with credits from the db
     while (br.next() > 0 && br.read()[0] == ';');
     if (br.read()[0] != '\0')
         return false;
     for (vector<string>::const_iterator ci = db.credits.begin(); ci != db.credits.end(); ++ci)
         fprintf(lang, "%s\n", ci->c_str());
     fputc('\n', lang);
+    // process the actual translations
     for (;;) {
         if (br.next() < 0)
             return true;
