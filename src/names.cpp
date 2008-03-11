@@ -1,7 +1,7 @@
 /*
  *  names.cpp
  *
- *  Copyright (C) 2002 - Renato Hentschke <renato@amok.com.br>
+ *  Copyright (C) 2002 - Renato Hentschke
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004 - Niko Ritari
  *  Copyright (C) 2004, 2008 - Jani Rivinoja
