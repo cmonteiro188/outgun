@@ -214,8 +214,9 @@ void ServerNetworking::send_me_packet(int pid) const throw () {
     msg.U8(pid);                    // who am I
     msg.U8(world.player[pid].color());
     msg.U8(host->current_map_nr()); // current map
-    msg.U8(world.teams[0].score()); // team 0 current score
-    msg.U8(world.teams[1].score()); // team 1 current score
+    const bool e = world.player[pid].protocolExtensionsLevel >= 0;
+    msg.U32dyn8orU8(world.teams[0].score(), e); // team 0 current score
+    msg.U32dyn8orU8(world.teams[1].score(), e); // team 1 current score
     server->send_message(world.player[pid].cid, msg);
 }
 
@@ -408,12 +409,18 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) const throw () {
 
 //update team scores
 void ServerNetworking::ctf_update_teamscore(int t) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_score_update);
-    msg.U8(t);       // the team
-    msg.U8(world.teams[t].score());  //the score
-    broadcast_message(msg);
-    record_message(msg);
+    BinaryBuffer<64> ext_msg;
+    ext_msg.U8(data_score_update);
+    ext_msg.U8(t);
+    BinaryBuffer<64> old_msg = ext_msg;
+    old_msg.U8     (world.teams[t].score());
+    ext_msg.U32dyn8(world.teams[t].score());
+    for (int i = 0; i < maxplayers; i++) {
+        const ServerPlayer& player = world.player[i];
+        if (player.used)
+            server->send_message(player.cid, player.protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+    }
+    record_message(ext_msg);
 }
 
 void ServerNetworking::broadcast_reset_map_list() throw () {
@@ -616,16 +623,22 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw (
 
 // Send player's movement and shots to everyone.
 void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_movements_shots);
-    msg.U8(player.id);
+    BinaryBuffer<64> ext_msg;
+    ext_msg.U8(data_movements_shots);
+    ext_msg.U8(player.id);
     const Statistics& stats = player.stats();
-    msg.U32(static_cast<unsigned>(stats.movement()));
-    msg.U16(stats.shots());
-    msg.U16(stats.hits());
-    msg.U16(stats.shots_taken());
-    broadcast_message(msg);
-    record_message(msg);
+    ext_msg.U32(static_cast<unsigned>(stats.movement()));
+    BinaryBuffer<64> old_msg = ext_msg;
+    old_msg.U16(stats.shots());
+    old_msg.U16(stats.hits());
+    old_msg.U16(stats.shots_taken());
+    ext_msg.U32dyn16(stats.shots());
+    ext_msg.U32dyn16(stats.hits());
+    ext_msg.U32dyn16(stats.shots_taken());
+    for (int i = 0; i < maxplayers; i++)
+        if (world.player[i].used)
+            server->send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+    record_message(ext_msg);
 }
 
 // Send player's stats to everyone.
@@ -673,12 +686,13 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const thr
 void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_team_movements_shots);
+    const bool e = cid == pid_record || world.player[ctop[cid]].protocolExtensionsLevel >= 0;
     for (int i = 0; i < 2; i++) {
         const Team& team = world.teams[i];
         msg.U32(static_cast<unsigned>(team.movement()));
-        msg.U16(team.shots());
-        msg.U16(team.hits());
-        msg.U16(team.shots_taken());
+        msg.U32dyn16orU16(team.shots(), e);
+        msg.U32dyn16orU16(team.hits(), e);
+        msg.U32dyn16orU16(team.shots_taken(), e);
     }
     if (cid == pid_record)
         record_message(msg);
@@ -689,14 +703,15 @@ void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
 void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_team_stats);
+    const bool e = player.protocolExtensionsLevel >= 0;
     for (int i = 0; i < 2; i++) {
         const Team& team = world.teams[i];
-        msg.U8(team.kills());
-        msg.U8(team.deaths());
-        msg.U8(team.suicides());
-        msg.U8(team.flags_taken());
-        msg.U8(team.flags_dropped());
-        msg.U8(team.flags_returned());
+        msg.U32dyn8orU8(team.kills(), e);
+        msg.U32dyn8orU8(team.deaths(), e);
+        msg.U32dyn8orU8(team.suicides(), e);
+        msg.U32dyn8orU8(team.flags_taken(), e);
+        msg.U32dyn8orU8(team.flags_dropped(), e);
+        msg.U32dyn8orU8(team.flags_returned(), e);
     }
     server->send_message(player.cid, msg);
 }

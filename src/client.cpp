@@ -2042,11 +2042,13 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         read.U8();
         #endif
 
-        uint8_t score = read.U8();
+        const bool e = protocolExtensionsS2C >= 0;
+
+        uint8_t score = read.U32dyn8orU8(e);
         fx.teams[0].set_score(score);
         if (fx.teams[0].captures().size() == 0) // only if just joined the server
             fx.teams[0].set_base_score(score);
-        score = read.U8();
+        score = read.U32dyn8orU8(e);
         fx.teams[1].set_score(score);
         if (fx.teams[1].captures().size() == 0) // only if just joined the server
             fx.teams[1].set_base_score(score);
@@ -2247,7 +2249,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
     break; case data_score_update: {
         const uint8_t team = read.U8(0, 1);
-        fx.teams[team].set_score(read.U8());
+        fx.teams[team].set_score(read.U32dyn8orU8(protocolExtensionsS2C >= 0));
     }
 
     break; case data_sound: {
@@ -2959,31 +2961,36 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         fx.player[pid].dead = false;
     }
 
-    break; case data_team_movements_shots:
+    break; case data_team_movements_shots: {
+        const bool e = protocolExtensionsS2C >= 0;
         for (int i = 0; i < 2; i++) {
             fx.teams[i].set_movement(read.U32());
-            fx.teams[i].set_shots(read.U16());
-            fx.teams[i].set_hits(read.U16());
-            fx.teams[i].set_shots_taken(read.U16());
+            fx.teams[i].set_shots(read.U32dyn16orU16(e));
+            fx.teams[i].set_hits(read.U32dyn16orU16(e));
+            fx.teams[i].set_shots_taken(read.U32dyn16orU16(e));
         }
+    }
 
-    break; case data_team_stats:
+    break; case data_team_stats: {
+        const bool e = protocolExtensionsS2C >= 0;
         for (int i = 0; i < 2; i++) {
-            fx.teams[i].set_kills(read.U8());
-            fx.teams[i].set_deaths(read.U8());
-            fx.teams[i].set_suicides(read.U8());
-            fx.teams[i].set_flags_taken(read.U8());
-            fx.teams[i].set_flags_dropped(read.U8());
-            fx.teams[i].set_flags_returned(read.U8());
+            fx.teams[i].set_kills(read.U32dyn8orU8(e));
+            fx.teams[i].set_deaths(read.U32dyn8orU8(e));
+            fx.teams[i].set_suicides(read.U32dyn8orU8(e));
+            fx.teams[i].set_flags_taken(read.U32dyn8orU8(e));
+            fx.teams[i].set_flags_dropped(read.U32dyn8orU8(e));
+            fx.teams[i].set_flags_returned(read.U32dyn8orU8(e));
         }
+    }
 
     break; case data_movements_shots: {
+        const bool e = protocolExtensionsS2C >= 0;
         const uint8_t pid = read.U8(0, maxplayers - 1);
         fx.player[pid].stats().set_movement(read.U32());
         fx.player[pid].stats().save_speed(time);
-        fx.player[pid].stats().set_shots(read.U16());
-        fx.player[pid].stats().set_hits(read.U16());
-        fx.player[pid].stats().set_shots_taken(read.U16());
+        fx.player[pid].stats().set_shots(read.U32dyn16orU16(e));
+        fx.player[pid].stats().set_hits(read.U32dyn16orU16(e));
+        fx.player[pid].stats().set_shots_taken(read.U32dyn16orU16(e));
     }
 
     break; case data_stats: {
