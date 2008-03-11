@@ -59,20 +59,23 @@ Programming for 1.0 by
    Niko Ritari (Nix) <npr1@suomi24.fi>
    Jani Rivinoja (Huntta) <janir@mbnet.fi>
    Special player collision effects by Fabio "Spinal" Cecin
+   Bots by Peter Kosyh (Gloomy)
 
 Graphics themes by
-   Jani Rivinoja (Huntta)
+   Jani Rivinoja
    Joonas Rivinoja
+   Thomaz de Oliveira dos Reis (ThOR27)
 
 Fonts by
-   Jani Rivinoja (Huntta)
+   Jani Rivinoja
 
 Sound theme by
    Visa-Valtteri Pimiä <visa.pimia@www.fi>
 
 Translations by
-   Finnish - Jani Rivinoja (Huntta) and Niko Ritari (Nix)
+   Finnish - Jani Rivinoja and Niko Ritari (Nix)
    Portuguese (BR) - Thomaz de Oliveira dos Reis (ThOR27) <thommy@globo.com>
+   Italian - Alessandro Ferrentino "Lo Scassatore"
 
 Maps by
    Huntta, Joonas, PHiN, evilKaioh, Flyer, Juggis, Luque, :(, MK-HeadShot, Nix,
