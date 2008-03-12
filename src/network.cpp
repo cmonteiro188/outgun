@@ -278,7 +278,7 @@ bool Socket::tryOpen(BlockingMode b, SocketType t, uint16_t port) throw () {
 void Socket::open(BlockingMode b, SocketType t, uint16_t port) throw (OpenError) {
     if (!tryOpen(b, t, port))
         throw OpenError(t, port);
-}    
+}
 
 void Socket::close() throw () {
     nAssert(isOpen());
