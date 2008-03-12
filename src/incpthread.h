@@ -28,10 +28,4 @@
 #undef min
 #undef max
 
-#ifdef WIN32
-inline bool operator==(const pthread_t& a, const pthread_t& b) throw() {
-    return a.x == b.x;
-}
-#endif
-
 #endif

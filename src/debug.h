@@ -36,11 +36,9 @@ class ThreadLog {
     typedef uint32_t ThreadId;
     typedef uint64_t ObjectId;
     static ThreadId idThread(pthread_t t) throw () {
-        #ifdef WIN32
-        return static_cast<ThreadId>(t.x);
-        #else
-        return static_cast<ThreadId>(t);
-        #endif
+        ThreadId id = 0;
+        memcpy(&id, &t, std::min(sizeof(ThreadId), sizeof(pthread_t))); // since we have no idea what type pthread_t actually is on each system
+        return id;
     }
     static ObjectId idObject(void* p)     throw () { return static_cast<ObjectId>(reinterpret_cast<intptr_t>(p)); }
 

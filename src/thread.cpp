@@ -98,7 +98,7 @@ void Thread::join(bool acceptRecursive) throw () {
     nAssert(running);
     running = false;
     int ret;
-    if (thread == pthread_self()) {
+    if (pthread_equal(thread, pthread_self())) {
         nAssert(acceptRecursive);
         logEvent(thread, 'd');
         ret = pthread_detach(thread);
