@@ -34,6 +34,7 @@ struct ServerHelloResult {
     bool accepted;
     char customData[512];
     int customDataLength;
+    int customStoredData; // returned to connectedCallback when the player finally gets through
 };
 
 // server class interface
@@ -43,7 +44,7 @@ public:
 
     // the callbacks should not throw (but we can't say that in a typedef)
     typedef void helloCallbackT         (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res);
-    typedef void connectedCallbackT     (void* customp, int client_id);
+    typedef void connectedCallbackT     (void* customp, int client_id, int customStoredData);
     typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is a user one
     typedef void dataCallbackT          (void* customp, int client_id, ConstDataBlockRef data);
     typedef void lagStatusCallbackT     (void* customp, int client_id, int status);

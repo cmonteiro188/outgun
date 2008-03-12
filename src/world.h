@@ -470,8 +470,6 @@ public:
     int megabonus;
 
     int protocolExtensionsLevel;
-    bool protocolExtensionsLevelSet;
-    bool needSignalFrameExtensions;
     bool toldAboutExtensionAdvantage;
 
     bool drop_key;

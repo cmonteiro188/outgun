@@ -1476,7 +1476,7 @@ void Server::simulate_and_broadcast_frame() throw () {
 
     if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
         for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].protocolExtensionsLevel < 0 && world.player[i].protocolExtensionsLevelSet && !world.player[i].toldAboutExtensionAdvantage) {
+            if (world.player[i].used && world.player[i].protocolExtensionsLevel < 0 && !world.player[i].toldAboutExtensionAdvantage) {
                 network.warnAboutExtensionAdvantage(i);
                 world.player[i].toldAboutExtensionAdvantage = true;
             }

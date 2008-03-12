@@ -1033,7 +1033,7 @@ bool Client::load_map(const string& directory, const string& mapname, uint16_t s
 }
 
 void Client::sendMinimapBandwidthAny(int players) throw () {
-    if (protocolExtensionsC2S >= 0) {
+    if (protocolExtensions >= 0) {
         BinaryBuffer<256> msg;
         msg.U8(data_set_minimap_player_bandwidth);
         msg.U8(players);
@@ -1086,24 +1086,23 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     #endif
 
     if (read.hasMore()) {
-        uint8_t protoExt = read.U8();
+        const int protoExt = read.U8();
         log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
-        if (protoExt > PROTOCOL_EXTENSIONS_VERSION)
-            protoExt = PROTOCOL_EXTENSIONS_VERSION;
-        {
-            BinaryBuffer<256> msg;
-            msg.U8(data_set_extension_level);
-            msg.U8(protoExt);
-            client->send_message(msg);
+        protocolExtensions = min(protoExt, PROTOCOL_EXTENSIONS_VERSION);
+    }
+    else
+        protocolExtensions = -1;
+
+    while (read.hasMore()) {
+        const uint32_t extensionId = read.U32();
+        BinaryDataBlockReader extData(read.block(read.U8()));
+        switch (extensionId) {
+            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+             * break; case EXAMPLE_IDENTIFIER:
+             *    exampleLevel = min(extData.U8(), EXAMPLE_VERSION); // or whatever else you sent in servnet.cpp; also remember to flag the extension disabled before this "while (read.hasMore())"
+             */
         }
-        protocolExtensionsC2S = protoExt; // server will know how to interpret because data_set_extension_level will be received before any messages with extensions
-        frameExtensionsAcknowledged = false;
     }
-    else {
-        protocolExtensionsC2S = -1;
-        frameExtensionsAcknowledged = true; // sort of: since the server is unextended, there's nothing to acknowledge
-    }
-    protocolExtensionsS2C = -1; // server can't use any extensions until us telling them the appropriate version (and then we will also receive data_set_extension_level before messages with extensions)
 
     if (botmode) {
         // Tell server that I am a bot.
@@ -1511,7 +1510,12 @@ void Client::connect_command(bool loadPassword) throw () {   // call with frameM
         msg.str(m_playerPassword.password());    // empty or not, it's needed
     }
     #endif
-
+    msg.U8(PROTOCOL_EXTENSIONS_VERSION);
+    /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+     * msg.U32(EXAMPLE_IDENTIFIER);
+     * msg.U8(1); // the number of bytes of what is added to msg by this extension after this
+     * msg.U8(EXAMPLE_VERSION); // or whatever else you want to send (here's a possible idea: send the value of data_example_first this client wants to use with the extension, to make it changeable if necessary for mixing extensions)
+     */
     client->set_connect_data(msg);
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
 
@@ -1740,28 +1744,14 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
     const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
     averageLag = averageLag * .99 + currentLag * .01;
 
-    int frameExtensions = protocolExtensionsC2S; // C2S used deliberately: the S2C-setting message might still be waiting
-
     const uint8_t frameOffset = read.U8();
-    if (!frameExtensionsAcknowledged && frameOffset == 127)
-        frameExtensions = -1;
-    else {
-        if (!frameExtensionsAcknowledged) {
-            frameExtensionsAcknowledged = true;
-            // After receiving data_acknowledge_frame_extensions, the server stops flagging unextended frames in frameOffset.
-            // We stop caring about the flag immediately, since once the server sends an extended frame, every frame will be one.
-            BinaryBuffer<16> msg;
-            msg.U8(data_acknowledge_frame_extensions);
-            client->send_message(msg);
-        }
-        const double offsetDelta = (frameOffset / 256.) - .5;    // the deviation from aim, in frames
-        frameOffsetDeltaTotal += offsetDelta;
-        if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
-            frameOffsetDeltaTotal /= 10.;
-            netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
-            frameOffsetDeltaTotal = 0;
-            frameOffsetDeltaNum = 0;
-        }
+    const double offsetDelta = (frameOffset / 256.) - .5;    // the deviation from aim, in frames
+    frameOffsetDeltaTotal += offsetDelta;
+    if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
+        frameOffsetDeltaTotal /= 10.;
+        netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
+        frameOffsetDeltaTotal = 0;
+        frameOffsetDeltaNum = 0;
     }
 
     const uint8_t xtra = read.U8();
@@ -1818,7 +1808,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
             h.ly = ((highBits & 0xF0) << 4 | yLowBits) * (plh / double(0xFFF));
         }
 
-        if (frameExtensions < 0) {
+        if (protocolExtensions < 0) {
             typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
             h.sx = SpeedType::toDouble(read.U8());
             h.sy = SpeedType::toDouble(read.U8());
@@ -1833,7 +1823,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
         h.item_power = (extra & 32) != 0;
         const bool preciseGundir = (extra & 64) != 0;
 
-        if (frameExtensions >= 0) {
+        if (protocolExtensions >= 0) {
             if (h.dead)
                 h.sx = h.sy = 0;
             else {
@@ -1851,7 +1841,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
         else
             h.gundir.fromNetworkShortForm(ccb >> 5);
 
-        if (frameExtensions < 0 || !h.dead)
+        if (protocolExtensions < 0 || !h.dead)
             h.visibility = read.U8();
         else
             h.visibility = 255;
@@ -1870,7 +1860,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
     }
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
-    if (frameExtensions < 0) {
+    if (protocolExtensions < 0) {
         uint8_t pid = read.U8();
         if (pid < MAX_PLAYERS)
             readMinimapPlayerPosition(read, pid);
@@ -2019,7 +2009,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             }
         }
         int8_t sender_team = -1;
-        if (protocolExtensionsS2C >= 0 || replaying) {
+        if (protocolExtensions >= 0 || replaying) {
             if (type == msg_team || type == msg_normal)
                 sender_team = read.S8();
         }
@@ -2042,7 +2032,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         read.U8();
         #endif
 
-        const bool e = protocolExtensionsS2C >= 0;
+        const bool e = protocolExtensions >= 0;
 
         uint8_t score = read.U32dyn8orU8(e);
         fx.teams[0].set_score(score);
@@ -2137,7 +2127,8 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
         GunDirection dir;
         if (rdir & 0x80) {
-            nAssert(protocolExtensionsS2C >= 0);
+            if (protocolExtensions < 0)
+                return false;
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
         }
         else
@@ -2155,7 +2146,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         const int16_t rx = read.S16(), ry = read.S16();
 
         int team;
-        if (protocolExtensionsS2C >= 0) {
+        if (protocolExtensions >= 0) {
             if (rteampower & 2) { // with player id
                 const int pid = (rteampower & 0x7C) >> 2;
                 if (pid >= maxplayers || !fx.player[pid].used) {
@@ -2195,7 +2186,8 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
         GunDirection dir;
         if (rdir & 0x80) {
-            nAssert(protocolExtensionsS2C >= 0);
+            if (protocolExtensions < 0)
+                return false;
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
         }
         else
@@ -2249,7 +2241,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
     break; case data_score_update: {
         const uint8_t team = read.U8(0, 1);
-        fx.teams[team].set_score(read.U32dyn8orU8(protocolExtensionsS2C >= 0));
+        fx.teams[team].set_score(read.U32dyn8orU8(protocolExtensions >= 0));
     }
 
     break; case data_sound: {
@@ -2962,7 +2954,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_team_movements_shots: {
-        const bool e = protocolExtensionsS2C >= 0;
+        const bool e = protocolExtensions >= 0;
         for (int i = 0; i < 2; i++) {
             fx.teams[i].set_movement(read.U32());
             fx.teams[i].set_shots(read.U32dyn16orU16(e));
@@ -2972,7 +2964,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_team_stats: {
-        const bool e = protocolExtensionsS2C >= 0;
+        const bool e = protocolExtensions >= 0;
         for (int i = 0; i < 2; i++) {
             fx.teams[i].set_kills(read.U32dyn8orU8(e));
             fx.teams[i].set_deaths(read.U32dyn8orU8(e));
@@ -2984,7 +2976,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_movements_shots: {
-        const bool e = protocolExtensionsS2C >= 0;
+        const bool e = protocolExtensions >= 0;
         const uint8_t pid = read.U8(0, maxplayers - 1);
         fx.player[pid].stats().set_movement(read.U32());
         fx.player[pid].stats().save_speed(time);
@@ -3005,7 +2997,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         stats.set_flag(flag, wild_flag);
         fx.player[pid].dead = dead;
         stats.set_dead               (dead);
-        const bool e = protocolExtensionsS2C >= 0;
+        const bool e = protocolExtensions >= 0;
         stats.set_kills              (read.U32dyn8orU8(e));
         stats.set_deaths             (read.U32dyn8orU8(e));
         stats.set_cons_kills         (read.U32dyn8orU8(e));
@@ -3197,9 +3189,6 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         #ifndef DEDICATED_SERVER_ONLY
         addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
         #endif
-
-    break; case data_set_extension_level:
-        protocolExtensionsS2C = protocolExtensionsC2S;
 
     break; case data_acceleration_modes: {
         const uint32_t mask = read.U32();

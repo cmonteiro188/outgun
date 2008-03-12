@@ -863,8 +863,6 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     minimapPlayersPerFrame = 2;
 
     protocolExtensionsLevel = -1;
-    protocolExtensionsLevelSet = false;
-    needSignalFrameExtensions = true; // until we either know the client is unextended, or receive data_acknowledge_frame_extensions
     toldAboutExtensionAdvantage = false;
 
     uniqueId = uniqueId_;

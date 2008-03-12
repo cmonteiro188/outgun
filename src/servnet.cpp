@@ -1233,7 +1233,7 @@ void ServerNetworking::update_serverinfo() throw () {
     server->set_server_info(info.str().c_str());
 }
 
-int ServerNetworking::client_connected(int id) throw () {
+int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     addPlayerMutex.lock();
 
     //2TEAM: check wich team to put player
@@ -1302,6 +1302,7 @@ int ServerNetworking::client_connected(int id) throw () {
     else
         uniqueId = ++newUniqueId;
     world.player[myself].clear(true, myself, cid, "", myself / TSIZE, uniqueId);
+    world.player[myself].protocolExtensionsLevel = min(customStoredData, PROTOCOL_EXTENSIONS_VERSION);
 
     addPlayerMutex.unlock();
 
@@ -1358,6 +1359,11 @@ int ServerNetworking::client_connected(int id) throw () {
 
     //  - who is he (player #)
     send_me_packet(myself);
+
+    if (world.player[myself].protocolExtensionsLevel >= 0) {
+        send_acceleration_modes(myself);
+        send_flag_modes(myself);
+    }
 
     // - world ctf flags information
     ctf_net_flag_status(id, 0);
@@ -1496,10 +1502,6 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
         const string name = msg.str();
         const string password = msg.str();
         host->nameChange(sender.cid, pid, name, password);
-        // not related to name update, but this is a convenient place that's always (with a normal client) entered soon after making the connection but after data_set_extension_level
-        sender.protocolExtensionsLevelSet = true; // the point is that if we haven't received a data_set_extensions_level so far, that's because the client actually is unextended
-        if (sender.protocolExtensionsLevel < 0)
-            sender.needSignalFrameExtensions = false; // unextended clients don't need to know, since we aren't using any extensions with them
     }
     break; case data_text_message: {
         const string text = msg.str();
@@ -1657,22 +1659,8 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
             update_serverinfo();
         }
     }
-    break; case data_set_extension_level: {
-        const uint8_t level = msg.U8();
-        if (level > PROTOCOL_EXTENSIONS_VERSION) {
-            log("Tried to set unknown extension level %d.", level);
-            return false;
-        }
-        sender.protocolExtensionsLevel = level;
-        sender.protocolExtensionsLevelSet = true;
-        send_simple_message(data_set_extension_level, pid);
-        send_acceleration_modes(pid);
-        send_flag_modes(pid);
-    }
     break; case data_set_minimap_player_bandwidth:
         sender.minimapPlayersPerFrame = msg.U8();
-    break; case data_acknowledge_frame_extensions:
-        sender.needSignalFrameExtensions = false;
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log("Invalid message code: %i, length %i.", code, data.size());
@@ -1884,15 +1872,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
         // first send client prediction synchronization data
         frame.U8(recipient.lastClientFrame);
 
-        uint8_t fo = static_cast<uint8_t>(bound<double>(recipient.frameOffset, 0., .999) * 256.);
-        // the frame offset field is now hijacked to signal whether extensions are enabled in this frame, for the first few frames until the client is certain to know that future frames are all extended
-        if (recipient.needSignalFrameExtensions) {
-            if (recipient.protocolExtensionsLevel < 0)
-                fo = 127; // 127 marks unextended frames
-            else if (fo == 127)
-                fo = 128;
-        }
-        frame.U8(fo);
+        frame.U8(static_cast<uint8_t>(bound<double>(recipient.frameOffset, 0., .999) * 256.));
 
         const bool skip_frame = recipient.awaiting_client_readies || !gameRunning;
 
@@ -3111,7 +3091,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
             reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
         }
         else if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
-                 join_start > join_end && (seconds < join_start && seconds > join_end))) {
+                                            join_start > join_end && (seconds < join_start && seconds > join_end))) {
             log("Rejected a client because the server is not open at this time.");
             res->accepted = false;
 
@@ -3158,7 +3138,32 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
                     res->accepted = true;
                     reply.U8(maxplayers);
                     reply.str(settings.get_hostname());
-                    reply.U8(PROTOCOL_EXTENSIONS_VERSION);
+                    if (msg.hasMore()) {
+                        res->customStoredData = msg.U8(); // store client protocol extensions level
+                        reply.U8(PROTOCOL_EXTENSIONS_VERSION);
+                    }
+                    else
+                        res->customStoredData = -1;
+                    while (msg.hasMore()) {
+                        const uint32_t extensionId = msg.U32();
+                        if (extensionId == 0)
+                            break;
+                        BinaryDataBlockReader extData(msg.block(msg.U8()));
+                        switch (extensionId) {
+                            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+                             * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
+                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in client.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
+                             *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
+                             *    reply.U32(EXAMPLE_IDENTIFIER);
+                             *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this
+                             *    reply.U8(EXAMPLE_VERSION); // or whatever else you want to send
+                             */
+                        };
+                    }
+                    if (msg.hasMore() && res->customStoredData <= PROTOCOL_EXTENSIONS_VERSION) { // check that unofficial extensions behave: if client has a known protocol extensions level, it doesn't send anything after the unofficials
+                        res->accepted = false;
+                        reply.clear();
+                    }
                 }
                 else {
                     res->accepted = false;
@@ -3195,11 +3200,11 @@ void ServerNetworking::sfunc_client_hello(void* customp, int client_id, ConstDat
         sn->threadLockMutex.unlock();
 }
 
-void ServerNetworking::sfunc_client_connected(void* customp, int client_id) throw () {
+void ServerNetworking::sfunc_client_connected(void* customp, int client_id, int customStoredData) throw () {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->client_connected(client_id);
+    sn->client_connected(client_id, customStoredData);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }

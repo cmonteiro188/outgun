@@ -259,9 +259,7 @@ class Client : public ClientInterface {
     int clientReadiesWaiting;
     std::string servermap;  //last map command from server
 
-    int protocolExtensionsS2C; // -1 means unextended protocol, 0 up are extension version numbers (<= PROTOCOL_EXTENSIONS_VERSION)
-    int protocolExtensionsC2S; // can only be -1 (before extension negotiation completes), or C2S == S2C (afterwards)
-    bool frameExtensionsAcknowledged;
+    int protocolExtensions; // -1 means unextended protocol, 0 up are extension version numbers (<= PROTOCOL_EXTENSIONS_VERSION)
 
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 

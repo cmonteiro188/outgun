@@ -103,7 +103,7 @@ private:
 
     // server callbacks
     static void sfunc_client_hello          (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
-    static void sfunc_client_connected      (void* customp, int client_id) throw ();
+    static void sfunc_client_connected      (void* customp, int client_id, int customStoredData) throw ();
     static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant) throw ();
     static void sfunc_client_data           (void* customp, int client_id, ConstDataBlockRef data) throw ();
     static void sfunc_client_lag_status     (void* customp, int client_id, int status) throw ();
@@ -203,7 +203,7 @@ private:
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
     void clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
-    int  client_connected(int id) throw ();
+    int  client_connected(int id, int customStoredData) throw ();
     void client_disconnected(int id) throw ();
     void ping_result(int client_id, int ping_time) throw ();
     bool processMessage(int pid, ConstDataBlockRef data) throw ();

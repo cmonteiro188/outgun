@@ -95,6 +95,8 @@ struct client_t {
 
     bool                        in_lag;         // if client is lagged
 
+    int customStoredData; // freely set by the server in helloCallback, to be returned to connectedCallback
+
     //mutex for the station object and condition variable
     Mutex   station_mutex;
 
@@ -907,6 +909,8 @@ public:
                         //connected!
                         client[cid].connected = true;
 
+                        client[cid].customStoredData = res.customStoredData;
+
                         //send hello packet back to the client
                         log("SENT CONNECTION ACCEPTED 0/3 to client_ci");
                         ExpandingBinaryBuffer msg;
@@ -1045,7 +1049,7 @@ public:
                         client[cid].connected_knows = true;
 
                         //call gameserver "client connected" callback
-                        connectedCallback(customp, cid);
+                        connectedCallback(customp, cid, client[cid].customStoredData);
                     }
 
                     // send the data to the gameserver
