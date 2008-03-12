@@ -413,7 +413,7 @@ void ServerNetworking::ctf_update_teamscore(int t) const throw () {
     ext_msg.U8(data_score_update);
     ext_msg.U8(t);
     BinaryBuffer<64> old_msg = ext_msg;
-    old_msg.U8     (world.teams[t].score());
+    old_msg.U8(min(world.teams[t].score(), 255));
     ext_msg.U32dyn8(world.teams[t].score());
     for (int i = 0; i < maxplayers; i++) {
         const ServerPlayer& player = world.player[i];
@@ -629,9 +629,9 @@ void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player)
     const Statistics& stats = player.stats();
     ext_msg.U32(static_cast<unsigned>(stats.movement()));
     BinaryBuffer<64> old_msg = ext_msg;
-    old_msg.U16(stats.shots());
-    old_msg.U16(stats.hits());
-    old_msg.U16(stats.shots_taken());
+    old_msg.U16(min(stats.shots(), 65535));
+    old_msg.U16(min(stats.hits(), 65535));
+    old_msg.U16(min(stats.shots_taken(), 65535));
     ext_msg.U32dyn16(stats.shots());
     ext_msg.U32dyn16(stats.hits());
     ext_msg.U32dyn16(stats.shots_taken());
@@ -990,23 +990,30 @@ void ServerNetworking::broadcast_text(Message_type type, const string& text) con
 void ServerNetworking::send_map_change_message(int pid, int reason, const char* mapname) const throw () {
     //send a show gameover plaque message, if that is the case
     if (reason != NEXTMAP_NONE) {
-        BinaryBuffer<256> msg;
-        msg.U8(data_gameover_show);
-        msg.U8(reason);      //capture limit plaque or vote exit plaque
+        BinaryBuffer<256> ext_msg;
+        ext_msg.U8(data_gameover_show);
+        ext_msg.U8(reason);      //capture limit plaque or vote exit plaque
+        BinaryBuffer<256> old_msg = ext_msg;
         if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
-            msg.U8(world.teams[0].score());  //RED team final score
-            msg.U8(world.teams[1].score());  //BLUE team final score
-            msg.U8(world.getConfig().getCaptureLimit());
-            msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
+            ext_msg.U32dyn8(world.teams[0].score());
+            ext_msg.U32dyn8(world.teams[1].score());
+            ext_msg.U8(world.getConfig().getCaptureLimit());
+            ext_msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
+            old_msg.U8(min(world.teams[0].score(), 255));
+            old_msg.U8(min(world.teams[1].score(), 255));
+            old_msg.U8(world.getConfig().getCaptureLimit());
+            old_msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
         }
         if (pid == pid_record)
-            record_message(msg);
+            record_message(ext_msg);
         else if (pid == pid_all) {
-            broadcast_message(msg);
-            record_message(msg);
+            for (int i = 0; i < maxplayers; i++)
+                if (world.player[i].used)
+                    server->send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+            record_message(ext_msg);
         }
         else
-            server->send_message(world.player[pid].cid, msg);
+            server->send_message(world.player[pid].cid, world.player[pid].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
     }
 
     BinaryBuffer<256> msg;

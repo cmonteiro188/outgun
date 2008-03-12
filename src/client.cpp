@@ -2371,8 +2371,9 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
             gameover_plaque = plaque;
             #ifndef DEDICATED_SERVER_ONLY
-            red_final_score = read.U8();
-            blue_final_score = read.U8();
+            const bool e = protocolExtensions >= 0;
+            red_final_score = read.U32dyn8orU8(e);
+            blue_final_score = read.U32dyn8orU8(e);
             const uint8_t caplimit = read.U8(), timelimit = read.U8();
 
             string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
