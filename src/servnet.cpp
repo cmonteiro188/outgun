@@ -566,11 +566,11 @@ void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, 
 
 void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw () {
     nAssert(player.extra_frames_to_respawn >= 0);
-    if (player.protocolExtensionsLevel < 0 || player.frames_to_respawn < 100 || player.frames_to_respawn > 65535 || player.extra_frames_to_respawn)
+    if (player.protocolExtensionsLevel < 0 || player.frames_to_respawn < 100 || player.extra_frames_to_respawn)
         return;
     BinaryBuffer<64> msg;
     msg.U8(data_waiting_time);
-    msg.U16(player.frames_to_respawn);
+    msg.U32dyn8(player.frames_to_respawn);
     server->send_message(player.cid, msg);
 }
 

@@ -3206,7 +3206,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_waiting_time: {
-        const uint16_t waiting_time = read.U16();
+        const uint32_t waiting_time = read.U32dyn8();
         if (waiting_time >= 10)
             next_respawn_time = get_time() + waiting_time / 10.;
     }
