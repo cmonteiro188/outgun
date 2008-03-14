@@ -6,6 +6,7 @@
    Accuracy##   Tarkkuus
  Nr Vote Title                Size  Author##Nro Äänet Nimi                Koko  Tekijä
  desktop## työpöytä
+"$1" is not a valid IP address.##"$1" ei ole kelvollinen IP-osoite.
 $1 CAPTURED THE BLUE FLAG!##$1 RYÖSTI SINISEN LIPUN!
 $1 CAPTURED THE RED FLAG!##$1 RYÖSTI PUNAISEN LIPUN!
 $1 CAPTURED THE WILD FLAG!##$1 RYÖSTI PUOLUEETTOMAN LIPUN!
@@ -111,6 +112,9 @@ Active mouse buttons##Aktiiviset hiirennapit
 Add server##Lisää palvelin
 Add to favorite list##Lisää suosikkilistaan
 Add to public serverlist##Lisää julkiseen palvelinlistaan
+Admin shell connection: $1##Ylläpitoyhteys: $1
+Admin shell connection: Not all written.##Ylläpitoyhteys: Koko viestin lähetys epäonnistui.
+Admin shell: $1##Ylläpitoyhteys: $1
 Admin shell: Can't accept connection.##Ylläpitoyhteys: Yhteyden vastaanotto epäonnistui.
 Admin shell: Can't open socket on port $1.##Ylläpitoyhteys: Portti $1 ei aukea.
 Admin shell: Can't set socket to listen mode.##Ylläpitoyhteys: Soketin asetus kuuntelutilaan epäonnistui.
@@ -168,6 +172,7 @@ Color depth##Värisyvyys
 Colour theme##Väriteema
 Command##Komento
 Connected to $1 ($2)##Yhteydessä - $1 ($2)
+Connecting to relay: $1##Ottaessa yhteyttä välipalvelimeen: $1
 Connection refused.##Palvelin hylkäsi.
 Connection timed out.##Aikakatkaisu.
 Connection to the server closed.##Yhteys palvelimeen katkesi.
@@ -202,8 +207,22 @@ EXIT##VAIHDA
 Enable joystick control##Käytä peliohjainta
 Energy##Energia
 English##suomi
+Error connecting to "$1": $2##Virhe yhdistäessä osoitteeseen "$1": $2
+Error initializing network subsystem: $1##Virhe verkkojärjestelmän alustuksessa: $1
+Error opening a broadcast socket on UDP port $1: $2##Virhe avatessa UDP-porttia $1 yleislähetystä varten: $2
+Error opening a broadcast socket on any UDP port: $1##Virhe avatessa mitä tahansa UDP-porttia yleislähetystä varten: $1
+Error opening a socket on TCP port $1: $2##Virhe avatessa TCP-porttia $1: $2
+Error opening a socket on UDP port $1: $2##Virhe avatessa UDP-porttia $1: $2
+Error opening a socket on any TCP port: $1##Virhe avatessa mitä tahansa TCP-porttia: $1
+Error opening a socket on any UDP port: $1##Virhe avatessa mitä tahansa UDP-porttia: $1
+Error reading from socket: $1##Virhe soketista lukiessa: $1
+Error reading from socket: Operation timed out.##Virhe soketista lukiessa: Aikakatkaisu.
+Error resolving hostname "$1": $2##Virhe IP-osoitteen haussa verkkonimelle "$1": $2
 Error sending##Virhe lähetyksessä
+Error setting socket to listen mode: $1##Virhe asettaessa sokettia kuuntelutilaan: $1
 Error writing to '$1'.##Virhe tiedostoon $1 kirjoittamisessa.
+Error writing to socket: $1##Virhe sokettiin kirjoittaessa: $1
+Error writing to socket: Operation timed out.##Virhe sokettiin kirjoittaessa: Aikakatkaisu.
 Error: server rejected##Virhe: palvelin ei hyväksynyt
 Errors##Virheet
 Esc:quit##Esc:sulje
@@ -230,6 +249,7 @@ Game options##Peliasetukset
 Germany##Saksa
 Get random name##Arvo satunnainen nimi
 Get server list at startup##Hae palvelinlista pelin käynnistyessä
+Getting server list: $1##Hakiessa palvelinlistaa: $1
 Getting server list: connecting...##Haen palvelinlistaa: yhdistän...
 Getting server list: receiving...##Haen palvelinlistaa: vastaanotan...
 Graphic options##Grafiikka
@@ -291,6 +311,8 @@ Map pictures saved to the directory 'mappic'.##Karttakuvat luotu hakemistoon "ma
 Markers for nearby players and flags in game##Lähistön pelaajien ja lippujen merkit pelissä
 Markers for nearby players and flags in replay##Lähistön pelaajien ja lippujen merkit uusinnassa
 Master server unavailable##Pääpalvelin tavoittamattomissa
+Master talker: $1##Pääpalvelinyhteys: $1
+Master talker: (Quit) $1##Pääpalvelinyhteys: (Sulkeutumassa) $1
 Master talker: (Quit) Can't connect to master server.##Pääpalvelinyhteys: (Sulkeutumassa) Pääpalvelimelle ei ole yhteyttä.
 Master talker: (Quit) Can't open socket to connect to master server.##Pääpalvelinyhteys: (Sulkeutumassa) Soketti ei aukea pääpalvelimelle yhdistämistä varten.
 Master talker: (Quit) Error sending info: $1##Pääpalvelinyhteys: (Sulkeutumassa) Virhe tiedon lähetyksessä: $1
@@ -307,6 +329,7 @@ Mouse control (buttons: 0 = disabled)##Hiiriohjaus (napit: 0 = ei käytössä)
 Movement##Liike
 Moving stick##Liikuttava sauva
 Name##Nimi
+Network error: $1##Verkkovirhe: $1
 New version: $1##Uusi versio: $1
 No IP network.##Ei IP-verkkoa.
 No help found. It should be in $1##Ohjetta ei löydy. Sen pitäisi olla tiedostossa $1
@@ -320,6 +343,7 @@ Norway##Norja
 OK##Selvä
 One hit shield##Kertakäyttösuoja
 Options##Asetukset
+Out of memory.##Muisti loppu.
 Outgun - Saving map pictures##Outgun - Tallennan karttakuvia
 Outgun client##Outgun
 Password##Salasana
@@ -332,6 +356,7 @@ Player password for $1##Pelaajan $1 salasana
 Playtime lifetime    rank  power  score##Peliaika elinaika    sija vahvuus pisteet
 Please close and restart Outgun to complete the change of language.##Sulje Outgun ja käynnistä se uudelleen, niin kielivalinta tulee voimaan.
 Poland##Puola
+Port is missing from $1.##Portti puuttuu: $1.
 Portugal##Portugali
 Possible thread priorities (-prio <val>):##Säieprioriteetin (-prio <val>) mahdolliset arvot:
 Power##Tehoase
@@ -354,6 +379,7 @@ Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
 Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
+Replay file $1 is not an Outgun replay.##$1 ei ole Outgunin uusinta.
 Replay on $1##Uusinta - $1
 Replays##Uusinnat
 Room line not allowed in label block: $1##Huoneriviä ei saa olla nimilohkossa: $1
@@ -479,6 +505,8 @@ Waiting for the game to start.##Odotetaan pelin alkamista.
 Waiting game start - next map is##Odotetaan pelin alkua - seuraava kartta on
 Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.##Varoitus: Tällä palvelimella on käytössä laajennoksia, joita käyttävillä pelaajilla on etu sinua vastaan.
 Weapon $1##Ase $1
+Website thread: $1##WWW-säie: $1
+Website thread: (Quit) $1##WWW-säie: (Sulkeutumassa) $1
 Website thread: (Quit) Can't connect to server website.##WWW-säie: (Sulkeutumassa) Palvelinsivulle ei ole yhteyttä.
 Website thread: (Quit) Can't open socket to connect to server website.##WWW-säie: (Sulkeutumassa) Soketti ei aukea palvelinsivulle yhdistämistä varten.
 Website thread: Can't open socket to connect to server website.##WWW-säie: Soketti ei aukea palvelinsivulle yhdistämistä varten.

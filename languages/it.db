@@ -99,6 +99,7 @@ Active controls##Controlli attivi
 Add server##Aggiungi server
 Add to favorite list##Aggiungi a preferiti
 Add to public serverlist##Aggiungi alla lista dei server pubblici
+Admin shell: $1##Casella admin: $1
 Admin shell: Can't accept connection.##Casella admin: Impossibile accettare connessione.
 Admin shell: Can't open socket on port $1.##Casella admin: Impossibile aprire il socket alla porta $1.
 Admin shell: Can't set socket to listen mode.##Casella admin: Impossibile mettere il socket nella config per l'ascolto.
@@ -250,6 +251,8 @@ Map picture saver: Can't save map picture to '$1'.##Map picture saver: Impodssib
 Map picture saver: Map '$1' is not a valid map file.##Salvatore immagini mappa: Mappa '$1' non è un valido file mappa.
 Map pictures saved to the directory 'mappic'.##Immagini mappe salvate in directory 'mappic'.
 Master server unavailable##Server master non disponibile
+Master talker: $1##Master: $1
+Master talker: (Quit) $1##Master: (Uscita) $1
 Master talker: (Quit) Can't connect to master server.##Master: (Uscita) Impossibile connettersi al master.
 Master talker: (Quit) Can't open socket to connect to master server.##Master: (Uscita) Impossibile aprire il socket per connettersi al master.
 Master talker: (Quit) Error sending info: $1##Master: (Uscita) Errore nell'invio info: $1

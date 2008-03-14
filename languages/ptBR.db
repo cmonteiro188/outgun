@@ -257,6 +257,8 @@ Map picture saver: Can't save map picture to '$1'.##Salvador de figuras do mapa:
 Map picture saver: Map '$1' is not a valid map file.##Salvador de figuras do mapa: Mapa '$1' não é um arquivo válido de mapa.
 Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
 Master server unavailable##Servidor mestre indisponível
+Master talker: $1##Comunicador mestre: $1
+Master talker: (Quit) $1##Comunicador mestre: (Sair) $1
 Master talker: (Quit) Can't connect to master server.##Comunicador mestre: (Sair) Não foi possível conectar ao servidor mestre.
 Master talker: (Quit) Can't open socket to connect to master server.##Comunicador mestre: (Sair) C Não foi possível abrir o soquete para conectar no servidor mestre.
 Master talker: (Quit) Error sending info: $1##Comunicador mestre: (Sair) Erro enviando info: $1
