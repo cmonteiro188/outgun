@@ -77,7 +77,7 @@ Network::ResolveError::ResolveError() throw () {
 
 string Network::InitError   ::str() const throw () { return _("Error initializing network subsystem: $1", basicStr()); }
 string Network::NLError     ::str() const throw () { return _("Network error: $1", basicStr()); }
-string Network::BadIP       ::str() const throw () { return _("\"$1\" is not a valid IP address", ip); }
+string Network::BadIP       ::str() const throw () { return _("\"$1\" is not a valid IP address.", ip); }
 string Network::ResolveError::str() const throw () { return _("Error resolving hostname \"$1\": $2", name, basicStr()); }
 string Network::ConnectError::str() const throw () { return _("Error connecting to \"$1\": $2", addr, basicStr()); }
 string Network::ListenError ::str() const throw () { return _("Error setting socket to listen mode: $1", basicStr()); }
@@ -108,8 +108,8 @@ bool Network::ReadWriteError::connectionRefused() const throw () { return nlErro
 bool Network::ReadWriteError::disconnected()      const throw () { return nlError == NL_MESSAGE_END || nlError == NL_SOCK_DISCONNECT; }
 
 string Network::Timeout::str() const throw () {
-    return inRead ? _("Error reading from socket: Operation timed out")
-                  : _("Error writing to socket: Operation timed out");
+    return inRead ? _("Error reading from socket: Operation timed out.")
+                  : _("Error writing to socket: Operation timed out.");
 }
 
 class Address::HiddenData {
