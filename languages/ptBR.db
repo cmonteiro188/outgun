@@ -178,7 +178,6 @@ Downloading map "$1" (CRC $2)...##Baixando o mapa "$1" (CRC $2)...
 Drop power-ups##Soltar poderes
 Dvorak##Dvorak
 ERRORS:$1##ERROS:$1
-Esc:quit##Esc:Sair
 EXIT##SAIR
 Enable joystick control##Abilitar controle por joystick
 Energy##Energia
@@ -187,6 +186,7 @@ Error sending##Erro enviando
 Error writing to '$1'.##Erro gravando para '$1'.
 Error: server rejected##Erro: servidor rejeitou
 Errors##Erros
+Esc:quit##Esc:Sair
 Exit Outgun##Sair do Outgun
 Extra-time##Tempo extra
 FPS limit##Limite do FPS
@@ -255,6 +255,7 @@ Map info mode##Modo de informação do mapa
 Map is missing a width, height or title.##Está faltando a altura, largura ou título do mapa.
 Map picture saver: Can't save map picture to '$1'.##Salvador de figuras do mapa: Não é possível salvar a figura do mapa para '$1'.
 Map picture saver: Map '$1' is not a valid map file.##Salvador de figuras do mapa: Mapa '$1' não é um arquivo válido de mapa.
+Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
 Master server unavailable##Servidor mestre indisponível
 Master talker: (Quit) Can't connect to master server.##Comunicador mestre: (Sair) Não foi possível conectar ao servidor mestre.
 Master talker: (Quit) Can't open socket to connect to master server.##Comunicador mestre: (Sair) C Não foi possível abrir o soquete para conectar no servidor mestre.
@@ -323,7 +324,6 @@ SORVETE!##SORVETE!
 Save game messages##Salvar as mensagens do chat
 Save game statistics##Salvar estatísticas do jogo
 Save password##Salvar senha
-Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
 Saved screenshot to $1.##Salvou captura de tela para $1.
 Say##Diga
 Say team##Diga ao time
@@ -464,6 +464,7 @@ hour##hora
 hours##horas
 invalid##inválido
 left##esquerda
+locale##pt_BR
 locally authorized##autorizado localmente
 master auth pending##auth do mestre pendente
 master authorized##autorizado pelo mestre

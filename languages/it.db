@@ -170,7 +170,6 @@ Downloading map "$1" (CRC $2)...##Scaricamento della mappa "$1" (CRC $2)...
 Drop power-ups##Lascia potenziamenti
 Dvorak##Dvorak 
 ERRORS:$1##ERRORORI:$1
-Esc:quit##Esc:esci
 EXIT##ESCI
 Enable joystick control##Attiva joystick per il controllo
 Energy##Energia
@@ -179,6 +178,7 @@ Error sending##Errore di invio
 Error writing to '$1'.##Errore nello scrivere '$1'.
 Error: server rejected##Errore: il server non ha accettato
 Errors##Errori
+Esc:quit##Esc:esci
 Exit Outgun##Esci da Outgun
 Extra-time##Tempo extra
 FPS limit##Limite FPS
@@ -248,6 +248,7 @@ Map info mode##Modalità informazione mappa
 Map is missing a width, height or title.##Alla mappa manca altezza, larghezza o titolo.
 Map picture saver: Can't save map picture to '$1'.##Map picture saver: Impodssibile salvare l'immagine mappa come '$1'.
 Map picture saver: Map '$1' is not a valid map file.##Salvatore immagini mappa: Mappa '$1' non è un valido file mappa.
+Map pictures saved to the directory 'mappic'.##Immagini mappe salvate in directory 'mappic'.
 Master server unavailable##Server master non disponibile
 Master talker: (Quit) Can't connect to master server.##Master: (Uscita) Impossibile connettersi al master.
 Master talker: (Quit) Can't open socket to connect to master server.##Master: (Uscita) Impossibile aprire il socket per connettersi al master.
@@ -314,7 +315,6 @@ SORVETE!##GELATATO!
 Save game messages##Salva messaggi di gioco
 Save game statistics##Salva le stratistiche di gioco
 Save password##Salva password
-Map pictures saved to the directory 'mappic'.##Immagini mappe salvate in directory 'mappic'.
 Saved screenshot to $1.##Screenshot salvato come $1.
 Say##Dici
 Say team##Dici a squadra
@@ -449,6 +449,7 @@ hours##ore
 in $1 B/s, out $2 B/s##dentro $1 B/s, fuori $2 B/s
 invalid##invalido
 left##sinistra
+locale##it_IT
 locally authorized##autorizzato in locale
 master auth pending##in attesa di autorizzazione master
 master authorized##master autorizzato
