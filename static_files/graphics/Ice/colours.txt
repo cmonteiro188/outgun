@@ -49,7 +49,7 @@ room_border                  202040
 playfield_fog                FFFFFF
 
 map_ground                   000000
-map_wall                     000060
+map_wall                     006060
 map_room_border              303060
 map_pic_room_border          686888
 map_player_me_1              FFFF00
