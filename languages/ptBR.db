@@ -25,6 +25,7 @@ $1 LOST THE WILD FLAG!##$1 PERDEU A BANDEIRA SELVAGEM!
 $1 RETURNED THE BLUE FLAG!##$1 RETORNOU A BANDEIRA AZUL!
 $1 RETURNED THE RED FLAG!##$1 RETORNOU A BANDEIRA VERMELHA!
 $1 and $2 swapped teams.##$1 e $2 trocaram de time.
+$1 can't be combined with other command line options.##$1 não pode ser combinado com outras opções de linha de comando.
 $1 capt##$1 cap
 $1 changed name to $2.##$1 mudou de nome para $2.
 $1 decided it's time for a map change.##$1 decidiu que era hora de trocar o mapa.
@@ -90,7 +91,6 @@ $1/$2p $3k/s v$4 port:$5##$1/$2j $3k/s v$4 porta:$5
 -fps must be followed by a space and a number.##-fps precisa ser seguido de um espaço e um número.
 -ip X: X must be a valid IP address without :port.##-ip X: X precisa ser um endereço de IP válido sem :port.
 -ip must be followed by a space and an IP address.##-ip  precisa ser seguido de um espaço e um endereço de IP.
--mappic can't be combined with other command line options.##-mappic não pode ser combinado com outras opções de linha de comando.
 -maxp X: X must be an even number in the range of 2 to $1.##-maxp X: X precisa ser um número impar entre 2 e $1.
 -maxp must be followed by a space and a player count.##-maxp precisa ser seguido de um espaço e o número de jogadores.
 -port X: X must be in the range of 1 to 65535.##-port X: X precisa estar entre 1 e 65535.
@@ -178,7 +178,7 @@ Downloading map "$1" (CRC $2)...##Baixando o mapa "$1" (CRC $2)...
 Drop power-ups##Soltar poderes
 Dvorak##Dvorak
 ERRORS:$1##ERROS:$1
-ESC:quit##ESC: Sair
+Esc:quit##Esc:Sair
 EXIT##SAIR
 Enable joystick control##Abilitar controle por joystick
 Energy##Energia
@@ -323,7 +323,7 @@ SORVETE!##SORVETE!
 Save game messages##Salvar as mensagens do chat
 Save game statistics##Salvar estatísticas do jogo
 Save password##Salvar senha
-Saved map pictures to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
+Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
 Saved screenshot to $1.##Salvou captura de tela para $1.
 Say##Diga
 Say team##Diga ao time
@@ -340,7 +340,7 @@ Server was shut down.##O servidor foi desligado.
 Shadow##Sombra
 Shoot ##Atirar
 Shots##Tiros
-Shots   | Taken  Movement     Speed##Tiros   | Pegos Movimentos Velocidade
+Shots   |  Taken  Movement     Speed##Tiros   |  Pegos Movimentos Velocidade
 Shots taken##Tiros levados
 Show favorite servers##Mostrar servidores favoritos
 Show flag messages##Mostrar as mensagens sobre bandeiras
@@ -371,7 +371,7 @@ Suicides##Suicidios
 Sweden##Suécia
 Switch deathbringer##Alternar fumaça
 Switzerland##Suiça
-Syntax error in gfxmodes.txt, line '$1'.##Erro de sintaxe no gfxmodes.txt, linha '$1'.
+Syntax error in $1, line '$2'.##Erro de sintaxe no $1, linha '$2'.
 TEAMS##TIMES
 TIME LIMIT IS $1 MINUTES.##O LIMITE DO TEMPO É DE $1 MINUTOS.
 Take part in the tournament##Faça parte do campeonato
@@ -385,6 +385,7 @@ The given priority $1 isn't within system limits. Run with -info for more inform
 The server is full.##O servidor está lotado.
 Theme##Tema
 This map is $1 ($2 of $3).##Esse é o mapa $1 ($2 de $3).
+This map is $1.##Esse é o mapa $1.
 This map is broken. There is an instantly capturable flag. Avoid it.##Esse mapa está quebrado. Tem uma bandeira e captura instantânea. Evite-a.
 This map is invalid: instant flag capture is possible.##O mapa não é válido: Captura estantânea da bandeira é possível.
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie o assert.log e o stackdump.bin do diretório log e diga oque você estava fazendo para outgun@mbnet.fi (Por-favor, envie em inglês)
