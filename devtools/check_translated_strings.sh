@@ -1,5 +1,5 @@
 #! /bin/sh
-set -o pipefail
+[ "${BASH_VERSINFO[0]}" -ge 3 ] && set -o pipefail
 
 if [ $# == 2 ]; then
     LANGFILE="$1"
@@ -20,7 +20,10 @@ cat "$SOURCEDIR"/*.{h,cpp} | recode latin1.. \
        | sed 's+\\"+@QUOTEDQ@+g;s+get_text+_+g;s+_("\([^"]*\)"+_("\1"\n_+g' \
        | sed -n 's+.*_("\([^"]*\)".*+\1+p' | sed 's+@QUOTEDQ@+"+g' \
        | sort | uniq > "$WORKDIR/phrases.code" \
-    || { echo "Error extracting phrases.code" >&2; exit 1; }
+    || { echo 'Error extracting phrases.code' >&2; exit 1; }
+
+[ -s "$WORKDIR/phrases.langfile" -a -s "$WORKDIR/phrases.code" ] \
+    || { echo 'Error extracting phrases.*' >&2; exit 1; }
 
 diff "$WORKDIR/phrases.langfile" "$WORKDIR/phrases.code" || exit 1
 exit 0
