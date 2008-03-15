@@ -379,7 +379,7 @@ Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
 Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
-Replay file $1 is not an Outgun replay.##$1 ei ole Outgunin uusinta.
+$1 is not an Outgun replay.##$1 ei ole Outgunin uusinta.
 Replay on $1##Uusinta - $1
 Replays##Uusinnat
 Room line not allowed in label block: $1##Huoneriviä ei saa olla nimilohkossa: $1

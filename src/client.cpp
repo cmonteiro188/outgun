@@ -5980,7 +5980,7 @@ void Client::MCF_prepareReplayMenu() throw () {
         BinaryStreamReader read(in);
         try {
             if (read.constLengthStr(REPLAY_IDENTIFICATION.length()) != REPLAY_IDENTIFICATION) {
-                log.error(_("Replay file $1 is not an Outgun replay.", replay_file));
+                log.error(_("$1 is not an Outgun replay.", replay_file));
                 continue;
             }
             const unsigned replay_version = read.U32();
