@@ -216,13 +216,19 @@ bool Relay::check_new_connection(Peer& p) throw () {
             cout << "Different game string in a connection attempt.\n";
             return true;
         }
+        const uint32_t relayProtocol = read.U32dyn8();
+        if (relayProtocol != RELAY_PROTOCOL) {
+            cout << "Unsupported relay protocol (" << relayProtocol << ") in a connection attempt.\n";
+            return true;
+        }
+        const uint32_t relayProtocolExtensionLevel = read.U32dyn8();
         const string type = read.str();
         if (type == "SPECTATOR") {
             if (spectators.size() >= static_cast<unsigned>(spectator_limit)) {
                 cout << "New spectator couldn't join because spectator limit already reached.\n";
                 return true;
             }
-            read.U32(); // ignore replay version
+            read.U32dyn8(); // ignore replay version
             read.str(); // ignore username
             read.str(); // ignore password
             // TODO: Check username and password.
@@ -233,6 +239,9 @@ bool Relay::check_new_connection(Peer& p) throw () {
             }
             #endif
 
+            const uint32_t extensionsSize = read.U32dyn8();
+            read.block(extensionsSize); // just ignore since we know no extensions
+
             spectators.push_back(give_control(new Spectator(p.address, trashable_ref(p.socket))));
             cout << "Spectator connected.\n";
             return true;
@@ -242,8 +251,13 @@ bool Relay::check_new_connection(Peer& p) throw () {
                 cout << "Attempt to connect from another server blocked.\n";
                 return true;
             }
-            read.U32(); // ignore total packet length
+            if (relayProtocolExtensionLevel != RELAY_PROTOCOL_EXTENSIONS_VERSION) { // this can be relaxed in the future if code to control replay data compatibility is added
+                cout << "Attempt to connect from a server of unsupported version blocked.\n";
+                return true;
+            }
+            read.U32dyn8(); // ignore total packet length
             ExpandingBinaryBuffer data;
+            data.U8(RELAY_PROTOCOL_EXTENSIONS_VERSION); // limit to U8 because the current client code can't handle receiving this data in two separate reads
             data.block(read.constLengthStr(REPLAY_IDENTIFICATION.length()));
             data.U32(read.U32()); // version
             data.U32(read.U32()); // replay length

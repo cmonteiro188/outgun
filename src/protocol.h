@@ -35,6 +35,8 @@ static const int PROTOCOL_EXTENSIONS_VERSION = 0;
 
 extern const std::string REPLAY_IDENTIFICATION;
 static const unsigned REPLAY_VERSION = 0; // increase when the replay structure changes
+static const unsigned RELAY_PROTOCOL = 0;
+static const unsigned RELAY_PROTOCOL_EXTENSIONS_VERSION = 0;
 
 enum Network_data_code {
     data_name_update,

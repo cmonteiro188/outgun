@@ -2853,8 +2853,10 @@ void ServerNetworking::RelayThread::startNewGame(const Network::Address& relayAd
 
     ExpandingBinaryBuffer msg;
     msg.str(GAME_STRING);
+    msg.U32dyn8(RELAY_PROTOCOL);
+    msg.U32dyn8(RELAY_PROTOCOL_EXTENSIONS_VERSION);
     msg.str("SERVER");
-    msg.U32(initData.size());
+    msg.U32dyn8(initData.size());
     msg.block(initData);
 
     pushData_locked(msg);

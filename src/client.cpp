@@ -4462,10 +4462,13 @@ void Client::start_spectating(const Network::Address& address) throw () {
 
         BinaryBuffer<512> request;
         request.str(GAME_STRING);
+        request.U32dyn8(RELAY_PROTOCOL);
+        request.U32dyn8(RELAY_PROTOCOL_EXTENSIONS_VERSION);
         request.str("SPECTATOR");
-        request.U32(REPLAY_VERSION);
+        request.U32dyn8(REPLAY_VERSION);
         request.str(string()); // username
         request.str(string()); // password
+        request.U32dyn8(0); // no extension data
 
         spectate_socket.persistentWrite(request, 500, 5);
         log("Init data sent to the relay (%u bytes).", request.size());
@@ -4511,7 +4514,7 @@ void Client::continue_spectating() throw () {
     if (!spectate_data_received) {
         log("First data from relay, %d bytes: %s", result, buffer);
         spectate_data_received = true;
-        spectate_buffer.write(buffer, result);
+        spectate_buffer.write(buffer + 1, result - 1); // the first byte is the relay's protocol extensions level, about which we don't have to care so far
         if (!start_replay(spectate_buffer)) {
             log.error(_("Could not start spectating."));
             stop_replay();
