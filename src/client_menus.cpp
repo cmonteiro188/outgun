@@ -115,13 +115,11 @@ public:
 };
 
 Menu_addServer::Menu_addServer() throw () :
-    address     ("", true, false),
-    save        (""),
+    address     (_("IP address"), true, false),
+    save        (_("Add to favorite list")),
 
-    menu        ("", false)
-{
-    initTexts();
-}
+    menu        (_("Add server"), false)
+{ }
 
 void Menu_addServer::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -130,41 +128,22 @@ void Menu_addServer::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setti
     add(&save);
 }
 
-void Menu_addServer::initTexts() throw () {
-    address     .setCaption(_("IP address"));
-    save        .setCaption(_("Add to favorite list"));
-    menu        .setCaption(_("Add server"));
-}
-
 Menu_serverList::Menu_serverList() throw () :
-    update          (""),
-    refresh         (""),
-    refreshStatus   (""),
+    update          (_("Update server list")),
+    refresh         (_("Refresh servers")),
+    refreshStatus   (_("Refresh status")),
 
-    favorites       (""),
+    favorites       (_("Show favorite servers")),
     addServer       (),
-    manualEntry     ("", true, false),
+    manualEntry     (_("Manually enter IP"), true, false),
 
-    keyHelp         (""),
+    keyHelp         (_("Insert = add to favorites    Delete = remove server")),
 
-    caption         (""),
+    caption         (_("IP address            Ping D Players Vers. Host name")),
 
-    menu            ("", true)
+    menu            (_("Server list"), true)
 {
     reset();
-    initTexts();
-}
-
-void Menu_serverList::initTexts() throw () {
-    update          .setCaption(_("Update server list"));
-    refresh         .setCaption(_("Refresh servers"));
-    refreshStatus   .setCaption(_("Refresh status"));
-    favorites       .setCaption(_("Show favorite servers"));
-    addServer       .initTexts();
-    manualEntry     .setCaption(_("Manually enter IP"));
-    keyHelp         .setCaption(_("Insert = add to favorites    Delete = remove server"));
-    caption         .setCaption(_("IP address            Ping D Players Vers. Host name"));
-    menu            .setCaption(_("Server list"));
 }
 
 void Menu_serverList::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -217,36 +196,19 @@ Network::Address Menu_serverList::getAddress(const Textarea& target) throw () {
 }
 
 Menu_player::Menu_player() throw () :
-    name            ("", "", 15),
-    randomName      (""),
+    name            (_("Name"), "", 15),
+    randomName      (_("Get random name")),
 
-    favoriteColors  (""),
+    favoriteColors  (_("Favorite colors")),
 
-    password        ("", "", 15, '*'),
-    namestatus      (""),
-    tournament      ("", true),
+    password        (_("Tournament password"), "", 15, '*'),
+    namestatus      (_("Registration status")),
+    tournament      (_("Take part in the tournament"), true),
 
-    removePasswords (""),
+    removePasswords (_("Remove server-specific player passwords")),
 
-    menu            ("", true)
-{
-    initTexts();
-}
-
-void Menu_player::initTexts() throw () {
-    name            .setCaption(_("Name"));
-    randomName      .setCaption(_("Get random name"));
-
-    favoriteColors  .setCaption(_("Favorite colors"));
-
-    password        .setCaption(_("Tournament password"));
-    namestatus      .setCaption(_("Registration status"));
-    tournament      .setCaption(_("Take part in the tournament"));
-
-    removePasswords .setCaption(_("Remove server-specific player passwords"));
-
-    menu            .setCaption(_("Player options"));
-}
+    menu            (_("Player options"), true)
+{ }
 
 void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -266,61 +228,31 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
 }
 
 Menu_game::Menu_game() throw () :
-    lagPrediction       ("", false),
-    lagPredictionAmount ("", true, 0, 10, 10),
-    minimapBandwidth    ("", false, 0, 640, 80, 20, true),
+    lagPrediction       (_("Lag prediction"), false),
+    lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
+    minimapBandwidth    (_("Bandwidth for out-of-room players (cps)"), false, 0, 640, 80, 20, true),
 
-    messageLogging      (""),
-    showFlagMessages    ("", true),
-    showKillMessages    ("", true),
+    messageLogging      (_("Save game messages")),
+    showFlagMessages    (_("Show flag messages"), true),
+    showKillMessages    (_("Show killing messages"), true),
 
-    saveStats           ("", false),
-    showStats           (""),
-    showServerInfo      ("", false),
-    stayDead            ("", true),
-    underlineMasterAuth ("", true),
-    underlineServerAuth ("", false),
+    saveStats           (_("Save game statistics"), false),
+    showStats           (_("Show stats after the round")),
+    showServerInfo      (_("Show server info when connected"), false),
+    stayDead            (_("Stay dead when in a menu at round start"), true),
+    underlineMasterAuth (_("Underline master-authenticated players"), true),
+    underlineServerAuth (_("Underline server-authenticated players"), false),
 
-    autoGetServerList   ("", true),
+    autoGetServerList   (_("Get server list at startup"), true),
 
-    menu                ("", true)
+    menu                (_("Game options"), true)
 {
-    initTexts();
-}
-
-void Menu_game::initTexts() throw () {
-    lagPrediction       .setCaption(_("Lag prediction"));
-    lagPredictionAmount .setCaption(_("Lag prediction amount"));
-    minimapBandwidth    .setCaption(_("Bandwidth for out-of-room players (cps)"));
-
-    messageLogging      .setCaption(_("Save game messages"));
-    showFlagMessages    .setCaption(_("Show flag messages"));
-    showKillMessages    .setCaption(_("Show killing messages"));
-
-    saveStats           .setCaption(_("Save game statistics"));
-    showStats           .setCaption(_("Show stats after the round"));
-    showServerInfo      .setCaption(_("Show server info when connected"));
-    stayDead            .setCaption(_("Stay dead when in a menu at round start"));
-    underlineMasterAuth .setCaption(_("Underline master-authenticated players"));
-    underlineServerAuth .setCaption(_("Underline server-authenticated players"));
-
-    autoGetServerList   .setCaption(_("Get server list at startup"));
-
-    menu                .setCaption(_("Game options"));
-
-    MessageLoggingMode selected_logging_mode = messageLogging.size() ? messageLogging() : ML_none;
-    messageLogging.clearOptions();
     messageLogging.addOption(_("off"), ML_none);
     messageLogging.addOption(_("chat only"), ML_chat);
     messageLogging.addOption(_("all messages"), ML_full);
-    messageLogging.set(selected_logging_mode);
-
-    ShowStatsMode selected_show_stats = showStats.size() ? showStats() : SS_none;
-    showStats.clearOptions();
     showStats.addOption(_("off"), SS_none);
     showStats.addOption(_("teams"), SS_teams);
     showStats.addOption(_("players"), SS_players);
-    showStats.set(selected_show_stats);
 }
 
 void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -345,82 +277,40 @@ void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
 }
 
 Menu_controls::Menu_controls() throw () :
-    keyboardLayout      (""),
-    keypadMoving        ("", true),
-    arrowKeysInStats    (""),
-    arrowKeysInTextInput("", false),
+    keyboardLayout      (_("Keyboard layout")),
+    keypadMoving        (_("Use keypad for moving"), true),
+    arrowKeysInStats    (_("Arrow keys in statistics")),
+    arrowKeysInTextInput(_("Use arrow keys to edit message input"), false),
 
-    aimMode             (""),
-    moveRelativity      (""),
-    turningSpeed        ("", true, 0, 100, 50, 5),
+    aimMode             (_("Preferrably aim with")),
+    moveRelativity      (_("With mouse aim move relative to")),
+    turningSpeed        (_("Keyboard turning speed"), true, 0, 100, 50, 5),
 
-    joystick            ("", false),
-    joyMove             ("", false, 0, 5, 1),
-    joyText             (""),
-    joyShoot            ("", false, 0, 16, 1),
-    joyRun              ("", false, 0, 16, 2),
-    joyStrafe           ("", false, 0, 16, 3),
+    joystick            (_("Enable joystick control"), false),
+    joyMove             (_("Moving stick"), false, 0, 5, 1),
+    joyText             (_("Joystick buttons (0 = disabled)")),
+    joyShoot            (_("Shoot "), false, 0, 16, 1),
+    joyRun              (_("Run   "), false, 0, 16, 2),
+    joyStrafe           (_("Strafe"), false, 0, 16, 3),
 
-    mouseText           (""),
-    mouseSensitivity    ("", true, 1, 101, 50, 0),
-    mouseShoot          ("", false, 0, 16, 1),
-    mouseRun            ("", false, 0, 16, 2),
+    mouseText           (_("Mouse control (buttons: 0 = disabled)")),
+    mouseSensitivity    (_("Sensitivity"), true, 1, 101, 50, 0),
+    mouseShoot          (_("Shoot "), false, 0, 16, 1),
+    mouseRun            (_("Run   "), false, 0, 16, 2),
 
-    activeControls      (""),
-    activeJoystick      (""),
-    activeMouse         (""),
+    activeControls      (_("Active controls")),
+    activeJoystick      (_("Active joystick buttons")),
+    activeMouse         (_("Active mouse buttons")),
 
-    menu                ("", true)
+    menu                (_("Controls"), true)
 {
-    initTexts();
-}
-
-void Menu_controls::initTexts() throw () {
-    keyboardLayout      .setCaption(_("Keyboard layout"));
-    keypadMoving        .setCaption(_("Use keypad for moving"));
-    arrowKeysInStats    .setCaption(_("Arrow keys in statistics"));
-    arrowKeysInTextInput.setCaption(_("Use arrow keys to edit message input"));
-
-    aimMode             .setCaption(_("Preferrably aim with"));
-    moveRelativity      .setCaption(_("With mouse aim move relative to"));
-    turningSpeed        .setCaption(_("Keyboard turning speed"));
-
-    joystick            .setCaption(_("Enable joystick control"));
-    joyMove             .setCaption(_("Moving stick"));
-    joyText             .setCaption(_("Joystick buttons (0 = disabled)"));
-    joyShoot            .setCaption(_("Shoot "));
-    joyRun              .setCaption(_("Run   "));
-    joyStrafe           .setCaption(_("Strafe"));
-
-    mouseText           .setCaption(_("Mouse control (buttons: 0 = disabled)"));
-    mouseSensitivity    .setCaption(_("Sensitivity"));
-    mouseShoot          .setCaption(_("Shoot "));
-    mouseRun            .setCaption(_("Run   "));
-
-    activeControls      .setCaption(_("Active controls"));
-    activeJoystick      .setCaption(_("Active joystick buttons"));
-    activeMouse         .setCaption(_("Active mouse buttons"));
-
-    menu                .setCaption(_("Controls"));
-
-    ArrowKeysInStatsMode selected_arrow_keys_mode = arrowKeysInStats.size() ? arrowKeysInStats() : AS_useMenu;
-    arrowKeysInStats.clearOptions();
     arrowKeysInStats.addOption(_("change stats view"), AS_useMenu);
     arrowKeysInStats.addOption(_("move player"), AS_movePlayer);
-    arrowKeysInStats.set(selected_arrow_keys_mode);
-
-    AimMode selected_aim_mode = aimMode.size() ? aimMode() : AM_8way;
-    aimMode.clearOptions();
     aimMode.addOption(_("keyboard (8-directional)"), AM_8way);
     aimMode.addOption(_("keyboard (smooth turning)"), AM_Turn);
     aimMode.addOption(_("mouse"), AM_Mouse);
-    aimMode.set(selected_aim_mode);
-
-    AccelerationMode selected_acceleration_mode = moveRelativity.size() ? moveRelativity() : AM_World;
-    moveRelativity.clearOptions();
     moveRelativity.addOption(_("room (up = up)"), AM_World);
     moveRelativity.addOption(_("aim (up = forward)"), AM_Gun);
-    moveRelativity.set(selected_acceleration_mode);
 
     // add keyboard layouts in alphabetical order (depends on translation)
     vector< pair<string, string> > layouts;
@@ -446,11 +336,9 @@ void Menu_controls::initTexts() throw () {
     layouts.push_back(pair<string, string>(_("United Kingdom"),   "uk"));
     layouts.push_back(pair<string, string>(_("United States"),    "us"));
     std::sort(layouts.begin(), layouts.end());
-    const string selected_layout = keyboardLayout.size() ? keyboardLayout() : "us";
-    keyboardLayout.clearOptions();
     for (vector< pair<string, string> >::const_iterator li = layouts.begin(); li != layouts.end(); ++li)
         keyboardLayout.addOption(li->first, li->second);
-    keyboardLayout.set(selected_layout);
+    keyboardLayout.set("us");
 }
 
 void Menu_controls::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -493,33 +381,17 @@ void Menu_screenMode::reloadChoices(const Graphics& gfx) throw () {
 Menu_screenMode::Menu_screenMode() throw () :
     oldMode(-1, -1),    // guarantees anything to be newMode()
 
-    colorDepth  (""),
-    desktopDepth(""),
-    resolution  (""),
-    windowed    ("", true),
-    flipping    ("", false),
-    alternativeFlipping("", false),
-    refreshRate (""),
-    apply       (""),
+    colorDepth  (_("Color depth")),
+    desktopDepth(_(" desktop"), _("$1-bit", itoa(desktop_color_depth()))),
+    resolution  (_("Screen size")),
+    windowed    (_("Windowed mode"), true),
+    flipping    (_("Use page flipping"), false),
+    alternativeFlipping(_("Alternative page flipping method"), false),
+    refreshRate (_("Current refresh rate")),
+    apply       (_("Apply changes")),
 
-    menu        ("", true)
-{
-    initTexts();
-}
-
-void Menu_screenMode::initTexts() throw () {
-    colorDepth  .setCaption(_("Color depth"));
-    desktopDepth.setCaption(_(" desktop"));
-    desktopDepth.set(_("$1-bit", itoa(desktop_color_depth())));
-    resolution  .setCaption(_("Screen size"));
-    windowed    .setCaption(_("Windowed mode"));
-    flipping    .setCaption(_("Use page flipping"));
-    alternativeFlipping.setCaption(_("Alternative page flipping method"));
-    refreshRate .setCaption(_("Current refresh rate"));
-    apply       .setCaption(_("Apply changes"));
-
-    menu        .setCaption(_("Screen mode"));
-}
+    menu        (_("Screen mode"), true)
+{ }
 
 void Menu_screenMode::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -577,28 +449,15 @@ void Menu_theme::reloadChoices(const Graphics& gfx) throw () {
 }
 
 Menu_theme::Menu_theme() throw () :
-    theme                (""),
-    background           (""),
-    useThemeBackground   ("", true),
-    colours              (""),
-    useThemeColours      ("", true),
-    font                 (""),
+    theme                (_("Theme")),
+    background           (_("Background theme")),
+    useThemeBackground   (_("Prefer main theme background"), true),
+    colours              (_("Colour theme")),
+    useThemeColours      (_("Prefer main theme colours"), true),
+    font                 (_("Font")),
 
-    menu                 ("", true)
-{
-    initTexts();
-}
-
-void Menu_theme::initTexts() throw () {
-    theme                .setCaption(_("Theme"));
-    background           .setCaption(_("Background theme"));
-    useThemeBackground   .setCaption(_("Prefer main theme background"));
-    colours              .setCaption(_("Colour theme"));
-    useThemeColours      .setCaption(_("Prefer main theme colours"));
-    font                 .setCaption(_("Font"));
-
-    menu                 .setCaption(_("Theme and font"));
-}
+    menu                 (_("Theme and font"), true)
+{ }
 
 void Menu_theme::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -631,103 +490,51 @@ void Menu_theme::update(const Graphics& gfx) throw () { // tries to keep the sel
 }
 
 Menu_graphics::Menu_graphics() throw () :
-    showNames            (""),
-    visibleRoomsPlay     ("", false, 1, 20, 1),
-    visibleRoomsReplay   ("", false, 1, 20, 20),
-    scroll               (""),
+    showNames            (_("Show player names")),
+    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 1),
+    visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
+    scroll               (_("Scrolling")),
 
-    antialiasing         ("", true),
-    minTransp            ("", false),
-    contTextures         ("", false),
-    minimapPlayers       (""),
-    highlightReturnedFlag("", false),
-    emphasizeFlags       (""),
-    oldFlagPositions     ("", false),
-    spawnHighlight       ("", true),
-    neighborMarkersPlay  (""),
-    neighborMarkersReplay(""),
-    boxRoomsWhenPlaying  ("", false),
-    viewOverMapBorder    (""),
-    repeatMap            ("", false),
-    statsBgAlpha         ("", true, 0, 255, 255, 15),
+    antialiasing         (_("Antialiasing"), true),
+    minTransp            (_("Less transparency effects"), false),
+    contTextures         (_("Continuous textures between rooms"), false),
+    minimapPlayers       (_("Disappeared players on minimap")),
+    highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
+    emphasizeFlags       (_("Make flags extra-visible")),
+    oldFlagPositions     (_("Show flag disappearance positions"), false),
+    spawnHighlight       (_("Highlight self after spawn"), true),
+    neighborMarkersPlay  (_("Markers for nearby players and flags in game")),
+    neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
+    boxRoomsWhenPlaying  (_("Box visible area on map in game"), false),
+    viewOverMapBorder    (_("Let view follow over map border")),
+    repeatMap            (_("Allow parts of map to repeat on screen"), false),
+    statsBgAlpha         (_("Stats screen alpha"), true, 0, 255, 255, 15),
 
-    fpsLimit             ("", false, 1, 10000, 60, 0),
-    mapInfoMode          ("", false),
+    fpsLimit             (_("FPS limit"), false, 1, 10000, 60, 0),
+    mapInfoMode          (_("Map info mode"), false),
 
-    menu                 ("", true)
+    menu                 (_("Graphic options"), true)
 {
-    initTexts();
-}
-
-void Menu_graphics::initTexts() throw () {
-    showNames            .setCaption(_("Show player names"));
-    visibleRoomsPlay     .setCaption(_("Rooms on screen in each direction in game"));
-    visibleRoomsReplay   .setCaption(_("Rooms on screen in each direction in replay"));
-    scroll               .setCaption(_("Scrolling"));
-
-    antialiasing         .setCaption(_("Antialiasing"));
-    minTransp            .setCaption(_("Less transparency effects"));
-    contTextures         .setCaption(_("Continuous textures between rooms"));
-    minimapPlayers       .setCaption(_("Disappeared players on minimap"));
-    highlightReturnedFlag.setCaption(_("Highlight returned and dropped flags"));
-    emphasizeFlags       .setCaption(_("Make flags extra-visible"));
-    oldFlagPositions     .setCaption(_("Show flag disappearance positions"));
-    spawnHighlight       .setCaption(_("Highlight self after spawn"));
-    neighborMarkersPlay  .setCaption(_("Markers for nearby players and flags in game"));
-    neighborMarkersReplay.setCaption(_("Markers for nearby players and flags in replay"));
-    boxRoomsWhenPlaying  .setCaption(_("Box visible area on map in game"));
-    viewOverMapBorder    .setCaption(_("Let view follow over map border"));
-    repeatMap            .setCaption(_("Allow parts of map to repeat on screen"));
-    statsBgAlpha         .setCaption(_("Stats screen alpha"));
-
-    fpsLimit             .setCaption(_("FPS limit"));
-    mapInfoMode          .setCaption(_("Map info mode"));
-
-    menu                 .setCaption(_("Graphic options"));
-
-    NameMode selected_name_mode = showNames.size() ? showNames() : N_Never;
-    showNames.clearOptions();
     showNames.addOption(_("never"), N_Never);
     showNames.addOption(_("in same room"), N_SameRoom);
     showNames.addOption(_("always"), N_Always);
-    showNames.set(selected_name_mode);
-
-    MinimapPlayerMode selected_minimap_player_mode = minimapPlayers.size() ? minimapPlayers() : MP_Fade;
-    minimapPlayers.clearOptions();
     minimapPlayers.addOption(_("fade out"  ), MP_Fade);
     minimapPlayers.addOption(_("hide early"), MP_EarlyCut);
     minimapPlayers.addOption(_("hide late" ), MP_LateCut);
-    minimapPlayers.set(selected_minimap_player_mode);
-
-    FlagEmphasizeMode selected_flag_mode = emphasizeFlags.size() ? emphasizeFlags() : FE_Never;
-    emphasizeFlags.clearOptions();
     emphasizeFlags.addOption(_("never"       ), FE_Never);
     emphasizeFlags.addOption(_("multi-roomed"), FE_MultiRoom);
     emphasizeFlags.addOption(_("always"      ), FE_Always);
-    emphasizeFlags.set(selected_flag_mode);
-
-    NeighborMarkerMode selected_marker_mode = neighborMarkersPlay.size() ? neighborMarkersPlay() : NM_Never;
-    neighborMarkersPlay.clearOptions();
     neighborMarkersPlay.addOption(_("never"        ), NM_Never);
     neighborMarkersPlay.addOption(_("single-roomed"), NM_OneRoom);
     neighborMarkersPlay.addOption(_("always"       ), NM_Always);
-    neighborMarkersPlay.set(selected_marker_mode);
-
-    selected_marker_mode = neighborMarkersReplay.size() ? neighborMarkersReplay() : NM_Never;
-    neighborMarkersReplay.clearOptions();
     neighborMarkersReplay.addOption(_("never"        ), NM_Never);
     neighborMarkersReplay.addOption(_("single-roomed"), NM_OneRoom);
     neighborMarkersReplay.addOption(_("always"       ), NM_Always);
-    neighborMarkersReplay.set(selected_marker_mode);
-
-    ViewOverBorderMode selected_view_mode = viewOverMapBorder.size() ? viewOverMapBorder() : VOB_Never;
-    viewOverMapBorder.clearOptions();
     viewOverMapBorder.addOption(_("never"                      ), VOB_Never);
     viewOverMapBorder.addOption(_("when all rooms aren't shown"), VOB_MapDoesntFit);
     viewOverMapBorder.addOption(_("if the border has doorways" ), VOB_MapWraps);
     viewOverMapBorder.addOption(_("always"                     ), VOB_Always);
     viewOverMapBorder.set(VOB_MapDoesntFit);
-    viewOverMapBorder.set(selected_view_mode);
 }
 
 void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -767,22 +574,12 @@ bool Menu_graphics::showNeighborMarkers(bool replaying, double visible_rooms) co
 }
 
 Menu_sounds::Menu_sounds() throw () :
-    enabled ("", true),
-    volume  ("", true, 0, 255, 128, 15),
-    theme   (""),
+    enabled (_("Sounds enabled"), true),
+    volume  (_("Volume"), true, 0, 255, 128, 15),
+    theme   (_("Theme")),
 
-    menu    ("", true)
-{
-    initTexts();
-}
-
-void Menu_sounds::initTexts() throw () {
-    enabled .setCaption(_("Sounds enabled"));
-    volume  .setCaption(_("Volume"));
-    theme   .setCaption(_("Theme"));
-
-    menu    .setCaption(_("Sound options"));
-}
+    menu    (_("Sound options"), true)
+{ }
 
 void Menu_sounds::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -805,18 +602,11 @@ void Menu_sounds::update(const Sounds& snd) throw () {   // tries to keep the se
 }
 
 Menu_language::Menu_language() throw () :
-    language(""),
+    language(_("Language")),
 
-    menu("", false)
+    menu(_("Change language"), false)
 {
-    initTexts();
     // it's callers responsibility to set up the choices for language
-}
-
-void Menu_language::initTexts() throw () {
-    language.setCaption(_("Language"));
-
-    menu.setCaption(_("Change language"));
 }
 
 void Menu_language::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -827,25 +617,15 @@ void Menu_language::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
 
 Menu_bugReportPolicy::Menu_bugReportPolicy() throw () :
     text    (),
-    policy  (""),
+    policy  (_("Automatic bug reporting")),
 
-    menu    ("", false)
+    menu    (_("Bug report policy"), false)
 {
     init();
-    initTexts();
-}
-
-void Menu_bugReportPolicy::initTexts() throw () {
-    policy  .setCaption(_("Automatic bug reporting"));
-
-    menu    .setCaption(_("Bug report policy"));
-
-    AutoBugReporting selected_policy = policy.size() ? policy() : g_autoBugReporting;
-    policy.clearOptions();
     policy.addOption(_("disabled"), ABR_disabled);
     policy.addOption(_("minimal" ), ABR_minimal);
     policy.addOption(_("complete"), ABR_withDump);
-    policy.set(selected_policy);
+    policy.set(g_autoBugReporting);
 }
 
 void Menu_bugReportPolicy::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -885,10 +665,8 @@ Menu_options::Menu_options() throw () :
     language  (),
     bugReports(),
 
-    menu      ("", true)
-{
-    initTexts();
-}
+    menu      (_("Options"), true)
+{ }
 
 void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -916,46 +694,18 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     add(&bugReports.menu);
 }
 
-void Menu_options::initTexts() throw () {
-    menu.setCaption(_("Options"));
-    player.initTexts();
-    game.initTexts();
-    controls.initTexts();
-    screenMode.initTexts();
-    theme.initTexts();
-    graphics.initTexts();
-    sounds.initTexts();
-    language.initTexts();
-    bugReports.initTexts();
-}
-
 Menu_ownServer::Menu_ownServer() throw () :
-    pub     ("", false),
-    port    ("", 1, 65535, DEFAULT_UDP_PORT),
-    address ("", false, true),
-    autoIP  ("", true),
+    pub     (_("Add to public serverlist"), false),
+    port    (_("Server port"), 1, 65535, DEFAULT_UDP_PORT),
+    address (_("IP address"), false, true),
+    autoIP  (_("Autodetect IP"), true),
 
-    start   (""),
-    play    (""),
-    stop    (""),
+    start   (_("Start server")),
+    play    (_("Play on the server")),
+    stop    (_("Stop server")),
 
-    menu    ("", true)
-{
-    initTexts();
-}
-
-void Menu_ownServer::initTexts() throw () {
-    pub     .setCaption(_("Add to public serverlist"));
-    port    .setCaption(_("Server port"));
-    address .setCaption(_("IP address"));
-    autoIP  .setCaption(_("Autodetect IP"));
-
-    start   .setCaption(_("Start server"));
-    play    .setCaption(_("Play on the server"));
-    stop    .setCaption(_("Stop server"));
-
-    menu    .setCaption(_("Local server"));
-}
+    menu    (_("Local server"), true)
+{ }
 
 void Menu_ownServer::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -1010,18 +760,11 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) throw ()
 }
 
 Menu_replays::Menu_replays() throw () :
-    caption (""),
+    caption (_("Date - Server - Map")),
 
-    menu    ("", false)
+    menu    (_("Replays"), false)
 {
     reset();
-    initTexts();
-}
-
-void Menu_replays::initTexts() throw () {
-    caption .setCaption(_("Date - Server - Map"));
-
-    menu    .setCaption(_("Replays"));
 }
 
 void Menu_replays::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -1062,7 +805,7 @@ Menu_main::Menu_main() throw () :
     newVersion  (""),
 
     connect     (),
-    disconnect  (""),
+    disconnect  (_("Disconnect")),
 
     options     (),
 
@@ -1071,12 +814,10 @@ Menu_main::Menu_main() throw () :
     replays     (),
 
     help        (),
-    exitOutgun  (""),
+    exitOutgun  (_("Exit Outgun")),
 
     menu        ("Outgun " + getVersionString(), true)
-{
-    initTexts();
-}
+{ }
 
 void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
@@ -1100,33 +841,16 @@ void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     add(&exitOutgun);
 }
 
-void Menu_main::initTexts() throw () {
-    connect     .initTexts();
-    disconnect  .setCaption(_("Disconnect"));
-    options     .initTexts();
-    ownServer   .initTexts();
-    replays     .initTexts();
-    help        .initTexts();
-    exitOutgun  .setCaption(_("Exit Outgun"));
-}
-
 Menu_text::Menu_text() throw () :
-    accept  (""),
-    cancel  (""),
+    accept  (_("OK")),
+    cancel  (_("Cancel")),
 
     menu    ("Outgun " + getVersionString(), false)
-{
-    initTexts();
-}
+{ }
 
 void Menu_text::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
     (void)collector;
-}
-
-void Menu_text::initTexts() throw () {
-    accept.setCaption(_("OK"));
-    cancel.setCaption(_("Cancel"));
 }
 
 void Menu_text::addLine(const string& line, bool cancelable) throw () {
@@ -1158,15 +882,14 @@ void Menu_text::wrapLine(const string& line, bool cancelable, int wrapPos) throw
 }
 
 Menu_playerPassword::Menu_playerPassword() throw () :
-    password    ("", "", 15, '*'),
-    save        (""),
+    password    (_("Password"), "", 15, '*'),
+    save        (_("Save password")),
 
     menu        (string(), false)   // caption is set by setup()
 {
     BasicComponentAdder add(menu);
     add(&password);
     add(&save);
-    initTexts();
 }
 
 void Menu_playerPassword::setup(const string& plyName, bool saveChecked) throw () {
@@ -1175,41 +898,24 @@ void Menu_playerPassword::setup(const string& plyName, bool saveChecked) throw (
     save.set(saveChecked);
 }
 
-void Menu_playerPassword::initTexts() throw () {
-    password.setCaption(_("Password"));
-    save    .setCaption(_("Save password"));
-}
-
 Menu_serverPassword::Menu_serverPassword() throw () :
-    password    ("", "", 15, '*'),
+    password    (_("Password"), "", 15, '*'),
 
-    menu        ("", false)
+    menu        (_("Server password"), false)
 {
     BasicComponentAdder add(menu);
     add(&password);
-    initTexts();
-}
-
-void Menu_serverPassword::initTexts() throw () {
-    password.setCaption(_("Password"));
-    menu    .setCaption(_("Server password"));
 }
 
 Menu_help::Menu_help() throw () :
     text    (),
 
-    menu    ("", false)
-{
-    initTexts();
-}
+    menu    (_("Help"), false)
+{ }
 
 void Menu_help::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
     (void)collector;
-}
-
-void Menu_help::initTexts() throw () {
-    menu.setCaption(_("Help"));
 }
 
 void Menu_help::addLine(const string& line) throw () {

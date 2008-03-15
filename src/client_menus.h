@@ -125,7 +125,6 @@ public:
     Menu menu;
 
     Menu_addServer() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -145,7 +144,6 @@ public:
     Menu menu;
 
     Menu_serverList() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void add(const Network::Address& address, const std::string& serverInfo) throw ();
@@ -168,7 +166,6 @@ public:
 
     Menu_player() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
-    void initTexts() throw ();
 };
 
 class Menu_game {
@@ -201,7 +198,6 @@ public:
     Menu menu;
 
     Menu_game() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -238,7 +234,6 @@ public:
     Menu menu;
 
     Menu_controls() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -262,7 +257,6 @@ public:
     Menu menu;
 
     Menu_screenMode() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void init(const Graphics& gfx) throw ();   // call just once, before calling update
@@ -284,7 +278,6 @@ public:
     Menu menu;
 
     Menu_theme() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void init(const Graphics& gfx) throw (); // call just once, before calling update
@@ -323,7 +316,6 @@ public:
     Menu menu;
 
     Menu_graphics() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     bool showName(bool sameRoom) const throw () { return showNames() != N_Never && (sameRoom || showNames() == N_Always); }
@@ -340,7 +332,6 @@ public:
     Menu menu;
 
     Menu_sounds() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void init(const Sounds& snd) throw ();
@@ -354,7 +345,6 @@ public:
     Menu menu;
 
     Menu_language() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -371,7 +361,6 @@ public:
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     Menu_bugReportPolicy() throw ();
-    void initTexts() throw ();
     void clear() throw () { lines.clear(); }
     void addLine(const std::string& line) throw ();
 };
@@ -391,7 +380,6 @@ public:
     Menu menu;
 
     Menu_options() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -405,7 +393,6 @@ public:
 
     Menu_help() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
-    void initTexts() throw ();
 
     void clear() throw () { lines.clear(); }
     void addLine(const std::string& line) throw ();
@@ -424,7 +411,6 @@ public:
     Menu menu;
 
     Menu_ownServer() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void init(const std::string& detectedAddress) throw ();
@@ -443,7 +429,6 @@ public:
     Menu menu;
 
     Menu_replays() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void add(const std::string& replay, const std::string& text) throw ();
@@ -466,7 +451,6 @@ public:
     Menu menu;
 
     Menu_main() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 };
 
@@ -481,7 +465,6 @@ public:
     Menu menu;
 
     Menu_text() throw ();
-    void initTexts() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void clear() throw () { lines.clear(); }
@@ -498,7 +481,6 @@ public:
     Menu menu;
 
     Menu_playerPassword() throw ();
-    void initTexts() throw ();
     void setup(const std::string& plyName, bool saveChecked) throw ();
 };
 
@@ -509,7 +491,6 @@ public:
     Menu menu;
 
     Menu_serverPassword() throw ();
-    void initTexts() throw ();
 };
 
 #endif  // CLIENT_MENUS_H_INC

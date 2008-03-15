@@ -5727,11 +5727,6 @@ void Client::MCF_acceptLanguage() throw () {
             m_dialog.clear();
             m_dialog.wrapLine(newLang.get_text("Please close and restart Outgun to complete the change of language."));
             showMenu(m_dialog);
-            menu.options.language.language.set(lang);
-            language.load(lang, log);
-            loadHelp();
-            loadSplashScreen();
-            menu.initTexts();
         }
     }
     else
