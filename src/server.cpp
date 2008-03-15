@@ -162,6 +162,16 @@ void Server::logAdminAction(int admin, const string& action, int target) throw (
     network.sendTextToAdminShell(message);
 }
 
+void Server::logChat(int pid, const string& message) throw () {
+    if (!settings.get_log_player_chat())
+        return;
+    adminActionLog.put("(chat) " +
+                       (pid == shell_pid ?
+                        "Admin shell user" :
+                        world.player[pid].name + " [" + network.get_client_address(world.player[pid].cid).toString() + "]")
+                       + ": " + message);
+}
+
 bool Server::check_name_password(const string& name, const string& password) const throw () {
     return authorizations.checkNamePassword(name, password);
 }
@@ -1394,15 +1404,19 @@ void Server::chat(int pid, const string& message) throw () {
                 msg << trim(message.substr(1));
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_team, msg.str());
-                else
+                else {
                     network.broadcast_team_message(pid / TSIZE, msg.str());
+                    logChat(pid, message);
+                }
             }
             else {                  // regular message
                 msg << trim(message);
                 if (world.player[pid].muted == 2)
                     network.player_message(pid, msg_normal, msg.str());
-                else
+                else {
                     network.broadcast_text(msg_normal, msg.str());
+                    logChat(pid, message);
+                }
             }
         }
     }

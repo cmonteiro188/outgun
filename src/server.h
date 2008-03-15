@@ -177,6 +177,8 @@ class Server : private NoCopying {
         std::string     server_password;
         std::string     hostname;
 
+        bool            log_player_chat;
+
         class DisposerBase {
         public:
             virtual ~DisposerBase() throw () { }
@@ -286,6 +288,8 @@ class Server : private NoCopying {
         int  get_recording() const throw () { return recording; }
         unsigned get_spectating_delay() const throw () { return spectating_delay; }
 
+        bool get_log_player_chat() const throw () { return log_player_chat; }
+
         int get_join_start() const throw () { return join_start; }
         int get_join_end() const throw () { return join_end; }
         const std::string& get_join_limit_message() const throw () { return join_limit_message; }
@@ -355,6 +359,7 @@ public:
     void set_check_bots() throw () { check_bots = true; }
 
     void logAdminAction(int admin, const std::string& action, int target = pid_none) throw ();
+    void logChat(int pid, const std::string& message) throw ();
 
     void balance_teams() throw ();
     void shuffle_teams() throw ();

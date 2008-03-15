@@ -2674,8 +2674,10 @@ void ServerNetworking::executeAdminCommand(uint32_t code, uint32_t cid, int pid,
                 log.error(_("Admin shell: unprintable characters, message ignored."));
             else if (str[0] == '/')
                 host->chat(shell_pid, str);
-            else
+            else {
                 bprintf(msg_normal, "ADMIN: %s", str.c_str());
+                host->logChat(shell_pid, str);
+            }
         }
         break; case ATS_GET_PINGS:
             for (int p = 0; p < maxplayers; ++p)
