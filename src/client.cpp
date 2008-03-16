@@ -867,6 +867,58 @@ bool Client::start() throw () {
     return true;
 }
 
+#ifndef DEDICATED_SERVER_ONLY
+void Client::language_selection_start() throw () {
+    log("language_selection_start()");
+    extConfig.statusOutput(_("Outgun client"));
+
+    if (!graphics.init(640, 480, desktop_color_depth(), true, false))
+        return;
+
+    typedef MenuCallback<Client> MCB;
+    Menu_language lang_menu;
+    lang_menu.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
+    lang_menu.menu.setOkHook(new MCB::N<Menu, &Client::MCF_menuCloser>(this));
+    refreshLanguages(lang_menu);
+
+    showMenu(lang_menu);
+    openMenus.handleKeypress(KEY_SPACE, 0); // ugly trick to open the language list
+
+    while (!openMenus.empty()) {
+        if (keyboard_needs_poll())
+            poll_keyboard();    // ignore return value
+        // handle waiting keypresses
+        while (keypressed()) {
+            int ch = readkey();
+            const int sc = (ch >> 8);
+            ch &= 0xFF;
+            if (sc == KEY_F11)
+                screenshot = true;
+            else if (!openMenus.handleKeypress(sc, ch)) {
+                if (sc == KEY_ESC)
+                    MCF_menuCloser();
+            }
+        }
+
+        // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
+        sched_yield();
+
+        graphics.startDraw();
+        graphics.draw_background(false);
+        draw_game_menu();
+        graphics.endDraw();
+        graphics.draw_screen(false);
+        if (screenshot) {
+            save_screenshot();
+            screenshot = false;
+        }
+    }
+
+    acceptLanguage(lang_menu.language(), false);
+    openMenus.close(&lang_menu.menu);
+}
+#endif
+
 void Client::bot_start(const Network::Address& addr, int ping, const string& name_lang, int bot_id) throw () {
     Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
@@ -5675,14 +5727,18 @@ void Client::MCF_sndThemeChange() throw () {
     client_sounds.select_theme(menu.options.sounds.theme());
 }
 
-bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) throw () {  // helper to MCF_refreshLanguages
+void Client::MCF_refreshLanguages() throw () {
+    refreshLanguages(menu.options.language);
+}
+
+bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) throw () {  // helper to refreshLanguages
     // don't care about the language code (it isn't visible anyway), and use a case insensitive order
     return platStricmp(t1.first.c_str(), t2.first.c_str()) < 0;
 }
 
-void Client::MCF_refreshLanguages() throw () {
-    menu.options.language.language.clearOptions();
-    menu.options.language.language.addOption("English", "en");   // global default when there's nothing in language.txt
+void Client::refreshLanguages(Menu_language& lang_menu) throw () {
+    lang_menu.language.clearOptions();
+    lang_menu.language.addOption("English", "en");   // global default when there's nothing in language.txt
 
     // search the languages directory for translations to add
     vector< pair<string, string> > translations;
@@ -5705,25 +5761,28 @@ void Client::MCF_refreshLanguages() throw () {
     // add found languages to options
     sort(translations.begin(), translations.end(), translationSort);
     for (vector< pair<string, string> >::const_iterator ti = translations.begin(); ti != translations.end(); ++ti)
-        menu.options.language.language.addOption(ti->first, ti->second);
+        lang_menu.language.addOption(ti->first, ti->second);
 
     // fetch the currently chosen language from language.txt (because after changing it can be different from the loaded language)
     string lang;
     ifstream langConfig((wheregamedir + "config" + directory_separator + "language.txt").c_str());
     if (langConfig && getline_skip_comments(langConfig, lang))
-        menu.options.language.language.set(lang); // ignore possible failure
+        lang_menu.language.set(lang); // ignore possible failure
 }
 
 void Client::MCF_acceptLanguage() throw () {
+    acceptLanguage(menu.options.language.language(), true);
+}
+
+void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
     Language newLang;
-    const string lang = menu.options.language.language();
     if (!newLang.load(lang, log))
         return; // load already logs an error message
     ofstream langConfig((wheregamedir + "config" + directory_separator + "language.txt").c_str());
     if (langConfig) {
         langConfig << lang << '\n';
         langConfig.close();
-        if (lang != language.code()) {  // what is currently loaded; what was previously in language.txt has no significance
+        if (lang != language.code() && restart_message) {  // what is currently loaded; what was previously in language.txt has no significance
             m_dialog.clear();
             m_dialog.wrapLine(newLang.get_text("Please close and restart Outgun to complete the change of language."));
             showMenu(m_dialog);

@@ -563,6 +563,9 @@ class Client : public ClientInterface {
     void MCF_playServer() throw ();
     void MCF_stopServer() throw ();
 
+    void refreshLanguages(Menu_language& lang_menu) throw ();
+    void acceptLanguage(const std::string& lang, bool restart_message) throw ();
+
     void load_highlight_texts() throw ();
     void load_fav_maps() throw ();
     void apply_fav_maps() throw ();
@@ -719,6 +722,7 @@ public:
     bool start() throw ();
     #ifndef DEDICATED_SERVER_ONLY
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
+    void language_selection_start() throw ();
     #endif
     void stop() throw ();
 

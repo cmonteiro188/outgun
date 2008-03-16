@@ -163,6 +163,21 @@ static void outOfMemory() throw () {
     criticalError(_("Out of memory."));
 }
 
+bool load_language(LogSet& log) {
+    const string lang_file = wheregamedir + "config" + directory_separator + "language.txt";
+    ifstream in(lang_file.c_str());
+    string lang_str;
+    if (getline_skip_comments(in, lang_str)) {
+        if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos) {
+            language.load(lang_str, log);   // load() will log.error() if something goes wrong; we're not aborting if that happens, and usefully the client will pick up and show the error message
+            return true;
+        }
+        else
+            log.error("Invalid language '" + lang_str + "' in " + lang_file + '.');
+    }
+    return false;
+}
+
 int main(int argc, const char* argv[]) {
     uint32_t stackGuard = STACK_GUARD; stackGuardHackPtr = &stackGuard;
 
@@ -255,18 +270,8 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
 
     int acceptedErrorCount = memoryErrorLog.size(); // this is just a flag here; final value of acceptedErrorCount is set after loading the language
 
-    {
-        const string lang_file = wheregamedir + "config" + directory_separator + "language.txt";
-        ifstream in(lang_file.c_str());
-        string lang_str;
-        if (getline_skip_comments(in, lang_str)) {
-            if (!lang_str.empty() && lang_str.find_first_of(".:/\\") == string::npos)
-                language.load(lang_str, log);   // load() will log.error() if something goes wrong; we're not aborting if that happens, and usefully the client will pick up and show the error message
-            else
-                log.error("Invalid language '" + lang_str + "' in " + lang_file + '.');
-        }
-        in.close();
-    }
+    const bool language_loaded = load_language(log);
+    (void)language_loaded; // avoid compilation warning of unused variable for dedicated server
 
     if (acceptedErrorCount == 0)    // no errors before loading the language
         acceptedErrorCount = memoryErrorLog.size(); // accept errors in loading the language
@@ -638,6 +643,12 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
         log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
+        if (!language_loaded) {
+            ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);
+            gameclient->language_selection_start();
+            delete gameclient;
+            load_language(log);
+        }
         ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);
         if (gameclient->start()) {
             gameclient->loop(&g_exitFlag, showFirstTimeSplash);
