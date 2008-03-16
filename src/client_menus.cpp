@@ -234,7 +234,7 @@ Menu_game::Menu_game() throw () :
 
     messageLogging      (_("Save game messages")),
     showFlagMessages    (_("Show flag messages"), true),
-    showKillMessages    (_("Show killing messages"), true),
+    showKillMessages    (_("Show killing messages"), false),
 
     saveStats           (_("Save game statistics"), false),
     showStats           (_("Show stats after the round")),
@@ -493,19 +493,19 @@ Menu_graphics::Menu_graphics() throw () :
     showNames            (_("Show player names")),
     visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 1),
     visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
-    scroll               (_("Scrolling")),
+    scroll               (_("Scrolling"), true),
 
     antialiasing         (_("Antialiasing"), true),
     minTransp            (_("Less transparency effects"), false),
-    contTextures         (_("Continuous textures between rooms"), false),
+    contTextures         (_("Continuous textures between rooms"), true),
     minimapPlayers       (_("Disappeared players on minimap")),
-    highlightReturnedFlag(_("Highlight returned and dropped flags"), false),
+    highlightReturnedFlag(_("Highlight returned and dropped flags"), true),
     emphasizeFlags       (_("Make flags extra-visible")),
     oldFlagPositions     (_("Show flag disappearance positions"), false),
     spawnHighlight       (_("Highlight self after spawn"), true),
     neighborMarkersPlay  (_("Markers for nearby players and flags in game")),
     neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
-    boxRoomsWhenPlaying  (_("Box visible area on map in game"), false),
+    boxRoomsWhenPlaying  (_("Box visible area on map in game"), true),
     viewOverMapBorder    (_("Let view follow over map border")),
     repeatMap            (_("Allow parts of map to repeat on screen"), false),
     statsBgAlpha         (_("Stats screen alpha"), true, 0, 255, 255, 15),
@@ -534,7 +534,7 @@ Menu_graphics::Menu_graphics() throw () :
     viewOverMapBorder.addOption(_("when all rooms aren't shown"), VOB_MapDoesntFit);
     viewOverMapBorder.addOption(_("if the border has doorways" ), VOB_MapWraps);
     viewOverMapBorder.addOption(_("always"                     ), VOB_Always);
-    viewOverMapBorder.set(VOB_MapDoesntFit);
+    viewOverMapBorder.set(VOB_MapWraps);
 }
 
 void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
