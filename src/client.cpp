@@ -5751,6 +5751,8 @@ void Client::MCF_acceptBugReporting() throw () {
 }
 
 void Client::MCF_playerPasswordAccept() throw () {
+    if (m_playerPassword.password().empty()) // if no password is needed, we're never asked for one (even if we gave a wrong one)
+        return;
     openMenus.close(&m_playerPassword.menu);
     if (m_playerPassword.save())
         save_player_password(playername, serverIP.toString(), m_playerPassword.password());
