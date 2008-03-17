@@ -491,7 +491,7 @@ void Menu_theme::update(const Graphics& gfx) throw () { // tries to keep the sel
 
 Menu_graphics::Menu_graphics() throw () :
     showNames            (_("Show player names")),
-    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 1),
+    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 2),
     visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
     scroll               (_("Scrolling"), true),
 
