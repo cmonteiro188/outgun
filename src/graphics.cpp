@@ -434,11 +434,11 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     (void)pages;
     #endif
 
-    if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
+    if (set_gfx_mode_if_new(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
         log("Error: '%s'", allegro_error);
         if (depth == 16) {  // try equivalent 15-bit mode too
             set_color_depth(15);
-            if (set_gfx_mode(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
+            if (set_gfx_mode_if_new(windowed ? WINMODE : FULLMODE, width, height, virtual_w, virtual_h)) {
                 log("Error with equivalent 15-bit mode: '%s'", allegro_error);
                 return false;
             }
