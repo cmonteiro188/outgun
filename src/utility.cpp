@@ -547,14 +547,14 @@ int makecolBounded(int r, int g, int b) throw () {
     return makecol(bound(r, 0, 255), bound(g, 0, 255), bound(b, 0, 255));
 }
 
-int set_gfx_mode_if_new(int card, int w, int h, int v_w, int v_h) throw () {
+int set_gfx_mode_if_new(int depth, int card, int w, int h, int v_w, int v_h) throw () {
     static int oldDepth = -1, oldCard = -1, oldW = -1, oldH = -1, oldVw = -1, oldVh = -1;
-    const int newDepth = get_color_depth();
-    if (newDepth == oldDepth && card == oldCard && w == oldW && h == oldH && v_w == oldVw && v_h == oldVh)
+    if (depth == oldDepth && card == oldCard && w == oldW && h == oldH && v_w == oldVw && v_h == oldVh)
         return 0;
+    set_color_depth(depth);
     const int ret = set_gfx_mode(card, w, h, v_w, v_h);
     if (ret == 0) {
-        oldDepth = newDepth;
+        oldDepth = depth;
         oldCard = card;
         oldW = w; oldH = h;
         oldVw = v_w; oldVh = v_h;

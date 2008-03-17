@@ -66,9 +66,7 @@ static bool set_shitty_mode(LogSet log) throw () {
     if (DTC == 0)   // no windowing supported
         DTC = 8;    // try something anyway (with 0, set_color_depth chokes)
 
-    set_color_depth(DTC);
-
-    if (set_gfx_mode_if_new(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
+    if (set_gfx_mode_if_new(DTC, GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
         log("Could not set gfx mode 320×240 windowed. Try 1 with %i.", DTC);
     else
         return true;
@@ -79,9 +77,7 @@ static bool set_shitty_mode(LogSet log) throw () {
         else
             DTC = 15;
 
-        set_color_depth(DTC);
-
-        if (set_gfx_mode_if_new(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
+        if (set_gfx_mode_if_new(DTC, GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
             log("Could not set gfx mode 320×240 windowed. Try 2 with %i.", DTC);
         else
             return true;
@@ -90,15 +86,13 @@ static bool set_shitty_mode(LogSet log) throw () {
     // WARNING: this can be buggy for multiple dedicated servers.
     DTC = 8;
 
-    set_color_depth(DTC);
-
-    if (set_gfx_mode_if_new(GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
+    if (set_gfx_mode_if_new(DTC, GFX_AUTODETECT_WINDOWED, 320, 240, 0, 0))
         log("Could not set gfx mode 320×240 windowed. Tried with %i.", DTC);
     else
         return true;
 
     // try safe mode
-    if (set_gfx_mode_if_new(GFX_SAFE, 320, 240, 0, 0)) {
+    if (set_gfx_mode_if_new(DTC, GFX_SAFE, 320, 240, 0, 0)) {
         log("Could not set a safe gfx mode.");
         return false;
     }

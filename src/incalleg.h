@@ -91,6 +91,6 @@ inline void textout_right_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& t
 
 int makecolBounded(int r, int g, int b) throw ();
 
-int set_gfx_mode_if_new(int card, int w, int h, int v_w, int v_h) throw ();
+int set_gfx_mode_if_new(int depth, int card, int w, int h, int v_w, int v_h) throw ();
 
 #endif  // INCALLEG_H_INC
