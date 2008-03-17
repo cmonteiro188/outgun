@@ -722,7 +722,7 @@ public:
     bool start() throw ();
     #ifndef DEDICATED_SERVER_ONLY
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
-    void language_selection_start() throw ();
+    void language_selection_start(volatile bool* quitFlag) throw ();
     #endif
     void stop() throw ();
 

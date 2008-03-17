@@ -68,7 +68,7 @@ public:
     virtual bool start() throw () = 0;
     #ifndef DEDICATED_SERVER_ONLY
     virtual void loop(volatile bool* quitFlag, bool firstTimeSplash) throw () = 0;
-    virtual void language_selection_start() throw () = 0;
+    virtual void language_selection_start(volatile bool* quitFlag) throw () = 0;
     #endif
     virtual void stop() throw () = 0;
 

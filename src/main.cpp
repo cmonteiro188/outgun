@@ -645,8 +645,10 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
         if (!language_loaded) {
             ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);
-            gameclient->language_selection_start();
+            gameclient->language_selection_start(&g_exitFlag);
             delete gameclient;
+            if (g_exitFlag)
+                return;
             load_language(log);
         }
         ClientInterface* gameclient = ClientInterface::newClient(clientCfg, serverCfg, clientLog, memoryErrorLog);

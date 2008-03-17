@@ -868,7 +868,7 @@ bool Client::start() throw () {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::language_selection_start() throw () {
+void Client::language_selection_start(volatile bool* quitFlag) throw () {
     log("language_selection_start()");
     extConfig.statusOutput(_("Outgun client"));
 
@@ -885,6 +885,8 @@ void Client::language_selection_start() throw () {
     openMenus.handleKeypress(KEY_SPACE, 0); // ugly trick to open the language list
 
     while (!openMenus.empty()) {
+        if (*quitFlag)
+            return;
         if (keyboard_needs_poll())
             poll_keyboard();    // ignore return value
         // handle waiting keypresses
@@ -915,7 +917,6 @@ void Client::language_selection_start() throw () {
     }
 
     acceptLanguage(lang_menu.language(), false);
-    openMenus.close(&lang_menu.menu);
 }
 #endif
 
