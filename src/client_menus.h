@@ -339,13 +339,18 @@ public:
 };
 
 class Menu_language {
-public:
-    Select<std::string> language;
+    std::vector<std::pair<std::string, Textarea> > languages;
 
+public:
     Menu menu;
 
     Menu_language() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+
+    void add(const std::string& code, const std::string& name) throw ();
+    void reset() throw ();
+    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw ();
+    const std::string& getCode(const Textarea& target) throw ();
 };
 
 class Menu_bugReportPolicy {

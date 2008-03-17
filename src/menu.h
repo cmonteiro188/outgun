@@ -107,7 +107,7 @@ public:
     int selection() const throw () { return selected_item; }
     void setSelection(int selection) throw ();
 
-    void open() throw () { openHook.call(*this); home(); }
+    void open() throw () { openHook.call(*this); ensure_valid_selection(); }
     void close() throw () { closeHook.call(*this); }
 
     void draw(BITMAP* buffer, const Colour_manager& col) throw ();  // no const because drawHook might modify the menu
@@ -128,6 +128,8 @@ public:
 private:
     int total_width() const throw ();
     int total_height() const throw ();
+
+    void ensure_valid_selection() throw (); /// If preselection is valid, stay there, else go home.
 
     void home() throw ();    // moves the cursor to topmost selectable item
     void end() throw ();     // moves the cursor to the last selectable item

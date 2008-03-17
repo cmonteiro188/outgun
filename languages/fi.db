@@ -38,6 +38,7 @@ $1 has banned $2 (disconnect in 10 seconds).##$1 on antanut porttikiellon pelaaj
 $1 has kicked $2 (disconnect in 10 seconds).##$1 on potkaissut pelaajan $2 (lähtee 10 sekunnin päästä).
 $1 has muted $2.##$1 on vaientanut pelaajan $2.
 $1 has unmuted $2.##$1 on sallinut pelaajan $2 lähettää viestejä.
+$1 is not an Outgun replay.##$1 ei ole Outgunin uusinta.
 $1 is on a killing spree!##$1 tappaa porukkaa ihan solkenaan!
 $1 left the game with $2 frags.##$1 lähti pelistä ($2 pistettä).
 $1 min##$1 min
@@ -167,6 +168,7 @@ Cancel##Peru
 Capture limit##Ryöstöraja
 Captures##Ryöstöt
 Change language##Vaihda kieltä
+Choose language##Valitse kieli
 Class command without class name in auth.txt.##Luokkakomento ilman luokan nimeä auth.txt:ssä.
 Color depth##Värisyvyys
 Colour theme##Väriteema
@@ -379,7 +381,6 @@ Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
 Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
-$1 is not an Outgun replay.##$1 ei ole Outgunin uusinta.
 Replay on $1##Uusinta - $1
 Replays##Uusinnat
 Room line not allowed in label block: $1##Huoneriviä ei saa olla nimilohkossa: $1

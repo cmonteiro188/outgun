@@ -235,8 +235,7 @@ Sound options
 Sounds enabled
 Volume
 
-Change language
-Language
+Choose language
 
 Bug report policy
 Automatic bug reporting

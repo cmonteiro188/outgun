@@ -309,6 +309,8 @@ class Client : public ClientInterface {
     Menu_text m_serverInfo;
     Menu_text m_notResponding; // not to be put to openMenus
 
+    Menu_language m_initialLanguage; // only for setting the language at startup
+
     MenuStack openMenus;
 
     bool quitCommand;
@@ -546,7 +548,8 @@ class Client : public ClientInterface {
     void MCF_sndThemeChange() throw ();
     void MCF_prepareSndMenu() throw ();
     void MCF_refreshLanguages() throw ();
-    void MCF_acceptLanguage() throw ();
+    void MCF_acceptLanguage(Textarea& target) throw ();
+    void MCF_acceptInitialLanguage(Textarea& target) throw ();
     void MCF_acceptBugReporting() throw ();
     void MCF_prepareServerMenu() throw ();
     void MCF_updateServers() throw ();
@@ -563,7 +566,7 @@ class Client : public ClientInterface {
     void MCF_playServer() throw ();
     void MCF_stopServer() throw ();
 
-    void refreshLanguages(Menu_language& lang_menu) throw ();
+    int refreshLanguages(Menu_language& lang_menu) throw ();
     void acceptLanguage(const std::string& lang, bool restart_message) throw ();
 
     void load_highlight_texts() throw ();

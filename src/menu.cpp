@@ -79,6 +79,12 @@ int Component::captionColor(bool active, const Colour_manager& col) const throw 
     return col[Colour::menu_component_caption];
 }
 
+void Menu::ensure_valid_selection() throw () {
+    nAssert(!components.empty());
+    if (!components[selected_item]->isEnabled())
+        home();
+}
+
 void Menu::home() throw () {
     nAssert(!components.empty());
     start = 0;

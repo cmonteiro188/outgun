@@ -602,17 +602,40 @@ void Menu_sounds::update(const Sounds& snd) throw () {   // tries to keep the se
 }
 
 Menu_language::Menu_language() throw () :
-    language(_("Language")),
-
-    menu(_("Change language"), false)
+    menu(_("Choose language"), false)
 {
-    // it's callers responsibility to set up the choices for language
+    reset();
 }
 
-void Menu_language::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
+void Menu_language::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector&) throw () {
     menu.setHook(opener);
-    DualComponentAdder add(menu, collector);
-    add(&language);
+}
+
+void Menu_language::add(const string& code, const string& name) throw () {
+    languages.push_back(pair<string, Textarea>(code, Textarea(name)));
+}
+
+void Menu_language::reset() throw () {
+    menu.clear_components();
+    languages.clear();
+}
+
+void Menu_language::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw () {
+    BasicComponentAdder add(menu);
+    for (vector<pair<string, Textarea> >::iterator li = languages.begin(); li != languages.end(); ++li) {
+        li->second.setHook(hook->clone());
+        add(&li->second);
+    }
+    delete hook;
+}
+
+const string& Menu_language::getCode(const Textarea& target) throw () {
+    for (vector<pair<string, Textarea> >::const_iterator li = languages.begin(); li != languages.end(); ++li) {
+        if (&li->second == &target)
+            return li->first;
+    }
+    nAssert(0);
+    return languages.front().first;
 }
 
 Menu_bugReportPolicy::Menu_bugReportPolicy() throw () :

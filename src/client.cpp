@@ -876,13 +876,13 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
         return;
 
     typedef MenuCallback<Client> MCB;
-    Menu_language lang_menu;
-    lang_menu.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
-    lang_menu.menu.setOkHook(new MCB::N<Menu, &Client::MCF_menuCloser>(this));
-    refreshLanguages(lang_menu);
+    m_initialLanguage.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
 
-    showMenu(lang_menu);
-    openMenus.handleKeypress(KEY_SPACE, 0); // ugly trick to open the language list
+    const int menu_selection_index = refreshLanguages(m_initialLanguage);
+    m_initialLanguage.addHooks(new MCB::A<Textarea, &Client::MCF_acceptInitialLanguage>(this));
+    m_initialLanguage.menu.setSelection(menu_selection_index);
+
+    showMenu(m_initialLanguage);
 
     while (!openMenus.empty()) {
         if (*quitFlag)
@@ -896,10 +896,7 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
             ch &= 0xFF;
             if (sc == KEY_F11)
                 screenshot = true;
-            else if (!openMenus.handleKeypress(sc, ch)) {
-                if (sc == KEY_ESC)
-                    MCF_menuCloser();
-            }
+            openMenus.handleKeypress(sc, ch);
         }
 
         // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
@@ -915,8 +912,6 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
             screenshot = false;
         }
     }
-
-    acceptLanguage(lang_menu.language(), false);
 }
 #endif
 
@@ -5432,8 +5427,6 @@ void Client::initMenus() throw () {
     menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &Client::MCF_sndThemeChange         >(this));
 
     menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_refreshLanguages       >(this));
-    menu.options.language.menu     .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptLanguage         >(this));
-    menu.options.language.menu        .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
 
     menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
     menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
@@ -5729,50 +5722,69 @@ void Client::MCF_sndThemeChange() throw () {
 }
 
 void Client::MCF_refreshLanguages() throw () {
-    refreshLanguages(menu.options.language);
+    const int menu_selection_index = refreshLanguages(menu.options.language);
+    typedef MenuCallback<Client> MCB;
+    menu.options.language.addHooks(new MCB::A<Textarea, &Client::MCF_acceptLanguage>(this));
+    menu.options.language.menu.setSelection(menu_selection_index);
 }
 
-bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) throw () {  // helper to refreshLanguages
+// Helper to refreshLanguages. Each pair consists of language code and name, in that order.
+bool translationSort(const pair<string, string>& t1, const pair<string, string>& t2) throw () {
     // don't care about the language code (it isn't visible anyway), and use a case insensitive order
-    return platStricmp(t1.first.c_str(), t2.first.c_str()) < 0;
+    return platStricmp(t1.second.c_str(), t2.second.c_str()) < 0;
 }
 
-void Client::refreshLanguages(Menu_language& lang_menu) throw () {
-    lang_menu.language.clearOptions();
-    lang_menu.language.addOption("English", "en");   // global default when there's nothing in language.txt
+int Client::refreshLanguages(Menu_language& lang_menu) throw () {
+    lang_menu.reset();
 
     // search the languages directory for translations to add
     vector< pair<string, string> > translations;
+    translations.push_back(pair<string, string>("en", "English"));   // global default when there's nothing in language.txt
     FileFinder* languageFiles = platMakeFileFinder(wheregamedir + "languages", ".txt", false);
     while (languageFiles->hasNext()) {
-        string name = FileName(languageFiles->next()).getBaseName();
-        if (name.find('.') != string::npos || name == "en")   // skip help.language.txt and possible similar files, and of course English which was added first
+        string code = FileName(languageFiles->next()).getBaseName();
+        if (code.find('.') != string::npos || code == "en")   // skip help.language.txt and possible similar files, and of course English which was added first
             continue;
         // fetch language name
-        string langName;
-        const string langFile = wheregamedir + "languages" + directory_separator + name + ".txt";
-        ifstream lang(langFile.c_str());
-        if (lang && getline_skip_comments(lang, langName))
-            translations.push_back(pair<string, string>(langName, name));
+        const string langFile = wheregamedir + "languages" + directory_separator + code + ".txt";
+        ifstream in(langFile.c_str());
+        string name;
+        if (getline_skip_comments(in, name))
+            translations.push_back(pair<string, string>(code, name));
         else
             log.error(_("Translation $1 can't be read.", langFile));
     }
     delete languageFiles;
 
-    // add found languages to options
-    sort(translations.begin(), translations.end(), translationSort);
-    for (vector< pair<string, string> >::const_iterator ti = translations.begin(); ti != translations.end(); ++ti)
-        lang_menu.language.addOption(ti->first, ti->second);
-
     // fetch the currently chosen language from language.txt (because after changing it can be different from the loaded language)
     string lang;
     ifstream langConfig((wheregamedir + "config" + directory_separator + "language.txt").c_str());
-    if (langConfig && getline_skip_comments(langConfig, lang))
-        lang_menu.language.set(lang); // ignore possible failure
+    if (!getline_skip_comments(langConfig, lang))
+        lang = "en";
+    langConfig.close();
+
+    // add found languages to options
+    sort(translations.begin(), translations.end(), translationSort);
+    int i = lang_menu.menu.selection();
+    int current_lang_index = i;
+    for (vector< pair<string, string> >::const_iterator ti = translations.begin(); ti != translations.end(); ++ti, ++i) {
+        lang_menu.add(ti->first, ti->second);
+        if (ti->first == lang)
+            current_lang_index = i;
+    }
+    return current_lang_index;
 }
 
-void Client::MCF_acceptLanguage() throw () {
-    acceptLanguage(menu.options.language.language(), true);
+void Client::MCF_acceptLanguage(Textarea& target) throw () {
+    const string lang_code = menu.options.language.getCode(target);
+    MCF_menuCloser();
+    acceptLanguage(lang_code, true);
+}
+
+void Client::MCF_acceptInitialLanguage(Textarea& target) throw () {
+    const string lang_code = m_initialLanguage.getCode(target);
+    MCF_menuCloser();
+    acceptLanguage(lang_code, false);
 }
 
 void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
