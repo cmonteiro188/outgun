@@ -322,8 +322,10 @@ $(TEST_PASS_MARKERS) : $(STATUSDIR)/test_% : $(BINDIR)/tests/%$(EXE_SUFFIX)
 
 # -- Goals for command line use: --
 
-default: outgun srvmonit relay
-all: outgun outgun-ded srvmonit relay makedep writeifdiff testsuite
+default: outgun tools
+
+tools: srvmonit relay
+all: outgun outgun-ded tools makedep writeifdiff testsuite
 ALL: all TAGS run_tests
 
 outgun:      $(OUTGUN_EXE)
@@ -347,4 +349,4 @@ ifdef LINUX
 	etags $^
 endif
 
-.PHONY: default all ALL outgun outgun-ded srvmonit relay makedep writeifdiff testsuite run-tests $(TEST_EXEC_TARGETS) cleanobjs clean
+.PHONY: default tools all ALL outgun outgun-ded srvmonit relay makedep writeifdiff testsuite run-tests $(TEST_EXEC_TARGETS) cleanobjs clean
