@@ -2643,6 +2643,7 @@ void Graphics::draw_effects(double time) throw () {
             continue;
         }
         const double delta = time - fx->time;
+        numAssert3(delta >= -.1, time * 10, fx->time * 10, (time - fx->time) * 10);
         switch (fx->type) {
         /*break;*/ case FX_GUN_EXPLOSION:
                 if (delta > 0.4)
