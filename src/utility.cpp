@@ -116,8 +116,10 @@ string fcvt(double val) throw () {
 
 string fcvt(double val, int precision) throw () {
     ostringstream ss;
-    locale loc(language.locale().c_str());
-    ss.imbue(loc);
+    try {
+        locale loc(language.locale().c_str());
+        ss.imbue(loc);
+    } catch (...) { } // if the locale is not supported, we might get an exception
     ss << std::fixed << setprecision(precision) << val;
     return ss.str();
 }
