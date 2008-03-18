@@ -349,4 +349,4 @@ ifdef LINUX
 	etags $^
 endif
 
-.PHONY: default tools all ALL outgun outgun-ded srvmonit relay makedep writeifdiff testsuite run-tests $(TEST_EXEC_TARGETS) cleanobjs clean
+.PHONY: default tools all ALL outgun outgun-ded srvmonit relay makedep writeifdiff testsuite run_tests $(TEST_EXEC_TARGETS) cleanobjs clean
