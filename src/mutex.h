@@ -32,7 +32,8 @@
 
 // note: don't use exit() (_exit() is OK) when a global Mutex may be locked
 
-// BareMutex is only intended for mutexes referenced by Mutex code itself. Use Mutex instead.
+// BareMutex is only intended for mutexes referenced by Mutex code itself, or test cases wanting to avoid linking a heap of objects.
+// Normally, use Mutex instead.
 class BareMutex : private NoCopying, public Lockable {
     pthread_mutex_t mutex;
     friend class ConditionVariable;
