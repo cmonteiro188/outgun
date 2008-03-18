@@ -36,7 +36,7 @@
 
 extern bool expectAssertion;
 
-template<class Function> void* assertionTestThreadMain(void* arg) {
+template<class Function> void* assertionTestThreadMain(void* arg) throw () {
     Function* fn = static_cast<Function*>(arg);
     expectAssertion = true;
     (*fn)();
@@ -45,11 +45,38 @@ template<class Function> void* assertionTestThreadMain(void* arg) {
     nAssert(0);
 }
 
-template<class Function> void testAssertion(Function fn) {
+template<class Function> void testAssertion(Function fn) throw () {
     pthread_t thread;
     const bool ok = pthread_create(&thread, 0, assertionTestThreadMain<Function>, &fn) == 0 && pthread_join(thread, 0) == 0;
     expectAssertion = false;
     nAssert(ok);
 }
+
+class SimpleThread {
+    pthread_t thread;
+    bool running;
+
+public:
+    SimpleThread() throw () : running(false) { }
+    ~SimpleThread() throw () { nAssert(!running); }
+
+    void start(void* (*fn)(void*), void* arg) throw () {
+        nAssert(!running);
+        running = true;
+        nAssert(pthread_create(&thread, 0, fn, arg) == 0);
+    }
+    void* join() throw () {
+        nAssert(running);
+        void* value;
+        nAssert(pthread_join(thread, &value) == 0);
+        running = false;
+        return value;
+    }
+    void detach() throw () {
+        nAssert(running);
+        running = false;
+        nAssert(pthread_detach(thread) == 0);
+    }
+};
 
 #endif
