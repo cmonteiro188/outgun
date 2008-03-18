@@ -2643,6 +2643,8 @@ void Graphics::draw_effects(double time) throw () {
             continue;
         }
         const double delta = time - fx->time;
+        if (delta < 0) // fx->time may be in the future at least with deathbringer smoke if lag prediction amount has reduced after it was created
+            continue;
         switch (fx->type) {
         /*break;*/ case FX_GUN_EXPLOSION:
                 if (delta > 0.4)
