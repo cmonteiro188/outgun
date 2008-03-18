@@ -14,7 +14,7 @@ Altri controlli
  
  Parlare               Scrivi il messaggio e premi invio.
  Parlare a squadra     Inizia il messaggio con un punto ('.').
- Cambia squadra        Fine
+ Cambia squadra        Control + Fine
  Suicidio              Canc
  Lascia bandiera       PGGIù
  Lista Mappe           F2

@@ -14,7 +14,7 @@ Muut näppäimet
  
  Viestit                Kirjoita viesti ja paina Enteriä.
  Joukkueviestit         Aloita viesti pisteellä (".").
- Joukkueen vaihto       End
+ Joukkueen vaihto       Control + End
  Itsemurha              Delete
  Lipun pudotus          Page Down
  Karttalista            F2
