@@ -332,9 +332,9 @@ void MasterSettings::load(LogSet& log) throw () {
             bugAddress.clear();
     }
 
-    if (masterAddress.getPort() == 0)
+    if (masterAddress.valid() && masterAddress.getPort() == 0)
         masterAddress.setPort(defaultPort);
-    if (bugAddress.getPort() == 0)
+    if (bugAddress.valid() && bugAddress.getPort() == 0)
         bugAddress.setPort(defaultBugPort);
     log("Master server address set: %s/%s -> %s.", name.c_str(), ip.c_str(), masterAddress.valid() ? masterAddress.toString().c_str() : "none");
     log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid() ? bugAddress.toString().c_str() : "none");
