@@ -1109,6 +1109,8 @@ void Server::chat(int pid, const string& message) throw () {
                 network.player_message(pid, msg_server, "/forcemap   restart the game and change map if you've voted for one");
                 network.player_message(pid, msg_server, "/set        manage server settings");
                 network.player_message(pid, msg_server, "/bot        manage bots");
+                if (pid == shell_pid)
+                    network.player_message(pid, msg_server, "/shutdown   shut down the server");
             }
         }
         else if (command == "info" && !settings.get_info_message().empty()) {
@@ -1380,6 +1382,8 @@ void Server::chat(int pid, const string& message) throw () {
                     network.player_message(pid, msg_server, "/set reset  reload all settings from gamemod");
             }
         }
+        else if (command == "shutdown" && pid == shell_pid) // Only shell admin can shut down the server.
+            abortFlag = true;
         else
             network.plprintf(pid, msg_warning, "Unknown command %s. Type /help for a list.", command.c_str());
     }
