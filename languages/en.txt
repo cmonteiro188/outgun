@@ -528,7 +528,7 @@ Warning: This server has extensions enabled that give an advantage over you to p
 
 Saved screenshot to $1.
 Could not save screenshot to $1.
-Downloading map "$1" (CRC $2)...
+Downloading map "$1"...
 
 ; Used to report authorization status when connected to a server.
 ; "Recording" means recording scores with the ranking system.

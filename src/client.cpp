@@ -1053,7 +1053,7 @@ void Client::server_map_command(const string& mapname, uint16_t server_crc) thro
 
     #ifndef DEDICATED_SERVER_ONLY
     // start download
-    const string msg = _("Downloading map \"$1\" (CRC $2)...", mapname, itoa(server_crc));
+    const string msg = _("Downloading map \"$1\"...", mapname);
     print_message(msg_info, msg);
     log("%s", msg.c_str());
 
