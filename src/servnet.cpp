@@ -2347,6 +2347,7 @@ void ServerNetworking::send_master_quit(const string& localAddress) const throw 
 
     try {
         Network::TCPSocket msock(Network::NonBlocking, 0, true);
+        msock.connect(g_masterSettings.address());
 
         const map<string, string> parameters = master_parameters(localAddress, true); // true = quitting
         const string data = format_http_parameters(parameters);
