@@ -956,6 +956,8 @@ public:
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
 
+    bool always_send_flag_location; /// false: only send flag location when seen or on the ground; true: always send the location
+
     int see_rockets_distance;
 
     int carrying_score_time;

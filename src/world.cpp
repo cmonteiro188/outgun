@@ -1567,6 +1567,8 @@ void WorldSettings::reset() throw () {
     capture_on_team_flag = true;
     capture_on_wild_flag = false;
 
+    always_send_flag_location = false;
+
     see_rockets_distance = 0;
 
     carrying_score_time = 0;
