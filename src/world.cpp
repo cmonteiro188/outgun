@@ -3003,8 +3003,8 @@ void WorldBase::reset() throw () {
     dbExplosions.clear();
 }
 
-static bool doRegenerate(double& var, double limit, double speed, double& timeLeft) throw () {
-    if (var >= limit || speed == 0)
+static bool doRegenerate(double& var, double startLimit, double limit, double speed, double& timeLeft) throw () {
+    if (var < startLimit || var >= limit || speed == 0)
         return false;
     var += speed * timeLeft;
     if (var <= limit)
@@ -3015,18 +3015,20 @@ static bool doRegenerate(double& var, double limit, double speed, double& timeLe
 }
 
 void ServerWorld::regenerateHealthOrEnergy(ServerPlayer& pl) throw () {
+    const int maxHealth = pl.item_deathbringer ? min(config.health_max, pupConfig.deathbringer_health_limit) : config.health_max;
+    const int maxEnergy = pl.item_deathbringer ? min(config.energy_max, pupConfig.deathbringer_energy_limit) : config.energy_max;
     double timeLeft = .1; // 1 frame
-    if (doRegenerate(pl.health, min(config.health_max, 100), config.health_regeneration_0_to_100, timeLeft))
+    if (doRegenerate(pl.health,   0, min(maxHealth, 100), config.health_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, min(config.energy_max, 100), config.energy_regeneration_0_to_100, timeLeft))
+    if (doRegenerate(pl.energy,   0, min(maxEnergy, 100), config.energy_regeneration_0_to_100, timeLeft))
         return;
-    if (doRegenerate(pl.energy, min(config.energy_max, 200), config.energy_regeneration_100_to_200, timeLeft))
+    if (doRegenerate(pl.energy, 100, min(maxEnergy, 200), config.energy_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.health, min(config.health_max, 200), config.health_regeneration_100_to_200, timeLeft))
+    if (doRegenerate(pl.health, 100, min(maxHealth, 200), config.health_regeneration_100_to_200, timeLeft))
         return;
-    if (doRegenerate(pl.energy,     config.energy_max      , config.energy_regeneration_200_to_max, timeLeft))
+    if (doRegenerate(pl.energy, 200,     maxEnergy      , config.energy_regeneration_200_to_max, timeLeft))
         return;
-    doRegenerate(    pl.health,     config.health_max      , config.health_regeneration_200_to_max, timeLeft);
+    doRegenerate(    pl.health, 200,     maxHealth      , config.health_regeneration_200_to_max, timeLeft);
 }
 
 void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw () {
@@ -3039,7 +3041,7 @@ void ServerWorld::degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw () {
         pl.energy = 0.;
     }
     if (pl.health > config.min_health_for_run_penalty)
-        pl.health = max<double>(config.min_health_for_run_penalty, pl.health - config.run_health_degradation / 10.);
+        pl.health = max<double>(config.min_health_for_run_penalty, pl.health - config.run_health_degradation * timeLeft);
 }
 
 static bool sortByExtraFramesToRespawn(ServerPlayer* p1, ServerPlayer* p2) throw () {
@@ -3222,8 +3224,7 @@ void ServerWorld::simulateFrame() throw () {
         player[i].attackOnce = false;
 
         // adjust health and energy for carrying deathbringer, running, and plain time passing
-        const bool deathbringer_penalty = (pl.item_deathbringer && pl.health >= pupConfig.deathbringer_health_limit && pl.energy >= pupConfig.deathbringer_energy_limit) || pl.deathbringer_end > get_time();
-        if (!deathbringer_penalty)
+        if (pl.deathbringer_end < get_time())
             regenerateHealthOrEnergy(pl);
         if (pl.controls.isRun())
             degradeHealthOrEnergyForRunning(pl);
