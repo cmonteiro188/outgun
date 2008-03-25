@@ -706,6 +706,7 @@ in $1 B/s, out $2 B/s
 
 ; The message printed by the -info command line option.
 Information
+Version $1
 Possible thread priorities (-prio <val>):
 * Minimum: $1
 * Maximum: $1

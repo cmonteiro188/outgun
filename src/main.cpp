@@ -511,6 +511,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
             return;
 
         string infobuf =
+            _("Version $1", getVersionString()) + '\n' +
             _("Possible thread priorities (-prio <val>):") + '\n' +
             _("* Minimum: $1", itoa(pmin)) + '\n' +
             _("* Maximum: $1", itoa(pmax)) + '\n' +
