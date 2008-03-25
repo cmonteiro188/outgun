@@ -4366,7 +4366,7 @@ bool Client::start_replay(istream& replay) throw () {
     BinaryStreamReader read(replay);
 
     const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
-    log("Identification: %s", identification.c_str());
+    log("Replay identification: %s", identification.c_str());
     if (identification != REPLAY_IDENTIFICATION) {
         log.error(_("This is not an Outgun replay."));
         return false;
@@ -4560,7 +4560,7 @@ void Client::continue_spectating() throw () {
         return;
 
     if (!spectate_data_received) {
-        log("First data from relay, %d bytes: %s", result, buffer);
+        log("First data from relay, %d bytes.", result);
         spectate_data_received = true;
         spectate_buffer.write(buffer + 1, result - 1); // the first byte is the relay's protocol extensions level, about which we don't have to care so far
         if (!start_replay(spectate_buffer)) {
