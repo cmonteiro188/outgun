@@ -308,6 +308,7 @@ void MasterSettings::load(LogSet& log) throw () {
         configCRC = defaultConfigCRC;
 
     log("Resolving master server address...");
+    masterAddress.clear();
     if (name.length() >= 3) {
         hostName = name;
         if (!masterAddress.tryResolve(name))
@@ -315,22 +316,17 @@ void MasterSettings::load(LogSet& log) throw () {
     }
     else if (ip.length() > 1)
         hostName = ip;
-    else {
-        masterAddress.clear();
+    else
         hostName.clear();
-    }
     if (!masterAddress && ip.length() > 1)
         masterAddress.fromValidIP(ip);
 
+    bugAddress.clear();
     if (bugName.length() >= 3)
         if (!bugAddress.tryResolve(bugName))
             log("Can't resolve bug report server DNS name to IP.");
-    if (!bugAddress) {
-        if (bugIP.length() > 1)
-            bugAddress.fromValidIP(bugIP);
-        else
-            bugAddress.clear();
-    }
+    if (!bugAddress && bugIP.length() > 1)
+        bugAddress.fromValidIP(bugIP);
 
     if (masterAddress.valid() && masterAddress.getPort() == 0)
         masterAddress.setPort(defaultPort);
