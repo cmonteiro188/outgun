@@ -21,6 +21,8 @@
  *
  */
 
+#include "incalleg.h"
+
 #include <cstdio>
 #include <cstring>
 
@@ -30,7 +32,6 @@
 #include "commont.h"
 #include "platform.h"
 #include "timer.h"
-#include "incalleg.h"
 
 #include "mutex.h"
 

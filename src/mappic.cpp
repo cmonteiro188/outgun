@@ -22,6 +22,8 @@
  *
  */
 
+#include "incalleg.h"
+
 #include "commont.h"
 #include "graphics.h"
 #include "language.h"

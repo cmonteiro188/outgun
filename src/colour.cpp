@@ -21,6 +21,8 @@
  *
  */
 
+#include "incalleg.h"
+
 #include <fstream>
 #include <iomanip>
 #include <sstream>
