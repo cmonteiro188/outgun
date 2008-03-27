@@ -1556,7 +1556,7 @@ void WorldSettings::reset() throw () {
     win_score_difference = 1;
     flag_return_delay = 1.0;
     balance_teams = TB_disabled;
-    min_capture_time = 4.0;
+    min_capture_time = 1.0;
 
     random_wild_flag = false;
 
