@@ -275,6 +275,8 @@ void MasterSettings::load(LogSet& log) throw () {
     // defaultConfigCRC should correspond to the file the master is sending that contains the above settings, so that downloading is not needed on a fresh install.
     // If instead downloading in that case is preferred, use 0 which is guaranteed not to be used by a legitimate master.txt.
 
+    Lock ml(mutex); 
+
     log("Reading config/master.txt");
     ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 

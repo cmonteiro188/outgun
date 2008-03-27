@@ -34,6 +34,7 @@
 
 #include <cmath>
 
+#include "mutex.h"
 #include "network.h"
 
 // Reads a line, stops to \n or \r and skips empty lines.
@@ -206,25 +207,27 @@ class MasterSettings {
 
     int configCRC;
 
+    mutable Mutex mutex;
+
 public:
-    MasterSettings() throw () : configCRC(0) { }
+    MasterSettings() throw () : configCRC(0), mutex("MasterSettings::mutex") { }
 
     // server list
-    const Network::Address& address() const throw () { return masterAddress; }
-    const std::string& host() const throw () { return hostName; }
-    const std::string& query() const throw () { return queryScript; }
-    const std::string& submit() const throw () { return submitScript; }
+    Network::Address address() const throw () { Lock ml(mutex); return masterAddress; }
+    std::string host()         const throw () { Lock ml(mutex); return hostName; }
+    std::string query()        const throw () { Lock ml(mutex); return queryScript; }
+    std::string submit()       const throw () { Lock ml(mutex); return submitScript; }
 
     // ranking
-    const Network::Address& rankAddress() const throw () { return rAddress; }
-    const std::string& rankHost() const throw () { return rHostName; }
-    const std::string& rankDataScript() const throw () { return rDataScript; }
-    const std::string& rankTokenScript() const throw () { return rTokenScript; }
+    Network::Address rankAddress() const throw () { Lock ml(mutex); return rAddress; }
+    std::string rankHost()         const throw () { Lock ml(mutex); return rHostName; }
+    std::string rankDataScript()   const throw () { Lock ml(mutex); return rDataScript; }
+    std::string rankTokenScript()  const throw () { Lock ml(mutex); return rTokenScript; }
 
     // bug reporting
-    const Network::Address& bugReportAddress() const throw () { return bugAddress; }
+    Network::Address bugReportAddress() const throw () { Lock ml(mutex); return bugAddress; }
 
-    int crc() const throw () { return configCRC; }
+    int crc() const throw () { Lock ml(mutex); return configCRC; }
 
     void load(LogSet& log) throw ();
 };
