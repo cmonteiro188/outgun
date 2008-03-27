@@ -13,7 +13,6 @@
 ; welcome_message, info_message, sayadmin_comment: default: none
 ; sayadmin_enabled: 1 to enable, 0 to disable, default: 0
 ; server_password: max 15 characters, default: none
-; ranking: 1 to enable, 0 to disable, default: 1
 ; save_stats: 1 to 32, or 0 to disable, default: 0
 ; idlekick_time: seconds, 10 or more, or 0 to disable, default: 120
 ; idlekick_playerlimit: 1 to 32, default: 4
@@ -27,6 +26,10 @@
 ; relay_server: server's host name or IP with port, default: none
 ; spectating_delay: seconds, default: 120
 ; log_player_chat: 1 to enable, 0 to disable, default: 0
+; ranking_id: default: none
+; ranking_password: default: none
+; ranking_minhumans: 1 to 32, default: 2
+; ranking_minplayers: 2 to 32, default: 4
 
 server_name Anonymous host
 ;max_players 16
@@ -35,7 +38,6 @@ server_name Anonymous host
 sayadmin_enabled 0
 ;sayadmin_comment insert comment here
 ;server_password password
-ranking 1
 save_stats 0
 idlekick_time 120
 idlekick_playerlimit 4
@@ -50,6 +52,10 @@ recording 0
 ;relay_server host.example.net:12345
 spectating_delay 120
 log_player_chat 0
+;ranking_id 12345
+;ranking_password password
+ranking_minhumans 2
+ranking_minplayers 4
 
 ; ------
 ;  BOTS
@@ -114,10 +120,12 @@ require_specific_map_vote 0
 ; sudden_death: 1 to enable, 0 to disable, default: 0
 ; game_end_delay: seconds (allows 0), default: 5
 ; flag_return_delay: (float) seconds (allows 0), default: 1.0
+; min_capture_time: (float) seconds, default: 1.0
 ; carrying_score_time: seconds, or 0 to disable, default: 0
 ; random_wild_flag: 1 to enable, 0 to disable, default: 0
 ; lock_team_flags, lock_wild_flags, capture_on_team_flag, capture_on_wild_flag:
 ;   1 to enable, 0 to disable, defaults: 0, 0, 1, 0
+; always_send_flag_location: 1 to enable, 0 to disable, default: 0
 ; balance_teams: no, balance, or shuffle, default: no
 ; respawn_time: (float) seconds, default: 2.0
 ; extra_respawn_time_alone: (float) seconds, default: 0.0
@@ -136,12 +144,14 @@ extra_time 0
 sudden_death 0
 game_end_delay 5
 flag_return_delay 1.0
+min_capture_time 1.0
 carrying_score_time 0
 random_wild_flag 0
 lock_team_flags 0
 lock_wild_flags 0
 capture_on_team_flag 1
 capture_on_wild_flag 0
+always_send_flag_location 0
 balance_teams no
 respawn_time 2.0
 extra_respawn_time_alone 0.0
