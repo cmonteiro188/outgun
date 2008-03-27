@@ -1,14 +1,17 @@
 ; Translation copyright © 2004, 2005, 2006 Thomaz de Oliveira dos Reis
-; Contato: E-Mails: thommy@globo.com, thor27@ibest.com.br (serve como MSNM)
-;	   ICQ: 117089308 - YIM: thommybill - Jabber: thor27@jabber.org
+; Contato: E-Mails: thor27@gmail.com, thor27@ibest.com.br (serve como MSNM)
+;	   ICQ: 117089308 - Jabber: thor27@jabber-br.org
 ;
 ; Agradecimentos especiais: Nix (Niko Ritari) e todo o pessoal do Fórum do
 ; outgun que ajudou a melhorar a tradução!
 
           Average         Ranking##          Melhor        Campeonato
          Flags          Carriers  Carry##      Bandeiras          Carrega. Tempo
+     Frags    total/in-row/most##     Matou    total/seguidos/mais
    Accuracy##    Precisão
  Nr Vote Title                Size  Author## N° Votos Título             Tamanho Autor
+ desktop## área de trabalho
+"$1" is not a valid IP address.##"$1" não é um endereço de IP válido.
 $1 CAPTURED THE BLUE FLAG!##$1 CAPTUROU A BANDEIRA AZUL!
 $1 CAPTURED THE RED FLAG!##$1 CAPTUROU A BANDEIRA VERMELHA!
 $1 CAPTURED THE WILD FLAG!##$1 CAPTUROU A BANDEIRA SELVAGEM!
@@ -40,6 +43,7 @@ $1 has banned $2 (disconnect in 10 seconds).##$1 baniu $2 (desconectando em 10 s
 $1 has kicked $2 (disconnect in 10 seconds).##$1 chutou $2 (desconectando em 10 segundos).
 $1 has muted $2.##$1 fez $2 um mudo.
 $1 has unmuted $2.##$1 deixou $2 falar.
+$1 is not an Outgun replay.##$1 não é um replay do outgun.
 $1 is on a killing spree!##$1 é um assassino em série!
 $1 left the game with $2 frags.##$1 deixou o jogo com $2 mortos.
 $1 min##$1 min
@@ -58,6 +62,7 @@ $1 was choked.##$1 se sufocou.
 $1 was nailed by $2.##$1 foi morto pelo $2.
 $1 was nailed by teammate $2.##$1 foi morto pelo parceiro $2.
 $1 was nailed.##$1 foi morto.
+$1%##$1%
 $1% of rooms##$1% das salas
 $1's killing spree was ended by $2.##o assassino em série $1 foi morto pelo $2.
 $1's killing spree was ended.##$1 não é mais um assassino em série.
@@ -93,37 +98,51 @@ $1/$2p $3k/s v$4 port:$5##$1/$2j $3k/s v$4 porta:$5
 -ip must be followed by a space and an IP address.##-ip  precisa ser seguido de um espaço e um endereço de IP.
 -maxp X: X must be an even number in the range of 2 to $1.##-maxp X: X precisa ser um número impar entre 2 e $1.
 -maxp must be followed by a space and a player count.##-maxp precisa ser seguido de um espaço e o número de jogadores.
+-play must be followed by a hostname and optionally port.##-play deve ser seguido de um hostname e opcionalmente uma porta.
 -port X: X must be in the range of 1 to 65535.##-port X: X precisa estar entre 1 e 65535.
 -port must be followed by a space and a port number.##-port precisa ser seguido de espaço e um número de porta.
+-replay must be followed by a filename.##-replay precisa ser seguido de um nome de arquivo
+-spectate must be followed by a hostname and port.##-spectate precisa ser seguido de um hostname e uma porta.
 -sport X:Y: X and Y must be in the range of 1 to 65535.##-sport X:Y: X e Y precisa estar entre 1 e 65535.
 -sport X:Y: Y must be greater than X.##-sport X:Y: Y precisa ser maior que X.
 -sport must be followed by a space and minport:maxport.##-sport precisa ser seguido de um espaço e porta mínima:porta máxima.
 0 or 1##0 ou 1
 1 password removed.##1 senha removida.
+<Random>##<Aleatório>
 <no background>##<sem fundo>
 <no theme>##<sem temas>
 <no themes found>##<nenhum tema encontrado>
 Active controls##Controles ativos
+Active joystick buttons##Botões ativos do joystick
+Active mouse buttons##Botões ativos do mouse
 Add server##Adicionar servidor
 Add to favorite list##Adicionar a lista de servidores favoritos
 Add to public serverlist##Adicionar a lista pública de servidores
+Admin shell connection: $1##Conexão com o shell de admin.: $1
+Admin shell connection: Not all written.##Conexão com o shell de admin.: Nem tudo foi escrito.
+Admin shell: $1##Shell de admin.: $1
 Admin shell: Can't accept connection.##Admin shell: Não foi possível aceitar a conexão.
 Admin shell: Can't open socket on port $1.##Admin shell: Não foi possível abrir o soquete na porta $1.
 Admin shell: Can't set socket to listen mode.##Admin shell: Não foi possível alterar o soquete para o modo de escuta...
 Admin shell: read failed. Reason: $1##Admin shell: leitura falhou. Motivo: $1
 Admin shell: sending response failed. Reason: $1##Admin shell: Falhou enviando resposta. Motivo: $1
 Admin shell: unprintable characters, message ignored.##Admin shell: caracteres não imprimiveis, mensagem ignorada.
+Allow parts of map to repeat on screen##Permitir que partes do mapa se repitam na tela
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alpha bitmaps precisa ser imagens na escala de cinza de 8-bit; $1 is $2-bit.
 Alternative page flipping method##Método alternativo de "page flipping"
+Antialiasing##Suavisação
 Apply changes##Aplicar alterações
 Arrow keys in statistics##Setas do teclado nas estatísticas
+Author##Autor
 Autodetect IP##Autodetectar IP
 Automatic bug reporting##Reportagem automática de bugs
 BLUE TEAM WINS##TIME AZUL VENCEU
 Background theme##Tema de fundo
 Balance teams##Times balanceados
+Bandwidth for out-of-room players (cps)##Banda da rede para jogadores fora da sala (cps)
 Belgium##Bélgica
 Blue Team##Time azul    
+Box visible area on map in game##Caixa da área visível no mapa durante o jogo
 Brazil##Brasil
 Bug report policy##Política da reportagem de bugs
 CAPTURE $1 FLAGS TO WIN THE GAME.##CAPTURE $1 BANDEIRAS PARA GANHAR O JOGO.
@@ -154,22 +173,32 @@ Cancel##Cancelar
 Capture limit##Limite de captura
 Captures##Capturas
 Change language##Alterar idiona
+Choose language##Escolha o idioma
+Class command without class name in auth.txt.##Classe de comando sem um nome de classe em auth.txt
 Color depth##Profundidade de cores
+Colour theme##Cor do tema
 Command##Comando
 Connected to $1 ($2)##Connectado à $1 ($2)
+Connecting to relay: $1##Conexão ao relay: $1
 Connection refused.##Conexão rejeitada.
 Connection timed out.##Conexão estorou o limite de tempo.
+Connection to the server closed.##Conexã com o servidor foi fechada.
+Connection to the server closed: $1##Conexã com o servidor foi fechada: $1
 Contacting the servers...##Contactando os servidores...
 Continuous textures between rooms##Textura continua entre salas
 Controls##Controles
+Could not open replay file $1.##Não foi possível abrir o arquivo de replay $1.
 Could not save map pictures to the directory 'mappic'.##Não foi possível salvar as figuras do mapa para o diretório 'mappic'.
 Could not save screenshot to $1.##Não foi possivel salvar captura de tela para $1.
+Could not start spectating.##Não foi possível iniciar o modo espectador.
 Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.##Não foi possível iniciar a resolução $1×$2×$3 no modo $4; alterado para $5.
 Couldn't initialize resolution $1×$2×$3 in any mode.##Não foi possível iniciar a resolução $1×$2×$3 em qualquer modo.
 Critical error##Erro crítico
 Current refresh rate##Taxa de atualização atual
 Czech Republic##República Checa
+Date - Server - Map##Data - Servidor - Mapa
 Deaths##Morreu
+Default colours generated to $1.##Cores padrões geradas para $1.
 Denmark##Dinamarca
 Disappeared players on minimap##Jogadores desaparecidos no mini mapa
 Disconnect##Desconectar
@@ -178,12 +207,27 @@ Downloading map "$1"...##Baixando o mapa "$1"...
 Drop power-ups##Soltar poderes
 Dvorak##Dvorak
 ERRORS:$1##ERROS:$1
+ET##TE
 EXIT##SAIR
 Enable joystick control##Abilitar controle por joystick
 Energy##Energia
 English##Português (Brasil)
+Error connecting to "$1": $2##Erro conectando a "$1": $2
+Error initializing network subsystem: $1##Erro inicializando o subsistema de rede: $1
+Error opening a broadcast socket on UDP port $1: $2##Erro abrindo um socket de broadcast na porta UDP $1: $2
+Error opening a broadcast socket on any UDP port: $1##Erro abrindo um socket de broadcast em alguma porta UDP: $1
+Error opening a socket on TCP port $1: $2##Erro abrindo um socket na porta TCP $1: $2
+Error opening a socket on UDP port $1: $2##Erro abrindo um socket na porta UDP $1: $2
+Error opening a socket on any TCP port: $1##Erro abrindo um socket em alguma porta TCP: $1
+Error opening a socket on any UDP port: $1##Erro abrindo um socket em alguma porta UDP: $1
+Error reading from socket: $1##Erro lendo do socket: $1
+Error reading from socket: Operation timed out.##Erro lendo do socket: A operação estourou o tempo limite.
+Error resolving hostname "$1": $2##Erro resolvendo o hostname "$1": $2
 Error sending##Erro enviando
+Error setting socket to listen mode: $1##Erro alterando o socket para o modo de escuta: $1
 Error writing to '$1'.##Erro gravando para '$1'.
+Error writing to socket: $1##Erro escrevendo no socket: $1
+Error writing to socket: Operation timed out.##Erro escrevendo no socket: A operação estourou o tempo limite.
 Error: server rejected##Erro: servidor rejeitou
 Errors##Erros
 Esc:quit##Esc:Sair
@@ -193,12 +237,16 @@ FPS limit##Limite do FPS
 FPS:$1##FPS:$1
 Failed##Falhou
 Favorite colors##Cores favoritas
+Favorites##Favoritos
 File download: Can't open '$1' for writing.##Arquivo baixado: Não é possível abrir '$1' para gravação.
 Finland##Finlândia
+Flag return delay##Atraso no retorno da bandeira
 Flags dropped##Bandeiras largadas
 Flags returned##Bandeiras retornadas
 Flags taken##Bandeiras pegas
 Font##Fonte
+Format error in data received from the server.##Erro de formato nos dados recebidos do servidor.
+Format error in replay file.##Erro no formato do arquivo de replay.
 France##França
 Friendly fire##Tiro do parceiro
 GAME TIED##JOGO EMPATADO
@@ -206,12 +254,14 @@ Game options##Opções do jogo
 Germany##Alemanha
 Get random name##Pegar um nome aleatório
 Get server list at startup##Pegar lista do servidor na inicialização
+Getting server list: $1##Pegando a lista do servidor: $1
 Getting server list: connecting...##Pegando a lista de servidores: connectando...
 Getting server list: receiving...##Pegando a lista de servidores: recebendo...
 Graphic options##Opções gráficas
 Health##Saúde
 Help##Ajuda
 Highlight returned and dropped flags##Destacar bandeiras retornadas e largadas
+Highlight self after spawn##Marcar o jogador após nascer
 Hit accuracy##Precisão do tiro
 IP address##Endereço de IP
 IP address            Ping D Players Vers. Host name##Endereço de IP        Ping D Jgdrs Versão  Nome do Host
@@ -225,6 +275,7 @@ Insert = add to favorites    Delete = remove server##Insert = Adicionar aos favo
 Internal error##Erro interno
 Internal error (client misbehaved).##Erro interno (Problema no cliente).
 Invalid IP address.##Indereço de IP inválido.
+Invalid authorization class entry in auth.txt: "$1"##Classe de autorização inválida no auth.txt: "$1"
 Invalid ban command (IP address) in auth.txt: "$1"##Comando de ban inválido (Endereço de IP) no auth.txt: "$1"
 Invalid line (no name) in auth.txt: "$1"##Linha inválida (sem nome) no auth.txt: "$1"
 Invalid map line: $1##Linha inválida no mapa: $1
@@ -233,8 +284,11 @@ Invalid syntax in client.cfg ("$1").##Sintaxe inválida no client.cfg ("$1").
 Invalid user command (no password) in auth.txt: "$1"##Comando de usuário inválido (sem senha) no auth.txt: "$1"
 Invisible shadow##Sombre invisível
 Italy##Itália
+Joystick axes##Eixos do joystick
+Joystick buttons##Botões do joystick
 Joystick buttons (0 = disabled)##Botões do joystick (0 = disabilitado)
 Keyboard layout##Layout do teclado
+Keyboard turning speed##Velocidade do giro pelo teclado
 Kills##Matou
 Label '$1' not found: $2##Label '$1' não encontrado: $2
 Label line not allowed in label block: $1##Label line não é permitido no label block: $1
@@ -242,6 +296,7 @@ Lag prediction##Prevenção de lag
 Lag prediction amount##Quantidade da prevenção de lag
 Language##Idioma
 Less transparency effects##Menos efeitos de transparência
+Let view follow over map border##Deixar a visão sobrepor a borda do mapa
 Loading map: $1 bytes##Carregando mapa: $1 bytes
 Local server##Servidor local
 Local server (running)##Servidor local (rodando)
@@ -250,12 +305,16 @@ Logged in; sent to server##Logado; enviado para o servidor
 Logged in; server accepted##Logado; servidor aceitou
 Login failed: check password##Falha no login: verifique sua senha
 MAP##MAPA
+Make flags extra-visible##Fazer as banderas mais visíveis
 Manually enter IP##Entrar o IP manualmente
 Map info mode##Modo de informação do mapa
 Map is missing a width, height or title.##Está faltando a altura, largura ou título do mapa.
+Map number##Número do mapa
 Map picture saver: Can't save map picture to '$1'.##Salvador de figuras do mapa: Não é possível salvar a figura do mapa para '$1'.
 Map picture saver: Map '$1' is not a valid map file.##Salvador de figuras do mapa: Mapa '$1' não é um arquivo válido de mapa.
 Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
+Markers for nearby players and flags in game##Marcas para os jogadores e bandeiras próximas no jogo
+Markers for nearby players and flags in replay##Marcas para os jogadores e bandeiras próximas no replay
 Master server unavailable##Servidor mestre indisponível
 Master talker: $1##Comunicador mestre: $1
 Master talker: (Quit) $1##Comunicador mestre: (Sair) $1
@@ -271,10 +330,12 @@ Maximum powerups##Poder máximo
 Maximum weapon level##Nível máximo da arma
 May be heavy packet loss,##Perda temporária de pacotes
 Minimum powerups##Poder mínimo
+Mouse control (buttons: 0 = disabled)##Controle do mouse (botões: 0 = desabilitado)
 Movement##Movimentos
 Moving stick##Stick de movimento
 Name##Nome
 Name and passwords##Nome e senha
+Network error: $1##Erro de rede: $1
 New version: $1##Nova versão: $1
 No IP network.##Sem rede de IP.
 No help found. It should be in $1##Nenhuma ajuda encontrada. Deveria estar em $1
@@ -288,16 +349,20 @@ Norway##Noruega
 OK##OK
 One hit shield##Escudo de 1 tiro
 Options##Opções
+Out of memory.##Sem memória disponível.
 Outgun - Saving map pictures##Outgun - Salvando figuras do mapa
 Outgun client##Outgun - Cliente
 Password##Senha
+Passwordless admins need to authenticate by logging in to the ranking.##Administradores sem senha precisam se autenticar se logando no torneio.
 Ping     Capt Kills      Deaths Suicides##Ping     Capt Matou     Morreu  Suicidios
 Play on the server##Jogar no servidor
 Player collisions##Colisão de jogadores
+Player options##Opções do Jogador
 Player password for $1##Senha do jogador para $1
 Playtime lifetime    rank  power  score##T. jogo    T.vida  posição força  pontos
 Please close and restart Outgun to complete the change of language.##Por-favor, feche e reinicie o Outgun para completar a alteração do idioma.
 Poland##Polônia
+Port is missing from $1.##A porta em $1 está faltando.
 Portugal##Portugal
 Possible thread priorities (-prio <val>):##Possíveis prioridades de thread (-prio <val>):
 Power##Força
@@ -306,6 +371,8 @@ Powerup max time##Tempo máximo do poder
 Powerup time##Tempo do poder
 Powerups##Poderes
 Prefer main theme background##Preferir fundo do tema principal
+Prefer main theme colours##Dar preferência as cores do tema principal
+Preferrably aim with##Mirar preferencialmente com
 Protocol mismatch. Server: $1, client: $2.##Protocolo incorreto. Servidor: $1, cliente: $2.
 RED TEAM WINS##TIME VERMELHO VENCEU
 Ranking password##Senha do campeonato
@@ -318,7 +385,12 @@ Refresh servers##Atualizar servidores
 Refresh status##Atualizar estado
 Registration status##Estado do registo
 Remove server-specific player passwords##Remover senha específica de servidor para o jogador 
+Replay $1 is a newer version ($2).##Replay $1 é uma versão mais nova ($2).
+Replay on $1##Replay em $1
+Replays##Replays
 Room line not allowed in label block: $1##Room line não é permitido no label block: $1
+Rooms on screen in each direction in game##Salas na tela em cada direção no jogo
+Rooms on screen in each direction in replay##Salas na tela em cada direção no replay
 Run   ##Correr
 Running##Rodando
 Russia##Russia
@@ -332,8 +404,10 @@ Say##Diga
 Say team##Diga ao time
 Screen mode##Modos de tela
 Screen size##Tamanho da tela
+Scrolling##Scrolling
 See the 'log' directory for more information.##Veja o diretório 'log' para maiores informações.
 Sending login...##Enviando login...
+Sensitivity##Sensibilidade
 Server list##Lista de servidores
 Server map list##Lista de mapas do servidor
 Server not responding##Servidor não respondendo
@@ -346,6 +420,7 @@ Shots##Tiros
 Shots   |  Taken  Movement     Speed##Tiros   |  Pegos Movimentos Velocidade
 Shots taken##Tiros levados
 Show favorite servers##Mostrar servidores favoritos
+Show flag disappearance positions##Mostrar a posição de desaparecimento da bandeira
 Show flag messages##Mostrar as mensagens sobre bandeiras
 Show killing messages##Mostrar as mensagens sobre mortes
 Show player names##Mostrar nome dos jogadores
@@ -357,13 +432,17 @@ Shutdown: bot thread##Desligando: thread dos bots
 Shutdown: main thread##Desligando: thread principal
 Shutdown: master talker thread##Desligando: thread do comunicador mestre
 Shutdown: net server##Desligando: servidor da net
+Shutdown: relay thread##Desligando: thread do relay
 Shutdown: waiting for $1 ranking updates##Desligando: esperando por $1 atualizações do torneio
 Shutdown: website thread##Desligando: thread do website
+Size##Tamanho
 Slovakia##Eslováquia
 Socket error##Erro de soquete
+Sort order (space to cycle): $1##Arranjar a ordem (espaço para circular): $1
 Sound options##Opções sonoras
 Sounds enabled##Habilitar som
 Spain##Espanha
+Spectating on $1##Espectador em $1
 Start server##Iniciar servidor
 Stats screen alpha##Estado alfa da tela
 Status##Estado
@@ -379,6 +458,7 @@ TEAMS##TIMES
 TIME LIMIT IS $1 MINUTES.##O LIMITE DO TEMPO É DE $1 MINUTOS.
 Take part in the ranking##Faça parte do campeonato
 Team $1, flag $2 on the wall.##Time $1, bandeira $2 na parede.
+Team $1, respawn area $2 does not have enough free space.##Time $1, área de renascimento $2 não tem espaço livre suficiente.
 Team $1, spawn point $2 on the wall.##Time $1, ponto de nascimento $2 na parede.
 Team power##Força do time
 Team stats##Estado do time
@@ -387,17 +467,24 @@ The directory '$1' was not found and could not be created.##O diretório '$1' não
 The given priority $1 isn't within system limits. Run with -info for more information.##A prioridade escolhida, $1 não está dentro dos limites do sistema. Rode com -info para mais informações.
 The server is full.##O servidor está lotado.
 Theme##Tema
+Theme and font##Tema e fonte
+This file is automatically rewritten whenever the ban list changes.##Esse arquivo é automaticamente gerado cada vez que a lista de ban se altera.
+This is a newer replay version ($1).##Isso é uma nova versão do replay ($1).
+This is not an Outgun replay.##Isso não é um replay do Outgun.
 This map is $1 ($2 of $3).##Esse é o mapa $1 ($2 de $3).
 This map is $1.##Esse é o mapa $1.
 This map is broken. There is an instantly capturable flag. Avoid it.##Esse mapa está quebrado. Tem uma bandeira e captura instantânea. Evite-a.
 This map is invalid: instant flag capture is possible.##O mapa não é válido: Captura estantânea da bandeira é possível.
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie o assert.log e o stackdump.bin do diretório log e diga oque você estava fazendo para outgun@mbnet.fi (Por-favor, envie em inglês)
 Time limit##Limite de tempo
+Title##Título
+To reserve a name add a row:##Para reservar um nome, adicione uma linha:
 Too much talk. Chill...##Muita conversa. Shhhhh...
+Traffic: $1 B/s##Tráfico: $1 B/s
 Translation $1 can't be read.##Tradução $1 não pode ser lida.
 Trying to connect...##Tentando conectar...
 Turbo##Turbo
-Two identical label names not allowed: $1##Dois label names indênticos não é permitido: $1
+Two identical label names not allowed: $1##Dois nomes indênticos não são permitido: $1
 Underline master-authenticated players##Sublinhar jogadores autenticados pelo mestre
 Underline server-authenticated players##Sublinhar jogadores auntenticados pelo servidor
 United Kingdom##Reino Unido
@@ -411,20 +498,28 @@ Unrecognized map line: $1##Linha do mapa irreconhecível: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Modo não utilizável no gfxmodes.txt: $1×$2×$3 (precisa ser no mínimo 320×200 com 16, 24 ou 32 de bits).
 Update server list##Atualizar lista de servidores
 Updating your ranking score failed!##A atualização de sua pontuação no torneio falhou!
+Use arrow keys to edit message input##Usar as setas do teclado para editar a mensagem
 Use keypad for moving##Usar keypad para se movimentar
 Use page flipping##Usar "page flipping"
 VIROU##VIROU
 Version $1##Versão $1
+Volume##Volume
 Vote map number##Votar no número do mapa
+Votes##Votos
 Waiting for response...##Esperando por resposta...
+Waiting for the game to start.##Aguardando o início do jogo.
 Waiting game start - next map is##Esperando o jogo iniciar - o próximo mapa é
+Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.##Aviso: Esse servidor possui extensões ativadas que dá vantagens sobre você a jogadores com um cliente suportado de Outgun.
 Weapon $1##Arma $1
+Website thread: $1##Thread do website: $1
+Website thread: (Quit) $1##Thread do website: (Sair) $1
 Website thread: (Quit) Can't connect to server website.##Website thread: (Sair) Não foi possível conectar ao servidor do website.
 Website thread: (Quit) Can't open socket to connect to server website.##Website thread: (Sair) Não foi possível abrir o soquete para o servidor do website.
 Website thread: Can't open socket to connect to server website.##Website thread: Não foi possível abrir o soquete para conectar ao servidor do website.
 Width and height of textures must be powers of 2; floor texture $1 is $2×$3.##Altura e largura das texturas precisam ser potência de 2; a textura do chão $1 é $2×$3.
 Width and height of textures must be powers of 2; wall texture $1 is $2×$3.##Altura e largura das texturas precisam ser potência de 2; a textura da parede $1 é $2×$3.
 Windowed mode##Modo janela
+With mouse aim move relative to##Com a mira do mouse, mover relativamente ao
 Wrong player password.##Senha do jogador incorreta.
 Wrong server password.##Senha do servidor incorreta.
 You are banned from this server.##Você foi banido do servidor.
@@ -442,7 +537,9 @@ a real number, at least $1##um número real, maior que $1
 a real number, at most $1##um número real, menor que $1
 a real number, between $1 and $2, inclusive##um número real, entre $1 e $2, inclusive
 administrator##administrador
+aim (up = forward)##mira (cima = para frente)
 all messages##todas as mensagens
+always##sempre
 an even integer between 2 and $1##um número inteiro e ímpar entre 2 e $1
 an integer##um número inteiro
 an integer between 0 and $1, or 'n %' with n 0 or greater##um número inteiro entre 0 e $1, ou 'n %' onde n 0 ou superior
@@ -465,7 +562,12 @@ hide early##esconder cedo
 hide late##esconder tarde
 hour##hora
 hours##horas
+if the border has doorways##se tiver entradas nas bordas
+in $1 B/s, out $2 B/s##download $1 B/s, envio $2 B/s
+in same room##na mesma sala
 invalid##inválido
+keyboard (8-directional)##teclado (8 direções)
+keyboard (smooth turning)##teclado (giro suave)
 left##esquerda
 locale##pt_BR
 locally authorized##autorizado localmente
@@ -474,9 +576,13 @@ master authorized##autorizado pelo mestre
 minimal##mínimo
 minute##minuto
 minutes##minutos
+mouse##mouse
 move player##mover o jogador
+multi-roomed##várias salas
+never##nunca
 no ranking login##sem login de torneio
 no response##sem resposta
+non-empty string##texto não vazio
 none##nenhum
 not recording##não está sendo gravado
 off##desligado
@@ -489,19 +595,25 @@ players##jogadores
 private##privativo
 recording##gravando
 right##direita
+room (up = up)##sala (cima = cima)
 run##correr
 second##segundo
 seconds##segundos
 shoot##atirar
+single-roomed##apenas uma sala
 special##especial
 strafe##esquivar
 taken dropped returned   killed    time##pegou  largou  retornou   Mortos Carrega.
 teams##times
+two positive integers and optionally a real number between 0 and 1, separated by spaces##dois números inteiros positivos e opcionalmente um número real entre 0 e 1, separados por espaços
 unknown##desconhecido
 unknown ($1)##desconhecido ($1)
 up##cima
+user <name> <tab> <password>  or  admin <name> [<tab> <password>]##usuário <nome> <tab> <senha>  ou  admin nome [<tab> <senha>]
 week##semana
 weeks##semanas
+when all rooms aren't shown##quando todas as salas não são exibidas
+where <tab> is a tabulator character.##Aonde <tab> é um caractere tabulador (gerado pela tecla tab).
 will not record##não vai gravar
 will record##vai gravar
 windowed##janela
