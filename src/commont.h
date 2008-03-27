@@ -232,7 +232,7 @@ public:
     void load(LogSet& log) throw ();
 };
 
-extern MasterSettings g_masterSettings;
+extern MasterSettings g_masterSettings; // defined in globals.cpp
 
 extern volatile bool g_exitFlag;
 

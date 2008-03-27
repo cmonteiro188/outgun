@@ -375,5 +375,3 @@ void MasterSettings::load(LogSet& log) throw () {
     log("Ranking server address set: %s/%s -> %s.", rankName.c_str(), rankIP.c_str(), rAddress.valid() ? rAddress.toString().c_str() : "none");
     log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid() ? bugAddress.toString().c_str() : "none");
 }
-
-MasterSettings g_masterSettings;

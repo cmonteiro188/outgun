@@ -51,3 +51,4 @@ ThreadLog g_threadLog; // from debug.h
 // Mutexes and ConditionVariables depend on the above
 Mutex g_threadRandomSeedMutex("g_threadRandomSeedMutex"); // from thread.cpp
 Mutex nlOpenMutex("network.cpp:nlOpenMutex"); // from network.cpp
+MasterSettings g_masterSettings; // from commont.h, contains a Mutex
