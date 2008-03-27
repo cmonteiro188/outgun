@@ -4422,12 +4422,10 @@ void Client::continue_replay() throw () {
 
 void Client::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
-    log("continue_replay: from %u", unsigned(pos));
     BinaryStreamReader read(in);
     try {
         process_incoming_data(read.block(read.U32()));
     } catch (BinaryReader::ReadOutside) {
-        log("continue_replay: ReadOutside --> seek back to %u", unsigned(pos));
         in.clear();
         in.seekg(pos);
         if (replay_length > 0)
@@ -4518,16 +4516,10 @@ void Client::continue_spectating() throw () {
     if (result == 0)
         return;
 
-    static FILE* spectateDebugFile = 0;
     if (!spectate_data_received) {
         log("First data from relay, %d bytes.", result);
         spectate_data_received = true;
         spectate_buffer.clear();
-        log("Starting spectate_buffer with %d bytes", result - 1);
-        if (spectateDebugFile)
-            fclose(spectateDebugFile);
-        spectateDebugFile = fopen("spectdebug.bin", "wb");
-        fwrite(buffer + 1, 1, result - 1, spectateDebugFile);
         spectate_buffer.write(buffer + 1, result - 1); // the first byte is the relay's protocol extensions level, about which we don't have to care so far
         if (!start_replay(spectate_buffer)) {
             log.error(_("Could not start spectating."));
@@ -4537,8 +4529,6 @@ void Client::continue_spectating() throw () {
     }
     else {
         openMenus.close(&m_connectProgress.menu);
-        log("Adding %d bytes to spectate_buffer (%c%c) @%u (r@%u)", result, spectate_buffer.good() ? 'G' : 'g', spectate_buffer.fail() ? 'F' : 'f', unsigned(spectate_buffer.tellp()), unsigned(spectate_buffer.tellg()));
-        fwrite(buffer, 1, result, spectateDebugFile);
         spectate_buffer.write(buffer, result);
     }
 }
