@@ -263,7 +263,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
     ClientLoginStatus st;
     st.setToken(clid.token_have);
     st.setMasterAuth(clid.token_have && clid.token_valid);
-    st.setRanking(host->ranking_active() && clid.token_have && clid.current_participation);
+    st.setRanking(host->rankingLoginSet() && clid.token_have && clid.current_participation);
     st.setLocalAuth(host->isLocallyAuthorized(pid));
     st.setAdmin(host->isAdmin(pid));
     world.player[pid].reg_status = st;

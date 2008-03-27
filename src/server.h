@@ -156,7 +156,6 @@ class Server : private NoCopying {
         int             bot_ping;
         bool            balance_bot;
         std::string     bot_name_lang;
-        bool            ranking;
         int             save_stats;
         bool            random_maprot;
         bool            random_first_map;
@@ -281,7 +280,6 @@ class Server : private NoCopying {
         bool get_balance_bot() const throw () { return balance_bot; }
         const std::string& get_bot_name_lang() const throw () { return bot_name_lang; }
 
-        bool get_ranking() const throw () { return ranking; }
         int  get_save_stats() const throw () { return save_stats; }
 
         bool get_random_maprot() const throw () { return random_maprot; }
@@ -410,8 +408,6 @@ public:
     const std::vector<std::string>& getWelcomeMessage() const throw () { return settings.get_welcome_message(); } //#fix?
 
     const std::string& server_website() const throw () { return settings.get_server_website_url(); } //#fix?
-
-    bool ranking_active() const throw () { return settings.get_ranking(); }
 
     bool reset_settings(bool reload) throw ();   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 

@@ -3440,7 +3440,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
     const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
     const double timeDiff = get_time() - capt_flag.grab_time();
-    if (host->ranking_active() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
+    if (host->rankingLoginSet() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
         if (timeDiff <= .1) {   // being able to capture flags without moving is a too easy way to cheat
             log.error(_("This map is invalid: instant flag capture is possible."));
             host->score_frag(pid, -10);

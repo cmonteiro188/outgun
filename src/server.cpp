@@ -465,7 +465,7 @@ void Server::refresh_team_score_modifiers() throw () {
 }
 
 bool Server::rankingEnabled() const throw () {
-    return settings.get_ranking() && network.numDistinctClients() >= settings.get_ranking_minhumans() && network.numDistinctClients() + network.get_bot_count() >= settings.get_ranking_minplayers();
+    return rankingLoginSet() && network.numDistinctClients() >= settings.get_ranking_minhumans() && network.numDistinctClients() + network.get_bot_count() >= settings.get_ranking_minplayers();
 }
 
 //score!

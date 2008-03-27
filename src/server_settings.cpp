@@ -55,8 +55,6 @@ void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bo
     string cmd, value;
     istringstream ist(line);
     ist >> cmd;
-    if (cmd == "tournament")
-        cmd = "ranking";
     ist.ignore();
     getline(ist, value);
     for (vector<Category>::const_iterator ci = categories.begin(); ci != categories.end(); ++ci)
@@ -189,7 +187,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("sayadmin_enabled",            &sayadmin_enabled));
     cat.add(new GS_String    ("sayadmin_comment",            &sayadmin_comment));
     cat.add(new GS_String    ("server_password",             &server_password));
-    cat.add(new GS_Boolean   ("ranking",                     &ranking));
+    cat.add(new GS_Ignore    ("tournament"));
     cat.add(new GS_Int       ("save_stats",                  &save_stats, 0, MAX_PLAYERS));
     cat.add(new GS_Int       ("idlekick_time",               &idlekick_time, 10, GS_Int::lim::max(), 10, 0, true));  // convert seconds to frames; special setting: allow 0 that is outside the normal range
     cat.add(new GS_Int       ("idlekick_playerlimit",        &idlekick_playerlimit, 1, MAX_PLAYERS));
@@ -449,7 +447,6 @@ void Server::SettingManager::reset() throw () {
 
     server_website_url.clear();
 
-    ranking = false;
     save_stats = 0;
 
     recording = 0;
