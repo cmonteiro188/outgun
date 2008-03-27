@@ -62,9 +62,9 @@ enum Network_data_code {
     data_file_request,
     data_file_download,
     data_file_ack,
-    data_registration_token,
+    data_old_registration_token,
     data_registration_response,
-    data_tournament_participation,
+    data_old_tournament_participation,
     data_crap_update,
     data_map_time,
     data_fire_on,
@@ -119,6 +119,8 @@ enum Network_data_code {
     data_current_map = data_reserved_range_first,
     data_bot,
     data_negotiate_third_party_extensions, // this message is reserved for unofficial extensions; it's guaranteed to be ignored by official versions, but to gain compatibility across different 3rd party extensions, the extension to be negotiated should be identified, and unrecognized messages ignored
+    data_ranking_participation, // the newer ranking system
+    data_registration_token, // the newer ranking system
     data_negotiated_extensions_first = data_reserved_range_last + 1, // from here on, messages are only sent when an extension level has been negotiated and it is therefore known that the remote will understand the message
     // available from negotiated extensions level 0:
     data_acceleration_modes = data_negotiated_extensions_first,

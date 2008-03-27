@@ -189,20 +189,41 @@ public:
 class LogSet;
 
 class MasterSettings {
+    // server list
     Network::Address masterAddress;
     std::string hostName;
     std::string queryScript;
     std::string submitScript;
+
+    // ranking
+    Network::Address rAddress;
+    std::string rHostName;
+    std::string rDataScript;
+    std::string rTokenScript;
+
+    // bug reporting
     Network::Address bugAddress;
+
     int configCRC;
 
 public:
     MasterSettings() throw () : configCRC(0) { }
+
+    // server list
     const Network::Address& address() const throw () { return masterAddress; }
     const std::string& host() const throw () { return hostName; }
     const std::string& query() const throw () { return queryScript; }
     const std::string& submit() const throw () { return submitScript; }
+
+    // ranking
+    const Network::Address& rankAddress() const throw () { return rAddress; }
+    const std::string& rankHost() const throw () { return rHostName; }
+    const std::string& rankDataScript() const throw () { return rDataScript; }
+    const std::string& rankTokenScript() const throw () { return rTokenScript; }
+
+    // bug reporting
     const Network::Address& bugReportAddress() const throw () { return bugAddress; }
+
     int crc() const throw () { return configCRC; }
 
     void load(LogSet& log) throw ();

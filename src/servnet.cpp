@@ -837,6 +837,9 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
 
 //enqueue a job to the master server to update a client's delta score
 void ServerNetworking::client_report_status(int id) throw () {
+    if (!host->rankingLoginSet())
+        return;
+
     ClientData& clid = host->getClientData(id);
 
     if (!clid.token_have || !clid.token_valid)
@@ -848,8 +851,9 @@ void ServerNetworking::client_report_status(int id) throw () {
     MasterQuery* job = new MasterQuery();
     job->cid = id;
     job->code = MasterQuery::JT_score;
-    job->request = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
-                                      url_encode(TK1_VERSION_STRING) +
+    job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
+                                      "serial=" + url_encode(host->getRankingID()) +
+                                      "&password=" + url_encode(host->getRankingPassword()) +
                                       "&dscp=" + itoa(clid.delta_score) +
                                       "&dscn=" + itoa(clid.neg_delta_score) +
                                       "&name=" + url_encode(world.player[ctop[id]].name) +
@@ -1588,15 +1592,21 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
             //send next
             upload_next_file_chunk(sender.cid);
         }
+    break; case data_old_registration_token:
+        // just ignore
     break; case data_registration_token: {
+        if (!host->rankingLoginSet())
+            break;
         const string tok = msg.str();
         if (host->changeRegistration(sender.cid, tok)) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
             job->code = MasterQuery::JT_login;
-            job->request = build_http_request("www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
-                                              url_encode(TK1_VERSION_STRING) +
-                                              "&chktk" +
+            job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
+                                              "serial=" + url_encode(host->getRankingID()) +
+                                              "&password=" + url_encode(host->getRankingPassword()) +
+                                              "&dscp=0" +
+                                              "&dscn=0" +
                                               "&name=" + url_encode(sender.name) +
                                               "&token=" + url_encode(tok));
 
@@ -1611,7 +1621,9 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
                                                settings.lowerPriority());
         }
     }
-    break; case data_tournament_participation: {
+    break; case data_old_tournament_participation:
+        // just ignore
+    break; case data_ranking_participation: {
         const uint8_t data = msg.U8();
         ClientData& clid = host->getClientData(sender.cid);
         clid.next_participation = data;
@@ -2136,38 +2148,14 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         }
         delay = 60000;  // default to one minute
 
-        string response;
+        stringstream response;
 
         try {
             Network::TCPSocket sock(Network::NonBlocking, 0, true);
-
-            Network::Address tournamentServer;
-            if (!tournamentServer.tryResolve("www.mycgiserver.com"))
-                tournamentServer.fromValidIP("64.69.35.205");
-            tournamentServer.setPort(80);
-            sock.connect(tournamentServer);
-
+            sock.connect(g_masterSettings.rankAddress());
             sock.persistentWrite(job->request, &mjob_exit, 30000);
-
-            ostringstream respStream;
-            save_http_response(sock, respStream, &mjob_exit, 30000);
+            save_http_response(sock, response, &mjob_exit, 30000);
             sock.close();
-            string fullResponse = respStream.str();
-
-            // find the start and end of the body: after the last "<html>" and before the last "</html>"
-            // the original code uses full case insensivity so response.find_last_of() can't be used
-            int startPos, endPos;
-            for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)   // start at length - 7 because "</html>" must fit after that
-                if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
-                    break;
-            for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
-                if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
-                    break;
-            if (startPos < 6 || endPos < startPos) {
-                log("Tournament thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
-                continue;
-            }
-            response = fullResponse.substr(startPos, endPos - startPos);
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {
@@ -2176,81 +2164,76 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             continue;
         }
 
-        // parse the response
-        bool unavailable = false;
-        for (string::size_type i = 0; i < response.length(); ++i)
-            if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
-                log("Tournament thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
-                unavailable = true;
-                break;
-            }
-        if (unavailable)
-            continue;
-        log("Tournament thread: Received response: \"%s\"", formatForLogging(response).c_str());
-        string::size_type cPos = response.find_first_of('@');
-        if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
-            log("Tournament thread: Invalid response (expecting one @-code)");
-            continue;
-        }
-        ++cPos; // point to the control character after @
-        if (response[cPos] == 'K' && cPos + 1 < response.length()) {    // success; ranking data follows
-            ++cPos;
-            double v[4];
-            char termChar;
-            const int num = sscanf(response.c_str() + cPos, "%lf#%lf#%lf#%*[^#]#%lf%c", &v[0], &v[1], &v[2], &v[3], &termChar); // max_world_score that bugs is ignored
-            if (num != 5 || termChar != '#') {
-                log("Tournament thread: Invalid response (expecting num#num#num#num#num# after @K)");
+        string line;
+        while (getline(response, line) && line != "\r"); // skip HTTP headers
+
+        getline_smart(response, line);
+        if (line == "OK") {
+            int v[4];
+            for (int i = 0; i < 4; ++i)
+                response >> v[i];
+            if (!response || !response.eof()) {
+                log("Tournament thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
                 continue;
             }
             const int pid = ctop[job->cid];
-            if (pid != -1) {    // the player is still in the game
-                ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
-                if (job->code == MasterQuery::JT_login) {
-                    log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
-                    BinaryBuffer<128> msg;
-                    msg.U8(data_registration_response);
-                    msg.U8(1); // registration ok
-                    server->send_message(job->cid, msg);
-                    clid.token_valid = true;
-                }
-                else if (job->code == MasterQuery::JT_score)
-                    log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
-                else
-                    nAssert(0);
-                clid.score      = static_cast<int>(v[0]);
-                clid.neg_score  = static_cast<int>(v[1]);
-                clid.rank       = static_cast<int>(v[2]);
-                max_world_rank  = static_cast<int>(v[3]);
-                broadcast_player_crap(pid);
-            }
-            break;  // request complete
-        }
-        else if (response[cPos] == 'E' || response[cPos] == 'F') {
-            const int pid = ctop[job->cid];
-            if (pid != -1) {
-                if (job->code == MasterQuery::JT_login) {
-                    log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
-                                 world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
-                    BinaryBuffer<128> msg;
-                    msg.U8(data_registration_response);
-                    msg.U8(0); // registration failed
-                    server->send_message(job->cid, msg);
-                    host->getClientData(job->cid).token_have = false;
-                    broadcast_player_crap(pid);
-                }
-                else if (job->code == MasterQuery::JT_score) {
-                    send_tournament_update_failed(pid);
-                    log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
-                }
-                else
-                    nAssert(0);
+            if (pid == -1)
+                break; // all done, nothing to notify anyone about
+            ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
+            if (job->code == MasterQuery::JT_login) {
+                log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
+                BinaryBuffer<128> msg;
+                msg.U8(data_registration_response);
+                msg.U8(1); // registration ok
+                server->send_message(job->cid, msg);
+                clid.token_valid = true;
             }
             else if (job->code == MasterQuery::JT_score)
-                log("Tournament thread: Score update lost for a player who has left the server");
+                log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
+            else
+                nAssert(0);
+            clid.rank       = v[0];
+            clid.score      = v[1];
+            clid.neg_score  = v[2];
+            max_world_rank  = v[3];
+            broadcast_player_crap(pid);
+            break; // all done
+        }
+        else if (line.substr(0, 7) == "ERROR: ") {
+            const bool serverError = (line == "ERROR: server doesnt exist!");
+            const bool playerError = (line == "ERROR: player doesnt exist!");
+            if (!serverError && !playerError)
+                log("Tournament thread: Invalid error response: \"%s\"", line.substr(7).c_str());
+            if (serverError && !host->getRankingPassword().empty()) {
+                log.error(_("Ranking server rejected the server id/password. No more ranking transactions will be attempted until ranking_password is set again."));
+                host->clearRankingPassword();
+            }
+            const int pid = ctop[job->cid];
+            if (pid == -1) {
+                if (job->code == MasterQuery::JT_score)
+                    log("Tournament thread: Score update lost for a player who has left the server");
+                break;
+            }
+            if (job->code == MasterQuery::JT_login && playerError) {
+                log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
+                             world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
+            }
+            if (!host->getClientData(job->cid).token_have) // if this operation was pending when a previous one completed with the failure
+                break;
+            BinaryBuffer<128> msg;
+            msg.U8(data_registration_response);
+            msg.U8(0); // registration failed
+            server->send_message(job->cid, msg);
+            host->getClientData(job->cid).token_have = false;
+            broadcast_player_crap(pid);
+            if (job->code == MasterQuery::JT_score) {
+                send_tournament_update_failed(pid);
+                log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
+            }
             break;  // request complete
         }
         else
-            log("Tournament thread: Invalid response (bad @-code)");
+            log("Tournament thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
     }
     {
         Lock ml(mjob_mutex);

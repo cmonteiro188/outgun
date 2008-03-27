@@ -260,9 +260,17 @@ void MasterSettings::load(LogSet& log) throw () {
     static const int defaultPort = 80;
     static const char* defaultQueryScript = "/outgun/servers/";
     static const char* defaultSubmitScript = "/outgun/servers/submit.php";
+
+    static const char* defaultRankName = "outgun.servegame.com";
+    static const char* defaultRankIP = "-";
+    static const int defaultRankPort = 80;
+    static const char* defaultRankDataScript = "/OWR/rank.php";
+    static const char* defaultRankTokenScript = "/OWR/update_token.php";
+
     static const char* defaultBugName = "nix.dnsalias.net";
     static const char* defaultBugIP = "-";
     static const int defaultBugPort = 24900;
+
     static const uint16_t defaultConfigCRC = 54840;
     // defaultConfigCRC should correspond to the file the master is sending that contains the above settings, so that downloading is not needed on a fresh install.
     // If instead downloading in that case is preferred, use 0 which is guaranteed not to be used by a legitimate master.txt.
@@ -270,7 +278,7 @@ void MasterSettings::load(LogSet& log) throw () {
     log("Reading config/master.txt");
     ifstream in((wheregamedir + "config" + directory_separator + "master.txt").c_str());
 
-    string name, ip, bugName, bugIP;
+    string name, ip, bugName, bugIP, rankName, rankIP;
     if (!getline_skip_comments(in, name))
         name = defaultName;
     if (!getline_skip_comments(in, ip))
@@ -294,6 +302,20 @@ void MasterSettings::load(LogSet& log) throw () {
     }
     if (bugIP == "127.0.0.1:65535") // The bug reporting IP in server-sent master.txt is set to this because pre-1.0.4 Outgun requires a valid IP. That way at least packets won't be sent to the network if the hostname doesn't resolve.
         bugIP = defaultBugIP;
+
+    if (!getline_skip_comments(in, rankName))
+        rankName = defaultRankName;
+    if (!getline_skip_comments(in, rankIP))
+        rankIP = defaultRankIP;
+    else if (!isValidIP(rankIP, true, 1) && rankIP != "-") {
+        log.error(_("'$1', given in master.txt is not a valid IP address.", ip));
+        rankIP = defaultRankIP;
+    }
+    if (!getline_skip_comments(in, rDataScript))
+        rDataScript = defaultRankDataScript;
+    if (!getline_skip_comments(in, rTokenScript))
+        rTokenScript = defaultRankTokenScript;
+
     in.close();
 
     FILE *fp = fopen((wheregamedir + "config" + directory_separator + "master.txt").c_str(), "rb");
@@ -307,7 +329,7 @@ void MasterSettings::load(LogSet& log) throw () {
     else
         configCRC = defaultConfigCRC;
 
-    log("Resolving master server address...");
+    log("Resolving master server addresses...");
     masterAddress.clear();
     if (name.length() >= 3) {
         hostName = name;
@@ -321,6 +343,19 @@ void MasterSettings::load(LogSet& log) throw () {
     if (!masterAddress && ip.length() > 1)
         masterAddress.fromValidIP(ip);
 
+    rAddress.clear();
+    if (rankName.length() >= 3) {
+        rHostName = rankName;
+        if (!rAddress.tryResolve(rankName))
+            log("Can't resolve ranking server DNS name to IP.");
+    }
+    else if (rankIP.length() > 1)
+        rHostName = rankIP;
+    else
+        rHostName.clear();
+    if (!rAddress && rankIP.length() > 1)
+        rAddress.fromValidIP(rankIP);
+
     bugAddress.clear();
     if (bugName.length() >= 3)
         if (!bugAddress.tryResolve(bugName))
@@ -330,9 +365,12 @@ void MasterSettings::load(LogSet& log) throw () {
 
     if (masterAddress.valid() && masterAddress.getPort() == 0)
         masterAddress.setPort(defaultPort);
+    if (rAddress.valid() && rAddress.getPort() == 0)
+        rAddress.setPort(defaultRankPort);
     if (bugAddress.valid() && bugAddress.getPort() == 0)
         bugAddress.setPort(defaultBugPort);
     log("Master server address set: %s/%s -> %s.", name.c_str(), ip.c_str(), masterAddress.valid() ? masterAddress.toString().c_str() : "none");
+    log("Ranking server address set: %s/%s -> %s.", rankName.c_str(), rankIP.c_str(), rAddress.valid() ? rAddress.toString().c_str() : "none");
     log("Bug report server address set: %s/%s -> %s.", bugName.c_str(), bugIP.c_str(), bugAddress.valid() ? bugAddress.toString().c_str() : "none");
 }
 

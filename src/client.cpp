@@ -310,19 +310,13 @@ void TournamentPasswordManager::threadFn() throw () {
         }
         delay = 60000;  // default to one minute
 
-        string response;
+        stringstream response;
         try {
             Network::TCPSocket sock(Network::NonBlocking, 0, true);
 
-            Network::Address tournamentServer;
-            if (!tournamentServer.tryResolve("www.mycgiserver.com"))
-                tournamentServer.fromValidIP("64.69.35.205");
-
-            tournamentServer.setPort(80);
-            sock.connect(tournamentServer);
-            const string query = build_http_request(false, "www.mycgiserver.com", "/servlet/fcecin.tk1/index.html",
-                                                    url_encode(TK1_VERSION_STRING) +
-                                                    '&' + (newToken ? "new" : "old") +
+            sock.connect(g_masterSettings.rankAddress());
+            const string query = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankTokenScript(),
+                                                    "&action=" + string(newToken ? "login" : "update") +
                                                     "&name=" + url_encode(name) +
                                                     "&password=" + url_encode(password));
 
@@ -332,26 +326,8 @@ void TournamentPasswordManager::threadFn() throw () {
             sock.persistentWrite(query, &quitThread, 30000);
 
             passStatus = PS_receiving;
-            ostringstream respStream;
-            sock.readAll(respStream, &quitThread, 30000);
+            sock.readAll(response, &quitThread, 30000);
             sock.close();
-            const string fullResponse = respStream.str();
-
-            // find the start and end of the body: after the last "<html>" and before the last "</html>"
-            // the original code uses full case insensitivity so response.find_last_of() can't be used
-            int startPos, endPos;
-            for (startPos = fullResponse.length() - 7; startPos >= 6; --startPos)   // start at length - 7 because "</html>" must fit after that
-                if (!platStricmp(fullResponse.substr(startPos - 6, 6).c_str(), "<html>"))
-                    break;
-            for (endPos = fullResponse.length() - 7; endPos >= startPos; --endPos)
-                if (!platStricmp(fullResponse.substr(endPos, 7).c_str(), "</html>"))
-                    break;
-            if (startPos < 6 || endPos < startPos) {
-                log("Password thread: Invalid response (no <html>...</html>): \"%s\"", formatForLogging(fullResponse).c_str());
-                passStatus = PS_invalidResponse;
-                continue;
-            }
-            response = fullResponse.substr(startPos, endPos - startPos);
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {
@@ -361,48 +337,32 @@ void TournamentPasswordManager::threadFn() throw () {
             continue;
         }
 
-        // parse the response
-        for (string::size_type i = 0; i < response.length(); ++i) {
-            if (response[i] < 32)
-                response[i] = '+';  // for readability in the log
-            if (!platStricmp(response.substr(i, 22).c_str(), "contact servlet runner")) {
-                log("Password thread: Service unavailable: \"%s\"", formatForLogging(response).c_str());
-                passStatus = PS_unavailable;
-                break;
-            }
-        }
-        if (passStatus == PS_unavailable)
-            continue;
-        log("Password thread: Received response: \"%s\"", formatForLogging(response).c_str());
-        string::size_type cPos = response.find_first_of('@');
-        if (cPos == string::npos || cPos + 1 >= response.length() || response.find_first_of('@', cPos + 1) != string::npos) {
-            log("Password thread: Invalid response (expecting one @-code)");
-            passStatus = PS_invalidResponse;
-            continue;
-        }
-        ++cPos; // point to the control character after @
-        if (response[cPos] == 'K' && cPos + 1 < response.length()) {    // login ok; token follows
-            ++cPos;
-            const string::size_type tokEnd = response.find_first_of('#', cPos);
-            if (tokEnd == string::npos || tokEnd - cPos > 15 || tokEnd == cPos) {
-                log("Password thread: Invalid response (invalid token)");
-                passStatus = PS_invalidResponse;
-            }
-            else {
+        string line;
+        while (getline(response, line) && line != "\r"); // skip HTTP headers
+
+        getline_smart(response, line);
+        if (line == "OK") {
+            getline_smart(response, line);
+            if (line.length() >= 4 && line.length() <= 20) { // the initial ranking script uses fixed length tokens, but we only need to check for some sensibility here
                 log("Password thread: Login OK");
                 passStatus = PS_tokenReceived;
-                setToken(response.substr(cPos, tokEnd - cPos));
-                delay = 10*60000;   // refresh token after 10 minutes
+                setToken(line);
+                delay = 10 * 60000; // refresh token after 10 minutes
+                newToken = false;
+            }
+            else {
+                log("Password thread: Invalid token \"%s\"", formatForLogging(line).c_str());
+                passStatus = PS_invalidResponse;
             }
         }
-        else if (response[cPos] == 'E' || response[cPos] == 'F') {
-            log("Password thread: Login failed (wrong name or password)");
+        else if (line.substr(0, 7) == "ERROR: ") {
+            log("Password thread: Login failed (%s)", line.substr(7).c_str());
             passStatus = PS_badLogin;
             setToken("");
-            delay = 10*60000;   // try again after 10 minutes (will probably fail then too)
+            delay = 10 * 60000; // try again after 10 minutes (will probably fail then too)
         }
         else {
-            log("Password thread: Invalid response (bad @-code)");
+            log("Password thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
             passStatus = PS_invalidResponse;
         }
     }
@@ -784,9 +744,6 @@ bool Client::start() throw () {
 
             break; case CCS_Antialiasing:
                 menu.options.graphics.antialiasing.set(args == "2");
-
-            break; case CCS_Tournament:
-                ;   // skip
 
             break; default: nAssert(0); // all values up to the highest known must be handled
         }
@@ -1281,7 +1238,7 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
 #ifndef DEDICATED_SERVER_ONLY
 void Client::send_tournament_participation() throw () {
     BinaryBuffer<8> msg;
-    msg.U8(data_tournament_participation);
+    msg.U8(data_ranking_participation);
     msg.U8(menu.options.player.tournament() ? 1 : 0);
     client->send_message(msg);
 }

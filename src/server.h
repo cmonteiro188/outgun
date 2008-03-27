@@ -179,6 +179,8 @@ class Server : private NoCopying {
 
         bool            log_player_chat;
 
+        std::string     rankingID, rankingPassword;
+
         class DisposerBase {
         public:
             virtual ~DisposerBase() throw () { }
@@ -301,6 +303,10 @@ class Server : private NoCopying {
 
         const std::string& get_hostname() const throw () { return hostname; }
         const std::string& get_server_password() const throw () { return server_password; }
+
+        const std::string& getRankingID() const throw () { return rankingID; }
+        const std::string& getRankingPassword() const throw () { return rankingPassword; }
+        void clearRankingPassword() throw () { rankingPassword.clear(); }
     };
 
     SettingManager settings;
@@ -406,6 +412,11 @@ public:
     bool recording_active() const throw ();
     BinaryWriter& recordMessageWriter() const throw () { return record_messages; }
     const std::string& record_map_data() const throw () { return record_map; }
+
+    const std::string& getRankingID() const throw () { return settings.getRankingID(); }
+    const std::string& getRankingPassword() const throw () { return settings.getRankingPassword(); }
+    bool rankingLoginSet() const throw () { return !getRankingID().empty() && !getRankingPassword().empty(); }
+    void clearRankingPassword() throw () { settings.clearRankingPassword(); }
 };
 
 #endif

@@ -202,6 +202,8 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_ForwardStr("relay_server",                setRelayServer, getRelayServer));
     cat.add(new GS_IntT<unsigned>("spectating_delay",        &spectating_delay, 0, GS_IntT<unsigned>::lim::max()));
     cat.add(new GS_Boolean   ("log_player_chat",             &log_player_chat));
+    cat.add(new GS_String    ("ranking_id",                  &rankingID)),
+    cat.add(new GS_String    ("ranking_password",            &rankingPassword)),
     categories.push_back(cat);
 
     cat = Category("website" , "Server web site");
@@ -470,4 +472,7 @@ void Server::SettingManager::reset() throw () {
     web_script.clear();
     web_auth.clear();
     web_refresh = 2;
+
+    rankingID.clear();
+    rankingPassword.clear();
 }
