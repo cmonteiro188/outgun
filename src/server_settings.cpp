@@ -202,8 +202,10 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_ForwardStr("relay_server",                setRelayServer, getRelayServer));
     cat.add(new GS_IntT<unsigned>("spectating_delay",        &spectating_delay, 0, GS_IntT<unsigned>::lim::max()));
     cat.add(new GS_Boolean   ("log_player_chat",             &log_player_chat));
-    cat.add(new GS_String    ("ranking_id",                  &rankingID)),
-    cat.add(new GS_String    ("ranking_password",            &rankingPassword)),
+    cat.add(new GS_String    ("ranking_id",                  &rankingID));
+    cat.add(new GS_String    ("ranking_password",            &rankingPassword));
+    cat.add(new GS_Int       ("ranking_minhumans",           &ranking_minhumans, 1, MAX_PLAYERS));
+    cat.add(new GS_Int       ("ranking_minplayers",          &ranking_minplayers, 2, MAX_PLAYERS));
     categories.push_back(cat);
 
     cat = Category("website" , "Server web site");
@@ -475,4 +477,7 @@ void Server::SettingManager::reset() throw () {
 
     rankingID.clear();
     rankingPassword.clear();
+
+    ranking_minhumans = 2;
+    ranking_minplayers = 4;
 }

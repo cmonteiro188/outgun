@@ -181,6 +181,8 @@ class Server : private NoCopying {
 
         std::string     rankingID, rankingPassword;
 
+        int             ranking_minhumans, ranking_minplayers;
+
         class DisposerBase {
         public:
             virtual ~DisposerBase() throw () { }
@@ -307,6 +309,9 @@ class Server : private NoCopying {
         const std::string& getRankingID() const throw () { return rankingID; }
         const std::string& getRankingPassword() const throw () { return rankingPassword; }
         void clearRankingPassword() throw () { rankingPassword.clear(); }
+
+        int get_ranking_minhumans() const throw () { return ranking_minhumans; }
+        int get_ranking_minplayers() const throw () { return ranking_minplayers; }
     };
 
     SettingManager settings;
@@ -387,6 +392,7 @@ public:
     void refresh_team_score_modifiers() throw ();
     void check_map_exit() throw ();
     bool specific_map_vote_required() const throw () { return settings.get_require_specific_map_vote(); } //#fix
+    bool rankingEnabled() const throw ();
     void score_frag(int p, int amount, bool forTournament = true) throw ();
     void score_neg(int p, int amount, bool forTournament = true) throw ();
     int getLessScoredTeam() const throw ();  // using team_smul ; call refresh_team_score_modifiers before calling this
