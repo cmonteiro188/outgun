@@ -302,7 +302,7 @@ public:
 
     void send_too_much_talk(int pid) const throw ();
     void send_mute_notification(int pid) const throw ();
-    void send_tournament_update_failed(int pid) const throw ();
+    void send_ranking_update_failed(int pid) const throw ();
     void broadcast_mute_message(int pid, int mode, const std::string& admin, bool inform_target) const throw ();
     void broadcast_kick_message(int pid, int minutes, const std::string& admin) const throw ();
     void send_idlekick_warning(int pid, int seconds) const throw ();

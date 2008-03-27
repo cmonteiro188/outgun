@@ -121,22 +121,22 @@ public:
 
     std::string strFlags() const throw () {
         std::string s;
-        s += token     () ? (masterAuth() ? 'M' : '?') : ' ';
-        s += tournament() ? (masterAuth() ? 'T' : '?') : ' ';
-        s += localAuth () ? 'S' : ' ';
-        s += admin     () ? 'A' : ' ';
+        s += token    () ? (masterAuth() ? 'M' : '?') : ' ';
+        s += ranking  () ? (masterAuth() ? 'R' : '?') : ' ';
+        s += localAuth() ? 'S' : ' ';
+        s += admin    () ? 'A' : ' ';
         return s;
     }
 
     bool token     () const throw () { return (data & SB_token     ) != 0; } // client has reported a token
     bool masterAuth() const throw () { return (data & SB_masterAuth) != 0; } // client's token has been authorized by master
-    bool tournament() const throw () { return (data & SB_tournament) != 0; } // client's score is being recorded for tournament scoring
+    bool ranking   () const throw () { return (data & SB_ranking   ) != 0; } // client's score is being recorded for ranking scoring
     bool localAuth () const throw () { return (data & SB_localAuth ) != 0; } // client has been authorized by the server's auth.txt
     bool admin     () const throw () { return (data & SB_admin     ) != 0; } // client is an admin on this server
 
     void setToken     (bool b) throw () { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }
     void setMasterAuth(bool b) throw () { data = (data & (~SB_masterAuth)) | (b ? SB_masterAuth : 0); }
-    void setTournament(bool b) throw () { data = (data & (~SB_tournament)) | (b ? SB_tournament : 0); }
+    void setRanking   (bool b) throw () { data = (data & (~SB_ranking   )) | (b ? SB_ranking    : 0); }
     void setLocalAuth (bool b) throw () { data = (data & (~SB_localAuth )) | (b ? SB_localAuth  : 0); }
     void setAdmin     (bool b) throw () { data = (data & (~SB_admin     )) | (b ? SB_admin      : 0); }
 
@@ -147,7 +147,7 @@ private:
     enum StatusBit {
         SB_token = 1,
         SB_masterAuth = 2,
-        SB_tournament = 4,
+        SB_ranking = 4,
         SB_localAuth = 8,
         SB_admin = 16
     };

@@ -144,9 +144,9 @@ Player options
 Name
 Get random name
 Favorite colors
-Tournament password
+Ranking password
 Registration status
-Take part in the tournament
+Take part in the ranking
 Remove server-specific player passwords
 
 Game options
@@ -523,7 +523,7 @@ The admin
 Too much talk. Chill...
 Disconnecting in $1...
 This map is broken. There is an instantly capturable flag. Avoid it.
-Updating your tournament score failed!
+Updating your ranking score failed!
 Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.
 
 Saved screenshot to $1.
@@ -541,7 +541,7 @@ not recording
 master auth pending
 will record
 will not record
-no tournament login
+no ranking login
 locally authorized
 administrator
 
@@ -660,7 +660,7 @@ taken dropped returned   killed    time
 Shots   |  Taken  Movement     Speed
 ;0000  100% 0000  000000 u  00.00 u/s   |
 
-          Average        Tournament
+          Average         Ranking
 Playtime lifetime    rank  power  score
 ;0000 min   00:00    0000  00.00 -00000 |
 
@@ -691,7 +691,7 @@ Favorites
 Vote map number
 
 ; Used in the player stats screen (F4) page 4.
-$1 players in the tournament.
+$1 players in the ranking.
 
 ; Used in the debug panel (F9).
 Joystick axes
@@ -920,14 +920,14 @@ The directory '$1' was not found and could not be created.
 
 ; Server shutdown messages. These are briefly shown as the window title while
 ; the server is shutting down. In rare cases they take longer to disappear.
-Shutdown: ABORTING $1 tournament updates
+Shutdown: ABORTING $1 ranking updates
 Shutdown: admin shell threads
 Shutdown: bot thread
 Shutdown: main thread
 Shutdown: master talker thread
 Shutdown: net server
 Shutdown: relay thread
-Shutdown: waiting for $1 tournament updates
+Shutdown: waiting for $1 ranking updates
 Shutdown: website thread
 
 ; Comment written to auth.txt. It may be sensible to translate this in case
@@ -937,4 +937,4 @@ This file is automatically rewritten whenever the ban list changes.
 To reserve a name add a row:
 user <name> <tab> <password>  or  admin <name> [<tab> <password>]
 where <tab> is a tabulator character.
-Passwordless admins need to authenticate by logging in to the tournament.
+Passwordless admins need to authenticate by logging in to the ranking.

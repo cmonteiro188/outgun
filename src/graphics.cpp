@@ -2057,7 +2057,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
         break; case 2: caption1 = _("   Accuracy");
                        caption2 = _("Shots   |  Taken  Movement     Speed");
                        //           |00000  100% 0000  000000 u  00.00 u/s   |
-        break; case 3: caption1 = _("          Average        Tournament");
+        break; case 3: caption1 = _("          Average         Ranking");
                        caption2 = _("Playtime lifetime    rank  power  score");
                        //           |00000 min   00:00    0000  00.00 -00000 |
         break; default: nAssert(0);
@@ -2088,7 +2088,7 @@ void Graphics::draw_statistics(const vector<ClientPlayer*>& players, int page, i
     }
 
     if (page == 3 && max_world_rank > 0)
-        textout_ex(drawbuf, stfont, _("$1 players in the tournament.", itoa(max_world_rank)).c_str(), x_left, pageNumY, colour[Colour::stats_highlight], -1);
+        textout_ex(drawbuf, stfont, _("$1 players in the ranking.", itoa(max_world_rank)).c_str(), x_left, pageNumY, colour[Colour::stats_highlight], -1);
 
     ostringstream page_num;
     page_num << page + 1 << '/' << 4;
@@ -2131,7 +2131,7 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
                   << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
                   << setw(7) << fcvt(st.old_speed(), 2) << " u/s";
         break; case 3:
-            //            Average        Tournament
+            //            Average         Ranking
             //  Playtime lifetime    rank  power  score
             // |00000 min   00:00    0000  00.00 -00000 |
             stats << setw(5);

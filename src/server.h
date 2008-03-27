@@ -156,7 +156,7 @@ class Server : private NoCopying {
         int             bot_ping;
         bool            balance_bot;
         std::string     bot_name_lang;
-        bool            tournament;
+        bool            ranking;
         int             save_stats;
         bool            random_maprot;
         bool            random_first_map;
@@ -281,7 +281,7 @@ class Server : private NoCopying {
         bool get_balance_bot() const throw () { return balance_bot; }
         const std::string& get_bot_name_lang() const throw () { return bot_name_lang; }
 
-        bool get_tournament() const throw () { return tournament; }
+        bool get_ranking() const throw () { return ranking; }
         int  get_save_stats() const throw () { return save_stats; }
 
         bool get_random_maprot() const throw () { return random_maprot; }
@@ -393,8 +393,8 @@ public:
     void check_map_exit() throw ();
     bool specific_map_vote_required() const throw () { return settings.get_require_specific_map_vote(); } //#fix
     bool rankingEnabled() const throw ();
-    void score_frag(int p, int amount, bool forTournament = true) throw ();
-    void score_neg(int p, int amount, bool forTournament = true) throw ();
+    void score_frag(int p, int amount, bool forRanking = true) throw ();
+    void score_neg(int p, int amount, bool forRanking = true) throw ();
     int getLessScoredTeam() const throw ();  // using team_smul ; call refresh_team_score_modifiers before calling this
     bool isLocallyAuthorized(int pid) const throw ();
     bool isAdmin(int pid) const throw ();
@@ -411,7 +411,7 @@ public:
 
     const std::string& server_website() const throw () { return settings.get_server_website_url(); } //#fix?
 
-    bool tournament_active() const throw () { return settings.get_tournament(); }
+    bool ranking_active() const throw () { return settings.get_ranking(); }
 
     bool reset_settings(bool reload) throw ();   // set reload if reset_settings has already been called to preserve map and ensure fixed values aren't changed
 

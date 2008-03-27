@@ -33,7 +33,7 @@
 
 enum ClientCfgSetting {
     CCS_PlayerName,
-    CCS_Tournament,
+    CCS_Ranking,
     CCS_Favorites,
     CCS_FavoriteColors,
     CCS_LagPrediction,
@@ -159,7 +159,7 @@ public:
     Colorselect favoriteColors;
     Textfield   password;
     StaticText  namestatus;
-    Checkbox    tournament;
+    Checkbox    ranking;
     Textarea    removePasswords;
 
     Menu menu;

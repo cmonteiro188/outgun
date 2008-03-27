@@ -612,7 +612,7 @@ public:
     void set_shots_taken(int n) throw () { total_shots_taken = n; }
     void set_base_score(int n) throw () { start_score = n; }
     void set_movement(double amount) throw () { total_movement = amount; }
-    void set_power(double pow) throw () { tournament_power = pow; }
+    void set_power(double pow) throw () { ranking_power = pow; }
 
     void add_point() throw () { ++points; }
     void add_score(double time, const std::string& player) throw ();
@@ -653,7 +653,7 @@ public:
     int shots_taken() const throw () { return total_shots_taken; }
     double movement() const throw () { return total_movement; }
     double accuracy() const throw ();
-    double power() const throw () { return tournament_power; }
+    double power() const throw () { return ranking_power; }
 
     const Flag& flag(int n) const throw () { return team_flags[n]; }
     const std::vector<Flag>& flags() const throw () { return team_flags; }
@@ -673,7 +673,7 @@ private:
     int total_hits;
     int total_shots_taken;
     double total_movement;
-    double tournament_power;
+    double ranking_power;
     std::vector<Flag> team_flags;
     std::vector<std::pair<int, std::string> > caps; // time and player name
     int start_score;    // for players who join in the middle of the game
@@ -1003,7 +1003,7 @@ class ServerWorld : public WorldBase {
 
     void player_steals_flag(int pid, int team, int flag) throw ();
     void player_captures_flag(int pid, int team, int flag) throw ();
-    void team_gets_carrying_point(int team, bool forTournament) throw ();
+    void team_gets_carrying_point(int team, bool forRanking) throw ();
 
     bool all_kind_of_flags_exist() const throw ();
 

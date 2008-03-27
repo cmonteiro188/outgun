@@ -190,7 +190,7 @@ void AuthorizationDatabase::save() const throw (FileError) {
         << "; " << _("To reserve a name add a row:") << '\n'
         << "; " << _("user <name> <tab> <password>  or  admin <name> [<tab> <password>]") << '\n'
         << "; " << _("where <tab> is a tabulator character.") << '\n'
-        << "; " << _("Passwordless admins need to authenticate by logging in to the tournament.") << '\n'
+        << "; " << _("Passwordless admins need to authenticate by logging in to the ranking.") << '\n'
         << '\n';
     for (vector<BanEntry>::const_iterator bi = bans.begin(); bi != bans.end(); ++bi)
         if (bi->endTime > time(0))  // if the ban isn't in effect any more, don't save

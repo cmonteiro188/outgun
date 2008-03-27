@@ -13,7 +13,7 @@
 ; welcome_message, info_message, sayadmin_comment: default: none
 ; sayadmin_enabled: 1 to enable, 0 to disable, default: 0
 ; server_password: max 15 characters, default: none
-; tournament: 1 to enable, 0 to disable, default: 1
+; ranking: 1 to enable, 0 to disable, default: 1
 ; save_stats: 1 to 32, or 0 to disable, default: 0
 ; idlekick_time: seconds, 10 or more, or 0 to disable, default: 120
 ; idlekick_playerlimit: 1 to 32, default: 4
@@ -35,7 +35,7 @@ server_name Anonymous host
 sayadmin_enabled 0
 ;sayadmin_comment insert comment here
 ;server_password password
-tournament 1
+ranking 1
 save_stats 0
 idlekick_time 120
 idlekick_playerlimit 4

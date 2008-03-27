@@ -177,7 +177,7 @@ bool Server::check_name_password(const string& name, const string& password) con
 }
 
 void Server::ctf_game_restart() throw () {
-    //submit all pending reports and update tournament participation flags
+    //submit all pending reports and update ranking participation flags
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
             network.client_report_status(world.player[i].cid);
@@ -465,17 +465,17 @@ void Server::refresh_team_score_modifiers() throw () {
 }
 
 bool Server::rankingEnabled() const throw () {
-    return settings.get_tournament() && network.numDistinctClients() >= settings.get_ranking_minhumans() && network.numDistinctClients() + network.get_bot_count() >= settings.get_ranking_minplayers();
+    return settings.get_ranking() && network.numDistinctClients() >= settings.get_ranking_minhumans() && network.numDistinctClients() + network.get_bot_count() >= settings.get_ranking_minplayers();
 }
 
 //score!
-void Server::score_frag(int pid, int amount, bool forTournament) throw () {
+void Server::score_frag(int pid, int amount, bool forRanking) throw () {
     world.player[pid].stats().add_frag(amount);
 
     const int cid = world.player[pid].cid;
 
-    // add tournament scoring delta if all criteria for tournament scoring are satisfied
-    if (forTournament && rankingEnabled() && client[cid].current_participation) {
+    // add ranking delta if all criteria for ranking are satisfied
+    if (forRanking && rankingEnabled() && client[cid].current_participation) {
         refresh_team_score_modifiers();
         client[cid].fdp += amount * team_smul[pid / TSIZE];
         client[cid].delta_score = static_cast<int>(client[cid].fdp);
@@ -483,11 +483,11 @@ void Server::score_frag(int pid, int amount, bool forTournament) throw () {
 }
 
 //score! NEG FRAG (v0.4.8)
-void Server::score_neg(int p, int amount, bool forTournament) throw () {
+void Server::score_neg(int p, int amount, bool forRanking) throw () {
     const int cid = world.player[p].cid;
 
-    // add tournament scoring delta if all criteria for tournament scoring are satisfied
-    if (forTournament && rankingEnabled() && client[cid].current_participation) {
+    // add ranking delta if all criteria for ranking are satisfied
+    if (forRanking && rankingEnabled() && client[cid].current_participation) {
         client[cid].fdn += amount;  // not affected by team modifier
         client[cid].neg_delta_score = static_cast<int>(client[cid].fdn);
     }

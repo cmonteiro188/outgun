@@ -1,6 +1,6 @@
 ; Translation copyright © 2004, 2005, 2006, 2008 Jani Rivinoja, Niko Ritari
 
-          Average        Tournament##          Keskim.         Turnaus
+          Average         Ranking##          Keskim.         Turnaus
          Flags          Carriers  Carry##         Liput          Tapetut   Kanto-
      Frags    total/in-row/most##    Pisteet   yht./peräkk./eniten
    Accuracy##   Tarkkuus
@@ -46,7 +46,7 @@ $1 moved to blue team.##$1 siirtyi siniseen joukkueeseen.
 $1 moved to red team.##$1 siirtyi punaiseen joukkueeseen.
 $1 or $2##$1 tai $2
 $1 passwords removed.##Poistin $1 salasanaa.
-$1 players in the tournament.##$1 pelaajaa turnauksessa.
+$1 players in the ranking.##$1 pelaajaa turnauksessa.
 $1 received a mortal blow from $2.##$1 tönittiin hengiltä, tappaja $2.
 $1 received a mortal blow from teammate $2.##$1 tönittiin hengiltä, tappaja joukkuetoveri $2.
 $1 received a mortal blow.##$1 tönittiin hengiltä.
@@ -349,7 +349,7 @@ Out of memory.##Muisti loppu.
 Outgun - Saving map pictures##Outgun - Tallennan karttakuvia
 Outgun client##Outgun
 Password##Salasana
-Passwordless admins need to authenticate by logging in to the tournament.##Salasanattomien ylläpitäjien täytyy tunnistautua kirjautumalla turnaukseen.
+Passwordless admins need to authenticate by logging in to the ranking.##Salasanattomien ylläpitäjien täytyy tunnistautua kirjautumalla turnaukseen.
 Ping     Capt Kills      Deaths Suicides##Pingi  Ryöstöt Tapot   Kuolemat Itsemurhat
 Play on the server##Pelaa palvelimella
 Player collisions##Pelaajien törmäykset
@@ -371,6 +371,7 @@ Prefer main theme colours##Käytä ensisijaisesti pääteeman värejä
 Preferrably aim with##Tähtäys ensisijaisesti
 Protocol mismatch. Server: $1, client: $2.##Protokolla ei täsmää. Palvelin: $1, asiakas: $2.
 RED TEAM WINS##PUNAINEN JOUKKUE VOITTI
+Ranking password##Turnauksen salasana
 Red Team##Punainen
 Redefined map author.##Kartan tekijä toiseen kertaan.
 Redefined map height.##Kartan korkeus toiseen kertaan.
@@ -421,14 +422,14 @@ Show killing messages##Näytä tappoviestit
 Show player names##Näytä pelaajien nimet
 Show server info when connected##Näytä palvelimen tiedot yhdistämisen jälkeen
 Show stats after the round##Näytä tilastot pelin jälkeen
-Shutdown: ABORTING $1 tournament updates##Sammutus: KESKEYTETÄÄN $1 turnauspäivitystä
+Shutdown: ABORTING $1 ranking updates##Sammutus: KESKEYTETÄÄN $1 turnauspäivitystä
 Shutdown: admin shell threads##Sammutus: ylläpitoyhteyssäie
 Shutdown: bot thread##Sammutus: bottisäie
 Shutdown: main thread##Sammutus: pääsäie
 Shutdown: master talker thread##Sammutus: pääpalvelinsäie
 Shutdown: net server##Sammutus: verkkopalvelin
 Shutdown: relay thread##Sammutus: välipalvelinsäie
-Shutdown: waiting for $1 tournament updates##Sammutus: odotan $1 turnauspäivitystä
+Shutdown: waiting for $1 ranking updates##Sammutus: odotan $1 turnauspäivitystä
 Shutdown: website thread##Sammutus: WWW-säie
 Size##Koko
 Slovakia##Slovakia
@@ -451,7 +452,7 @@ Switzerland##Sveitsi
 Syntax error in $1, line '$2'.##Syntaksivirhe tiedostossa $1, rivillä "$2".
 TEAMS##JOUKKUETTA
 TIME LIMIT IS $1 MINUTES.##AIKARAJA ON $1 MINUUTTIA.
-Take part in the tournament##Osallistu turnaukseen
+Take part in the ranking##Osallistu turnaukseen
 Team $1, flag $2 on the wall.##Joukkue $1, lippu $2 seinän päällä.
 Team $1, respawn area $2 does not have enough free space.##Joukkue $1, uudelleensyntymisalueella $2 ei ole tarpeeksi tilaa.
 Team $1, spawn point $2 on the wall.##Joukkue $1, aloituspaikka $2 seinän päällä.
@@ -475,7 +476,6 @@ Time limit##Aikaraja
 Title##Nimi
 To reserve a name add a row:##Varataksesi nimen lisää rivi
 Too much talk. Chill...##Liikaa puhetta. Rauhoitu...
-Tournament password##Turnauksen salasana
 Traffic: $1 B/s##Liikenne: $1 t/s
 Translation $1 can't be read.##Käännöstä $1 ei voi lukea.
 Trying to connect...##Yhdistän...
@@ -493,7 +493,7 @@ Unrecognized gamemod setting: '$1'.##Tuntematon palvelinasetus: "$1"
 Unrecognized map line: $1##Tuntematon karttarivi: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Kelvoton näyttötila tiedostossa gfxmodes.txt: $1×$2×$3 (pitäisi olla vähintään 320×200 ja 16, 24 tai 32 bittiä).
 Update server list##Päivitä palvelinlista
-Updating your tournament score failed!##Turnauspisteidesi päivitys epäonnistui!
+Updating your ranking score failed!##Turnauspisteidesi päivitys epäonnistui!
 Use arrow keys to edit message input##Käytä nuolinäppäimiä viestien kirjoituksessa
 Use keypad for moving##Käytä numeronäppäimistöä liikkumiseen
 Use page flipping##Page flipping -tila
@@ -576,8 +576,8 @@ mouse##hiirellä
 move player##liikuttavat pelaajaa
 multi-roomed##monen huoneen näkymässä
 never##ei koskaan
+no ranking login##ei kirjautumista
 no response##ei vastausta
-no tournament login##ei kirjautumista
 non-empty string##epätyhjä merkkijono
 none##ei
 not recording##ei tallenna

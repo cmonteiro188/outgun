@@ -69,7 +69,7 @@ using std::string;
 using std::stringstream;
 using std::vector;
 
-// tournament thread job struct
+// ranking thread job struct
 class MasterQuery {
 public:
     string request;
@@ -263,7 +263,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
     ClientLoginStatus st;
     st.setToken(clid.token_have);
     st.setMasterAuth(clid.token_have && clid.token_valid);
-    st.setTournament(host->tournament_active() && clid.token_have && clid.current_participation);
+    st.setRanking(host->ranking_active() && clid.token_have && clid.current_participation);
     st.setLocalAuth(host->isLocallyAuthorized(pid));
     st.setAdmin(host->isAdmin(pid));
     world.player[pid].reg_status = st;
@@ -1086,8 +1086,8 @@ void ServerNetworking::send_mute_notification(int pid) const throw () {
     send_simple_message(data_mute_notification, pid);
 }
 
-void ServerNetworking::send_tournament_update_failed(int pid) const throw () {
-    send_simple_message(data_tournament_update_failed, pid);
+void ServerNetworking::send_ranking_update_failed(int pid) const throw () {
+    send_simple_message(data_ranking_update_failed, pid);
 }
 
 void ServerNetworking::broadcast_mute_message(int pid, int mode, const string& admin, bool inform_target) const throw () {
@@ -2159,7 +2159,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {
-            log("Tournament thread: %s", e.str().c_str());
+            log("Ranking thread: %s", e.str().c_str());
             delay = 15000; // faster retry
             continue;
         }
@@ -2173,7 +2173,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             for (int i = 0; i < 4; ++i)
                 response >> v[i];
             if (!response || !response.eof()) {
-                log("Tournament thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
+                log("Ranking thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
                 continue;
             }
             const int pid = ctop[job->cid];
@@ -2181,7 +2181,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 break; // all done, nothing to notify anyone about
             ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
             if (job->code == MasterQuery::JT_login) {
-                log("Tournament thread: Player %s logged in successfully", world.player[pid].name.c_str());
+                log("Ranking thread: Player %s logged in successfully", world.player[pid].name.c_str());
                 BinaryBuffer<128> msg;
                 msg.U8(data_registration_response);
                 msg.U8(1); // registration ok
@@ -2189,7 +2189,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 clid.token_valid = true;
             }
             else if (job->code == MasterQuery::JT_score)
-                log("Tournament thread: Score for player %s updated successfully", world.player[pid].name.c_str());
+                log("Ranking thread: Score for player %s updated successfully", world.player[pid].name.c_str());
             else
                 nAssert(0);
             clid.rank       = v[0];
@@ -2203,7 +2203,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             const bool serverError = (line == "ERROR: server doesnt exist!");
             const bool playerError = (line == "ERROR: player doesnt exist!");
             if (!serverError && !playerError)
-                log("Tournament thread: Invalid error response: \"%s\"", line.substr(7).c_str());
+                log("Ranking thread: Invalid error response: \"%s\"", line.substr(7).c_str());
             if (serverError && !host->getRankingPassword().empty()) {
                 log.error(_("Ranking server rejected the server id/password. No more ranking transactions will be attempted until ranking_password is set again."));
                 host->clearRankingPassword();
@@ -2211,11 +2211,11 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             const int pid = ctop[job->cid];
             if (pid == -1) {
                 if (job->code == MasterQuery::JT_score)
-                    log("Tournament thread: Score update lost for a player who has left the server");
+                    log("Ranking thread: Score update lost for a player who has left the server");
                 break;
             }
             if (job->code == MasterQuery::JT_login && playerError) {
-                log.security("Tournament thread: Login failed for player %s (at %s), request: \"%s\"",
+                log.security("Ranking thread: Login failed for player %s (at %s), request: \"%s\"",
                              world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
             }
             if (!host->getClientData(job->cid).token_have) // if this operation was pending when a previous one completed with the failure
@@ -2227,13 +2227,13 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             host->getClientData(job->cid).token_have = false;
             broadcast_player_crap(pid);
             if (job->code == MasterQuery::JT_score) {
-                send_tournament_update_failed(pid);
-                log("Tournament thread: Score update for player %s failed!", world.player[pid].name.c_str());
+                send_ranking_update_failed(pid);
+                log("Ranking thread: Score update for player %s failed!", world.player[pid].name.c_str());
             }
             break;  // request complete
         }
         else
-            log("Tournament thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
+            log("Ranking thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
     }
     {
         Lock ml(mjob_mutex);
@@ -2887,14 +2887,14 @@ void ServerNetworking::stop() throw () {
 
     //wait for all master jobs to complete nicely
     while (mjob_count > 0 && get_time() < mjmaxtime) {
-        settings.statusOutput()(_("Shutdown: waiting for $1 tournament updates", itoa(mjob_count)));
+        settings.statusOutput()(_("Shutdown: waiting for $1 ranking updates", itoa(mjob_count)));
         platSleep(100);
     }
 
     //clean up jobs
     mjob_exit = true;       //MUST terminate -- abort
     while (mjob_count > 0) {
-        settings.statusOutput()(_("Shutdown: ABORTING $1 tournament updates", itoa(mjob_count)));
+        settings.statusOutput()(_("Shutdown: ABORTING $1 ranking updates", itoa(mjob_count)));
         platSleep(100);
     }
 

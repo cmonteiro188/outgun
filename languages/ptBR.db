@@ -5,7 +5,7 @@
 ; Agradecimentos especiais: Nix (Niko Ritari) e todo o pessoal do Fórum do
 ; outgun que ajudou a melhorar a tradução!
 
-          Average        Tournament##          Melhor        Campeonato
+          Average         Ranking##          Melhor        Campeonato
          Flags          Carriers  Carry##      Bandeiras          Carrega. Tempo
    Accuracy##    Precisão
  Nr Vote Title                Size  Author## N° Votos Título             Tamanho Autor
@@ -47,7 +47,7 @@ $1 moved to blue team.##$1 moveu para o time azul.
 $1 moved to red team.##$1 moveu para o time vermelho.
 $1 or $2##$1 ou $2
 $1 passwords removed.##$1 senha removida.
-$1 players in the tournament.##$1 jogadores estão no torneio.
+$1 players in the ranking.##$1 jogadores estão no torneio.
 $1 received a mortal blow from $2.##$1 recebeu um impacto mortal do $2.
 $1 received a mortal blow from teammate $2.##$1 recebeu um impacto mortal do parceiro $2.
 $1 received a mortal blow.##$1 recebeu um impacto mortal.
@@ -308,6 +308,7 @@ Powerups##Poderes
 Prefer main theme background##Preferir fundo do tema principal
 Protocol mismatch. Server: $1, client: $2.##Protocolo incorreto. Servidor: $1, cliente: $2.
 RED TEAM WINS##TIME VERMELHO VENCEU
+Ranking password##Senha do campeonato
 Red Team##Time vermelho
 Redefined map author.##Autor do mapa redefinido.
 Redefined map height.##Altura do mapa redefinida.
@@ -350,13 +351,13 @@ Show killing messages##Mostrar as mensagens sobre mortes
 Show player names##Mostrar nome dos jogadores
 Show server info when connected##Mostrar info do servidor quando conectado
 Show stats after the round##Mostrar estatísticas depois do round
-Shutdown: ABORTING $1 tournament updates##Desligando: ABORTANDO $1 atualizações do torneio
+Shutdown: ABORTING $1 ranking updates##Desligando: ABORTANDO $1 atualizações do torneio
 Shutdown: admin shell threads##Desligando: threads do admin shell
 Shutdown: bot thread##Desligando: thread dos bots
 Shutdown: main thread##Desligando: thread principal
 Shutdown: master talker thread##Desligando: thread do comunicador mestre
 Shutdown: net server##Desligando: servidor da net
-Shutdown: waiting for $1 tournament updates##Desligando: esperando por $1 atualizações do torneio
+Shutdown: waiting for $1 ranking updates##Desligando: esperando por $1 atualizações do torneio
 Shutdown: website thread##Desligando: thread do website
 Slovakia##Eslováquia
 Socket error##Erro de soquete
@@ -376,7 +377,7 @@ Switzerland##Suiça
 Syntax error in $1, line '$2'.##Erro de sintaxe no $1, linha '$2'.
 TEAMS##TIMES
 TIME LIMIT IS $1 MINUTES.##O LIMITE DO TEMPO É DE $1 MINUTOS.
-Take part in the tournament##Faça parte do campeonato
+Take part in the ranking##Faça parte do campeonato
 Team $1, flag $2 on the wall.##Time $1, bandeira $2 na parede.
 Team $1, spawn point $2 on the wall.##Time $1, ponto de nascimento $2 na parede.
 Team power##Força do time
@@ -393,7 +394,6 @@ This map is invalid: instant flag capture is possible.##O mapa não é válido: Cap
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Isso é resultado de um bug no outgun. Para ajudar a concertar, por-favor, envie o assert.log e o stackdump.bin do diretório log e diga oque você estava fazendo para outgun@mbnet.fi (Por-favor, envie em inglês)
 Time limit##Limite de tempo
 Too much talk. Chill...##Muita conversa. Shhhhh...
-Tournament password##Senha do campeonato
 Translation $1 can't be read.##Tradução $1 não pode ser lida.
 Trying to connect...##Tentando conectar...
 Turbo##Turbo
@@ -410,7 +410,7 @@ Unrecognized gamemod setting: '$1'.##Configuração do gamemod desconhecida: '$1'.
 Unrecognized map line: $1##Linha do mapa irreconhecível: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Modo não utilizável no gfxmodes.txt: $1×$2×$3 (precisa ser no mínimo 320×200 com 16, 24 ou 32 de bits).
 Update server list##Atualizar lista de servidores
-Updating your tournament score failed!##A atualização de sua pontuação no torneio falhou!
+Updating your ranking score failed!##A atualização de sua pontuação no torneio falhou!
 Use keypad for moving##Usar keypad para se movimentar
 Use page flipping##Usar "page flipping"
 VIROU##VIROU
@@ -475,8 +475,8 @@ minimal##mínimo
 minute##minuto
 minutes##minutos
 move player##mover o jogador
+no ranking login##sem login de torneio
 no response##sem resposta
-no tournament login##sem login de torneio
 none##nenhum
 not recording##não está sendo gravado
 off##desligado

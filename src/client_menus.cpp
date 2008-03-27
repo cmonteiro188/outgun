@@ -201,9 +201,9 @@ Menu_player::Menu_player() throw () :
 
     favoriteColors  (_("Favorite colors")),
 
-    password        (_("Tournament password"), "", 15, '*'),
+    password        (_("Ranking password"), "", 15, '*'),
     namestatus      (_("Registration status")),
-    tournament      (_("Take part in the tournament"), true),
+    ranking         (_("Take part in the ranking"), true),
 
     removePasswords (_("Remove server-specific player passwords")),
 
@@ -220,7 +220,7 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
     add.space();
     add(&password);
     add(&namestatus);
-    add(&tournament, CCS_Tournament);
+    add(&ranking, CCS_Ranking);
     add.space();
     add(&removePasswords);
 }

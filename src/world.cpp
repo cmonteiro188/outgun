@@ -3440,7 +3440,7 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
     const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
     const double timeDiff = get_time() - capt_flag.grab_time();
-    if (host->tournament_active() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
+    if (host->ranking_active() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
         if (timeDiff <= .1) {   // being able to capture flags without moving is a too easy way to cheat
             log.error(_("This map is invalid: instant flag capture is possible."));
             host->score_frag(pid, -10);
@@ -3473,13 +3473,13 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
             player[i].frames_to_respawn = player[i].extra_frames_to_respawn = 0; // will respawn on next frame (only relevant for dead players, obviously)
 }
 
-void ServerWorld::team_gets_carrying_point(int team, bool forTournament) throw () {
+void ServerWorld::team_gets_carrying_point(int team, bool forRanking) throw () {
     for (int i = 0; i < MAX_PLAYERS; i++)
         if (player[i].used) {
             if (i / TSIZE == team)
-                host->score_frag(i, 2, forTournament);
+                host->score_frag(i, 2, forRanking);
             else
-                host->score_neg(i, 1, forTournament);
+                host->score_neg(i, 1, forRanking);
         }
     teams[team].add_point();
     net->ctf_update_teamscore(team);
@@ -3686,7 +3686,7 @@ void Team::clear_stats() throw () {
     total_hits = 0;
     total_shots_taken = 0;
     total_movement = 0;
-    tournament_power = 0;
+    ranking_power = 0;
     caps.clear();
     start_score = 0;
 }

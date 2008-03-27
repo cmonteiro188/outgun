@@ -108,7 +108,7 @@ public:
     void stop() throw ();
 };
 
-class TournamentPasswordManager {
+class RankingPasswordManager {
 public:
     typedef HookFunctionHolder1<void, std::string> TokenCallbackT;  // an empty string is given to indicate no token
 
@@ -130,8 +130,8 @@ public:
         PS_tokenRejected
     };
 
-    TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) throw ();   // warning: the callback will be called from a background thread
-    ~TournamentPasswordManager() throw () { stop(); }
+    RankingPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) throw ();   // warning: the callback will be called from a background thread
+    ~RankingPasswordManager() throw () { stop(); }
 
     void stop() throw ();
     void changeData(const std::string& newName, const std::string& newPass) throw ();
@@ -267,7 +267,7 @@ class Client : public ClientInterface {
     #ifndef DEDICATED_SERVER_ONLY
     std::list<FileDownload> downloads;
 
-    TournamentPasswordManager tournamentPassword;
+    RankingPasswordManager rankingPassword;
 
     uint32_t fdp;
     uint32_t max_world_rank;
@@ -578,7 +578,7 @@ class Client : public ClientInterface {
     void loadSplashScreen() throw ();
     void openMessageLog() throw ();
     void closeMessageLog() throw ();
-    void CB_tournamentToken(std::string token) throw (); // callback called by tournamentPassword from another thread
+    void CB_rankingToken(std::string token) throw (); // callback called by rankingPassword from another thread
 
     bool screenModeChange() throw ();    // the return value should be tested at the first call
     #endif
@@ -613,7 +613,7 @@ class Client : public ClientInterface {
     void sendMinimapBandwidthAny(int players) throw ();
     #ifndef DEDICATED_SERVER_ONLY
     void send_player_token() throw ();
-    void send_tournament_participation() throw ();
+    void send_ranking_participation() throw ();
     void sendFavoriteColors() throw ();
     void sendMinimapBandwidth() throw ();
     #endif

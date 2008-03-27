@@ -1,6 +1,6 @@
 ; Translation copyright © 2006, 2008 Alessandro Ferrentino "Lo Scassatore"
 
-          Average        Tournament##                       Torneo
+          Average         Ranking##                       Torneo
          Flags          Carriers  Carry##         Bandiere         Carrier  Possesso
      Frags    total/in-row/most##     Frags    totali/in-row/magg.
    Accuracy##   Accuratezza
@@ -43,7 +43,7 @@ $1 moved to blue team.##$1 va nella squadra blu.
 $1 moved to red team.##$1 va nella squadra rossa.
 $1 or $2##$1 o $2
 $1 passwords removed.##$1 password rimosse.
-$1 players in the tournament.##$1 giocatori nel torneo.
+$1 players in the ranking.##$1 giocatori nel torneo.
 $1 received a mortal blow from $2.##$1 ha ricevuto un corpo mortale da $2.
 $1 received a mortal blow from teammate $2.##$1 ha ricevuto un corpo mortale da un compagno $2.
 $1 received a mortal blow.##$1 ha ricevuto un corpo mortale.
@@ -300,6 +300,7 @@ Powerups##Potenziamenti
 Prefer main theme background##Tema principale sullo sfondo
 Protocol mismatch. Server: $1, client: $2.##Protocollo invalido. Server: $1, client: $2.
 RED TEAM WINS##LA SQUADRA ROSSA VINCE
+Ranking password##Password per tornei
 Red Team##Rossa
 Redefined map author.##Ridefinire l'autore.
 Redefined map height.##Ridefinire altezza.
@@ -360,7 +361,7 @@ Switzerland##Svizzera
 Syntax error in $1, line '$2'.##Errore di sintassi in $1, linea '$2'.
 TEAMS##SQUADRA
 TIME LIMIT IS $1 MINUTES.##IL TEMPO LIMITE E' $1 MINUTI.
-Take part in the tournament##Prendi parte al torneo
+Take part in the ranking##Prendi parte al torneo
 Team $1, flag $2 on the wall.##Squadra $1, bandiera $2 sul muro.
 Team $1, spawn point $2 on the wall.##Squadra $1, punto spawn $2 sul muro.
 Team power##Potenza squadra
@@ -377,7 +378,6 @@ This map is invalid: instant flag capture is possible.##Questa mappa non è valid
 This results from a bug in Outgun. To help us fix it, please send assert.log and stackdump.bin from the log directory and describe what you were doing to outgun@mbnet.fi##Questo risulta essere un bug di Outgun. Per aiutarci a risolverlo, per favore spedisci assert.log e stackdump.bin dalla cartella 'log' e descrivi ciò che stavi facendo ad outgun@mbnet.fi
 Time limit##Tempo limite
 Too much talk. Chill...##Parli troppo. Stai un po' zitto...
-Tournament password##Password per tornei
 Traffic: $1 B/s##Traffico: $1 B/s
 Translation $1 can't be read.##Traduzione $1 illeggibile.
 Trying to connect...##Connessione in corso...
@@ -395,7 +395,7 @@ Unrecognized gamemod setting: '$1'.##Opzioni gameod '$1' non comprensibili.
 Unrecognized map line: $1##Linea non riconosciuta: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Modo inusuale in gfxmodes.txt: $1×$2×$3 (dovrebbe essere minimo 320×200 con bit 16, 24 o 32).
 Update server list##Aggiorna lista server
-Updating your tournament score failed!##L'aggiornamento dei punteggi del torneo è fallito!
+Updating your ranking score failed!##L'aggiornamento dei punteggi del torneo è fallito!
 Use keypad for moving##Usa keypad per movimento
 Use page flipping##Usa page flipping
 VIROU##SEI
@@ -461,8 +461,8 @@ minimal##minimo
 minute##minuto
 minutes##minuti
 move player##sposta giocatore
+no ranking login##nessun login per torneo
 no response##Nessuna risposta
-no tournament login##nessun login per torneo
 none##niente
 not recording##non registrando
 one of no, balance, and shuffle##uno of no, bilanciato, e sbilanciato

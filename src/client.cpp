@@ -230,31 +230,31 @@ void ServerThreadOwner::stop() throw () {
     serverThread.join();
 }
 
-void TournamentPasswordManager::start() throw () {
+void RankingPasswordManager::start() throw () {
     quitThread = false;
-    thread.start_assert("TournamentPasswordManager::threadFn",
-                        RedirectToMemFun0<TournamentPasswordManager, void>(this, &TournamentPasswordManager::threadFn),
+    thread.start_assert("RankingPasswordManager::threadFn",
+                        RedirectToMemFun0<RankingPasswordManager, void>(this, &RankingPasswordManager::threadFn),
                         priority);
 }
 
-void TournamentPasswordManager::setToken(const string& newToken) throw () {
+void RankingPasswordManager::setToken(const string& newToken) throw () {
     if (token.read() != newToken) {
         token = newToken;
         tokenCallback(newToken);
     }
 }
 
-TournamentPasswordManager::TournamentPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) throw () :
+RankingPasswordManager::RankingPasswordManager(LogSet logs, TokenCallbackT tokenCallbackFunction, int threadPriority) throw () :
     log(logs),
     tokenCallback(tokenCallbackFunction),
     quitThread(true),
     passStatus(PS_noPassword),
     priority(threadPriority),
     servStatus(PS_noPassword), // no server
-    token("TournamentPasswordManager::token")
+    token("RankingPasswordManager::token")
 { }
 
-void TournamentPasswordManager::stop() throw () {
+void RankingPasswordManager::stop() throw () {
     if (!quitThread) {
         log("Joining password-token thread");
         quitThread = true;
@@ -262,7 +262,7 @@ void TournamentPasswordManager::stop() throw () {
     }
 }
 
-void TournamentPasswordManager::changeData(const string& newName, const string& newPass) throw () {
+void RankingPasswordManager::changeData(const string& newName, const string& newPass) throw () {
     if (newName == name && newPass == password)
         return;
 
@@ -278,7 +278,7 @@ void TournamentPasswordManager::changeData(const string& newName, const string& 
     start();
 }
 
-string TournamentPasswordManager::statusAsString() const throw () {
+string RankingPasswordManager::statusAsString() const throw () {
     switch (status()) {
     /*break;*/ case PS_noPassword:      return _("No password set");
         break; case PS_starting:        return _("Initializing...");
@@ -298,7 +298,7 @@ string TournamentPasswordManager::statusAsString() const throw () {
     }
 }
 
-void TournamentPasswordManager::threadFn() throw () {
+void RankingPasswordManager::threadFn() throw () {
     bool newToken = true;
     int delay = 0;  // given a value in MS before each continue: this time will be waited before next round
 
@@ -518,7 +518,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     frameMutex("Client::frameMutex"),
     downloadMutex("Client::downloadMutex"),
     #ifndef DEDICATED_SERVER_ONLY
-    tournamentPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_tournamentToken), config.lowerPriority),
+    rankingPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
@@ -765,7 +765,7 @@ bool Client::start() throw () {
     // finalize and apply the settings
 
     // player
-    tournamentPassword.changeData(playername, menu.options.player.password());
+    rankingPassword.changeData(playername, menu.options.player.password());
     for (int i = 0; i < 16; i++)
         if (find(fav_colors.begin(), fav_colors.end(), i) == fav_colors.end())
             fav_colors.push_back(i);
@@ -1215,10 +1215,10 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     map_vote = -1;
 
     // send registration token (if any)
-    const string s = tournamentPassword.getToken();
+    const string s = rankingPassword.getToken();
     if (!s.empty())
-        CB_tournamentToken(s);
-    send_tournament_participation();
+        CB_rankingToken(s);
+    send_ranking_participation();
 
     {
         Lock ml(mapInfoMutex);
@@ -1236,10 +1236,10 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::send_tournament_participation() throw () {
+void Client::send_ranking_participation() throw () {
     BinaryBuffer<8> msg;
     msg.U8(data_ranking_participation);
-    msg.U8(menu.options.player.tournament() ? 1 : 0);
+    msg.U8(menu.options.player.ranking() ? 1 : 0);
     client->send_message(msg);
 }
 #endif
@@ -1290,7 +1290,7 @@ void Client::client_disconnected(ConstDataBlockRef data) throw () {
     else
         log("Disconnected: %s", description.c_str());
 
-    tournamentPassword.disconnectedFromServer();
+    rankingPassword.disconnectedFromServer();
 
     {
         Lock ml(downloadMutex);
@@ -1576,7 +1576,7 @@ void Client::change_name_command() throw () {
     if (serverIP.valid())
         m_playerPassword.password.set(load_player_password(playername, serverIP.toString()));
     issue_change_name_command();
-    tournamentPassword.changeData(playername, menu.options.player.password());
+    rankingPassword.changeData(playername, menu.options.player.password());
 }
 
 ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
@@ -2447,9 +2447,9 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     break; case data_registration_response:
         #ifndef DEDICATED_SERVER_ONLY
         if (read.U8() == 1)  // success
-            tournamentPassword.serverAcceptsToken();
+            rankingPassword.serverAcceptsToken();
         else
-            tournamentPassword.serverRejectsToken();
+            rankingPassword.serverRejectsToken();
         #endif
 
     break; case data_crap_update: {
@@ -2466,7 +2466,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             !replaying &&
             pid == me &&
             (ls.token() != os.token() ||
-             (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.tournament() != os.tournament())) ||
+             (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.ranking() != os.ranking())) ||
              ls.localAuth() != os.localAuth() ||
              ls.admin() != os.admin());
         if (newMePrintout) {
@@ -2475,21 +2475,21 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             if (ls.token()) {
                 if (ls.masterAuth()) {
                     msg << _("master authorized") << ", ";
-                    if (ls.tournament())
+                    if (ls.ranking())
                         msg << _("recording");
                     else
                         msg << _("not recording");
                 }
                 else {
                     msg << _("master auth pending") << ", ";
-                    if (ls.tournament())
+                    if (ls.ranking())
                         msg << _("will record");
                     else
                         msg << _("will not record");
                 }
             }
             else
-                msg << _("no tournament login");
+                msg << _("no ranking login");
             if (ls.localAuth())
                 msg << "; " << _("locally authorized");
             if (ls.admin())
@@ -3123,9 +3123,9 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
         #endif
 
-    break; case data_tournament_update_failed:
+    break; case data_ranking_update_failed:
         #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("Updating your tournament score failed!")));
+        addThreadMessage(new TM_Text(msg_warning, _("Updating your ranking score failed!")));
         #endif
 
     break; case data_player_mute: {
@@ -4577,7 +4577,7 @@ void Client::stop() throw () {
     }
 
     #ifndef DEDICATED_SERVER_ONLY
-    tournamentPassword.stop();
+    rankingPassword.stop();
 
     //save configuration file
     string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
@@ -5452,17 +5452,17 @@ void Client::MCF_preparePlayerMenu() throw () {
 }
 
 void Client::MCF_prepareDrawPlayerMenu() throw () {
-    menu.options.player.namestatus.set(tournamentPassword.statusAsString());
+    menu.options.player.namestatus.set(rankingPassword.statusAsString());
 }
 
 void Client::MCF_playerMenuClose() throw () {
     change_name_command();
-    send_tournament_participation();
+    send_ranking_participation();
 }
 
 void Client::MCF_nameChange() throw () { // only function to clear the password
     menu.options.player.password.set("");
-    tournamentPassword.changeData(playername, "");
+    rankingPassword.changeData(playername, "");
 }
 
 void Client::MCF_randomName() throw () {
@@ -6134,13 +6134,13 @@ void Client::closeMessageLog() throw () {
     }
 }
 
-void Client::CB_tournamentToken(string token) throw () { // callback called by tournamentPassword from another thread
+void Client::CB_rankingToken(string token) throw () { // callback called by rankingPassword from another thread
     if (connected) {
         BinaryBuffer<256> msg;
         msg.U8(data_registration_token);
         msg.str(token);
         client->send_message(msg);
-        tournamentPassword.serverProcessingToken();
+        rankingPassword.serverProcessingToken();
     }
 }
 #endif
