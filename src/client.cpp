@@ -4443,7 +4443,7 @@ void Client::stop_replay() throw () {
     spectate_socket.closeIfOpen();
 
     if (spectating)
-        spectate_buffer.str("");
+        spectate_buffer.clear();
 
     replaying = false;
     spectating = false;
@@ -4519,6 +4519,7 @@ void Client::continue_spectating() throw () {
     if (!spectate_data_received) {
         log("First data from relay, %d bytes.", result);
         spectate_data_received = true;
+        spectate_buffer.clear();
         spectate_buffer.write(buffer + 1, result - 1); // the first byte is the relay's protocol extensions level, about which we don't have to care so far
         if (!start_replay(spectate_buffer)) {
             log.error(_("Could not start spectating."));
