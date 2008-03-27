@@ -2164,6 +2164,8 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             continue;
         }
 
+        Lock ml(threadLockMutex);
+
         string line;
         while (getline(response, line) && line != "\r"); // skip HTTP headers
 
@@ -2179,7 +2181,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             const int pid = ctop[job->cid];
             if (pid == -1)
                 break; // all done, nothing to notify anyone about
-            ClientData& clid = host->getClientData(job->cid);   //#fix: thread safety
+            ClientData& clid = host->getClientData(job->cid);
             if (job->code == MasterQuery::JT_login) {
                 log("Ranking thread: Player %s logged in successfully", world.player[pid].name.c_str());
                 BinaryBuffer<128> msg;
