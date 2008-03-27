@@ -372,6 +372,7 @@ Preferrably aim with##Tähtäys ensisijaisesti
 Protocol mismatch. Server: $1, client: $2.##Protokolla ei täsmää. Palvelin: $1, asiakas: $2.
 RED TEAM WINS##PUNAINEN JOUKKUE VOITTI
 Ranking password##Turnauksen salasana
+Ranking server rejected the server id/password. No more ranking transactions will be attempted until ranking_password is set again.##Turnauspalvelin ei hyväksynyt palvelimen id:tä/salasanaa. Turnaus on pois käytöstä kunnes ranking_password on korjattu.
 Red Team##Punainen
 Redefined map author.##Kartan tekijä toiseen kertaan.
 Redefined map height.##Kartan korkeus toiseen kertaan.

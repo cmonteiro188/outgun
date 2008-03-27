@@ -818,9 +818,6 @@ Team $1, respawn area $2 does not have enough free space.
 Two identical label names not allowed: $1
 Unrecognized map line: $1
 
-; This is not detected when the map is loaded, but later at an instant capture.
-This map is invalid: instant flag capture is possible.
-
 ; Other file format errors.
 $1 is not an Outgun replay.
 '$1', given in master.txt is not a valid IP address.
@@ -856,6 +853,7 @@ Can't create new thread. Insufficient system resources.
 Can't set server to run in the background.
 No maps for rotation.
 Out of memory.
+Ranking server rejected the server id/password. No more ranking transactions will be attempted until ranking_password is set again.
 
 ; Generic subsystem error messages. $1 is a more detailed error error message,
 ; often from the list of network errors, and normally includes the ending '.'.
