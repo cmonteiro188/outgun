@@ -43,9 +43,6 @@
 
 static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
-//minimum time in seconds between flag steal at base and capture, to consider a map to be valid for scoring
-const double minimum_grab_to_capture_time = 4.0;
-
 const int maximum_shadow_visibility = 254;
 
 using std::ifstream;
@@ -1559,6 +1556,7 @@ void WorldSettings::reset() throw () {
     win_score_difference = 1;
     flag_return_delay = 1.0;
     balance_teams = TB_disabled;
+    min_capture_time = 4.0;
 
     random_wild_flag = false;
 
@@ -3355,14 +3353,14 @@ void ServerWorld::simulateFrame() throw () {
     }
 
     // check for score for carrying a wild flag
-    if (config.carrying_score_time >= minimum_grab_to_capture_time && teams[0].flags().empty() && teams[1].flags().empty()) {
+    if (config.carrying_score_time > 0 && teams[0].flags().empty() && teams[1].flags().empty()) {
         for (vector<Flag>::iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
             if (fi->carried()) {
                 const int team = fi->carrier() / TSIZE;
                 fi->add_carrying_time(team);
                 if (fi->carrying_time() >= 10 * config.carrying_score_time) {
                     fi->reset_carrying_time();
-                    team_gets_carrying_point(team, config.carrying_score_time >= minimum_grab_to_capture_time);
+                    team_gets_carrying_point(team, true);
                     if (teams[team].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                 teams[team].score() - teams[1 - team].score() >= config.getWinScoreDifference() ||
                                 extra_time_and_sudden_death) {
@@ -3440,16 +3438,8 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
     const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
     const double timeDiff = get_time() - capt_flag.grab_time();
-    if (host->rankingLoginSet() && timeDiff <= minimum_grab_to_capture_time) {    // can't capture yet
-        if (timeDiff <= .1) {   // being able to capture flags without moving is a too easy way to cheat
-            log.error(_("This map is invalid: instant flag capture is possible."));
-            host->score_frag(pid, -10);
-            suicide(pid);
-            returnFlag(team, flag);
-            net->broadcast_broken_map();
-        }
+    if (timeDiff <= config.get_min_capture_time()) // can't capture yet
         return;
-    }
     // add frags to all players of the team and
     // penalise every player of the other team
     for (int i = 0; i < MAX_PLAYERS; i++)

@@ -948,6 +948,7 @@ public:
     int win_score_difference;     // minimum score difference needed to win the game
     double flag_return_delay; // in seconds
     Team_balance balance_teams;
+    double min_capture_time; // in seconds
 
     bool random_wild_flag;
 
@@ -978,6 +979,7 @@ public:
     int getWinScoreDifference() const throw () { return win_score_difference; }
     uint32_t getTimeLimit() const throw () { return time_limit; }
     uint32_t getExtraTime() const throw () { return extra_time; }
+    double get_min_capture_time() const throw () { return min_capture_time; }
 
     Team_balance balanceTeams() const throw () { return balance_teams; }
     bool suddenDeath() const throw () { return sudden_death; }
