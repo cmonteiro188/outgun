@@ -1,11 +1,11 @@
-; Translation copyright © 2004, 2005, 2006 Thomaz de Oliveira dos Reis
+; Translation copyright © 2004, 2005, 2006, 2008 Thomaz de Oliveira dos Reis
 ; Contato: E-Mails: thor27@gmail.com, thor27@ibest.com.br (serve como MSNM)
 ;	   ICQ: 117089308 - Jabber: thor27@jabber-br.org
 ;
 ; Agradecimentos especiais: Nix (Niko Ritari) e todo o pessoal do Fórum do
 ; outgun que ajudou a melhorar a tradução!
 
-          Average         Ranking##          Melhor        Campeonato
+          Average         Ranking##          Melhor          Ranking
          Flags          Carriers  Carry##      Bandeiras          Carrega. Tempo
      Frags    total/in-row/most##     Matou    total/seguidos/mais
    Accuracy##    Precisão
@@ -51,7 +51,7 @@ $1 moved to blue team.##$1 moveu para o time azul.
 $1 moved to red team.##$1 moveu para o time vermelho.
 $1 or $2##$1 ou $2
 $1 passwords removed.##$1 senha removida.
-$1 players in the ranking.##$1 jogadores estão no torneio.
+$1 players in the ranking.##$1 jogadores estão no ranking.
 $1 received a mortal blow from $2.##$1 recebeu um impacto mortal do $2.
 $1 received a mortal blow from teammate $2.##$1 recebeu um impacto mortal do parceiro $2.
 $1 received a mortal blow.##$1 recebeu um impacto mortal.
@@ -353,7 +353,7 @@ Out of memory.##Sem memória disponível.
 Outgun - Saving map pictures##Outgun - Salvando figuras do mapa
 Outgun client##Outgun - Cliente
 Password##Senha
-Passwordless admins need to authenticate by logging in to the ranking.##Administradores sem senha precisam se autenticar se logando no torneio.
+Passwordless admins need to authenticate by logging in to the ranking.##Administradores sem senha precisam se autenticar se logando no ranking.
 Ping     Capt Kills      Deaths Suicides##Ping     Capt Matou     Morreu  Suicidios
 Play on the server##Jogar no servidor
 Player collisions##Colisão de jogadores
@@ -375,7 +375,7 @@ Prefer main theme colours##Dar preferência as cores do tema principal
 Preferrably aim with##Mirar preferencialmente com
 Protocol mismatch. Server: $1, client: $2.##Protocolo incorreto. Servidor: $1, cliente: $2.
 RED TEAM WINS##TIME VERMELHO VENCEU
-Ranking password##Senha do campeonato
+Ranking password##Senha do ranking
 Red Team##Time vermelho
 Redefined map author.##Autor do mapa redefinido.
 Redefined map height.##Altura do mapa redefinida.
@@ -426,14 +426,14 @@ Show killing messages##Mostrar as mensagens sobre mortes
 Show player names##Mostrar nome dos jogadores
 Show server info when connected##Mostrar info do servidor quando conectado
 Show stats after the round##Mostrar estatísticas depois do round
-Shutdown: ABORTING $1 ranking updates##Desligando: ABORTANDO $1 atualizações do torneio
+Shutdown: ABORTING $1 ranking updates##Desligando: ABORTANDO $1 atualizações do ranking
 Shutdown: admin shell threads##Desligando: threads do admin shell
 Shutdown: bot thread##Desligando: thread dos bots
 Shutdown: main thread##Desligando: thread principal
 Shutdown: master talker thread##Desligando: thread do comunicador mestre
 Shutdown: net server##Desligando: servidor da net
 Shutdown: relay thread##Desligando: thread do relay
-Shutdown: waiting for $1 ranking updates##Desligando: esperando por $1 atualizações do torneio
+Shutdown: waiting for $1 ranking updates##Desligando: esperando por $1 atualizações do ranking
 Shutdown: website thread##Desligando: thread do website
 Size##Tamanho
 Slovakia##Eslováquia
@@ -456,7 +456,7 @@ Switzerland##Suiça
 Syntax error in $1, line '$2'.##Erro de sintaxe no $1, linha '$2'.
 TEAMS##TIMES
 TIME LIMIT IS $1 MINUTES.##O LIMITE DO TEMPO É DE $1 MINUTOS.
-Take part in the ranking##Faça parte do campeonato
+Take part in the ranking##Faça parte do ranking
 Team $1, flag $2 on the wall.##Time $1, bandeira $2 na parede.
 Team $1, respawn area $2 does not have enough free space.##Time $1, área de renascimento $2 não tem espaço livre suficiente.
 Team $1, spawn point $2 on the wall.##Time $1, ponto de nascimento $2 na parede.
@@ -497,7 +497,7 @@ Unrecognized gamemod setting: '$1'.##Configuração do gamemod desconhecida: '$1'.
 Unrecognized map line: $1##Linha do mapa irreconhecível: $1
 Unusable mode in gfxmodes.txt: $1×$2×$3 (should be at least 320×200 with bits 16, 24 or 32).##Modo não utilizável no gfxmodes.txt: $1×$2×$3 (precisa ser no mínimo 320×200 com 16, 24 ou 32 de bits).
 Update server list##Atualizar lista de servidores
-Updating your ranking score failed!##A atualização de sua pontuação no torneio falhou!
+Updating your ranking score failed!##A atualização de sua pontuação no ranking falhou!
 Use arrow keys to edit message input##Usar as setas do teclado para editar a mensagem
 Use keypad for moving##Usar keypad para se movimentar
 Use page flipping##Usar "page flipping"
@@ -580,7 +580,7 @@ mouse##mouse
 move player##mover o jogador
 multi-roomed##várias salas
 never##nunca
-no ranking login##sem login de torneio
+no ranking login##sem login de ranking
 no response##sem resposta
 non-empty string##texto não vazio
 none##nenhum
