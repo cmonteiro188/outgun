@@ -73,7 +73,7 @@ using std::vector;
 class MasterQuery {
 public:
     string request;
-    enum JobType { JT_score, JT_login };
+    enum JobType { JT_score, JT_login, JT_nameCheck };
     JobType code;
     int cid;
 };
@@ -92,6 +92,7 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     newUniqueId(0),
     accelerationModeMask(0),
     flagModeMask(0),
+    rankingLoginSetPreviously(false),
     maplist_revision(0),
     relayThread(logs, file_threads_quit),
     playerSlotReservationTime(get_time()),
@@ -1595,20 +1596,26 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     break; case data_old_registration_token:
         // just ignore
     break; case data_registration_token: {
-        if (!host->rankingLoginSet())
-            break;
         const string tok = msg.str();
         if (host->changeRegistration(sender.cid, tok)) {
             MasterQuery *job = new MasterQuery();
             job->cid = sender.cid;
-            job->code = MasterQuery::JT_login;
-            job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
-                                              "serial=" + url_encode(host->getRankingID()) +
-                                              "&password=" + url_encode(host->getRankingPassword()) +
-                                              "&dscp=0" +
-                                              "&dscn=0" +
-                                              "&name=" + url_encode(sender.name) +
-                                              "&token=" + url_encode(tok));
+            if (host->rankingLoginSet()) {
+                job->code = MasterQuery::JT_login;
+                job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
+                                                  "serial=" + url_encode(host->getRankingID()) +
+                                                  "&password=" + url_encode(host->getRankingPassword()) +
+                                                  "&dscp=0" +
+                                                  "&dscn=0" +
+                                                  "&name=" + url_encode(sender.name) +
+                                                  "&token=" + url_encode(tok));
+            }
+            else {
+                job->code = MasterQuery::JT_nameCheck;
+                job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
+                                                  "name=" + url_encode(sender.name) +
+                                                  "&token=" + url_encode(tok));
+            }
 
             {
                 Lock ml(mjob_mutex);
@@ -1800,6 +1807,16 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
         if (newMask != flagModeMask) {
             flagModeMask = newMask;
             send_flag_modes(pid_all);
+        }
+    }
+    if (host->rankingLoginSet() != rankingLoginSetPreviously) { // check if ranking enable/disable has changed
+        rankingLoginSetPreviously = host->rankingLoginSet();
+        for (int pid = 0; pid < maxplayers; ++pid) {
+            if (!world.player[pid].used)
+                continue;
+            const ClientData& clid = host->getClientData(world.player[pid].cid);
+            if (clid.token_have && clid.current_participation) // else, the client's ranking-participation both was and is disabled
+                broadcast_player_crap(pid);
         }
     }
 
@@ -2172,9 +2189,12 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         getline_smart(response, line);
         if (line == "OK") {
             int v[4];
-            for (int i = 0; i < 4; ++i)
-                response >> v[i];
-            if (!response || !response.eof()) {
+            string clanTag;
+            getline(response, clanTag);
+            if (job->code != MasterQuery::JT_nameCheck)
+                for (int i = 0; i < 4; ++i)
+                    response >> v[i];
+            if (!response || response.peek() != std::istream::traits_type::eof()) {
                 log("Ranking thread: Invalid response: \"%s\"", formatForLogging(response.str()).c_str());
                 continue;
             }
@@ -2182,7 +2202,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
             if (pid == -1)
                 break; // all done, nothing to notify anyone about
             ClientData& clid = host->getClientData(job->cid);
-            if (job->code == MasterQuery::JT_login) {
+            if (job->code == MasterQuery::JT_login || job->code == MasterQuery::JT_nameCheck) {
                 log("Ranking thread: Player %s logged in successfully", world.player[pid].name.c_str());
                 BinaryBuffer<128> msg;
                 msg.U8(data_registration_response);
@@ -2194,10 +2214,12 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 log("Ranking thread: Score for player %s updated successfully", world.player[pid].name.c_str());
             else
                 nAssert(0);
-            clid.rank       = v[0];
-            clid.score      = v[1];
-            clid.neg_score  = v[2];
-            max_world_rank  = v[3];
+            if (job->code != MasterQuery::JT_nameCheck) {
+                clid.rank       = v[0];
+                clid.score      = v[1];
+                clid.neg_score  = v[2];
+                max_world_rank  = v[3];
+            }
             broadcast_player_crap(pid);
             break; // all done
         }
@@ -2216,7 +2238,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                     log("Ranking thread: Score update lost for a player who has left the server");
                 break;
             }
-            if (job->code == MasterQuery::JT_login && playerError) {
+            if ((job->code == MasterQuery::JT_login || job->code == MasterQuery::JT_nameCheck) && playerError) {
                 log.security("Ranking thread: Login failed for player %s (at %s), request: \"%s\"",
                              world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
             }

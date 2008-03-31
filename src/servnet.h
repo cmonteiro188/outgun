@@ -154,8 +154,10 @@ private:
     unsigned        newUniqueId;
     std::queue< std::pair<unsigned, double> > freedUniqueIds; // pair of id, time of allowed reuse
 
-    uint32_t         accelerationModeMask;
+    uint32_t        accelerationModeMask;
     uint8_t         flagModeMask;
+
+    bool            rankingLoginSetPreviously;
 
     int             maplist_revision;   // used by website thread to determine when to resend maplist
 

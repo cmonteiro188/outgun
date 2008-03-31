@@ -261,11 +261,11 @@ void MasterSettings::load(LogSet& log) throw () {
     static const char* defaultQueryScript = "/outgun/servers/";
     static const char* defaultSubmitScript = "/outgun/servers/submit.php";
 
-    static const char* defaultRankName = "outgun.servegame.com";
-    static const char* defaultRankIP = "-";
+    static const char* defaultRankName = "outgun.locaradio.com";
+    static const char* defaultRankIP = "216.12.206.117";
     static const int defaultRankPort = 80;
-    static const char* defaultRankDataScript = "/OWR/rank.php";
-    static const char* defaultRankTokenScript = "/OWR/update_token.php";
+    static const char* defaultRankDataScript = "/rank.php";
+    static const char* defaultRankTokenScript = "/update_token.php";
 
     static const char* defaultBugName = "nix.dnsalias.net";
     static const char* defaultBugIP = "-";
