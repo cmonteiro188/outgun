@@ -999,6 +999,8 @@ void Server::nameChange(int id, int pid, string name, const string& password) th
     //  anymore for recording statistics
     client[id].token_have = false;
 
+    world.player[pid].clanTag = string();
+
     //check if it's the first name information from client. then it
     // must have just entered the game
     const bool entered_game = world.player[pid].name.empty();
