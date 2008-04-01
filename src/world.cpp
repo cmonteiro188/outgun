@@ -3740,6 +3740,7 @@ double Team::accuracy() const throw () {
 Flag::Flag(const WorldCoords& pos_) throw () :
     status(status_at_base),
     carrier_id(-1),
+    drop_t(-1e10),
     return_t(-1e10),
     home_pos(pos_),
     pos(pos_),
