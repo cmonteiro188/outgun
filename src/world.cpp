@@ -798,6 +798,7 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     ping = 0;
     id = _pid;
     name = _name;
+    clanTag = string();
     item_deathbringer = item_power = item_turbo = false;
     item_shield = 0;
     visibility = 255;

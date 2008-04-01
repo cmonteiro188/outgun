@@ -404,7 +404,7 @@ public:
 // get rid of (or move elsewhere)
     bool used;
     int id; // as in pid
-    std::string name;
+    std::string name, clanTag;
     int ping;
     //int frags;
     bool dead;

@@ -1410,6 +1410,8 @@ void Server::chat(int pid, const string& message) throw () {
             ;   // Notify?
         else {
             ostringstream msg;
+            if (!world.player[pid].clanTag.empty())
+                msg << '(' << world.player[pid].clanTag << ") ";
             msg << world.player[pid].name << ": ";
             if (message[0] == '.') {   // team message
                 msg << trim(message.substr(1));

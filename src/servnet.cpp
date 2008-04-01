@@ -2221,6 +2221,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 max_world_rank  = v[3];
             }
             broadcast_player_crap(pid);
+            world.player[pid].clanTag = clanTag;
             break; // all done
         }
         else if (line.substr(0, 7) == "ERROR: ") {
