@@ -2238,18 +2238,29 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                     log("Ranking thread: Score update lost for a player who has left the server");
                 break;
             }
+            if (serverError && job->code == MasterQuery::JT_login) {
+                // we're still interested in the player status, so try again without the server login
+                job->code = MasterQuery::JT_nameCheck;
+                job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
+                                                  "name=" + url_encode(world.player[pid].name) +
+                                                  "&token=" + url_encode(host->getClientData(job->cid).token));
+                delay = 0; // try again immediately
+                continue;
+            }
             if ((job->code == MasterQuery::JT_login || job->code == MasterQuery::JT_nameCheck) && playerError) {
                 log.security("Ranking thread: Login failed for player %s (at %s), request: \"%s\"",
                              world.player[pid].name.c_str(), get_client_address(job->cid).toString().c_str(), formatForLogging(job->request).c_str());
             }
             if (!host->getClientData(job->cid).token_have) // if this operation was pending when a previous one completed with the failure
                 break;
-            BinaryBuffer<128> msg;
-            msg.U8(data_registration_response);
-            msg.U8(0); // registration failed
-            server->send_message(job->cid, msg);
-            host->getClientData(job->cid).token_have = false;
-            broadcast_player_crap(pid);
+            if (playerError) {
+                BinaryBuffer<128> msg;
+                msg.U8(data_registration_response);
+                msg.U8(0); // registration failed
+                server->send_message(job->cid, msg);
+                host->getClientData(job->cid).token_have = false;
+                broadcast_player_crap(pid);
+            }
             if (job->code == MasterQuery::JT_score) {
                 send_ranking_update_failed(pid);
                 log("Ranking thread: Score update for player %s failed!", world.player[pid].name.c_str());
