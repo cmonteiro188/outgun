@@ -342,21 +342,28 @@ void RankingPasswordManager::threadFn() throw () {
 
         getline_smart(response, line);
         if (line == "OK") {
-            getline_smart(response, line);
-            if (line.length() >= 4 && line.length() <= 20) { // the initial ranking script uses fixed length tokens, but we only need to check for some sensibility here
-                log("Password thread: Login OK");
-                passStatus = PS_tokenReceived;
-                setToken(line);
-                delay = 10 * 60000; // refresh token after 10 minutes
-                newToken = false;
+            if (newToken) {
+                getline_smart(response, line);
+                if (line.length() >= 4 && line.length() <= 20) { // the initial ranking script uses fixed length tokens, but we only need to check for some sensibility here
+                    log("Password thread: Login OK");
+                    passStatus = PS_tokenReceived;
+                    setToken(line);
+                    delay = 10 * 60000; // refresh token after 10 minutes
+                    newToken = false;
+                }
+                else {
+                    log("Password thread: Invalid token \"%s\"", formatForLogging(line).c_str());
+                    passStatus = PS_invalidResponse;
+                }
             }
             else {
-                log("Password thread: Invalid token \"%s\"", formatForLogging(line).c_str());
-                passStatus = PS_invalidResponse;
+                log("Password thread: Login keepalive OK.");
+                passStatus = PS_tokenReceived;
+                delay = 10 * 60000; // refresh again after 10 minutes
             }
         }
         else if (line.substr(0, 7) == "ERROR: ") {
-            log("Password thread: Login failed (%s)", line.substr(7).c_str());
+            log("Password thread: %s failed (%s)", newToken ? "Login" : "Login keepalive", line.substr(7).c_str());
             passStatus = PS_badLogin;
             setToken("");
             delay = 10 * 60000; // try again after 10 minutes (will probably fail then too)
