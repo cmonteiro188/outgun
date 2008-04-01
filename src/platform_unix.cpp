@@ -157,6 +157,12 @@ static void closeSignalHandler(int) throw () {
     g_exitFlag = true;
 }
 
+static void errorSignalHandler(int signum) throw () {
+    signal(signum, SIG_DFL); // avoid infinite loop if numAssert triggers a signal
+    numAssert(0, signum); // generally this is unsafe depending on where the signal was generated, but there's nothing better for us to do
+    abort();
+}
+
 void platInitAfterAllegro() throw () {
     // initialize wheregamedir
     static const int bufSize = 1000;
@@ -185,8 +191,13 @@ void platInitAfterAllegro() throw () {
     signal(SIGINT, closeSignalHandler);
     signal(SIGTERM, closeSignalHandler);
 
-    signal(SIGABRT, SIG_IGN); // prevent Allegro from detecting abort and causing (more) assertions to fail etc.
+    signal(SIGABRT, SIG_DFL); // prevent Allegro from detecting abort and causing (more) assertions to fail etc.
     signal(SIGPIPE, SIG_IGN); // we don't want closed (TCP) sockets to kill us
+
+    signal(SIGILL, errorSignalHandler);
+    signal(SIGBUS, errorSignalHandler);
+    signal(SIGFPE, errorSignalHandler);
+    signal(SIGSEGV, errorSignalHandler);
 }
 
 void platUninit() throw () {
