@@ -88,6 +88,8 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
         }
     }
 
+    shift_rooms_if_needed();
+
     const Dist base = select_base();
     const int x1 = base.coords.first, y1 = base.coords.second;
     const int x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
@@ -131,6 +133,65 @@ bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_room
         remove_wall(mx1, my1, mx2 - mx1, my2 - my1, visited_rooms, true);
     }
     return true;
+}
+
+void MapGenerator::shift_rooms_if_needed() throw () {
+    bool solid_top_wall = true;
+    for (int x = 0; x < width(); x++)
+        if (!room[x][0].top) {
+            solid_top_wall = false;
+            break;
+        }
+    bool solid_left_wall = true;
+    for (int y = 0; y < height(); y++)
+        if (!room[0][y].left) {
+            solid_left_wall = false;
+            break;
+        }
+    int x_shift = 0, y_shift = 0;
+    if (!solid_top_wall) {
+        for (int y = 0; y < height(); y++) {
+            bool solid_wall = true;
+            for (int x = 0; x < width(); x++)
+                if (!room[x][y].top) {
+                    solid_wall = false;
+                    break;
+                }
+            if (solid_wall) {
+                y_shift = y;
+                break;
+            }
+        }
+    }
+    if (!solid_left_wall) {
+        for (int x = 0; x < width(); x++) {
+            bool solid_wall = true;
+            for (int y = 0; y < height(); y++)
+                if (!room[x][y].left) {
+                    solid_wall = false;
+                    break;
+                }
+            if (solid_wall) {
+                x_shift = x;
+                break;
+            }
+        }
+    }
+    //std::cout << "shift (" << x_shift << ", " << y_shift << ")\n";
+    shift_rooms(x_shift, y_shift);
+}
+
+void MapGenerator::shift_rooms(int x_shift, int y_shift) throw () {
+    if (x_shift == 0 && y_shift == 0)
+        return;
+    vector<vector<SimpleRoom> > temp_room;
+    temp_room.resize(width());
+    for (vector<vector<SimpleRoom> >::iterator vi = temp_room.begin(); vi != temp_room.end(); vi++)
+        *vi = vector<SimpleRoom>(height());
+    for (int y = 0; y < height(); y++)
+        for (int x = 0; x < width(); x++)
+            temp_room[x][y] = room[(x + x_shift) % width()][(y + y_shift) % height()];
+    room = temp_room;
 }
 
 void MapGenerator::draw(ostream& out) const throw () {

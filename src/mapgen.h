@@ -59,6 +59,9 @@ public:
 private:
     bool remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror = false) throw ();
 
+    void shift_rooms_if_needed() throw ();
+    void shift_rooms(int x_shift, int y_shift) throw ();
+
     Dist select_base() throw ();
     int distance(int sx, int sy, int gx, int gy) throw ();
     const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) throw ();
