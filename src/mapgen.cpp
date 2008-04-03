@@ -43,7 +43,7 @@ using std::pair;
 using std::string;
 using std::vector;
 
-void MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
+int MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
     over_edge = allow_over_edge;
     room.clear();
     room.resize(w);
@@ -88,8 +88,8 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
         }
     }
 
-    const pair<int, int> base = max_distance();
-    const int x1 = base.first, y1 = base.second;
+    const Dist base = select_base();
+    const int x1 = base.coords.first, y1 = base.coords.second;
     const int x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
     const int y2 = symmetry == horizontal ? y1 : height() - 1 - y1;
     room[x1][y1].flag = true;
@@ -98,6 +98,7 @@ void MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
         flags = 1;
     else
         flags = 2;
+    return base.dist;
 }
 
 bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) throw () {
@@ -165,7 +166,7 @@ void MapGenerator::draw(ostream& out) const throw () {
         }
 }
 
-pair<int, int> MapGenerator::max_distance() throw () {
+MapGenerator::Dist MapGenerator::select_base() throw () {
     vector<Dist> distances;
     int max_dist = 0;
     for (int y = 0; y < height(); y++)
@@ -180,7 +181,7 @@ pair<int, int> MapGenerator::max_distance() throw () {
             if (dist > max_dist)
                 max_dist = dist;
         }
-    const int min_dist = min(max_dist, max(7 * max_dist / 10, 3));
+    const int min_dist = min(max_dist, max(8 * max_dist / 10, 3));
     for (vector<Dist>::iterator di = distances.begin(); di != distances.end(); )
         if (di->dist < min_dist)
             di = distances.erase(di);
@@ -190,7 +191,7 @@ pair<int, int> MapGenerator::max_distance() throw () {
     //cout << "Maximum " << max_dist << '\n';
     const Dist& selected = distances[rand() % distances.size()];
     //cout << "Selected " << selected.dist << '\n';
-    return selected.coords;
+    return selected;
 }
 
 int MapGenerator::distance(int sx, int sy, int gx, int gy) throw () {

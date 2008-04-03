@@ -49,14 +49,17 @@ class MapGenerator {
     struct Dist { std::pair<int, int> coords; int dist; };
 
 public:
-    void generate(int w, int h, bool allow_over_edge = false) throw ();
+    /** Generate map. Return the distance between the bases.
+     */
+    int generate(int w, int h, bool allow_over_edge = false) throw ();
+
     void draw(std::ostream& out) const throw ();
     void save_map(std::ostream& out, const std::string& title, const std::string& author) const throw ();
 
 private:
     bool remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror = false) throw ();
 
-    std::pair<int, int> max_distance() throw ();
+    Dist select_base() throw ();
     int distance(int sx, int sy, int gx, int gy) throw ();
     const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) throw ();
 
