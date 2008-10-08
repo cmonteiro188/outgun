@@ -21,6 +21,7 @@
  *
  */
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -259,7 +260,7 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) throw () {
     if (gx == sx && gy == sy)
         return 0;
 
-    vector<vector<Node> > node(width(), height());
+    vector<vector<Node> > node(width(), vector<Node>(height()));
     node[sx][sy].cost = 0;
     node[sx][sy].score = node[sx][sy].cost + abs(gx - sx) + abs(gy - sy);
 

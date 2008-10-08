@@ -80,7 +80,7 @@ bool dbimport(FILE* base, FILE* lang, Translations& db, bool verbose) {
     }
     db.credits.clear();
     // initial comment, after the first lines, is allowed to vary in length and content
-    while (br.next() > 0 && br.read()[0] == ';');
+    while (br.next() > 0 && br.read()[0] == ';') { }
     while (lr.next() > 0 && lr.read()[0] == ';')
         db.credits.push_back(lr.read());
     if (br.read()[0] != '\0' || lr.read()[0] != '\0') {
@@ -137,7 +137,7 @@ bool dbexport(FILE* base, const Translations& db, FILE* lang, const string& dbFi
         fprintf(lang, "%s\n", br.read());
     }
     // replace the rest of the comment with credits from the db
-    while (br.next() > 0 && br.read()[0] == ';');
+    while (br.next() > 0 && br.read()[0] == ';') { }
     if (br.read()[0] != '\0')
         return false;
     for (vector<string>::const_iterator ci = db.credits.begin(); ci != db.credits.end(); ++ci)

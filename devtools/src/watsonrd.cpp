@@ -5,8 +5,9 @@
 #include <iostream>
 #include <algorithm>
 
-#include <cstdio>
 #include <cassert>
+#include <cstdio>
+#include <cstring>
 
 using namespace std;
 

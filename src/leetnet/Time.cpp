@@ -23,6 +23,8 @@
 #include <iomanip>
 #include <sstream>
 
+#include <cstdlib>
+
 std::ostream& operator << (std::ostream& o, const GNE::Time& time) throw () {
   return o << time.toString();
 }

@@ -24,6 +24,9 @@
 #include <iostream>
 #include <limits>
 
+#include <malloc.h>
+#include <cstring>
+
 #include "binaryaccess.h"
 
 using std::string;

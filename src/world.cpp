@@ -3660,7 +3660,7 @@ void WorldBase::cleanOldDeathbringerExplosions() throw () {
     // only erase from the front of the list since new ones are added to the back and the lifetime is constant
     for (std::list<DeathbringerExplosion>::iterator dbi = dbExplosions.begin();
          dbi != dbExplosions.end() && dbi->expired(get_frame());
-         dbi = dbExplosions.erase(dbi));
+         dbi = dbExplosions.erase(dbi)) { }
 }
 
 // Team

@@ -338,7 +338,7 @@ void RankingPasswordManager::threadFn() throw () {
         }
 
         string line;
-        while (getline(response, line) && line != "\r"); // skip HTTP headers
+        while (getline(response, line) && line != "\r") { } // skip HTTP headers
 
         getline_smart(response, line);
         if (line == "OK") {
@@ -901,7 +901,7 @@ void Client::bot_start(const Network::Address& addr, int ping, const string& nam
 }
 
 void Client::set_ping(int ping) throw () {
-    while (client->decreasePacketDelay());
+    while (client->decreasePacketDelay()) { }
     for (int i = 0; i < ping / 10; ++i)
         client->increasePacketDelay();
 }
@@ -4885,7 +4885,7 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
     if (start < 0)
         start = 0;
     list<Message>::const_iterator msg = chatbuffer.begin();
-    for (int i = 0; i < start; ++i, ++msg);
+    for (int i = 0; i < start; ++i, ++msg) { }
     if (!show_all_messages) // drop old messages
         for (; msg != chatbuffer.end(); ++msg)
             if (time < msg->time() + 80)

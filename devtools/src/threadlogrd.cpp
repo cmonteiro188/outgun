@@ -1,14 +1,19 @@
-#include <cassert>
-#include <cstdio>
+#include <algorithm>
 #include <map>
-#include <stdint.h>
 #include <string>
 #include <vector>
+
+#include <cassert>
+#include <stdint.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 using std::make_pair;
 using std::map;
 using std::max;
 using std::pair;
+using std::sort;
 using std::string;
 using std::vector;
 

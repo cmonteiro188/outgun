@@ -33,6 +33,7 @@
 
 */
 
+#include <memory>
 #include <sched.h>
 #include <stdio.h>
 #include "../binaryaccess.h"

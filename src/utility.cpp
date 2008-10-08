@@ -32,6 +32,7 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 
 #include "incalleg.h"

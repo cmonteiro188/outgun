@@ -27,6 +27,8 @@
 
 */
 
+#include <cstring>
+
 #include "../debugconfig.h" // for LEETNET_SIMULATED_PACKET_LOSS, LEETNET_DATA_LOG
 #include "dlog.h"
 

@@ -25,6 +25,7 @@
 #define DEBUG_H_INC
 
 #include <cstdio>
+#include <cstring>
 #include "mutex.h"
 
 class ThreadLog {

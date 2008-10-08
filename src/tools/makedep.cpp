@@ -25,10 +25,12 @@
  * - leaves all "recursive" work for make (can be considered good or bad)
  */
 
-#include <cstdarg>
-#include <stdio.h>
 #include <string>
 #include <vector>
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
 
 using std::string;
 

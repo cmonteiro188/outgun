@@ -4,6 +4,8 @@
 #include <string>
 #include <cassert>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 using std::cerr;
 using std::cout;

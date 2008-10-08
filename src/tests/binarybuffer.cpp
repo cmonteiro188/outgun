@@ -21,6 +21,8 @@
  *
  */
 
+#include <cstring>
+
 #include "../binaryaccess.h"
 #include "../binders.h"
 

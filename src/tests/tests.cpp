@@ -23,6 +23,8 @@
 
 #include <iostream>
 
+#include <cstdlib>
+
 #include "tests.h"
 #include "../nassert.h"
 

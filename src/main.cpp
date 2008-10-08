@@ -27,6 +27,8 @@
 #include <sstream>
 #include <string>
 
+#include <cstdlib>
+
 #include "incalleg.h"
 #include "allegro_icon.h"
 #include "debug.h"

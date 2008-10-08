@@ -2184,7 +2184,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
         Lock ml(threadLockMutex);
 
         string line;
-        while (getline(response, line) && line != "\r"); // skip HTTP headers
+        while (getline(response, line) && line != "\r") { } // skip HTTP headers
 
         getline_smart(response, line);
         if (line == "OK") {

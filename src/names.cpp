@@ -24,6 +24,8 @@
  *
  */
 
+#include <cstdlib>
+
 #include "commont.h"
 #include "utility.h"
 
