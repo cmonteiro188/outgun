@@ -21,6 +21,8 @@
  *
  */
 
+#include <sstream>
+
 #include <cstring>
 
 #include "../binaryaccess.h"
@@ -92,10 +94,28 @@ void binaryBufferTest() throw () {
     nAssert(r2.S32() == -4);
     nAssert(r2.constLengthStr(2) == "bl");
     nAssert(r2.str() == "st");
+    nAssert(!r2.hasMore());
     try {
         r2.S8();
         nAssert(0);
     } catch (BinaryReader::ReadOutside) { }
+
+    istringstream iss("a");
+    BinaryStreamReader rs(iss);
+    nAssert(rs.hasMore());
+    nAssert(rs.U8() == 'a');
+    nAssert(rs.getPosition() == 1);
+    nAssert(!rs.hasMore());
+    try {
+        rs.U8();
+        nAssert(0);
+    } catch (BinaryReader::ReadOutside) { }
+    rs.setPosition(0);
+    nAssert(rs.hasMore());
+    ConstDataBlockRef data = rs.blockUpTo(10);
+    nAssert(data.size() == 1 && *static_cast<const char*>(data.data()) == 'a');
+    nAssert(rs.getPosition() == 1);
+    nAssert(!rs.hasMore());
 
     {
         static const unsigned K = 1024, M = K * K;

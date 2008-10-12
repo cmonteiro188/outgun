@@ -355,7 +355,7 @@ unsigned BinaryStreamReader::getPosition() const throw () {
 }
 
 bool BinaryStreamReader::hasMore() const throw () {
-    return !stream.eof();
+    return stream.peek() != std::istream::traits_type::eof();
 }
 
 uint8_t BinaryStreamReader::getU8() throw (ReadOutside) {
@@ -421,11 +421,13 @@ ConstDataBlockRef BinaryStreamReader::getBlockUpTo(unsigned length) throw () {
     delete[] temporaryBuffer;
     temporaryBuffer = new char[length];
     stream.read(temporaryBuffer, length);
+    stream.clear(stream.rdstate() & ~std::ios::failbit);
     return ConstDataBlockRef(temporaryBuffer, stream.gcount());
 }
 
 ConstDataBlockRef BinaryStreamReader::storeBlockUpTo(DataBlockRef buffer) throw () {
     stream.read(static_cast<char*>(buffer.data()), buffer.size());
+    stream.clear(stream.rdstate() & ~std::ios::failbit);
     return ConstDataBlockRef(buffer.data(), stream.gcount());
 }
 
