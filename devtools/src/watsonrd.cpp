@@ -258,6 +258,23 @@ vector<Frame> readStackDump(FILE* src, int offset, bool bits64) {
     return frames;
 }
 
+vector<Frame> readStackTrace(FILE* src) {
+    vector<Frame> frames;
+    Frame fr;
+    fr.ebp = 0;
+    for (;;) {
+        uint8_t eipData[4];
+        const int nRead = fread(eipData, sizeof(uint8_t), 4, src);
+        if (nRead == 0 && feof(src))
+            break;
+        if (nRead != 4)
+            throw Error("Bad data length");
+        fr.eip = eipData[0] << 24 | eipData[1] << 16 | eipData[2] << 8 | eipData[3];
+        frames.push_back(fr);
+    }
+    return frames;
+}
+
 void resolveNames(const vector<ResolveAddress>& resolves, FILE* src) {
     string section;
     vector<ResolveAddress>::const_iterator resolve = resolves.begin();
@@ -321,7 +338,7 @@ string fmt(uint64_t val, bool compress = false) {
     return str;
 }
 
-enum Mode { M_Unset, M_StackDump, M_Watson98, M_WatsonXP, M_Error };
+enum Mode { M_Unset, M_StackDump, M_StackTrace, M_Watson98, M_WatsonXP, M_Error };
 
 void setMode(Mode& var, Mode value) {
     var = (var == M_Unset || var == value) ? value : M_Error;
@@ -369,6 +386,8 @@ int main(int argc, const char* argv[]) {
             showArgs = false;
         else if (!strcmp(argv[argi], "-dump"))
             setMode(mode, M_StackDump);
+        else if (!strcmp(argv[argi], "-trace"))
+            setMode(mode, M_StackTrace);
         else if (!strcmp(argv[argi], "-w98"))
             setMode(mode, M_Watson98);
         else if (!strcmp(argv[argi], "-wxp"))
@@ -381,12 +400,13 @@ int main(int argc, const char* argv[]) {
             mode = M_Error;
     }
     if (mode == M_Error || disasmFile.empty()) {
-        cerr << "Syntax: " << argv[0] << " [-dump|-w98|-wxp] [-brief] [-64] [@<offset>] (<watson-log>|<stack-dump>) <disassembly>\n"
+        cerr << "Syntax: " << argv[0] << " [-dump|-trace|-w98|-wxp] [-brief] [-64] [@<offset>] (<watson-log>|<stack-dump>|<stack-trace>) <disassembly>\n"
                 "\n"
                 "-dump forces stackdump mode.\n"
+                "-trace forces stacktrace mode.\n"
                 "-w98 forces Windows 98 Dr.Watson mode.\n"
                 "-wxp forces Windows XP Dr.Watson mode.\n"
-                "If none of the above is specified, the mode may be guessed from the log or dump filename (*stackdump.bin, or *drwtsn32.log for XP, else 98) or forced by stackdump-only arguments.\n"
+                "If none of the above is specified, the mode may be guessed from the log/dump/trace filename (*stackdump.bin, *stacktrace.bin, or *drwtsn32.log for XP, else 98) or forced by stackdump-only arguments.\n"
                 "\n"
                 "-brief omits function argument list from output.\n"
                 "(stackdump-only) -64 activates x86_64 mode. Up to 100 qwords from the bottom of stack frame are shown in place of argument list.\n"
@@ -396,41 +416,39 @@ int main(int argc, const char* argv[]) {
     if (mode == M_Unset) {
         if (matchRight(dumpFile, "stackdump.bin"))
             mode = M_StackDump;
+        else if (matchRight(dumpFile, "stacktrace.bin"))
+            mode = M_StackTrace;
         else if (matchRight(dumpFile, "drwtsn32.log"))
             mode = M_WatsonXP;
         else
             mode = M_Watson98;
     }
     vector<Frame> frames;
-    if (mode == M_StackDump) {
+    {
         FILE* fp = fopen(dumpFile.c_str(), "rb");
         if (!fp) {
             cerr << "Can't read " << dumpFile << '\n';
             return 1;
         }
         try {
-            frames = readStackDump(fp, offset, bits64);
-        } catch (const Error& e) {
-            cerr << "Format error reading stack dump " << dumpFile << ": " << e.getDesc() << '\n';
-            emitFilePosition(fp, false);
-            return 2;
-        }
-        fclose(fp);
-    }
-    else {
-        FILE* fp = fopen(dumpFile.c_str(), "rb");
-        if (!fp) {
-            cerr << "Can't read " << dumpFile << '\n';
-            return 1;
-        }
-        try {
-            if (mode == M_WatsonXP)
+            if (mode == M_StackDump)
+                frames = readStackDump(fp, offset, bits64);
+            else if (mode == M_StackTrace)
+                frames = readStackTrace(fp);
+            else if (mode == M_WatsonXP)
                 frames = readWatsonLogWXP(fp);
             else
                 frames = readWatsonLogW98(fp);
         } catch (const Error& e) {
-            cerr << "Format error reading Win" << (mode == M_WatsonXP ? "XP" : "98") << " Dr.Watson log " << dumpFile << ": " << e.getDesc() << '\n';
-            emitFilePosition(fp, true);
+            cerr << "Format error reading ";
+            if (mode == M_StackDump)
+                cerr << "stack dump";
+            else if (mode == M_StackTrace)
+                cerr << "stack trace";
+            else
+                cerr << "Win" << (mode == M_WatsonXP ? "XP" : "98") << " Dr.Watson log";
+            cerr << ' ' << dumpFile << ": " << e.getDesc() << '\n';
+            emitFilePosition(fp, mode == M_WatsonXP || mode == M_Watson98);
             return 2;
         }
         fclose(fp);
@@ -458,7 +476,9 @@ int main(int argc, const char* argv[]) {
 
     for (vector<Frame>::const_iterator fi = frames.begin(); fi != frames.end(); ++fi) {
         const Frame& f = *fi;
-        cout << "xBP=" << fmt(f.ebp) << " xIP=" << fmt(f.eip) << ' ' << f.subName;
+        if (mode != M_StackTrace)
+            cout << "xBP=" << fmt(f.ebp) << ' ';
+        cout << "xIP=" << fmt(f.eip) << ' ' << f.subName;
         if (showArgs)
             for (list<uint64_t>::const_iterator ai = f.args.begin(); ai != f.args.end(); ++ai)
                 cout << ' ' << fmt(*ai, true);

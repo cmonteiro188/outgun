@@ -119,24 +119,50 @@ int inMain(FILE* infile, FILE* outfile) {
                 printf(" !!! bad data length !!!");
         }
         else {
-            printf("stack dump of %d bytes ", amount);
-            string fileName = string("stackdump") + itoa(sequence) + ' ' + stime + ' ' + nameBuf + ".bin";
+            bool trace, uncertain;
+            string ignore;
+            if (!strcmp(buf, "trace")) {
+                trace = true;
+                uncertain = false;
+                readStr(buf, bufp, ignore);
+            }
+            else if (!strcmp(buf, "dump")) {
+                trace = false;
+                uncertain = false;
+                readStr(buf, bufp, ignore);
+            }
+            else {
+                trace = false;
+                uncertain = true; // it can't be a trace, but it could be something sent by an entirely unrelated application
+            }
+            if (uncertain)
+                printf("assumed ");
+            printf("stack %s of %d bytes ", trace ? "trace" : "dump", amount - bufp);
+            string fileName = string(trace ? "stacktrace" : "stackdump") + itoa(sequence) + ' ' + stime + ' ' + nameBuf + ".bin";
             if (true) { // if (listen) {
                 ++sequence;
                 FILE* dumpf = fopen(fileName.c_str(), "wb");
                 if (dumpf) {
-                    uint32_t address;
-                    readLong(buf, bufp, address);
-                    while (bufp + 3 < amount) {
-                        uint32_t value;
-                        readLong(buf, bufp, value);
-                        fwrite(&address, sizeof(address), 1, dumpf);
-                        fwrite(&value, sizeof(value), 1, dumpf);
-                        address += 4;
+                    if (trace) {
+                        fwrite(buf + bufp, 1, amount - bufp, dumpf);
+                        fclose(dumpf);
+                        if ((amount - bufp) % 4 != 0)
+                            printf("!!! bad data length !!! ");
                     }
-                    fclose(dumpf);
-                    if (bufp != amount)
-                        printf("!!! bad data length !!! ");
+                    else {
+                        uint32_t address;
+                        readLong(buf, bufp, address);
+                        while (bufp + 3 < amount) {
+                            uint32_t value;
+                            readLong(buf, bufp, value);
+                            fwrite(&address, sizeof(address), 1, dumpf);
+                            fwrite(&value, sizeof(value), 1, dumpf);
+                            address += 4;
+                        }
+                        fclose(dumpf);
+                        if (bufp != amount)
+                            printf("!!! bad data length !!! ");
+                    }
                     printf("saved to %s", fileName.c_str());
                 }
                 else

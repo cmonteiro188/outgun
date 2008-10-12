@@ -65,6 +65,27 @@ static void stackDump(BinaryWriter& b) throw () {
     for (; *stackPtr != STACK_GUARD && b.getPosition() <= maxPosition; ++stackPtr)
         b.U32(*stackPtr);
 }
+
+static bool stackTrace(BinaryWriter& b) throw () { // returns false if a proper stack trace couldn't be obtained (but it might still be truncated with a true return)
+    STATIC_ASSERT(sizeof(void*) == 4);
+    const void* bp = __builtin_frame_address(0); // this requires GCC, but we can't use glibc stacktrace() because MinGW doesn't provide it
+    if (*(static_cast<const void* const*>(bp) + 1) != __builtin_return_address(0))
+        return false;
+    for (;;) {
+        const void* const nextBp = *static_cast<const void* const*>(bp); // on supported architectures, caller bp is stored at *bp
+        if (nextBp <= bp || (static_cast<const char*>(nextBp) - static_cast<const char*>(bp)) % 4 != 0)
+            return false;
+        if (b.getPosition() > b.getCapacity() - 4)
+            return true;
+        const uint32_t* bp_dwp = static_cast<const uint32_t*>(bp);
+        b.U32(*(bp_dwp + 1)); // on supported architectures, return address is stored above caller bp
+        for (; bp_dwp < nextBp; ++bp_dwp)
+            if (*bp_dwp == STACK_GUARD)
+                return true;
+        nAssert(bp_dwp == nextBp);
+        bp = nextBp;
+    }
+}
 #endif
 
 #endif
@@ -125,12 +146,20 @@ void nasprintf(const char* file, int line, const char* expr, ...) throw () {
     try {
         Network::UDPSocket dbgSock(Network::NonBlocking, 0, true);
         dbgSock.write(g_masterSettings.bugReportAddress(), msg);
+
         #ifdef OFFICIAL_BUILD_ID
         // see note about OFFICIAL_BUILD_ID above
-        // the stack dumps are only useful from known executables
+        // the stack dumps/traces are only useful from known executables
         if (g_autoBugReporting == ABR_withDump) {
+            // generate a packet with plain backtrace first; compared to a full dump, this can go far deeper up the stack in the available space, and normally creates a smaller (more reliable) packet
+            msg.clear();
+            msg.str("trace");
+            if (stackTrace(msg))
+                dbgSock.write(g_masterSettings.bugReportAddress(), msg);
+
             // generate a secondary packet with the top of stack dump information
             msg.clear();
+            msg.str("dump");
             stackDump(msg);
             dbgSock.write(g_masterSettings.bugReportAddress(), msg);
         }
