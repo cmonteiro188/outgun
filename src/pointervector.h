@@ -111,7 +111,7 @@ public:
 
     size_type size() const throw () { return v.size(); }
     size_type max_size() const throw () { return v.max_size(); }
-    size_type capacity() const throw () { return v.max_size(); }
+    size_type capacity() const throw () { return v.capacity(); }
     bool empty() const throw () { return v.empty(); }
 
     reference operator[](size_type n) throw () { return *v[n]; }
