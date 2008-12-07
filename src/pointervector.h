@@ -32,11 +32,15 @@
  * A general class to cover all iterator types, not necessarily fully compliant with the standard
  * interface, but code that compiles should work as expected.
  */
-template<class I, class T, class DistanceT> class PointerIterator {
+template<class I, class CI, class T, class DistanceT> class PointerIterator {
     I i;
+
+    typedef PointerIterator<CI, CI, const T, DistanceT> ConstIterator;
 
 public:
     PointerIterator(const I& i_) throw () : i(i_) { }
+
+    operator ConstIterator() const throw() { return ConstIterator(i); }
 
           I rawIterator()       throw () { return i; }
     const I rawIterator() const throw () { return i; }
@@ -81,6 +85,10 @@ public:
  */
 template<class T> class PointerVector : public NoCopying {
     typedef std::vector<T*> PVecT;
+    typedef typename PVecT::iterator PVIT;
+    typedef typename PVecT::const_iterator PVCIT;
+    typedef typename PVecT::reverse_iterator PVRIT;
+    typedef typename PVecT::const_reverse_iterator PVCRIT;
     PVecT v;
 
 public:
@@ -90,10 +98,10 @@ public:
     typedef const T& const_reference;
     typedef typename PVecT::size_type size_type;
     typedef typename PVecT::difference_type difference_type;
-    typedef PointerIterator<typename PVecT::iterator, T, difference_type> iterator;
-    typedef PointerIterator<typename PVecT::const_iterator, const T, difference_type> const_iterator;
-    typedef PointerIterator<typename PVecT::reverse_iterator, T, difference_type> reverse_iterator;
-    typedef PointerIterator<typename PVecT::const_reverse_iterator, const T, difference_type> const_reverse_iterator;
+    typedef PointerIterator<PVIT, PVCIT, T, difference_type> iterator;
+    typedef PointerIterator<PVCIT, PVCIT, const T, difference_type> const_iterator;
+    typedef PointerIterator<PVRIT, PVCRIT, T, difference_type> reverse_iterator;
+    typedef PointerIterator<PVCRIT, PVCRIT, const T, difference_type> const_reverse_iterator;
 
     PointerVector() throw () { }
     explicit PointerVector(size_type n) throw () : v(n) { }
