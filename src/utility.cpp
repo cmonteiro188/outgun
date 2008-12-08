@@ -82,8 +82,10 @@ DataBlock::~DataBlock() throw () {
 }
 
 DataBlock& DataBlock::operator=(const ConstDataBlockRef source) throw() {
-    delete[] d.data();
-    d = BlockRef<uint8_t>(new uint8_t[source.size()], source.size());
+    if (size() != source.size()) {
+        delete[] d.data();
+        d = BlockRef<uint8_t>(new uint8_t[source.size()], source.size());
+    }
     if (source.size()) {
         nAssert(source.data());
         memcpy(data(), source.data(), source.size());
