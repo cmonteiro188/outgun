@@ -354,7 +354,7 @@ template<class UnsignedIntT> UnsignedIntT freeShiftRight(UnsignedIntT val, unsig
 }
 
 template<class UnsignedIntT> UnsignedIntT freeShift(UnsignedIntT val, int bitsLeft) throw () {
-    return bitsLeft >= 0 ? safeShiftLeft(val, bitsLeft) : safeShiftRight(val, -bitsLeft);
+    return bitsLeft >= 0 ? freeShiftLeft(val, bitsLeft) : freeShiftRight(val, -bitsLeft);
 }
 
 /// Returns the current time in the standard format.
