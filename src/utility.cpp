@@ -327,16 +327,11 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
             end = string::npos;
         else {
             end = source.find_last_of(" \t", start + lineLength);
-            if (keep_spaces) {  // Append the extra spaces to the end of the line.
-                const size_t next_word = source.find_first_not_of(" \t", end);
-                if (next_word != string::npos)
-                    end = next_word;
-                else
-                    end++;
-            }
+            if (end == string::npos || end <= start)
+                end = start + lineLength;   // for no forced cutting: source.find_first_of(" \t", start + lineLength); and remove "else" from the next line
+            else if (keep_spaces)  // Append the extra spaces to the end of the line.
+                end = source.find_first_not_of(" \t", end);
         }
-        if (end <= start)
-            end = start + lineLength;   // for no forced cutting: source.find_first_of(" \t", start + lineLength);
         string line;
         if (start == 0) // first line
             lineLength -= indent;   // next lines are shorter because of the indent
@@ -344,8 +339,6 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
             line = string(indent, ' '); // apply indentation
         line += source.substr(start, end - start);
         lines.push_back(line);
-        if (end == string::npos)
-            break;
         start = keep_spaces ? end : source.find_first_not_of(" \t", end);
     } while (start != string::npos);
     return lines;
