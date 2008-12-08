@@ -344,17 +344,6 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
     return lines;
 }
 
-char* strspnp(char* str, const char* charset) throw () {
-    for (; *str; ++str)
-        if (strchr(charset, *str)==NULL)
-            return str;
-    return NULL;
-}
-
-const char* strspnp(const char* str, const char* charset) throw () {
-    return strspnp(const_cast<char*>(str), charset);
-}
-
 LogSet& LogSet::operator()(const string& msg   ) throw () { if (  normalLog) {                                        normalLog->put(msg)  ;               } return *this; }
 LogSet& LogSet::operator()(const char* fmt, ...) throw () { if (  normalLog) { va_list args; va_start(args, fmt); (*  normalLog)(fmt, args); va_end(args); } return *this; }
 LogSet& LogSet::error     (const string& msg   ) throw () { if (   errorLog) {                                         errorLog->put(msg)  ;               } return *this; }

@@ -423,12 +423,6 @@ std::string formatForLogging(const std::string& str) throw ();
 /// Split string to lines, but only at whitespaces.
 std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false) throw ();
 
-/// strspnp: (Watcom definition) find from str the first char not in charset
-char* strspnp(char* str, const char* charset) throw ();
-
-/// strspnp: (Watcom definition) find from str the first char not in charset
-const char* strspnp(const char* str, const char* charset) throw ();
-
 class LineReceiver {
 protected:
     LineReceiver() throw () { }
