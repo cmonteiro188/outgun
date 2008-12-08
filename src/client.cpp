@@ -3810,7 +3810,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
                         // send map vote
                         BinaryBuffer<16> msg;
                         msg.U8(data_map_vote);
-                        msg.S8(map_vote);
+                        msg.U8(map_vote < 0 ? 255 : map_vote);
                         client->send_message(msg);
                     }
                 }
