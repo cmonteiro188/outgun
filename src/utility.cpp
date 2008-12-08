@@ -159,7 +159,7 @@ bool utf8_mode = false;
 
 void check_utf8_mode() throw () {
     char* s;
-    if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && strstr(s, "UTF-8"))
+    if (((s = getenv("LC_ALL")) && *s || (s = getenv("LC_CTYPE")) && *s || (s = getenv("LANG")) && *s) && (strstr(s, "UTF-8") || strstr(s, "utf8")))
         utf8_mode = true;
 }
 
@@ -209,34 +209,19 @@ string utf8_to_latin1(const string& str) throw () {
     // U-00200000 - U-03FFFFFF:     111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
     // U-04000000 - U-7FFFFFFF:     1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
     string latin1;
-    const char invalid_character = '^';
-    for (string::const_iterator s = str.begin(); s != str.end(); ++s) {
-        int latin1_char = invalid_character;
+    for (string::const_iterator s = str.begin(); s != str.end(); ) {
         if (!(*s & 0x80))
-            latin1_char = *s;
-        else if ((*s & 0xE0) == 0xC0) {
-            const char c1 = *s;
-            if (++s == str.end())
+            latin1 += *s++;
+        else if ((*s & 0xFE) == 0xC2) {
+            const char c1 = *s++;
+            if (s == str.end()) // although we generally just assume the data is valid UTF-8, this check is important to avoid a crash
                 break;
-            if ((*s & 0xC0) == 0x80) {
-                const char c2 = *s;
-                latin1_char = (c1 & 0x1F) << 6 | c2 & 0x3F;
-            }
+            latin1 += (c1 & 0x03) << 6 | *s++ & 0x3F;
         }
         else {  // not a Latin 1 character
-            if ((*s & 0xF0) == 0xE0)
-                s += 2;
-            else if ((*s & 0xF8) == 0xF0)
-                s += 3;
-            else if ((*s & 0xFC) == 0xF8)
-                s += 4;
-            else if ((*s & 0xFE) == 0xFC)
-                s += 5;
+            while (++s != str.end() && (*s & 0xC0) == 0x80) { }
+            latin1 += '^';
         }
-        //std::cout << '<' << latin1_char << '>';
-        if (latin1_char & 0xFFFFFF00)
-            latin1_char = invalid_character;
-        latin1 += latin1_char;
     }
     return latin1;
 }
