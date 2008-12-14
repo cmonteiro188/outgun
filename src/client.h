@@ -549,10 +549,9 @@ class Client : public ClientInterface {
     bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
 
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-    // -1 if no target labeled
-    int TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    int TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    int TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
+    void TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
     int TargetFog(RouteTable num) throw ();
 
     int TargetRoute(int efb, int efd, int efc,

@@ -1543,7 +1543,7 @@ bool Client::IsFlagAtBase(const Flag& f, int team) const throw () {
     return false;
 }
 
-int Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
+void Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
 
@@ -1558,11 +1558,9 @@ int Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTa
             routing[num] = Route_Base;
         }
     }
-
-    return 0;
 }
 
-int Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
+void Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     // looking for soldiers
     const bool enemy = (fx.player[me].team() != team);
 
@@ -1593,8 +1591,6 @@ int Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTa
             routing[num] = Route_Team;
         }
     }
-
-    return 0;
 }
 
 bool Client::IsCarriersDef(int team) throw () {
@@ -1642,7 +1638,7 @@ bool Client::IsFlagsAtBases(int team) const throw () {
     return true;
 }
 
-int Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int state, RouteTable num) throw () {
+void Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int state, RouteTable num) throw () {
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
     const bool wantCarried = state == 2 || state == 3;
@@ -1687,8 +1683,6 @@ int Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int sta
             routing[num] = Route_Flag;
         }
     }
-
-    return 0; // build route to nearest target
 }
 
 int Client::TargetFog(RouteTable num) throw () {
@@ -1736,57 +1730,53 @@ int Client::TargetRoute(int efb, int efd, int efc,
     Area* targetArea = 0;
     const int t = fx.player[me].team();
     const int et = 1 - t;
-    int n = 0;
 
     BuildRouteTable(myArea(), num);
 
     routing[num] = Route_None;
 
     if (efb)
-        n += TargetNearestFlag(m_label, targetArea, et, 0, num);
+        TargetNearestFlag(m_label, targetArea, et, 0, num);
 
     if (efd)
-        n += TargetNearestFlag(m_label, targetArea, et, 1, num);
+        TargetNearestFlag(m_label, targetArea, et, 1, num);
 
     if (efc)
-        n += TargetNearestFlag(m_label, targetArea, et, 2, num);
+        TargetNearestFlag(m_label, targetArea, et, 2, num);
 
     if (mfb)
-        n += TargetNearestFlag(m_label, targetArea, t, 0, num);
+        TargetNearestFlag(m_label, targetArea, t, 0, num);
 
     if (mfd)
-        n += TargetNearestFlag(m_label, targetArea, t, 1, num);
+        TargetNearestFlag(m_label, targetArea, t, 1, num);
 
     if (mfc)
-        n += TargetNearestFlag(m_label, targetArea, t, 3, num);
+        TargetNearestFlag(m_label, targetArea, t, 3, num);
 
     if (wfb)
-        n += TargetNearestFlag(m_label, targetArea, 2, 0, num);
+        TargetNearestFlag(m_label, targetArea, 2, 0, num);
 
     if (wfd)
-        n += TargetNearestFlag(m_label, targetArea, 2, 1, num);
+        TargetNearestFlag(m_label, targetArea, 2, 1, num);
 
     if (wfce)
-        n += TargetNearestFlag(m_label, targetArea, 2, 3, num);
+        TargetNearestFlag(m_label, targetArea, 2, 3, num);
 
     if (wfcf)
-        n += TargetNearestFlag(m_label, targetArea, 2, 2, num);
+        TargetNearestFlag(m_label, targetArea, 2, 2, num);
 
     if (en)
-        n += TargetNearestTeam(m_label, targetArea, et, num);
+        TargetNearestTeam(m_label, targetArea, et, num);
 
     if (fr)
-        n += TargetNearestTeam(m_label, targetArea, t, num);
+        TargetNearestTeam(m_label, targetArea, t, num);
 
     if (eb)
-        n += TargetNearestBase(m_label, targetArea, et, num);
+        TargetNearestBase(m_label, targetArea, et, num);
     if (fb)
-        n += TargetNearestBase(m_label, targetArea, t, num);
+        TargetNearestBase(m_label, targetArea, t, num);
     if (wb)
-        n += TargetNearestBase(m_label, targetArea, 2, num);
-
-    if (n < 0)
-        return -1;
+        TargetNearestBase(m_label, targetArea, 2, num);
 
     if (routing[num] == Route_None) // nothing todo
         return 0;
