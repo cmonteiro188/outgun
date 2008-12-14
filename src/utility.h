@@ -313,7 +313,7 @@ inline int sqr(int value) throw () {
 template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) throw () {
     STATIC_ASSERT(std::numeric_limits<Int1T>::is_integer && std::numeric_limits<Int2T>::is_integer);
     nAssert(modulus > 0);
-    return val >= 0 ? val % modulus : modulus - (-val % modulus);
+    return val >= 0 ? val % modulus : (modulus - 1) - ((-val - 1) % modulus);
 }
 
 double positiveFmod(double val, double modulus) throw ();

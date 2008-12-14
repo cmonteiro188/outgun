@@ -152,7 +152,7 @@ int numberWidth(int num) throw () {
 
 double positiveFmod(double val, double modulus) throw () {
     nAssert(modulus > 0);
-    return val >= 0 ? fmod(val, modulus) : modulus - fmod(-val, modulus);
+    return fmod(modulus + fmod(val, modulus), modulus);
 }
 
 bool utf8_mode = false;
