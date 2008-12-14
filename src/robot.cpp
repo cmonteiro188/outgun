@@ -1765,6 +1765,17 @@ int Client::TargetRoute(int efb, int efd, int efc,
     if (wb)
         TargetNearestBase(m_label, targetArea, 2, num);
 
+    #ifdef DEBUGSTRATEGY
+    fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+    fprintf(stderr, "TargetRoute(%d, %d, %d,   %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d,   tnum) -> %d\n",
+            efb, efd, efc,
+            mfb, mfd, mfc,
+            wfb, wfd, wfce, wfcf,
+            en,  fr,
+            eb,  fb, wb,
+            routing[num]);
+    #endif
+
     if (routing[num] == Route_None) // nothing todo
         return 0;
 
@@ -1879,7 +1890,10 @@ ClientControls Client::getRobotControls() throw () {
         ctrl.clearRun();
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    fprintf(stderr, "Nothing to do.\n");
+    if (routing[Table_Main] == Route_None)
+        fprintf(stderr, "Nothing to do.\n");
+    else
+        fprintf(stderr, "Nothing to do, already at target [type %d].\n", routing[Table_Main]);
     #endif
     return ctrl;
 }
