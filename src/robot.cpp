@@ -22,6 +22,9 @@
  *
  */
 
+//#define BOTDEBUG
+//#define DEBUGSTRATEGY
+
 #include <iomanip>
 #include <queue>
 #include <vector>
@@ -1818,14 +1821,23 @@ ClientControls Client::getRobotControls() throw () {
         if (dangerousRocket != -1) {
             if (last_seen == -1)
                 last_seen = GetDangerousEnemy(mex, mey);
+            #ifdef DEBUGSTRATEGY
+            fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+            fprintf(stderr, "Escaping rocket.\n");
+            #endif
             return EscapeRocket(mex, mey, dangerousRocket);
         }
     }
 
     if (last_seen == -1) {
         const ClientControls ctrl = GetFlag(mex, mey);
-        if (!ctrl.idle()) // if any
+        if (!ctrl.idle()) { // if any
+            #ifdef DEBUGSTRATEGY
+            fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+            fprintf(stderr, "Targetting flag.\n");
+            #endif
             return ctrl;
+        }
     }
 
     RouteLogic(Table_Main);
@@ -1840,29 +1852,58 @@ ClientControls Client::getRobotControls() throw () {
     else // get someone
         last_seen = GetNearestEnemy(mex, mey);
 
-    if (last_seen != -1 && !fx.physics.allowFreeTurning)
+    if (last_seen != -1 && !fx.physics.allowFreeTurning) {
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Targetting enemy.\n");
+        #endif
         return Aim(mex, mey, last_seen);
+    }
 
     // ok, free tour ;)
     ClientControls ctrl = GetPowerup(mex, mey);
-    if (!ctrl.idle())
+    if (!ctrl.idle()) {
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Targetting powerup.\n");
+        #endif
         return ctrl;
+    }
 
     ctrl = Escape(mex, mey);
-    if (!ctrl.idle())
+    if (!ctrl.idle()) {
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Escaping from room.\n");
+        #endif
         return ctrl;
+    }
 
     ctrl = Route(mex, mey, Table_Main);
-    if (!ctrl.idle())
+    if (!ctrl.idle()) {
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Going to %d,%d (target type %d).\n", routeTarget[Table_Main]->roomx, routeTarget[Table_Main]->roomy, routing[Table_Main]);
+        #endif
         return ctrl;
+    }
 
     ctrl = FollowFlag(mex, mey);
-    if (!ctrl.idle())
+    if (!ctrl.idle()) { 
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Following a carrier.\n");
+        #endif
         return ctrl;
+    }
 
     ctrl = FreeWalk(mex, mey);
     if (last_seen == -1)
         ctrl.clearRun();
+    #ifdef DEBUGSTRATEGY
+    fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+    fprintf(stderr, "Nothing to do.\n");
+    #endif
     return ctrl;
 }
 
