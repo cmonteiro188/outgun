@@ -486,14 +486,14 @@ class Client : public ClientInterface {
     PointerVector<Area> areas;
     PointerVector< PointerVector<RoomAreaMap> > areaMap; // indexed by room index
 
-          Area* area(int roomx, int roomy, double lx, double ly)       throw ();
-    const Area* area(int roomx, int roomy, double lx, double ly) const throw ();
-          Area* area(const WorldCoords& c)       throw () { return area(c.px, c.py, c.x, c.y); }
-    const Area* area(const WorldCoords& c) const throw () { return area(c.px, c.py, c.x, c.y); }
-          Area* area(const ClientPlayer& p)       throw (); // returns 0 if the player coordinates point outside the map
-    const Area* area(const ClientPlayer& p) const throw ();
-          Area* myArea()       throw () { return area(fx.player[me]); }
-    const Area* myArea() const throw () { return area(fx.player[me]); }
+          Area* area(int roomx, int roomy, double lx, double ly, bool allowInvalid)       throw (); // if allowInvalid is set, returns 0 if room coordinates are outside the map
+    const Area* area(int roomx, int roomy, double lx, double ly, bool allowInvalid) const throw ();
+          Area* area(const WorldCoords& c, bool allowInvalid)       throw () { return area(c.px, c.py, c.x, c.y, allowInvalid); }
+    const Area* area(const WorldCoords& c, bool allowInvalid) const throw () { return area(c.px, c.py, c.x, c.y, allowInvalid); }
+          Area* area(const ClientPlayer& p, bool allowInvalid)       throw () { return area(p.position(), allowInvalid); }
+    const Area* area(const ClientPlayer& p, bool allowInvalid) const throw () { return area(p.position(), allowInvalid); }
+          Area* myArea()       throw () { return area(fx.player[me], false); }
+    const Area* myArea() const throw () { return area(fx.player[me], false); }
 
     Routing     routing[Table_Max];
     const Area* routeTarget[Table_Max];
