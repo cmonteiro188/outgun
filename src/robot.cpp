@@ -711,16 +711,18 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
     return ClientControls();
 }
 
-int Client::Teams(int x, int y, int& en, int& fr) const throw () {
-    int me_nr = -1;
+Client::TeamCounts Client::Teams(int x, int y, bool countMe) const throw () {
+    TeamCounts c;
+    c.enemies = c.friends = 0;
+    bool me = false;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
             continue;
         if (pl.team() == fx.player[me].team()) {
             if (i == me)
-                me_nr = fr;
-            fr++;
+                me = true;
+            c.friends++;
         }
     }
 
@@ -731,12 +733,15 @@ int Client::Teams(int x, int y, int& en, int& fr) const throw () {
         if (pl.team() != fx.player[me].team()) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
-            if (fr && fx.frame - pl.posUpdated > 5)
+            if (c.friends && fx.frame - pl.posUpdated > 5)
                 continue;
-            en++;
+            c.enemies++;
         }
     }
-    return me_nr;
+
+    if (me && !countMe)
+        --c.friends;
+    return c;
 }
 
 bool Client::AmILast() const throw () {
@@ -757,21 +762,18 @@ ClientControls Client::Escape(double mex, double mey) const throw () {
     const int roomx = fx.player[me].roomx;
     const int roomy = fx.player[me].roomy;
 
-    int enemies = 0;
-    int friends = 0;
-    Teams(roomx, roomy, enemies, friends);
-
-    if (enemies <= friends)
+    const TeamCounts tc = Teams(roomx, roomy, true);
+    if (tc.enemies <= tc.friends)
         return ClientControls();
-    // looking for friends
 
+    // looking for friends
     for (int i = 0; i < 4; ++i) {
         if (!fx.map.room[roomx][roomy].pass[i])
             continue;
         int x = roomx, y = roomy;
         next_room(x, y, i);
-        Teams(x, y, enemies, friends);
-        if (friends + 1 > enemies && friends > 0)
+        const TeamCounts tc = Teams(x, y, false);
+        if (tc.friends + 1 > tc.enemies && tc.friends > 0)
             return MoveToDoor(mex, mey, i);
     }
     return ClientControls();
@@ -1021,9 +1023,8 @@ ClientControls Client::Route(double melx, double mely, RouteTable num) const thr
         next_room(x, y, i);
         if (fx.map.room[x][y].route[num] && fx.map.room[x][y].label[num] == label + 1) {
             if (HaveFlag(me)) {
-                int enemies = 0, friends = 0;
-                Teams(x, y, enemies, friends);
-                if (enemies > friends + 1)
+                const TeamCounts tc = Teams(x, y, false);
+                if (tc.enemies > tc.friends + 1)
                     continue;
             }
             dir = i;
@@ -1186,12 +1187,8 @@ bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
         }
         if (routing[num] == Route_None || routing[num] == Route_Base) {
             if (routing[num] == Route_Base) {
-                int enemies = 0;
-                int friends = 0;
-                if (Teams(route_x[num], route_y[num], enemies, friends) >= 0)
-                    friends--;
-
-                if (friends) { // if we are going to base where is already our forces, forget it
+                const TeamCounts tc = Teams(route_x[num], route_y[num], false);
+                if (tc.friends) { // if we are going to base where is already our forces, forget it
                     if (route_x[num] != fx.player[me].roomx || route_y[num] != fx.player[me].roomy || AmILast())
                         TargetFog(num);
                 }
@@ -1460,10 +1457,8 @@ int Client::TargetFog(RouteTable num) throw () {
         if (!room.pass[i])
             continue;
         next_room(x, y, i);
-        int enemies = 0, friends = 0;
-        if (Teams(x, y, enemies, friends) >= 0)
-            friends--;
-        if (friends && !enemies) // our sector
+        const TeamCounts tc = Teams(x, y, false);
+        if (tc.friends && !tc.enemies) // our sector
             continue;
         delta = fabs(fx.frame - fx.map.room[x][y].visited_frame);
         if (delta >= max_delta) {

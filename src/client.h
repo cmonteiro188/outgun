@@ -369,6 +369,10 @@ class Client : public ClientInterface {
         bool operator!=(const RoomCoords& o) const throw () { return x != o.x || y != o.y; }
     };
 
+    struct TeamCounts {
+        int enemies, friends;
+    };
+
     Routing     routing[Table_Max];
     int         route_x[Table_Max];
     int         route_y[Table_Max];
@@ -381,7 +385,7 @@ class Client : public ClientInterface {
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
     int         GetPlayers(int team) const throw (); // get num of players
-    int         Teams(int roomx, int roomy, int &en, int &fr) const throw (); // get num of en and fr for sector
+    TeamCounts  Teams(int roomx, int roomy, bool countMe) const throw (); // get num of en and fr for sector
     bool        IsHome(int roomx, int roomy) const throw (); //is it base
 
     bool        AmILast() const throw ();
