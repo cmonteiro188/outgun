@@ -928,7 +928,8 @@ void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable n
         workQueue.push(*ti);
     }
     while (!workQueue.empty()) {
-        const RoomCoords& rc = workQueue.front();
+        const RoomCoords rc = workQueue.front();
+        workQueue.pop();
         const Room& r = fx.map.room[rc.x][rc.y];
         for (int i = 0; i < 4; ++i) {
             if (!r.pass[i])
@@ -940,7 +941,6 @@ void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable n
             fx.map.room[nx][ny].label[num] = r.label[num] + 1;
             workQueue.push(RoomCoords(nx, ny));
         }
-        workQueue.pop();
     }
     #ifdef BOTDEBUG
     fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
@@ -1188,7 +1188,7 @@ bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
             if (routing[num] == Route_Base) {
                 int enemies = 0;
                 int friends = 0;
-                if (Teams(route_x[num], route_y[num], enemies, friends) > 0)
+                if (Teams(route_x[num], route_y[num], enemies, friends) >= 0)
                     friends--;
 
                 if (friends) { // if we are going to base where is already our forces, forget it
