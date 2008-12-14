@@ -716,14 +716,14 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
 Client::TeamCounts Client::Teams(const Area* const a, bool countMe) const throw () {
     TeamCounts c;
     c.enemies = c.friends = 0;
-    bool me = false;
+    bool meFound = false;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || area(pl) != a || pl.dead)
             continue;
         if (pl.team() == fx.player[me].team()) {
             if (i == me)
-                me = true;
+                meFound = true;
             c.friends++;
         }
     }
@@ -735,13 +735,13 @@ Client::TeamCounts Client::Teams(const Area* const a, bool countMe) const throw 
         if (pl.team() != fx.player[me].team()) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
-            if (c.friends && fx.frame - pl.posUpdated > 5)
+            if (c.friends && fx.frame - pl.posUpdated > 5 || fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
                 continue;
             c.enemies++;
         }
     }
 
-    if (me && !countMe)
+    if (meFound && !countMe)
         --c.friends;
     return c;
 }
