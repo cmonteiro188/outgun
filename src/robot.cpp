@@ -1039,7 +1039,7 @@ Client::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roo
             ++count[idx];
         }
 
-    unsigned last;
+    unsigned last = 0; // initialized to please GCC
     nActualAreas = 0;
     for (unsigned i = 0; i < roomAreas.size(); ++i)
         if (count[i]) {
