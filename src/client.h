@@ -43,6 +43,7 @@
 #include "gameserver_interface.h"
 #include "log.h"
 #include "mutex.h"
+#include "pointervector.h"
 #include "thread.h"
 #include "world.h"
 
@@ -361,22 +362,142 @@ class Client : public ClientInterface {
     int botId;
     bool finished;
 
-    struct RoomCoords {
-        int x, y;
-        RoomCoords() throw () { }
-        RoomCoords(int x_, int y_) throw () : x(x_), y(y_) { }
-        bool operator==(const RoomCoords& o) const throw () { return x == o.x && y == o.y; }
-        bool operator!=(const RoomCoords& o) const throw () { return x != o.x || y != o.y; }
+    template<class T> struct BasicCoords {
+        T x, y;
+        BasicCoords() throw () { }
+        BasicCoords(T x_, T y_) throw () : x(x_), y(y_) { }
+        bool operator==(const BasicCoords& o) const throw () { return x == o.x && y == o.y; }
+        bool operator!=(const BasicCoords& o) const throw () { return x != o.x || y != o.y; }
     };
 
     struct TeamCounts {
         int enemies, friends;
     };
 
+    class RoomAreaMap;
+
+    ControlledPtr<RoomAreaMap> SplitRoomIntoAreas(int roomx, int roomy) throw ();
+    void BuildMap() throw ();
+
+    class Area {
+    public:
+        int roomx, roomy;
+
+        int label[Table_Max];
+        bool route[Table_Max];
+
+        struct Neighbor {
+            enum Direction { Up, Down, Left, Right };
+
+            Area* area;
+            Direction direction;
+            std::vector< std::pair<double, double> > doors; // each door a pair of min-coord, max-coord
+
+            Neighbor(Direction dir, double door0, double door1) throw () : area(0), direction(dir) { doors.push_back(std::make_pair(door0, door1)); }
+
+            int dx() const throw () { return direction == Left ? -1 : direction == Right ? +1 : 0; }
+            int dy() const throw () { return direction == Up   ? -1 : direction == Down  ? +1 : 0; }
+        };
+
+        bool operator==(const Area& o) const throw () { return this == &o; } // the Areas are created so that there is exactly one instance per "physical" area
+        bool operator!=(const Area& o) const throw () { return this != &o; }
+
+        const std::vector<Neighbor>& neighbors() const throw () { return n; }
+        const std::vector<Area*>& reverseNeighbors() const throw () { return rn; }
+
+    private:
+        std::vector<Neighbor> n; // all neighbors in the same direction must be stored in sequence
+        std::vector<Area*> rn; /// all areas that have this as a neighbor
+
+        Area(int rx, int ry) throw ();
+
+        friend ControlledPtr<RoomAreaMap> Client::SplitRoomIntoAreas(int roomx, int roomy) throw ();
+        friend void Client::BuildMap() throw ();
+    };
+
+    class RoomAreaMap : private NoCopying {
+        class AreaMapLevel : private NoCopying {
+        public:
+            virtual ~AreaMapLevel() throw () { }
+
+            virtual Area* find(double x, double y) const throw () = 0;
+        };
+
+        class SingleArea : public AreaMapLevel {
+            Area* a;
+
+        public:
+            SingleArea(Area* area) throw () : a(area) { nAssert(area); }
+
+            Area* find(double, double) const throw () { return a; }
+        };
+
+        class SplitByX : public AreaMapLevel {
+            AreaMapLevel* l, * r;
+            double borderX;
+
+        public:
+            SplitByX(AreaMapLevel* left, AreaMapLevel* right, double borderX_) throw () : l(left), r(right), borderX(borderX_) { }
+            ~SplitByX() throw () { delete l; delete r; }
+
+            Area* find(double x, double y) const throw () { return (x < borderX ? l : r)->find(x, y); }
+        };
+
+        class SplitByY : public AreaMapLevel {
+            AreaMapLevel* t, * b;
+            double borderY;
+
+        public:
+            SplitByY(AreaMapLevel* top, AreaMapLevel* bottom, double borderY_) throw () : t(top), b(bottom), borderY(borderY_) { }
+            ~SplitByY() throw () { delete t; delete b; }
+
+            Area* find(double x, double y) const throw () { return (y < borderY ? t : b)->find(x, y); }
+        };
+
+        class AreaSplitter {
+            unsigned bestValue;
+            bool bestIsX;
+            int bestPoint;
+
+            std::vector<int> count; // counts of cells of each area within the box
+            unsigned nActualAreas; // how many non-zero counts
+
+            AreaMapLevel* result;
+
+            void testPoint(bool axisIsX, int point, unsigned value) throw ();
+
+            void testAxisPoints(const std::vector<int>& minimums, const std::vector<int>& maximums, int& minValue, int& maxValue, bool axisIsX) throw (); // fills in minValue and maxValue as well as tests the points
+
+        public:
+            AreaSplitter(const std::vector< std::vector<int> >& roomMap, const std::vector<Area*>& roomAreas, int x0, int y0, int x1, int y1) throw ();
+
+            AreaMapLevel* operator()() const throw () { return result; }
+        };
+
+        AreaMapLevel* topLevel;
+
+    public:
+        RoomAreaMap(const std::vector< std::vector<int> >& roomMap, const std::vector<Area*>& roomAreas) throw ();
+        ~RoomAreaMap() throw () { delete topLevel; }
+
+        Area* identifyArea(double x, double y) const throw () { return topLevel->find(x, y); }
+    };
+
+    PointerVector<Area> areas;
+    PointerVector< PointerVector<RoomAreaMap> > areaMap; // indexed by room index
+
+          Area* area(int roomx, int roomy, double lx, double ly)       throw ();
+    const Area* area(int roomx, int roomy, double lx, double ly) const throw ();
+          Area* area(const WorldCoords& c)       throw () { return area(c.px, c.py, c.x, c.y); }
+    const Area* area(const WorldCoords& c) const throw () { return area(c.px, c.py, c.x, c.y); }
+          Area* area(const ClientPlayer& p)       throw (); // returns 0 if the player coordinates point outside the map
+    const Area* area(const ClientPlayer& p) const throw ();
+          Area* myArea()       throw () { return area(fx.player[me]); }
+    const Area* myArea() const throw () { return area(fx.player[me]); }
+
     Routing     routing[Table_Max];
-    int         route_x[Table_Max];
-    int         route_y[Table_Max];
-    RoomCoords  routeTableCenter[Table_Max];
+    const Area* routeTarget[Table_Max];
+    const Area* routeTableCenter[Table_Max];
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
@@ -385,8 +506,8 @@ class Client : public ClientInterface {
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
     int         GetPlayers(int team) const throw (); // get num of players
-    TeamCounts  Teams(int roomx, int roomy, bool countMe) const throw (); // get num of en and fr for sector
-    bool        IsHome(int roomx, int roomy) const throw (); //is it base
+    TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
+    bool        IsHome(const Area* a) const throw (); //is it base
 
     bool        AmILast() const throw ();
     bool        IsMission(RouteTable num) const throw (); // have i mission? (No agression mode)
@@ -415,27 +536,23 @@ class Client : public ClientInterface {
     ClientControls GetPowerup(double mex, double mey) const throw ();
     ClientControls MoveDirNoAggregate(int dir) const throw ();
     ClientControls MoveTo(double mex, double mey, double dx, double dy) const throw ();
-    ClientControls MoveToDoor(double mex, double mey, int d) const throw ();
+    ClientControls MoveToDoor(double mex, double mey, const Area::Neighbor& n) const throw ();
     ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const throw ();
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape(double mex, double mey) const throw ();
     ClientControls FreeWalk(double mex, double mey) const throw ();
     ClientControls Route(double mex, double mey, RouteTable num) const throw (); // follow route
 
-    bool scan_door(Room& room, int x, int y, int dx, int dy, int len) const throw ();
-    void BuildMap() throw ();
-    void BuildRouteTable(int roomx, int roomy, RouteTable num) throw (); // build route table (labeled) from me point
-    void BuildRouteTable(const std::vector<RoomCoords>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
-    int  BuildRoute(int tox, int toy, RouteTable num) throw (); // build route on route table tox(y), return 0 if not needed, -1 if no path
+    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table (labeled) from single points
+    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
+    int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
     bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
 
-    void next_room(int& x, int& y, int i) const throw (); // chose ith door
-    int  route_room(int &x, int &y, RouteTable num) throw (); // go one step to lower label and label it as route , return 1 if step is done
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     // -1 if no target labeled
-    int TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num) throw ();
-    int TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num) throw ();
-    int TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num) throw ();
+    int TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    int TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    int TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
     int TargetFog(RouteTable num) throw ();
 
     int TargetRoute(int efb, int efd, int efc,

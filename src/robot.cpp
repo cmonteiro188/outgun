@@ -22,6 +22,7 @@
  *
  */
 
+#include <iomanip>
 #include <queue>
 #include <vector>
 
@@ -33,6 +34,8 @@
 #include "client.h"
 
 using std::make_pair;
+using std::map;
+using std::max;
 using std::min;
 using std::pair;
 using std::queue;
@@ -668,9 +671,8 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) cons
 
 ClientControls Client::GetPowerup(double mex, double mey) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
-        if (fx.item[i].kind == Powerup::pup_unused || fx.item[i].kind == Powerup::pup_respawning ||
-            fx.item[i].px != fx.player[me].roomx || fx.item[i].py != fx.player[me].roomy)
-                continue;
+        if (fx.item[i].kind == Powerup::pup_unused || fx.item[i].kind == Powerup::pup_respawning || area(fx.item[i].position()) != myArea())
+            continue;
         return MoveTo(mex, mey, fx.item[i].x - mex, fx.item[i].y - mey);
     }
     return ClientControls();
@@ -686,7 +688,7 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
             const int team = type == 0 ? myTeam : 2;
             const vector<Flag>& flags = type == 0 ? fx.teams[team].flags() : fx.wild_flags;
             for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-                if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
+                if (area(fi->position()) != myArea() || fi->carried())
                     continue;
                 if (type == 0 || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
                     return MoveTo(mex, mey, fi->position().x - mex, fi->position().y - mey);
@@ -701,7 +703,7 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
         const int team = type == 0 ? myTeam : type == 1 ? !myTeam : 2;
         const vector<Flag>& flags = type == 2 ? fx.wild_flags : fx.teams[team].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-            if (fi->position().px != fx.player[me].roomx || fi->position().py != fx.player[me].roomy || fi->carried())
+            if (area(fi->position()) != myArea() || fi->carried())
                 continue;
             if (type != 0 || !IsFlagAtBase(*fi, team)) // try to pick up enemy or wild flag, or return own flag; nothing to do with own flags at base
                 return MoveTo(mex, mey, fi->position().x - mex, fi->position().y - mey);
@@ -711,13 +713,13 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
     return ClientControls();
 }
 
-Client::TeamCounts Client::Teams(int x, int y, bool countMe) const throw () {
+Client::TeamCounts Client::Teams(const Area* const a, bool countMe) const throw () {
     TeamCounts c;
     c.enemies = c.friends = 0;
     bool me = false;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
+        if (!pl.used || area(pl) != a || pl.dead)
             continue;
         if (pl.team() == fx.player[me].team()) {
             if (i == me)
@@ -728,7 +730,7 @@ Client::TeamCounts Client::Teams(int x, int y, bool countMe) const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.roomx != x || pl.roomy != y || pl.dead)
+        if (!pl.used || area(pl) != a || pl.dead)
             continue;
         if (pl.team() != fx.player[me].team()) {
             if (fx.frame - pl.posUpdated > FADEOUT)
@@ -749,7 +751,7 @@ bool Client::AmILast() const throw () {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || !pl.onscreen || pl.dead)
             continue;
-        if (pl.team() == fx.player[me].team() && i > me)
+        if (pl.team() == fx.player[me].team() && i > me && area(pl) == myArea())
             return false; // i am not last one
     }
     return true;
@@ -759,22 +761,17 @@ ClientControls Client::Escape(double mex, double mey) const throw () {
     if (!HaveFlag(me))
         return ClientControls();
 
-    const int roomx = fx.player[me].roomx;
-    const int roomy = fx.player[me].roomy;
+    const Area* const a = myArea();
 
-    const TeamCounts tc = Teams(roomx, roomy, true);
+    const TeamCounts tc = Teams(a, true);
     if (tc.enemies <= tc.friends)
         return ClientControls();
 
     // looking for friends
-    for (int i = 0; i < 4; ++i) {
-        if (!fx.map.room[roomx][roomy].pass[i])
-            continue;
-        int x = roomx, y = roomy;
-        next_room(x, y, i);
-        const TeamCounts tc = Teams(x, y, false);
+    for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
+        const TeamCounts tc = Teams(ni->area, false);
         if (tc.friends + 1 > tc.enemies && tc.friends > 0)
-            return MoveToDoor(mex, mey, i);
+            return MoveToDoor(mex, mey, *ni);
     }
     return ClientControls();
 }
@@ -787,7 +784,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     int num = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() != fx.player[me].team() || !pl.onscreen || pl.dead || i == me || !HaveFlag(i))
+        if (!pl.used || pl.team() != fx.player[me].team() || !pl.onscreen || pl.dead || i == me || !HaveFlag(i) || area(pl) != myArea())
             continue;
 
         dx += pl.lx;
@@ -796,7 +793,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
         sy += pl.sy;
         num++;
     }
-    if (!num || (!sx && !sy) || IsHome(fx.player[me].roomx, fx.player[me].roomy))
+    if (!num || (!sx && !sy) || IsHome(myArea()))
         return ClientControls();
     dx = dx / num - mex;
     dy = dy / num - mey;
@@ -812,294 +809,547 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
-bool Client::scan_door(Room& room, int x, int y, int dx, int dy, int len) const throw () {
-    const int nr = len / PLAYER_RADIUS;
-    for (int i = 0; i < nr; i++) {
-        if (!room.fall_on_wall(x, y, PLAYER_RADIUS))
-            return true;
-        x += dx;
-        y += dy;
+ControlledPtr<Client::RoomAreaMap> Client::SplitRoomIntoAreas(int roomx, int roomy) throw () {
+    Room& room = fx.map.room[roomx][roomy];
+
+    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
+    static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
+    static const double pointDistance = double(plw) / (xPoints - 1);
+    nAssert(plh * (xPoints - 1) == plw * (yPoints - 1)); // to ensure that points on the bottom fall at the room edge, as well as the points on the right (equal to plh / (yPoints - 1) == pointDistance but workable in integer arithmetic)
+
+    /* To deem a point wall-free, we want there to be a player-sized path between it and
+     * all non-diagonal wall-free neighbors. Generally, a clear path of width w across the
+     * distance d between points A and B, is ensured if around both A and B, a radius of
+     * sqrt((½w)² + (½d)²) is clear.
+     * Here, d = pointDistance and w = PLAYER_RADIUS * 2. Some extra breathing room is
+     * gained by adding to PLAYER_RADIUS.
+     */
+    const double pointRadius = sqrt(sqr(.5 * pointDistance) + sqr(1.1 * PLAYER_RADIUS));
+
+    static const int mapWall = -1, mapUnreached = -2;
+    int mapReachedCurrent = 0; // increased when starting a new area, to separate points reached by current and previous areas; in the end all non-negative points have been reached by some area
+    vector< vector<int> > roomMap(xPoints, vector<int>(yPoints));
+
+    for (unsigned ix = 0; ix < xPoints; ++ix) {
+        const double x = ix * pointDistance;
+        for (unsigned iy = 0; iy < yPoints; ++iy) {
+            const double y = iy * pointDistance;
+            roomMap[ix][iy] = room.fall_on_wall(x, y, pointRadius) ? mapWall : mapUnreached;
+        }
     }
-    return false;
+
+    for (unsigned nextUncheckedX = 0; nextUncheckedX < xPoints; ++nextUncheckedX)
+        for (unsigned nextUncheckedY = 0; nextUncheckedY < yPoints; ++nextUncheckedY) {
+            if (roomMap[nextUncheckedX][nextUncheckedY] != mapUnreached)
+                continue;
+            roomMap[nextUncheckedX][nextUncheckedY] = mapReachedCurrent;
+
+            typedef BasicCoords<unsigned> PointCoords;
+            queue<PointCoords> workQueue;
+            workQueue.push(PointCoords(nextUncheckedX, nextUncheckedY));
+
+            #define checkExpand(x, y) if (roomMap[x][y] == mapUnreached) { roomMap[x][y] = mapReachedCurrent; workQueue.push(PointCoords(x, y)); }
+
+            while (!workQueue.empty()) {
+                const PointCoords pc = workQueue.front();
+                workQueue.pop();
+                if (pc.x > 0)
+                    checkExpand(pc.x - 1, pc.y);
+                if (pc.x < xPoints - 1)
+                    checkExpand(pc.x + 1, pc.y);
+                if (pc.y > 0)
+                    checkExpand(pc.x, pc.y - 1);
+                if (pc.y < yPoints - 1)
+                    checkExpand(pc.x, pc.y + 1);
+            }
+
+            #undef checkExpand
+
+            ++mapReachedCurrent;
+        }
+
+    vector<Area*> roomAreas;
+    unsigned nCancelledAreas = 0;
+    for (int areaIndex = 0; areaIndex < mapReachedCurrent; ++areaIndex) {
+        Area* const a = new Area(roomx, roomy);
+        for (int iEdge = 0; iEdge < 2; ++iEdge) {
+            const unsigned xEdge = iEdge ? xPoints - 1 : 0;
+            const unsigned yEdge = iEdge ? yPoints - 1 : 0;
+            const Area::Neighbor::Direction xDir = iEdge ? Area::Neighbor::Right : Area::Neighbor::Left;
+            const Area::Neighbor::Direction yDir = iEdge ? Area::Neighbor::Down  : Area::Neighbor::Up;
+            int door0 = -1;
+
+            #define checkDoor(iPoint, pointIsDoor, direction)           \
+                {                                                       \
+                    if ((pointIsDoor) && door0 == -1)                   \
+                        door0 = iPoint;                                 \
+                    else if (!(pointIsDoor) && door0 != -1) {           \
+                        a->n.push_back(Area::Neighbor(direction, door0 * pointDistance - pointRadius, (iPoint - 1) * pointDistance + pointRadius)); \
+                        door0 = -1;                                     \
+                    }                                                   \
+                }
+
+            for (unsigned x = 0; x < xPoints; ++x)
+                checkDoor(x, roomMap[x][yEdge] == areaIndex, yDir);
+            checkDoor(xPoints, false, yDir);
+            for (unsigned y = 0; y < yPoints; ++y)
+                checkDoor(y, roomMap[xEdge][y] == areaIndex, xDir);
+            checkDoor(yPoints, false, xDir);
+
+            #undef checkDoor
+        }
+
+        if (a->n.empty()) { // even if this area could be entered (from a small unnoticed opening or from another room "over a wall"), there are no known exits so it is not useful for navigation and would just needlessly complicate the room area map
+            ++nCancelledAreas;
+            roomAreas.push_back(0); // otherwise we'd need to renumber the higher numbered cells here to keep roomAreas in sync with roomMap
+            delete a;
+        }
+        else {
+            roomAreas.push_back(a);
+            areas.push_back(give_control(a));
+        }
+    }
+
+    if (roomAreas.size() == nCancelledAreas) {
+        roomAreas.clear();
+        nCancelledAreas = 0;
+        // every room still needs an area
+        Area* const a = new Area(roomx, roomy);
+        areas.push_back(give_control(a));
+        roomAreas.push_back(a);
+        // no need to touch roomMap because RoomAreaMap will see that there's only one area
+    }
+    else if (nCancelledAreas)
+        for (unsigned x = 0; x < xPoints; ++x)
+            for (unsigned y = 0; y < yPoints; ++y)
+                if (roomMap[x][y] >= 0 && !roomAreas[roomMap[x][y]])
+                    roomMap[x][y] = mapWall;
+
+    return give_control(new RoomAreaMap(roomMap, roomAreas));
+}
+
+Client::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
+    for (int i = 0; i < Table_Max; i++) {
+        route[i] = false;
+        label[i] = -1;
+    }
+}
+
+void Client::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
+    nAssert(value > 0);
+    if (value > bestValue) {
+        bestValue = value;
+        bestIsX = axisIsX;
+        bestPoint = point;
+    }
+}
+
+void Client::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minimums, const vector<int>& maximums, int& minValue, int& maxValue, bool axisIsX) throw () { // fills in minValue and maxValue as well as tests the points
+    /* Example of overlapping ranges in one dimension:
+     *
+     * 1-1-1-1
+     *     2-2-2-2-2
+     *   3-3
+     *             4
+     *   5-5
+     *  | | | |   |   <- sensible cut-points are at each non-border min/max
+     *      | +   +   <- cut-points that leave an entire area on both sides are preferred
+     *        |       <- ones near the middle are best
+     */
+    minValue = minimums[0]; maxValue = maximums[0]; // can be taken over all minimums/maximums even if count == 0, since those can't have more extreme values than relevant ones
+    for (unsigned i = 1; i < minimums.size(); ++i) {
+        if (minimums[i] < minValue)
+            minValue = minimums[i];
+        if (maximums[i] > maxValue)
+            maxValue = maximums[i];
+    }
+    vector<int> points;
+    for (unsigned i = 0; i < minimums.size(); ++i)
+        if (count[i]) {
+            if (minimums[i] != minValue)
+                points.push_back(minimums[i]);
+            if (maximums[i] != maxValue)
+                points.push_back(maximums[i] + 1); // +1 because the "physical" point considered is "before" the stored value
+        }
+    if (minValue != maxValue)
+        testPoint(axisIsX, minValue + (maxValue - minValue + 1) / 2, (maxValue - minValue) * 10);
+    if (points.empty()) // all areas span an identical range
+        return;
+    sort(points.begin(), points.end());
+    unsigned unbrokenAreasBefore = 0, unbrokenAreasAfter = nActualAreas;
+    for (unsigned i = 0; i < minimums.size(); ++i)
+        if (count[i] && minimums[i] == minValue) // the first point considered in the actual loop is later than minValue
+            --unbrokenAreasAfter;
+    int prev = -1;
+    for (vector<int>::const_iterator pi = points.begin(); pi != points.end(); ++pi) {
+        if (*pi == prev)
+            continue;
+        prev = *pi;
+
+        // adjust to conditions at just before *pi
+        for (unsigned i = 0; i < minimums.size(); ++i)
+            if (count[i] && maximums[i] == *pi - 1) // these were stored as *pi, exactly because them closing just before *pi make *pi interesting
+                ++unbrokenAreasBefore;
+
+        // consider making a split just before *pi
+        const int sizeBefore = *pi - minValue, sizeAfter = maxValue + 1 - *pi;
+        testPoint(axisIsX, *pi,
+                  unbrokenAreasBefore * unbrokenAreasAfter * 100000 + // if there are unbroken areas on both sides, that will totally dominate
+                  ((unbrokenAreasBefore ? sizeAfter  : 0) +
+                   (unbrokenAreasAfter  ? sizeBefore : 0)) * 40 + // try to minimize the side with unbroken areas, but fall back to cutting at the middle (with the value [maxValue - minValue] * 10 above) if the cut away broken part would be less than 1/4 of the range
+                  min(sizeBefore, sizeAfter)); // given two equal choices, pick the one closer to the middle
+
+        // adjust to conditions after *pi
+        for (unsigned i = 0; i < minimums.size(); ++i)
+            if (count[i] && minimums[i] == *pi)
+                --unbrokenAreasAfter;
+    }
+    nAssert(unbrokenAreasAfter == 0);
+    #ifndef NDEBUG
+    for (unsigned i = 0; i < minimums.size(); ++i)
+        if (count[i] && maximums[i] == maxValue) // the last point considered in the actual loop is before maxValue (*pi == maxValue is possible but that point is still before maxValue)
+            ++unbrokenAreasBefore;
+    nAssert(unbrokenAreasBefore == nActualAreas);
+    #endif
+}
+
+Client::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas, int x0, int y0, int x1, int y1) throw () :
+    bestValue(0),
+    count(roomAreas.size(), 0)
+{
+    vector<int> minX(roomAreas.size(), x1),
+                minY(roomAreas.size(), y1),
+                maxX(roomAreas.size(), x0),
+                maxY(roomAreas.size(), y0);
+
+    for (int y = y0; y <= y1; ++y)
+        for (int x = x0; x <= x1; ++x) {
+            const int idx = roomMap[x][y];
+            if (idx < 0)
+                continue;
+            nAssert(unsigned(idx) < roomAreas.size());
+            if (x < minX[idx])
+                minX[idx] = x;
+            if (x > maxX[idx])
+                maxX[idx] = x;
+            if (y < minY[idx])
+                minY[idx] = y;
+            if (y > maxY[idx])
+                maxY[idx] = y;
+            ++count[idx];
+        }
+
+    unsigned last;
+    nActualAreas = 0;
+    for (unsigned i = 0; i < roomAreas.size(); ++i)
+        if (count[i]) {
+            ++nActualAreas;
+            last = i;
+        }
+    nAssert(nActualAreas != 0);
+    if (nActualAreas == 1) {
+        result = new SingleArea(roomAreas[last]);
+        return;
+    }
+
+    int minXinUse, maxXinUse, minYinUse, maxYinUse;
+    testAxisPoints(minX, maxX, minXinUse, maxXinUse, true);
+    testAxisPoints(minY, maxY, minYinUse, maxYinUse, false);
+
+    #if 0
+    std::cerr << "AreaSplitter(" << x0 << ", " << y0 << ", " << x1 << ", " << y1 << "):\nArea:\n";
+    for (int y = y0; y <= y1; ++y) {
+        std::cerr << std::setw(2) << y << ' ';
+        for (int x = x0; x <= x1; ++x) {
+            const int idx = roomMap[x][y];
+            std::cerr << ' ' << (idx < 0 ? '.' : idx > 9 ? 'X' : char('0' + idx));
+        }
+        std::cerr << '\n';
+    }
+    std::cerr << "   ";
+    for (int x = x0; x <= x1; ++x)
+        std::cerr << std::setw(2) << ((x == x0 || x % 10 == 0) ? x : x % 10);
+    std::cerr << "\nSplit in " << (bestIsX ? 'X' : 'Y') << " before " << bestPoint << "\n\n";
+    #endif
+
+    nAssert(bestValue != 0);
+    if (bestIsX)
+        result = new SplitByX(AreaSplitter(roomMap, roomAreas, minXinUse, minYinUse, bestPoint - 1, maxYinUse)(),
+                              AreaSplitter(roomMap, roomAreas, bestPoint, minYinUse, maxXinUse    , maxYinUse)(),
+                              (bestPoint - .5) / (roomMap.size() - 1) * plw);
+    else
+        result = new SplitByY(AreaSplitter(roomMap, roomAreas, minXinUse, minYinUse, maxXinUse, bestPoint - 1)(),
+                              AreaSplitter(roomMap, roomAreas, minXinUse, bestPoint, maxXinUse, maxYinUse    )(),
+                              (bestPoint - .5) / (roomMap[0].size() - 1) * plh);
+
+    #if 0
+    std::cerr << "AreaSplitter(" << x0 << ", " << y0 << ", " << x1 << ", " << y1 << ") completed recursion\n\n";
+    #endif
+}
+
+Client::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas) throw () {
+    nAssert(!roomAreas.empty());
+    if (roomAreas.size() == 1)
+        topLevel = new SingleArea(roomAreas.back());
+    else
+        topLevel = AreaSplitter(roomMap, roomAreas, 0, 0, roomMap.size() - 1, roomMap[0].size() - 1)();
+}
+
+Client::Area* Client::area(int roomx, int roomy, double lx, double ly) throw () {
+    nAssert(roomx >= 0 && roomy >= 0 && roomx < fx.map.w && roomy < fx.map.h);
+    return areaMap[roomx][roomy].identifyArea(lx, ly);
+}
+
+const Client::Area* Client::area(int roomx, int roomy, double lx, double ly) const throw () {
+    nAssert(roomx >= 0 && roomy >= 0 && roomx < fx.map.w && roomy < fx.map.h);
+    return areaMap[roomx][roomy].identifyArea(lx, ly);
+}
+
+Client::Area* Client::area(const ClientPlayer& p) throw () {
+    if (p.roomx >= 0 && p.roomy >= 0 && p.roomx < fx.map.w && p.roomy < fx.map.h)
+        return area(p.position());
+    else
+        return 0;
+}
+
+const Client::Area* Client::area(const ClientPlayer& p) const throw () {
+    if (p.roomx >= 0 && p.roomy >= 0 && p.roomx < fx.map.w && p.roomy < fx.map.h)
+        return area(p.position());
+    else
+        return 0;
 }
 
 void Client::BuildMap() throw () {
     last_seen = -1;
     myGundir = -1;
 
-    for (int x = 0; x < fx.map.w; ++x)
+    areas.clear();
+    areaMap.clear();
+
+    // create all Areas before creating links between them
+    for (int x = 0; x < fx.map.w; ++x) {
+        areaMap.push_back(give_control(new PointerVector<RoomAreaMap>()));
         for (int y = 0; y < fx.map.h; ++y) {
-            Room& room = fx.map.room[x][y];
-            room.pass[0] = scan_door(room, PLAYER_RADIUS,   0, PLAYER_RADIUS, 0, S_W - PLAYER_RADIUS);
-            room.pass[1] = scan_door(room, PLAYER_RADIUS, S_H, PLAYER_RADIUS, 0, S_W - PLAYER_RADIUS);
-            room.pass[2] = scan_door(room,   0, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H - PLAYER_RADIUS);
-            room.pass[3] = scan_door(room, S_W, PLAYER_RADIUS, 0, PLAYER_RADIUS, S_H - PLAYER_RADIUS);
-            for (int i = 0; i < Table_Max; i++) {
-                room.route[i] = false;
-                room.label[i] = -1;
-            }
-            room.visited_frame = 0;
-            #ifdef BOTDEBUG
-            fprintf(stderr,"%d %d: %d %d %d %d\n", x, y,
-                    room.pass[0], room.pass[1], room.pass[2], room.pass[3]);
-            #endif
+            areaMap[x].push_back(SplitRoomIntoAreas(x, y));
+            fx.map.room[x][y].visited_frame = 0;
         }
+    }
+
+    // link doors to target areas
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        map<Area*, unsigned> areaNeighborIndex; // stores the index to ai->n for each already seen neighboring area
+        Area::Neighbor::Direction prevDir = Area::Neighbor::Up; // initialized to please GCC
+        for (unsigned ni = 0; ni < ai->n.size(); ) {
+            Area::Neighbor& n = ai->n[ni];
+            nAssert(n.doors.size() == 1);
+            if (n.direction != prevDir) {
+                prevDir = n.direction;
+                areaNeighborIndex.clear(); // this is required because the same Area can be reachable in multiple directions if the map is just one room high and/or wide; we need separate Neighbors for each direction
+            }
+            const int dx = n.dx(), dy = n.dy();
+            n.area = area(positiveModulo(ai->roomx + dx, fx.map.w),
+                          positiveModulo(ai->roomy + dy, fx.map.h),
+                          dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
+                          dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2);
+            const map<Area*, unsigned>::const_iterator nii = areaNeighborIndex.find(n.area);
+            if (nii == areaNeighborIndex.end()) {
+                areaNeighborIndex[n.area] = ni++;
+                n.area->rn.push_back(&*ai);
+            }
+            else {
+                Area::Neighbor& nPrimary = ai->n[nii->second];
+                nPrimary.doors.push_back(n.doors.back());
+                ai->n.erase(ai->n.begin() + ni);
+                // ni stays the same for next round, pointing to a new Neighbor now
+            }
+        }
+    }
+
+    #if 0
+    std::cerr << "\nArea dump:\n";
+    map<pair<int, int>, int> roomAreaCounts;
+    map<const Area*, int> areaInRoomIds;
+    for (PointerVector<Area>::const_iterator ai = areas.begin(); ai != areas.end(); ++ai)
+        areaInRoomIds[&*ai] = ++roomAreaCounts[make_pair(ai->roomx, ai->roomy)];
+    for (PointerVector<Area>::const_iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        std::cerr << ai->roomx << ',' << ai->roomy << '/' << areaInRoomIds[&*ai] << ':';
+        for (vector<Area::Neighbor>::const_iterator ni = ai->neighbors().begin(); ni != ai->neighbors().end(); ++ni) {
+            std::cerr << " ->" << (ni->direction == Area::Neighbor::Up ? 'U' : ni->direction == Area::Neighbor::Down ? 'D' : ni->direction == Area::Neighbor::Left ? 'L' : 'R')
+                      << ':' << ni->area->roomx << ',' << ni->area->roomy << '/' << areaInRoomIds[ni->area];
+            for (vector<pair<double, double> >::const_iterator di = ni->doors.begin(); di != ni->doors.end(); ++di)
+                std::cerr << " @" << int(di->first) << ".." << int(di->second);
+        }
+        std::cerr << '\n';
+    }
+    #endif
 
     for (int i = 0; i < Table_Max; i++) {
-        route_x[i] = route_y[i] = -1;
         routing[i] = Route_None;
-        routeTableCenter[i].x = -1;
+        routeTarget[i] = 0;
+        routeTableCenter[i] = 0;
     }
 }
 
-void Client::next_room(int& x, int& y, int i) const throw () {
-    switch (i) {
-        case 0:
-            --y;
-            if (y < 0)
-                y = fx.map.h - 1;
-            break;
-        case 1:
-            ++y;
-            if (y >= fx.map.h)
-                y = 0;
-            break;
-        case 2:
-            --x;
-            if (x < 0)
-                x = fx.map.w - 1;
-            break;
-        case 3:
-            ++x;
-            if (x >= fx.map.w)
-                x = 0;
-            break;
-    }
+void Client::BuildRouteTable(Area* startPoint, RouteTable num) throw () {
+    return BuildRouteTable(vector<Area*>(1, startPoint), num);
 }
 
-int Client::route_room(int& x, int& y, RouteTable num) throw () {
-    int label = fx.map.room[x][y].label[num];
-    if (label == -1) // not labeled
-        return 0;
-
-    int routes[4];
-    int route_nr = 0;
-
-    for (int i = 0; i < 4 && label != 0; i++) {
-        if (!fx.map.room[x][y].pass[i])
-            continue;
-        int nx = x;
-        int ny = y;
-        next_room(nx, ny, i);
-        if (fx.map.room[nx][ny].label[num] != label - 1)
-            continue;
-        routes[route_nr++] = i;
-    }
-    if (route_nr == 0)
-        return 0;
-    next_room(x, y, routes[rand() % route_nr]);
-    fx.map.room[x][y].route[num] = true;
-    return route_nr;
-}
-
-void Client::BuildRouteTable(int mex, int mey, RouteTable num) throw () {
-    return BuildRouteTable(vector<RoomCoords>(1, RoomCoords(mex, mey)), num);
-}
-
-void Client::BuildRouteTable(const vector<RoomCoords>& startPoints, RouteTable num) throw () {
-    const int w = fx.map.w;
-    const int h = fx.map.h;
-
+void Client::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) throw () {
     if (startPoints.size() == 1) {
         if (routeTableCenter[num] == startPoints[0])
             return;
         routeTableCenter[num] = startPoints[0];
     }
     else
-        routeTableCenter[num].x = -1;
+        routeTableCenter[num] = 0;
 
-    for (int x = 0; x < w; ++x)
-        for (int y = 0; y < h; ++y) {
-            fx.map.room[x][y].label[num] = -1;
-            fx.map.room[x][y].route[num] = false;
-        }
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        ai->label[num] = -1;
+        ai->route[num] = false;
+    }
 
-    queue<RoomCoords> workQueue;
-    for (vector<RoomCoords>::const_iterator ti = startPoints.begin(); ti != startPoints.end(); ++ti) {
-        fx.map.room[ti->x][ti->y].label[num] = 0;
-        workQueue.push(*ti);
+    queue<const Area*> workQueue;
+    for (vector<Area*>::const_iterator ai = startPoints.begin(); ai != startPoints.end(); ++ai) {
+        (*ai)->label[num] = 0;
+        workQueue.push(*ai);
     }
     while (!workQueue.empty()) {
-        const RoomCoords rc = workQueue.front();
+        const Area* const a = workQueue.front();
         workQueue.pop();
-        const Room& r = fx.map.room[rc.x][rc.y];
-        for (int i = 0; i < 4; ++i) {
-            if (!r.pass[i])
+        for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
+            if (ni->area->label[num] != -1) // already labeled
                 continue;
-            int nx = rc.x, ny = rc.y;
-            next_room(nx, ny, i);
-            if (fx.map.room[nx][ny].label[num] != -1) // already labeled
-                continue;
-            fx.map.room[nx][ny].label[num] = r.label[num] + 1;
-            workQueue.push(RoomCoords(nx, ny));
+            ni->area->label[num] = a->label[num] + 1;
+            workQueue.push(ni->area);
         }
     }
-    #ifdef BOTDEBUG
-    fprintf(stderr,"BuildRoute table from %d %d\n", mex, mey);
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x)
-            fprintf(stderr,"%02d ", fx.map.room[x][y].label[num]);
-        fprintf(stderr,"\n");
-    }
-    #endif
 }
 
-int Client::BuildRoute(int tox, int toy, RouteTable num) throw () {
+int Client::BuildRoute(Area* const target, RouteTable num) throw () {
     #ifdef BOTDEBUG
-    static int tox_old = -1, toy_old = -1;
-    if (tox != tox_old || toy != toy_old) {
-        fprintf(stderr, "Build route %d to %d %d\n", me, tox, toy);
-        tox_old = tox;
-        toy_old = toy;
+    static const Area* oldTarget = 0;
+    if (target != oldTarget) {
+        fprintf(stderr, "%d: Build route %d to %d %d\n", me, num, target->roomx, target->roomy);
+        oldTarget = target;
     }
     #endif
-    nAssert(tox >= 0 && tox < fx.map.w);
-    nAssert(toy >= 0 && toy < fx.map.h);
+    nAssert(target);
     nAssert(me >= 0 && me < maxplayers);
 
-    const int label = fx.map.room[tox][toy].label[num];
-    const int mex = fx.player[me].roomx;
-    const int mey = fx.player[me].roomy;
+    const Area* const here = myArea();
 
-    if (fx.map.room[mex][mey].route[num] && tox == route_x[num] && toy == route_y[num])
-        return label;
+    if (here->route[num] && target == routeTarget[num])
+        return target->label[num];
 
-    for (int x = 0; x < fx.map.w; ++x) // clear route
-        for (int y = 0; y < fx.map.h; ++y)
-            fx.map.room[x][y].route[num] = false;
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) // clear route
+        ai->route[num] = false;
 
-    if (label == -1 || fx.map.room[mex][mey].label[num] == -1 ||
-        fx.map.room[mex][mey].label[num] > fx.map.room[tox][toy].label[num])
-            nAssert(0);
+    nAssert(target->label[num] != -1 && here->label[num] != -1 && here->label[num] <= target->label[num]);
+    nAssert(routeTableCenter[num] == here);
 
-    fx.map.room[tox][toy].route[num] = true;
+    target->route[num] = true;
+    routeTarget[num] = target;
 
-    int i = 0;
+    Area* at = target;
+    int steps = 0;
+    for (; at != here; ++steps) {
+        vector<Area*> choices;
 
-    route_x[num] = tox;
-    route_y[num] = toy;
+        for (vector<Area*>::const_iterator rni = at->reverseNeighbors().begin(); rni!= at->reverseNeighbors().end(); ++rni)
+            if ((*rni)->label[num] == at->label[num] - 1)
+                choices.push_back(*rni);
 
-    while (route_room(tox, toy, num))
-        ++i;
-    #ifdef BOTDEBUG
-    fprintf(stderr, "BuildRoute  to %d %d\n", tox, toy);
-    for (int y = 0; y < fx.map.h; ++y) {
-        for (int x = 0; x < fx.map.w; ++x)
-            fprintf(stderr,"%02d ", fx.map.room[x][y].route[num]);
-        fprintf(stderr,"\n");
+        nAssert(!choices.empty());
+        at = choices[rand() % choices.size()];
+        at->route[num] = true;
     }
-    #endif
-    return i;
+    return steps;
 }
 
 ClientControls Client::Route(double melx, double mely, RouteTable num) const throw () {
     if (routing[num] == Route_None)
         return ClientControls();
 
-    const int mex = fx.player[me].roomx;
-    const int mey = fx.player[me].roomy;
+    const Area* const here = myArea();
 
-    const int label = fx.map.room[mex][mey].label[num];
-
-    if (label == -1 || route_x[num] == mex && route_y[num] == mey)
+    if (here->label[num] == -1 || routeTarget[num] == here)
         return ClientControls();
 
-    int dir = -1;
-
-    for (int i = 0; i < 4; ++i) {
-        if (!fx.map.room[mex][mey].pass[i])
-            continue;
-        int x = mex, y = mey;
-        next_room(x, y, i);
-        if (fx.map.room[x][y].route[num] && fx.map.room[x][y].label[num] == label + 1) {
+    const Area::Neighbor* target = 0;
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        if (ni->area->route[num] && ni->area->label[num] == here->label[num] + 1) {
             if (HaveFlag(me)) {
-                const TeamCounts tc = Teams(x, y, false);
+                const TeamCounts tc = Teams(ni->area, false);
                 if (tc.enemies > tc.friends + 1)
                     continue;
             }
-            dir = i;
+            target = &*ni;
             break;
         }
     }
 
-    if (dir == -1)
+    if (!target)
         return ClientControls(); // no need to go
 
-    #ifdef BOTDEBUG
-    fprintf(stderr,"i am @ (%d %d) -> (%d %d)\n", fx.player[me].roomx, fx.player[me].roomy, mex, mey);
-    #endif
-
-    return MoveToDoor(melx, mely, dir);
+    return MoveToDoor(melx, mely, *target);
 }
 
-ClientControls Client::MoveToDoor(double dmex, double dmey, int dir) const throw () {
-    const int mex = int(dmex), mey = int(dmey);
+ClientControls Client::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
     int fixedBorder, fixedTarget;
     bool xFixed;
     ClientControls ctrl;
     ctrl.setRun();
-    switch (dir) {
-    /*break;*/ case 0:
+    switch (neighbor.direction) {
+    /*break;*/ case Area::Neighbor::Up:
             fixedBorder = 0;
             fixedTarget = -PLAYER_RADIUS;
             xFixed = false;
-            if (dmey < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
+            if (mey < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
                 return ctrl.setUp();
-        break; case 1:
+        break; case Area::Neighbor::Down:
             fixedBorder = S_H;
             fixedTarget = S_H + PLAYER_RADIUS;
             xFixed = false;
-            if (dmey > S_H)
+            if (mey > S_H)
                 return ctrl.setDown();
-        break; case 2:
+        break; case Area::Neighbor::Left:
             fixedBorder = 0;
             fixedTarget = -PLAYER_RADIUS;
             xFixed = true;
-            if (dmex < 0)
+            if (mex < 0)
                 return ctrl.setLeft();
-        break; case 3:
+        break; case Area::Neighbor::Right:
             fixedBorder = S_W;
             fixedTarget = S_W + PLAYER_RADIUS;
             xFixed = true;
-            if (dmex > S_W)
+            if (mex > S_W)
                 return ctrl.setRight();
         break; default:
             nAssert(0);
     }
-    const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    for (int r = 4; r >= 1; --r) { // try to find a larger hole first, mainly to avoid bumping into walls
-        const double holeRadius = r * PLAYER_RADIUS;
-        if (xFixed) {
-            for (int dist = 0; dist < S_H; dist += PLAYER_RADIUS) {
-                if (mey - dist > 0   && !room.fall_on_wall(fixedBorder, mey - dist, holeRadius))
-                    return MoveToNoAggregate(mex, mey, fixedTarget - mex, -dist);
-                if (mey + dist < S_H && !room.fall_on_wall(fixedBorder, mey + dist, holeRadius))
-                    return MoveToNoAggregate(mex, mey, fixedTarget - mex,  dist);
-            }
+    const double myFreeCoord = xFixed ? mey : mex;
+    vector< pair<double, double> >::const_iterator nearestDoor = neighbor.doors.end();
+    double minDist = 1e10;
+    for (vector< pair<double, double> >::const_iterator di = neighbor.doors.begin(); di != neighbor.doors.end(); ++di) { // find the nearest door
+        if (di->first <= myFreeCoord && di->second >= myFreeCoord) {
+            nearestDoor = di;
+            break;
         }
-        else
-            for (int dist = 0; dist < S_W; dist += PLAYER_RADIUS) {
-                if (mex - dist > 0   && !room.fall_on_wall(mex - dist, fixedBorder, holeRadius))
-                    return MoveToNoAggregate(mex, mey, -dist, fixedTarget - mey);
-                if (mex + dist < S_W && !room.fall_on_wall(mex + dist, fixedBorder, holeRadius))
-                    return MoveToNoAggregate(mex, mey,  dist, fixedTarget - mey);
-            }
+        const double dist = di->first <= myFreeCoord ? myFreeCoord - di->second : di->first - myFreeCoord;
+        if (dist < minDist) {
+            nearestDoor = di;
+            minDist = dist;
+        }
     }
-    // not even a player-sized opening found (at the probed places); one should reveal itself when we move about, or if not, the map sucks
+    nAssert(nearestDoor != neighbor.doors.end());
+    const double doorMiddle = (nearestDoor->first + nearestDoor->second) / 2;
+    const double niceLow  = min(doorMiddle, nearestDoor->first  + 4 * PLAYER_RADIUS); // if possible, take some headroom, mainly to avoid bumping into walls
+    const double niceHigh = max(doorMiddle, nearestDoor->second - 4 * PLAYER_RADIUS);
+    const double freeTarget = bound(myFreeCoord, niceLow, niceHigh);
     if (xFixed)
-        return MoveToNoAggregate(mex, mey, fixedTarget - mex, 0);
+        return MoveToNoAggregate(mex, mey, fixedTarget - mex, freeTarget - mey);
     else
-        return MoveToNoAggregate(mex, mey, 0, fixedTarget - mey);
+        return MoveToNoAggregate(mex, mey, freeTarget - mex, fixedTarget - mey);
 }
 
 int Client::GetPlayers(int team) const throw () {
@@ -1123,17 +1373,19 @@ bool Client::IsDefender() throw () {
     const int npl = GetPlayers(team);
     const int defNum = npl / 2 / tflags.size();
 
+    const Area* const here = myArea();
+
     // for all bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        BuildRouteTable(pi->px, pi->py, Table_Def);
-        const int m_label = fx.map.room[fx.player[me].roomx][fx.player[me].roomy].label[Table_Def];
+        BuildRouteTable(area(*pi), Table_Def); //#opt: reserve enough routing tables to avoid building them here every frame in case of multiple flags
+        const int m_label = here->label[Table_Def];
         int nearNum = 0;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
             if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me ||
                 player.roomx >= fx.map.w || player.roomy >= fx.map.h)
                     continue;
-            const int label = fx.map.room[player.roomx][player.roomy].label[Table_Def];
+            const int label = area(player)->label[Table_Def];
             if (label < m_label || label == m_label && i < me || HaveFlag(i))
                 nearNum++;
         }
@@ -1187,9 +1439,9 @@ bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
         }
         if (routing[num] == Route_None || routing[num] == Route_Base) {
             if (routing[num] == Route_Base) {
-                const TeamCounts tc = Teams(route_x[num], route_y[num], false);
+                const TeamCounts tc = Teams(routeTarget[num], false);
                 if (tc.friends) { // if we are going to base where is already our forces, forget it
-                    if (route_x[num] != fx.player[me].roomx || route_y[num] != fx.player[me].roomy || AmILast())
+                    if (routeTarget[num] != myArea() || AmILast())
                         TargetFog(num);
                 }
             }
@@ -1236,7 +1488,7 @@ bool Client::IsMassive() const throw () {
     double dx = 0, dy = 0;
     int n = 0;
     for (int i = 0; i < maxplayers; ++i) {
-        if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen)
+        if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen) //#fix: should we eliminate players in other areas within the same room from this?
             continue;
 
         dx += fabs(fx.player[i].lx - fx.player[me].lx + averageLag * (fx.player[i].sx - fx.player[me].sx));
@@ -1280,18 +1532,18 @@ bool Client::IsFlagAtBase(const Flag& f, int team) const throw () {
     return false;
 }
 
-int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable num) throw () {
+int Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
 
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        label = fx.map.room[pi->px][pi->py].label[num];
+        Area* const a = area(*pi);
+        label = a->label[num];
         if (label == -1)
             continue;
         if (label < m_label || m_label == -1) {
             m_label = label;
-            x = pi->px;
-            y = pi->py;
+            targetArea = a;
             routing[num] = Route_Base;
         }
     }
@@ -1299,35 +1551,34 @@ int Client::TargetNearestBase(int& m_label, int& x, int& y, int team, RouteTable
     return 0;
 }
 
-int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable num) throw () {
+int Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     // looking for soldiers
     const bool enemy = (fx.player[me].team() != team);
 
-    int label = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (i == me || !pl.used || pl.team() != team || pl.dead || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
             continue;
 
-        label = fx.map.room[pl.roomx][pl.roomy].label[num];
-        if (label == -1)
-            continue;
-
-        if (enemy) { // if enemy, check fadeout
-            if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
+        if (enemy) {
+            if (fx.frame - pl.posUpdated > FADEOUT)
                 continue; // old data
             if (!pl.onscreen) {
                 if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
                     continue; // already here
                 if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
-                    continue; // was her
+                    continue; // was here
             }
         }
 
+        Area* const a = area(pl);
+        const int label = a->label[num];
+        if (label == -1)
+            continue;
+
         if (label < m_label || m_label == -1) {
             m_label = label;
-            x = pl.roomx;
-            y = pl.roomy;
+            targetArea = a;
             routing[num] = Route_Team;
         }
     }
@@ -1338,62 +1589,49 @@ int Client::TargetNearestTeam(int& m_label, int& x, int& y, int team, RouteTable
 bool Client::IsCarriersDef(int team) throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
-    vector<RoomCoords> carrierRooms;
+    vector<Area*> carrierAreas;
 
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-        if (fi->carried()) {
-            const ClientPlayer& pl = fx.player[fi->carrier()];
-            carrierRooms.push_back(RoomCoords(pl.roomx, pl.roomy));
-        }
+        if (fi->carried())
+            carrierAreas.push_back(area(fx.player[fi->carrier()]));
 
-    if (carrierRooms.empty()) // nothing to defend
+    if (carrierAreas.empty()) // nothing to defend
         return true;
 
-    BuildRouteTable(carrierRooms, Table_Def);
+    BuildRouteTable(carrierAreas, Table_Def);
 
     int teammates = 0, nearer = 0;
-    const int myDist = fx.map.room[fx.player[me].roomx][fx.player[me].roomy].label[Table_Def];
+    const int myDist = myArea()->label[Table_Def];
     for (int pi = 0; pi < maxplayers; ++pi) {
         const ClientPlayer& pl = fx.player[pi];
         if (!pl.used || pl.team() != fx.player[me].team())
             continue;
         ++teammates;
-        const int dist = fx.map.room[pl.roomx][pl.roomy].label[Table_Def];
+        const int dist = area(pl)->label[Table_Def];
         if (dist < myDist || dist == myDist && pi < me)
             ++nearer;
     }
     return nearer >= teammates / 2;
 }
 
-bool Client::IsHome(int mex, int mey) const throw () {
+bool Client::IsHome(const Area* a) const throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
     // our bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
-        if (pi->px == mex && pi->py == mey)
+        if (area(*pi) == a)
             return true;
     return false;
 }
 
 bool Client::IsFlagsAtBases(int team) const throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
-
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-        if (fi->carried())
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+        if (fi->carried() || !IsFlagAtBase(*fi, team))
             return false;
-        const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
-        bool at_base = false;
-        for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
-            if (pi->px == fi->position().px && pi->py == fi->position().py) {
-                at_base = true;
-                break;
-            }
-        if (!at_base)
-            return false;
-    }
     return true;
 }
 
-int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state, RouteTable num) throw () {
+int Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int state, RouteTable num) throw () {
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
     const bool wantCarried = state == 2 || state == 3;
@@ -1405,7 +1643,7 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
         if (fi->carried() != wantCarried)
             continue;
 
-        int nx, ny;
+        WorldCoords pos;
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
             if (pl.team() != carrierTeam || !pl.used || pl.roomx >= fx.map.w || pl.roomy >= fx.map.h)
@@ -1418,25 +1656,23 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
                 if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
                     continue;
             }
-            nx = pl.roomx;
-            ny = pl.roomy;
+            pos = pl.position();
         }
         else {
             if (IsFlagAtBase(*fi, team) != (state == 0))
                 continue;
-            nx = fi->position().px;
-            ny = fi->position().py;
+            pos = fi->position();
         }
 
-        nAssert(nx < fx.map.w && ny < fx.map.h);
-        const int label = fx.map.room[nx][ny].label[num];
+        nAssert(pos.px < fx.map.w && pos.py < fx.map.h);
+        Area* const a = area(pos);
+        const int label = a->label[num];
         if (label == -1)
             continue;
 
         if (label < m_label || m_label == -1) {
             m_label = label;
-            x = nx;
-            y = ny;
+            targetArea = a;
             routing[num] = Route_Flag;
         }
     }
@@ -1445,33 +1681,25 @@ int Client::TargetNearestFlag(int& m_label, int& x, int& y, int team, int state,
 }
 
 int Client::TargetFog(RouteTable num) throw () {
-    int roomx = fx.player[me].roomx;
-    int roomy = fx.player[me].roomy;
-    double delta = 0;
-    int maxi = -1;
+    const Area* const here = myArea();
     double max_delta = 0;
-
-    for (int i = 0; i < 4; i++) {
-        int x = roomx, y = roomy;
-        const Room& room = fx.map.room[x][y];
-        if (!room.pass[i])
-            continue;
-        next_room(x, y, i);
-        const TeamCounts tc = Teams(x, y, false);
+    Area* target = 0;
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        Area* const na = ni->area;
+        const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
             continue;
-        delta = fabs(fx.frame - fx.map.room[x][y].visited_frame);
+        const double delta = fabs(fx.frame - fx.map.room[na->roomx][na->roomy].visited_frame);
         if (delta >= max_delta) {
             max_delta = delta;
-            maxi = i;
+            target = na;
         }
     }
-    if (maxi == -1)
+    if (!target)
         return 0;
 
-    next_room(roomx, roomy, maxi);
     routing[num] = Route_Fog;
-    return BuildRoute(roomx, roomy, num);
+    return BuildRoute(target, num);
 }
 
 /* TargetRoute(enemy flag {at base, dropped off base, carried},
@@ -1494,57 +1722,57 @@ int Client::TargetRoute(int efb, int efd, int efc,
                         int eb,  int fb, int wb,
                         RouteTable num) throw () {
     int m_label = -1;
-    int x = -1, y = -1;
+    Area* targetArea = 0;
     const int t = fx.player[me].team();
     const int et = 1 - t;
     int n = 0;
 
-    BuildRouteTable(fx.player[me].roomx, fx.player[me].roomy, num);
+    BuildRouteTable(myArea(), num);
 
     routing[num] = Route_None;
 
     if (efb)
-        n += TargetNearestFlag(m_label, x, y, et, 0, num);
+        n += TargetNearestFlag(m_label, targetArea, et, 0, num);
 
     if (efd)
-        n += TargetNearestFlag(m_label, x, y, et, 1, num);
+        n += TargetNearestFlag(m_label, targetArea, et, 1, num);
 
     if (efc)
-        n += TargetNearestFlag(m_label, x, y, et, 2, num);
+        n += TargetNearestFlag(m_label, targetArea, et, 2, num);
 
     if (mfb)
-        n += TargetNearestFlag(m_label, x, y, t, 0, num);
+        n += TargetNearestFlag(m_label, targetArea, t, 0, num);
 
     if (mfd)
-        n += TargetNearestFlag(m_label, x, y, t, 1, num);
+        n += TargetNearestFlag(m_label, targetArea, t, 1, num);
 
     if (mfc)
-        n += TargetNearestFlag(m_label, x, y, t, 3, num);
+        n += TargetNearestFlag(m_label, targetArea, t, 3, num);
 
     if (wfb)
-        n += TargetNearestFlag(m_label, x, y, 2, 0, num);
+        n += TargetNearestFlag(m_label, targetArea, 2, 0, num);
 
     if (wfd)
-        n += TargetNearestFlag(m_label, x, y, 2, 1, num);
+        n += TargetNearestFlag(m_label, targetArea, 2, 1, num);
 
     if (wfce)
-        n += TargetNearestFlag(m_label, x, y, 2, 3, num);
+        n += TargetNearestFlag(m_label, targetArea, 2, 3, num);
 
     if (wfcf)
-        n += TargetNearestFlag(m_label, x, y, 2, 2, num);
+        n += TargetNearestFlag(m_label, targetArea, 2, 2, num);
 
     if (en)
-        n += TargetNearestTeam(m_label, x, y, et, num);
+        n += TargetNearestTeam(m_label, targetArea, et, num);
 
     if (fr)
-        n += TargetNearestTeam(m_label, x, y, t, num);
+        n += TargetNearestTeam(m_label, targetArea, t, num);
 
     if (eb)
-        n += TargetNearestBase(m_label, x, y, et, num);
+        n += TargetNearestBase(m_label, targetArea, et, num);
     if (fb)
-        n += TargetNearestBase(m_label, x, y, t, num);
+        n += TargetNearestBase(m_label, targetArea, t, num);
     if (wb)
-        n += TargetNearestBase(m_label, x, y, 2, num);
+        n += TargetNearestBase(m_label, targetArea, 2, num);
 
     if (n < 0)
         return -1;
@@ -1552,15 +1780,15 @@ int Client::TargetRoute(int efb, int efd, int efc,
     if (routing[num] == Route_None) // nothing todo
         return 0;
 
-    nAssert(x != -1 && y != -1);
+    nAssert(targetArea);
 
-    return BuildRoute(x, y, num);
+    return BuildRoute(targetArea, num);
 }
 
 bool Client::IsMission(RouteTable num) const throw () {
-    const int to_home = IsHome(route_x[num], route_y[num]);
+    const int to_home = IsHome(routeTarget[num]);
     // if we are looking for flag or going to our base for something
-    if (fx.player[me].roomx == route_x[num] && fx.player[me].roomy == route_y[num])
+    if (routeTarget[num] == myArea())
         return false;
     return HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base;
 }

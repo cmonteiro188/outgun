@@ -129,11 +129,7 @@ enum RouteTable {
 
 class Room {
 public:
-    // for bots:
-    bool pass[4];
-    int label[Table_Max];
-    bool route[Table_Max];
-    double visited_frame;
+    double visited_frame; // for bots
 
     Room() throw () { }
     Room(const Room& room) throw ();
@@ -426,6 +422,8 @@ public:
     int team() const throw () { return team_nr; }
     int color() const throw () { return personal_color; }
     virtual bool under_deathbringer_effect(double curr_time) const throw () = 0;
+
+    WorldCoords position() const { return WorldCoords(roomx, roomy, lx, ly); }
 };
 
 bool compare_players(const PlayerBase* a, const PlayerBase* b) throw ();
@@ -704,6 +702,7 @@ public:
     int y;
 
     Powerup() throw () : kind(pup_unused) { }
+    WorldCoords position() const { return WorldCoords(px, py, x, y); }
 };
 
 class DeathbringerExplosion {
