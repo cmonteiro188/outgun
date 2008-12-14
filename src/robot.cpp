@@ -1474,8 +1474,16 @@ bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
                           0,   0,   0,
                           0,   0,   0,   0,
                           0,   0,
-                          0, ctf, cwf && flag != 2, // don't expect to capture a wild flag on an empty wild flag base: the missing flag might be the one we're carrying
+                          0, ctf,   0,
                         num);  // ok, to capture point, even if unavailable
+        }
+        if (routing[num] == Route_None) {
+            TargetRoute(  0,   0,   0,
+                          0,   0,   0,
+                          0,   0,   0,   0,
+                          0,   0,
+                          0,   0, cwf,
+                        num);  // only go wait in an empty wild flag base as a last resort
         }
     }
     #ifdef BOTDEBUG
