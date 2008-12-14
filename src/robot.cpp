@@ -1377,7 +1377,7 @@ bool Client::IsDefender() throw () {
                 player.roomx >= fx.map.w || player.roomy >= fx.map.h)
                     continue;
             const int label = area(player, false)->label[Table_Def];
-            if (label < m_label || label == m_label && i < me || HaveFlag(i))
+            if (label < m_label || label == m_label && (i < me || HaveFlag(i)))
                 nearNum++;
         }
         if (nearNum < defNum)
