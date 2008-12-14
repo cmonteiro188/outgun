@@ -1615,7 +1615,7 @@ bool Client::IsCarriersDef(int team) throw () {
             continue;
         ++teammates;
         const int dist = area(pl)->label[Table_Def];
-        if (dist < myDist || dist == myDist && pi < me)
+        if (dist < myDist || dist == myDist && (pi < me || HaveFlag(pi)))
             ++nearer;
     }
     return nearer >= teammates / 2;
