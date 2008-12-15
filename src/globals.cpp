@@ -22,6 +22,7 @@
  *
  */
 
+#include "client.h"
 #include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"
@@ -52,3 +53,4 @@ ThreadLog g_threadLog; // from debug.h
 Mutex g_threadRandomSeedMutex("g_threadRandomSeedMutex"); // from thread.cpp
 Mutex nlOpenMutex("network.cpp:nlOpenMutex"); // from network.cpp
 MasterSettings g_masterSettings; // from commont.h, contains a Mutex
+BotSharedDataStorage Client::static_botSharedDataStorage; // contains a Mutex

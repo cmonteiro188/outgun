@@ -538,6 +538,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     totalframecount(0),
     frameCountStartTime(0),
     serverListMutex("Client::serverListMutex"),
+    sharedDataHandle(static_botSharedDataStorage),
     botmode(false),
     #endif
     finished(false),

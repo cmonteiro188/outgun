@@ -812,6 +812,33 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
+const AreaMap& BotSharedDataStorage::acquire(const Map& m) throw () {
+    const MapIdentifier mid(m);
+    Lock ml(mutex); // the return value is still usable outside the mutex lock because the data is constant and availability is ensured with nUsers
+    const map<MapIdentifier, MapData>::iterator mi = maps.find(mid);
+    if (mi == maps.end()) {
+        MapData md;
+        md.nUsers = 1;
+        md.areas = new AreaMap(m);
+        maps[mid] = md;
+        return *md.areas;
+    }
+    else {
+        ++mi->second.nUsers;
+        return *mi->second.areas;
+    }
+}
+
+void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
+    Lock ml(mutex);
+    const map<MapIdentifier, MapData>::iterator mi = maps.find(mid);
+    nAssert(mi != maps.end());
+    if (--mi->second.nUsers == 0) {
+        delete mi->second.areas;
+        maps.erase(mi);
+    }
+}
+
 ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
     const Room& room = map.room[roomx][roomy];
 
@@ -1109,6 +1136,31 @@ const AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, doub
     return 0;
 }
 
+AreaMap& AreaMap::operator=(const AreaMap& o) throw () {
+    areas.clear();
+    roomMaps.clear();
+    map<const Area*, Area*> newAreas;
+    for (PointerVector<Area>::const_iterator ai = o.areas.begin(); ai != o.areas.end(); ++ai) {
+        Area* na = new Area(*ai);
+        areas.push_back(give_control(na));
+        newAreas[&*ai] = na;
+    }
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        for (vector<Area::Neighbor>::iterator ni = ai->n.begin(); ni != ai->n.end(); ++ni)
+            ni->area = newAreas[ni->area];
+        for (vector<Area*>::iterator rni = ai->rn.begin(); rni != ai->rn.end(); ++rni)
+            *rni = newAreas[*rni];
+    }
+    roomMaps.reserve(o.roomMaps.size());
+    for (PointerVector< PointerVector<RoomAreaMap> >::const_iterator rmxi = o.roomMaps.begin(); rmxi != o.roomMaps.end(); ++rmxi) {
+        roomMaps.push_back(give_control(new PointerVector<RoomAreaMap>()));
+        roomMaps.back().reserve(rmxi->size());
+        for (PointerVector<RoomAreaMap>::const_iterator rmi = rmxi->begin(); rmi != rmxi->end(); ++rmi)
+            roomMaps.back().push_back(give_control(rmi->clone(newAreas)));
+    }
+    return *this;
+}
+
 void AreaMap::initialize(const Map& sourceMap) throw () {
     areas.clear();
     roomMaps.clear();
@@ -1186,7 +1238,7 @@ void Client::BuildMap() throw () {
     last_seen = -1;
     myGundir = -1;
 
-    areaMap.initialize(fx.map);
+    areaMap = sharedDataHandle.acquire(fx.map);
 
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y)

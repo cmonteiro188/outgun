@@ -42,6 +42,7 @@
 #include "function_utility.h"
 #include "gameserver_interface.h"
 #include "log.h"
+#include "map_with_helpers.h"
 #include "mutex.h"
 #include "pointervector.h"
 #include "thread.h"
@@ -171,7 +172,9 @@ class AreaMap {
 
 public:
     AreaMap() throw() { }
-    AreaMap(const Map& map) throw () { initialize(map); }
+    explicit AreaMap(const Map& map) throw () { initialize(map); }
+    AreaMap(const AreaMap& o) throw () { *this = o; }
+    AreaMap& operator=(const AreaMap& o) throw ();
 
     void initialize(const Map& map) throw ();
 
@@ -209,6 +212,7 @@ public:
 
         friend ControlledPtr<RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw ();
         friend void AreaMap::initialize(const Map& map) throw ();
+        friend AreaMap& AreaMap::operator=(const AreaMap& o) throw ();
     };
 
           Area* identifyArea(int roomx, int roomy, double lx, double ly, bool allowInvalid)       throw (); // if allowInvalid is set, returns 0 if room coordinates are outside the map
@@ -222,6 +226,7 @@ private:
         class AreaMapLevel : private NoCopying {
         public:
             virtual ~AreaMapLevel() throw () { }
+            virtual AreaMapLevel* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () = 0;
 
             virtual Area* find(double x, double y) const throw () = 0;
         };
@@ -231,6 +236,7 @@ private:
 
         public:
             SingleArea(Area* area) throw () : a(area) { nAssert(area); }
+            SingleArea* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SingleArea(map_get_assert(areaTranslation, a)); }
 
             Area* find(double, double) const throw () { return a; }
         };
@@ -242,6 +248,7 @@ private:
         public:
             SplitByX(AreaMapLevel* left, AreaMapLevel* right, double borderX_) throw () : l(left), r(right), borderX(borderX_) { }
             ~SplitByX() throw () { delete l; delete r; }
+            SplitByX* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SplitByX(l->clone(areaTranslation), r->clone(areaTranslation), borderX); }
 
             Area* find(double x, double y) const throw () { return (x < borderX ? l : r)->find(x, y); }
         };
@@ -253,6 +260,7 @@ private:
         public:
             SplitByY(AreaMapLevel* top, AreaMapLevel* bottom, double borderY_) throw () : t(top), b(bottom), borderY(borderY_) { }
             ~SplitByY() throw () { delete t; delete b; }
+            SplitByY* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SplitByY(t->clone(areaTranslation), b->clone(areaTranslation), borderY); }
 
             Area* find(double x, double y) const throw () { return (y < borderY ? t : b)->find(x, y); }
         };
@@ -279,15 +287,58 @@ private:
 
         AreaMapLevel* topLevel;
 
+        explicit RoomAreaMap(AreaMapLevel* tl) throw () : topLevel(tl) { }
+
     public:
         RoomAreaMap(const std::vector< std::vector<int> >& roomMap, const std::vector<Area*>& roomAreas) throw ();
         ~RoomAreaMap() throw () { delete topLevel; }
+        RoomAreaMap* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new RoomAreaMap(topLevel->clone(areaTranslation)); }
 
         Area* identifyArea(double x, double y) const throw () { return topLevel->find(x, y); }
     };
 
     PointerVector<Area> areas;
     PointerVector< PointerVector<RoomAreaMap> > roomMaps;
+};
+
+class BotSharedDataStorage {
+public:
+    class MapIdentifier {
+        int crc;
+        std::string name;
+
+    public:
+        MapIdentifier() throw () { }
+        explicit MapIdentifier(const Map& m) throw () : crc(m.crc), name(m.title) { }
+        bool operator<(const MapIdentifier& o) const { return crc < o.crc || crc == o.crc && name < o.name; }
+    };
+
+    BotSharedDataStorage() : mutex("BotSharedDataStorage::mutex") { }
+    ~BotSharedDataStorage() throw () { nAssert(maps.empty()); }
+    const AreaMap& acquire(const Map& m) throw ();
+    void release(const MapIdentifier& mid) throw ();
+
+private:
+    struct MapData {
+        AreaMap* areas;
+        int nUsers; // number of bots having an active copy of this data; the data is kept as long as there are any, as there might come new users as well
+    };
+    std::map<MapIdentifier, MapData> maps;
+    Mutex mutex;
+};
+
+class BotSharedDataHandle : private NoCopying {
+    BotSharedDataStorage& storage;
+
+    BotSharedDataStorage::MapIdentifier mid;
+    bool acquired;
+
+public:
+    BotSharedDataHandle(BotSharedDataStorage& s) throw () : storage(s), acquired(false) { }
+    ~BotSharedDataHandle() throw () { release(); }
+
+    const AreaMap& acquire(const Map& m) throw () { release(); acquired = true; mid = BotSharedDataStorage::MapIdentifier(m); return storage.acquire(m); }
+    void release() throw () { if (acquired) { storage.release(mid); acquired = false; } }
 };
 
 class Client;
@@ -469,6 +520,11 @@ class Client : public ClientInterface {
     Network::Address serverIP;
 
     // for bots:
+
+    static BotSharedDataStorage static_botSharedDataStorage;
+
+    BotSharedDataHandle sharedDataHandle;
+
     std::string bot_password;
 
     enum Routing {
