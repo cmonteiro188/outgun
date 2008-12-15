@@ -521,12 +521,6 @@ class Client : public ClientInterface {
 
     // for bots:
 
-    static BotSharedDataStorage static_botSharedDataStorage;
-
-    BotSharedDataHandle sharedDataHandle;
-
-    std::string bot_password;
-
     enum Routing {
         Route_None,
         Route_Flag,
@@ -540,6 +534,11 @@ class Client : public ClientInterface {
     #else
     static const bool botmode = true;
     #endif
+
+    static BotSharedDataStorage static_botSharedDataStorage;
+    BotSharedDataHandle sharedDataHandle;
+
+    std::string bot_password;
     int botId;
     bool finished;
 
