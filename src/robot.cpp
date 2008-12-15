@@ -812,8 +812,8 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     return MoveToNoAggregate(mex, mey, dx, dy);
 }
 
-ControlledPtr<Client::RoomAreaMap> Client::SplitRoomIntoAreas(int roomx, int roomy) throw () {
-    Room& room = fx.map.room[roomx][roomy];
+ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
+    const Room& room = map.room[roomx][roomy];
 
     static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
     static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
@@ -931,14 +931,14 @@ ControlledPtr<Client::RoomAreaMap> Client::SplitRoomIntoAreas(int roomx, int roo
     return give_control(new RoomAreaMap(roomMap, roomAreas));
 }
 
-Client::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
+AreaMap::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
     for (int i = 0; i < Table_Max; i++) {
         route[i] = false;
         label[i] = -1;
     }
 }
 
-void Client::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
+void AreaMap::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
     nAssert(value > 0);
     if (value > bestValue) {
         bestValue = value;
@@ -947,7 +947,7 @@ void Client::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsig
     }
 }
 
-void Client::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minimums, const vector<int>& maximums, int& minValue, int& maxValue, bool axisIsX) throw () { // fills in minValue and maxValue as well as tests the points
+void AreaMap::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minimums, const vector<int>& maximums, int& minValue, int& maxValue, bool axisIsX) throw () { // fills in minValue and maxValue as well as tests the points
     /* Example of overlapping ranges in one dimension:
      *
      * 1-1-1-1
@@ -1016,7 +1016,7 @@ void Client::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minimu
     #endif
 }
 
-Client::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas, int x0, int y0, int x1, int y1) throw () :
+AreaMap::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas, int x0, int y0, int x1, int y1) throw () :
     bestValue(0),
     count(roomAreas.size(), 0)
 {
@@ -1090,7 +1090,7 @@ Client::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roo
     #endif
 }
 
-Client::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas) throw () {
+AreaMap::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas) throw () {
     nAssert(!roomAreas.empty());
     if (roomAreas.size() == 1)
         topLevel = new SingleArea(roomAreas.back());
@@ -1098,31 +1098,26 @@ Client::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const vec
         topLevel = AreaSplitter(roomMap, roomAreas, 0, 0, roomMap.size() - 1, roomMap[0].size() - 1)();
 }
 
-Client::Area* Client::area(int roomx, int roomy, double lx, double ly, bool allowInvalid) throw () {
-    return const_cast<Area*>(static_cast<const Client*>(this)->area(roomx, roomy, lx, ly, allowInvalid));
+AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly, bool allowInvalid) throw () {
+    return const_cast<Area*>(static_cast<const AreaMap*>(this)->identifyArea(roomx, roomy, lx, ly, allowInvalid));
 }
 
-const Client::Area* Client::area(int roomx, int roomy, double lx, double ly, bool allowInvalid) const throw () {
-    if (roomx >= 0 && roomy >= 0 && roomx < fx.map.w && roomy < fx.map.h)
-        return areaMap[roomx][roomy].identifyArea(lx, ly);
+const AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly, bool allowInvalid) const throw () {
+    if (roomx >= 0 && roomy >= 0 && (unsigned)roomx < roomMaps.size() && (unsigned)roomy < roomMaps[0].size())
+        return roomMaps[roomx][roomy].identifyArea(lx, ly);
     nAssert(allowInvalid);
     return 0;
 }
 
-void Client::BuildMap() throw () {
-    last_seen = -1;
-    myGundir = -1;
-
+void AreaMap::initialize(const Map& sourceMap) throw () {
     areas.clear();
-    areaMap.clear();
+    roomMaps.clear();
 
     // create all Areas before creating links between them
-    for (int x = 0; x < fx.map.w; ++x) {
-        areaMap.push_back(give_control(new PointerVector<RoomAreaMap>()));
-        for (int y = 0; y < fx.map.h; ++y) {
-            areaMap[x].push_back(SplitRoomIntoAreas(x, y));
-            fx.map.room[x][y].visited_frame = 0;
-        }
+    for (int x = 0; x < sourceMap.w; ++x) {
+        roomMaps.push_back(give_control(new PointerVector<RoomAreaMap>()));
+        for (int y = 0; y < sourceMap.h; ++y)
+            roomMaps[x].push_back(splitRoom(sourceMap, x, y));
     }
 
     // link doors to target areas
@@ -1137,11 +1132,11 @@ void Client::BuildMap() throw () {
                 areaNeighborIndex.clear(); // this is required because the same Area can be reachable in multiple directions if the map is just one room high and/or wide; we need separate Neighbors for each direction
             }
             const int dx = n.dx(), dy = n.dy();
-            n.area = area(positiveModulo(ai->roomx + dx, fx.map.w),
-                          positiveModulo(ai->roomy + dy, fx.map.h),
-                          dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
-                          dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2,
-                          false);
+            n.area = identifyArea(positiveModulo(ai->roomx + dx, sourceMap.w),
+                                  positiveModulo(ai->roomy + dy, sourceMap.h),
+                                  dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
+                                  dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2,
+                                  false);
             const map<Area*, unsigned>::const_iterator nii = areaNeighborIndex.find(n.area);
             if (nii == areaNeighborIndex.end()) {
                 areaNeighborIndex[n.area] = ni++;
@@ -1173,6 +1168,29 @@ void Client::BuildMap() throw () {
         std::cerr << '\n';
     }
     #endif
+}
+
+void AreaMap::clearRoutingTable(RouteTable num) throw () {
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        ai->label[num] = -1;
+        ai->route[num] = false;
+    }
+}
+
+void AreaMap::clearRoute(RouteTable num) throw () {
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai)
+        ai->route[num] = false;
+}
+
+void Client::BuildMap() throw () {
+    last_seen = -1;
+    myGundir = -1;
+
+    areaMap.initialize(fx.map);
+
+    for (int x = 0; x < fx.map.w; ++x)
+        for (int y = 0; y < fx.map.h; ++y)
+            fx.map.room[x][y].visited_frame = 0;
 
     for (int i = 0; i < Table_Max; i++) {
         routing[i] = Route_None;
@@ -1194,10 +1212,7 @@ void Client::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) t
     else
         routeTableCenter[num] = 0;
 
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        ai->label[num] = -1;
-        ai->route[num] = false;
-    }
+    areaMap.clearRoutingTable(num);
 
     queue<const Area*> workQueue;
     for (vector<Area*>::const_iterator ai = startPoints.begin(); ai != startPoints.end(); ++ai) {
@@ -1232,8 +1247,7 @@ int Client::BuildRoute(Area* const target, RouteTable num) throw () {
     if (here->route[num] && target == routeTarget[num])
         return target->label[num];
 
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) // clear route
-        ai->route[num] = false;
+    areaMap.clearRoute(num);
 
     nAssert(target->label[num] != -1 && here->label[num] != -1 && here->label[num] <= target->label[num]);
     nAssert(routeTableCenter[num] == here);
@@ -1877,7 +1891,7 @@ ClientControls Client::getRobotControls() throw () {
     }
 
     ctrl = FollowFlag(mex, mey);
-    if (!ctrl.idle()) { 
+    if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Following a carrier.\n");

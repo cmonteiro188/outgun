@@ -43,6 +43,16 @@ class BinaryWriter;
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 
+template<class T> struct BasicCoords {
+    T x, y;
+
+    BasicCoords() throw () { }
+    BasicCoords(T x_, T y_) throw () : x(x_), y(y_) { }
+
+    bool operator==(const BasicCoords& o) const throw () { return x == o.x && y == o.y; }
+    bool operator!=(const BasicCoords& o) const throw () { return x != o.x || y != o.y; }
+};
+
 class WallBase {    // base class
 public:
     WallBase() throw () { }
