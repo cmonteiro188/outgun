@@ -23,6 +23,7 @@ $1 LOST THE WILD FLAG!##$1 MENETTI PUOLUEETTOMAN LIPUN!
 $1 RETURNED THE BLUE FLAG!##$1 PALAUTTI SINISEN LIPUN!
 $1 RETURNED THE RED FLAG!##$1 PALAUTTI PUNAISEN LIPUN!
 $1 and $2 swapped teams.##$1 ja $2 vaihtoivat joukkuetta.
+$1 can only be followed by the source and target directory.##Parametrin $1 perässä voi olla vain lähde- ja kohdehakemisto.
 $1 can't be combined with other command line options.##$1 - tätä parametria ei voi käyttää muiden parametrien kanssa.
 $1 capt##$1 p
 $1 changed name to $2.##$1 vaihtoi nimekseen $2.
@@ -183,6 +184,7 @@ Contacting the servers...##Kyselen palvelimilta...
 Continuous textures between rooms##Tekstuurien jatkuvuus huoneesta toiseen
 Controls##Ohjaimet
 Could not open replay file $1.##Uusinta "$1" ei aukea.
+Could not save map pictures to the directory '$1'.##Karttakuvat eivät tallentuneet hakemistoon "$1".
 Could not save map pictures to the directory 'mappic'.##Karttakuvat eivät tallentuneet hakemistoon "mappic".
 Could not save screenshot to $1.##Virhe kuvankaappauksen tallennuksessa tiedostoon $1.
 Could not send init data to the relay: $1##Yhteys välipalvelimelle epäonnistui: $1
@@ -309,6 +311,7 @@ Map is missing a width, height or title.##Kartasta puuttuu leveys, korkeus tai n
 Map number##Kartan numero
 Map picture saver: Can't save map picture to '$1'.##Karttakuvien tallennin: Karttakuva ei tallennu tiedostoon "$1".
 Map picture saver: Map '$1' is not a valid map file.##Karttakuvien tallennin: Tiedosto "$1" ei ole kelvollinen karttatiedosto.
+Map pictures saved to the directory '$1'.##Karttakuvat luotu hakemistoon "$1".
 Map pictures saved to the directory 'mappic'.##Karttakuvat luotu hakemistoon "mappic".
 Markers for nearby players and flags in game##Lähistön pelaajien ja lippujen merkit pelissä
 Markers for nearby players and flags in replay##Lähistön pelaajien ja lippujen merkit uusinnassa

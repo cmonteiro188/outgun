@@ -155,6 +155,7 @@ Connection timed out.##Connessione in timeout.
 Contacting the servers...##Sto contanttando dei server...
 Continuous textures between rooms##Texture continua tra le stanze
 Controls##Controlli
+Could not save map pictures to the directory '$1'.##Le immagini potrebbero non essere salvate in '$1'.
 Could not save map pictures to the directory 'mappic'.##Le immagini potrebbero non essere salvate in 'mappic'.
 Could not save screenshot to $1.##Lo screenshot salvato come $1 potrebbe non essere stato salvato.
 Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.##Impossibilie inizializzare risoluzione $1×$2×$3 in $4 modo; convertito a $5.
@@ -249,6 +250,7 @@ Map info mode##Modalità informazione mappa
 Map is missing a width, height or title.##Alla mappa manca altezza, larghezza o titolo.
 Map picture saver: Can't save map picture to '$1'.##Map picture saver: Impodssibile salvare l'immagine mappa come '$1'.
 Map picture saver: Map '$1' is not a valid map file.##Salvatore immagini mappa: Mappa '$1' non è un valido file mappa.
+Map pictures saved to the directory '$1'.##Immagini mappe salvate in directory '$1'.
 Map pictures saved to the directory 'mappic'.##Immagini mappe salvate in directory 'mappic'.
 Master server unavailable##Server master non disponibile
 Master talker: $1##Master: $1

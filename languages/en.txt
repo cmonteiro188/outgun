@@ -718,7 +718,7 @@ IP addresses:
 Outgun - Saving map pictures
 
 ; Used in an external dialog message.
-Map pictures saved to the directory 'mappic'.
+Map pictures saved to the directory '$1'.
 Default colours generated to $1.
 
 
@@ -730,6 +730,7 @@ Default colours generated to $1.
 
 ; Command line errors.
 $1 can't be combined with other command line options.
+$1 can only be followed by the source and target directory.
 -cport must be followed by a space and either a port number or minport:maxport.
 -cport X or -cport X:Y: X and Y must be in the range of 1 to 65535.
 -cport X:Y: Y must be greater than X.
@@ -758,7 +759,7 @@ Can't load: error in map '$1'.
 Can't start listen server.
 Can't start the client.
 Can't start the server.
-Could not save map pictures to the directory 'mappic'.
+Could not save map pictures to the directory '$1'.
 Could not start spectating.
 
 ; Graphic mode errors.

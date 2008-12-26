@@ -188,6 +188,7 @@ Contacting the servers...##Contactando os servidores...
 Continuous textures between rooms##Textura continua entre salas
 Controls##Controles
 Could not open replay file $1.##Não foi possível abrir o arquivo de replay $1.
+Could not save map pictures to the directory '$1'.##Não foi possível salvar as figuras do mapa para o diretório '$1'.
 Could not save map pictures to the directory 'mappic'.##Não foi possível salvar as figuras do mapa para o diretório 'mappic'.
 Could not save screenshot to $1.##Não foi possivel salvar captura de tela para $1.
 Could not start spectating.##Não foi possível iniciar o modo espectador.
@@ -312,6 +313,7 @@ Map is missing a width, height or title.##Está faltando a altura, largura ou tít
 Map number##Número do mapa
 Map picture saver: Can't save map picture to '$1'.##Salvador de figuras do mapa: Não é possível salvar a figura do mapa para '$1'.
 Map picture saver: Map '$1' is not a valid map file.##Salvador de figuras do mapa: Mapa '$1' não é um arquivo válido de mapa.
+Map pictures saved to the directory '$1'.##Figuras do mapa salvas no diretório '$1'.
 Map pictures saved to the directory 'mappic'.##Figuras do mapa salvas no diretório 'mappic'.
 Markers for nearby players and flags in game##Marcas para os jogadores e bandeiras próximas no jogo
 Markers for nearby players and flags in replay##Marcas para os jogadores e bandeiras próximas no replay
