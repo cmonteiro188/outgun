@@ -220,6 +220,7 @@ public:
         return room[px][py].fall_on_wall(x, y, r);
     }
     bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) throw ();
+    bool load_file(LogSet& log, const std::string& fileName, std::string* buffer = 0) throw ();
     bool parse_file(LogSet& log, std::istream& in) throw ();
 };
 

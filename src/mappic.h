@@ -35,15 +35,17 @@ class Mappic {
 public:
     class Save_error { };
 
-    Mappic(LogSet logs) throw () : log(logs) { }
+    Mappic(LogSet logs, const std::string& source, const std::string& target) throw ();
 
     void run() throw (Save_error);
 
 private:
     mutable LogSet log;
     std::vector<std::string> smaps; // server maps
+    std::string source_dir;
+    std::string target_dir;
 
-    std::vector<std::string> load_maps(const std::string& dir) throw ();
+    std::vector<std::string> load_maps() throw ();
     void save_pictures() const throw (Save_error);
 };
 

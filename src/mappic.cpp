@@ -24,7 +24,6 @@
 
 #include "incalleg.h"
 
-#include "commont.h"
 #include "graphics.h"
 #include "language.h"
 #include "platform.h"
@@ -35,14 +34,25 @@
 using std::string;
 using std::vector;
 
+Mappic::Mappic(LogSet logs, const string& source, const string& target) throw () :
+    log(logs),
+    source_dir(source),
+    target_dir(target)
+{
+    if (!source_dir.empty() && *source_dir.rbegin() != directory_separator)
+        source_dir += directory_separator;
+    if (!target_dir.empty() && *target_dir.rbegin() != directory_separator)
+        target_dir += directory_separator;
+}
+
 void Mappic::run() throw (Save_error) {
-    smaps = load_maps(SERVER_MAPS_DIR);
+    smaps = load_maps();
     save_pictures();
 }
 
-vector<string> Mappic::load_maps(const string& dir) throw () {
+vector<string> Mappic::load_maps() throw () {
     vector<string> maps;
-    FileFinder* mapFiles = platMakeFileFinder(wheregamedir + dir, ".txt", false);
+    FileFinder* mapFiles = platMakeFileFinder(source_dir, ".txt", false);
     while (mapFiles->hasNext())
         maps.push_back(FileName(mapFiles->next()).getBaseName());
     delete mapFiles;
@@ -54,11 +64,10 @@ void Mappic::save_pictures() const throw (Save_error) {
     set_color_depth(16);
     Graphics graphics(log);
     graphics.setColors();
-    const string dir(wheregamedir + "mappic" + directory_separator);
     for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
-        const string picture = dir + *name + Graphics::save_extension;
+        const string picture = target_dir + *name + Graphics::save_extension;
         Map mp;
-        if (!mp.load(log, SERVER_MAPS_DIR, *name))
+        if (!mp.load_file(log, source_dir + *name + ".txt"))
             log.error(_("Map picture saver: Map '$1' is not a valid map file.", *name));
         else if (graphics.save_map_picture(picture, mp))
             log("Map picture saver: Saved map picture to '%s'.", picture.c_str());

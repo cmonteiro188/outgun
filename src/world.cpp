@@ -376,7 +376,10 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
 
 bool Map::load(LogSet& log, const string& mapdir, const string& mapname, string* buffer) throw () {
     const string fileName = wheregamedir + mapdir + directory_separator + mapname + ".txt";
+    return load_file(log, fileName, buffer);
+}
 
+bool Map::load_file(LogSet& log, const string& fileName, string* buffer) throw () {
     ifstream in(fileName.c_str());
     if (!in) {
         log("Can't find mapfile '%s'!", fileName.c_str());
@@ -387,7 +390,7 @@ bool Map::load(LogSet& log, const string& mapdir, const string& mapname, string*
         in.seekg(0);
     }
     if (!parse_file(log, in)) {
-        log.error(_("Can't load: error in map '$1'.", mapname));
+        log.error(_("Can't load: error in map '$1'.", fileName));
         return false;
     }
     return true;

@@ -105,13 +105,16 @@ static bool set_shitty_mode(LogSet log) throw () {
 #endif
 
 // Make directory if it does not already exist.
-static bool check_dir(const string& dir, LogSet& log) throw () {
-    const string directory = wheregamedir + dir;
-
-    if (platIsDirectory(directory) || !platMkdir(directory.c_str()))
+static bool check_absolute_dir(const string& dir, LogSet& log) throw () {
+    if (platIsDirectory(dir) || !platMkdir(dir))
         return true;
-    log.error(_("The directory '$1' was not found and could not be created.", directory));
+    log.error(_("The directory '$1' was not found and could not be created.", dir));
     return false;
+}
+
+// Make directory under the game directory if it does not already exist.
+static bool check_dir(const string& dir, LogSet& log) throw () {
+    return check_absolute_dir(wheregamedir + dir, log);
 }
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -411,10 +414,16 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         }
         #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-mappic")) {
-            register_png_file_type();
-            if (argc != 2)
+            if (i != 1) {
                 log.error(_("$1 can't be combined with other command line options.", argv[i]));
-            if (!check_dir("mappic", log))
+                return;
+            }
+            register_png_file_type();
+            string source = argc >= 3 ? argv[2] : wheregamedir + SERVER_MAPS_DIR;
+            string target = argc >= 4 ? argv[3] : wheregamedir + "mappic";
+            if (argc >= 5)
+                log.error(_("$1 can only be followed by the source and target directory.", argv[i]));
+            if (!check_absolute_dir(target, log))
                 return;
 
             if (memoryErrorLog.size() != acceptedErrorCount)    // no point in continuing if there were errors
@@ -422,12 +431,12 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
 
             log("Saving map pictures");
             set_window_title(_("Outgun - Saving map pictures").c_str());
-            Mappic mappic(log);
+            Mappic mappic(log, source, target);
             try {
                 mappic.run();
-                messageBox("Outgun", _("Map pictures saved to the directory 'mappic'."));
-            } catch (const Mappic::Save_error& s) {
-                log.error(_("Could not save map pictures to the directory 'mappic'."));
+                messageBox("Outgun", _("Map pictures saved to the directory '$1'.", target));
+            } catch (const Mappic::Save_error&) {
+                log.error(_("Could not save map pictures to the directory '$1'.", target));
             }
             return;
         }
