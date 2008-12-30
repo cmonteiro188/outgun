@@ -44,6 +44,7 @@
 
 using std::dec;
 using std::hex;
+using std::ifstream;
 using std::locale;
 using std::min;
 using std::numeric_limits;
@@ -342,6 +343,15 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
         start = keep_spaces ? end : source.find_first_not_of(" \t", end);
     } while (start != string::npos);
     return lines;
+}
+
+string random_line(const string& file) {
+    ifstream in(file.c_str());
+    string line, selected;
+    for (int lines = 1; getline_smart(in, line); lines++)
+        if (rand() % lines == 0)
+            selected = line;
+    return selected;
 }
 
 LogSet& LogSet::operator()(const string& msg   ) throw () { if (  normalLog) {                                        normalLog->put(msg)  ;               } return *this; }

@@ -115,6 +115,7 @@ class Server : private NoCopying {
 
     void init_bots() throw ();
     void run_bot_thread() throw ();
+    std::string create_bot_name() throw ();
 
     // world
     ServerWorld     world;
@@ -156,6 +157,7 @@ class Server : private NoCopying {
         int             bot_ping;
         bool            balance_bot;
         std::string     bot_name_lang;
+        std::string     bot_file;
         int             save_stats;
         bool            random_maprot;
         bool            random_first_map;
@@ -279,6 +281,7 @@ class Server : private NoCopying {
         int  get_bot_ping() const throw () { return bot_ping; }
         bool get_balance_bot() const throw () { return balance_bot; }
         const std::string& get_bot_name_lang() const throw () { return bot_name_lang; }
+        const std::string& get_bot_file() const throw () { return bot_file; }
 
         int  get_save_stats() const throw () { return save_stats; }
 

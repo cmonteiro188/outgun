@@ -914,7 +914,7 @@ public:
     #endif
     void stop() throw ();
 
-    void bot_start(const Network::Address& addr, int ping, const std::string& name_lang, int botId) throw ();
+    void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();
     void bot_loop() throw ();
     void set_ping(int ping) throw ();
     bool is_connected() const throw () { return connected; }

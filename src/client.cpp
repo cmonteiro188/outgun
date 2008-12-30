@@ -880,7 +880,7 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
 }
 #endif
 
-void Client::bot_start(const Network::Address& addr, int ping, const string& name_lang, int bot_id) throw () {
+void Client::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
     Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
@@ -890,10 +890,8 @@ void Client::bot_start(const Network::Address& addr, int ping, const string& nam
 
     nAssert(start());
 
-    if (name_lang == "fi")
-        playername = "BOT " + finnish_name(maxPlayerNameLength - 4);
-    else
-        playername = ("BOT " + RandomName()).substr(0, maxPlayerNameLength);
+    playername = name;
+
     botReactedFrame = -1;
 
     set_ping(ping);

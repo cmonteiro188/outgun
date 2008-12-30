@@ -423,6 +423,9 @@ std::string formatForLogging(const std::string& str) throw ();
 /// Split string to lines, but only at whitespaces.
 std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false) throw ();
 
+/// Get random non-empty line from a file.
+std::string random_line(const std::string& file);
+
 class LineReceiver {
 protected:
     LineReceiver() throw () { }

@@ -856,10 +856,36 @@ void Server::init_bots() throw () {
         ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
-        bot->bot_start(address, settings.get_bot_ping(), settings.get_bot_name_lang(), botId++);
+        bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
         bots.push_back(bot);
         log("Bot added");
     }
+}
+
+string Server::create_bot_name() throw () {
+    const string bot_prefix = "BOT ";
+    string name;
+    string file = settings.get_bot_file();
+    if (!file.empty()) {
+        // Put the game dir before a relative path (that has no '/' or '\' at the beginning and no Windows drive separator)
+        if (file[0] != directory_separator && file.find(':') == string::npos)
+            file = wheregamedir + "config" + directory_separator + file;
+        const string loaded_name = random_line(file);
+        if (loaded_name.empty())
+            log.error(_("File '$1' contains no bot names.", file));
+        else if (!check_name(loaded_name))
+            log.error(_("File '$1' contains invalid name for bot: $2", file, loaded_name));
+        else
+            name = loaded_name;
+    }
+    if (name.empty()) {
+        if (settings.get_bot_name_lang() == "fi")
+            name = finnish_name(maxPlayerNameLength - bot_prefix.length());
+        else
+            name = RandomName();
+    }
+    name = bot_prefix + name;
+    return trim(name.substr(0, maxPlayerNameLength));
 }
 
 void Server::remove_bot() throw () {
