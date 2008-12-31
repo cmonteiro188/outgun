@@ -204,7 +204,7 @@ public:
 class Menu_controls {
 public:
     enum ArrowKeysInStatsMode { AS_useMenu, AS_movePlayer };
-    enum AimMode { AM_8way, AM_Turn, AM_Mouse };
+    enum AimMode { AM_8way, AM_Turn, AM_MouseTurn, AM_MousePos };
 
     Select<std::string> keyboardLayout;
     Checkbox            keypadMoving;

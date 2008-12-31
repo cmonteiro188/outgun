@@ -1664,7 +1664,8 @@ void Client::send_frame(bool newFrame, bool forceSend) throw () {
     msg.U8(sentControls.toNetwork(false));
     if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way) {
         refreshGunDir();
-        const AccelerationMode am = menu.options.controls.aimMode() == Menu_controls::AM_Mouse ? menu.options.controls.moveRelativity() : AM_Gun;
+        const AccelerationMode am = menu.options.controls.aimMode() == Menu_controls::AM_MouseTurn || menu.options.controls.aimMode() == Menu_controls::AM_MousePos
+            ? menu.options.controls.moveRelativity() : AM_Gun;
         msg.U16((am == AM_Gun ? 0x800 : 0) | gunDir.toNetworkLongForm());
     }
     client->send_frame(msg);
@@ -1673,10 +1674,16 @@ void Client::send_frame(bool newFrame, bool forceSend) throw () {
 void Client::refreshGunDir() throw () {
     if (!fx.physics.allowFreeTurning)
         return;
-    if (menu.options.controls.aimMode() == Menu_controls::AM_Mouse) {
+    if (menu.options.controls.aimMode() == Menu_controls::AM_MouseTurn) {
         int mx, my;
         get_mouse_mickeys(&mx, &my);
         gunDir.adjust(mx * menu.options.controls.mouseSensitivity() / 5000.);
+    }
+    else if (menu.options.controls.aimMode() == Menu_controls::AM_MousePos) {
+        const int mx = mouse_x - SCREEN_W / 2;
+        const int my = mouse_y - SCREEN_H / 2;
+        if (mx != 0 || my != 0)
+            gunDir.fromRad(atan2(my, mx));
     }
     else if (menu.options.controls.aimMode() == Menu_controls::AM_Turn) {
         g_timeCounter.refresh();
