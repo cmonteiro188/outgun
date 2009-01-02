@@ -2144,9 +2144,8 @@ void ServerWorld::game_player_screen_change(int p) throw () {
     //check for new powerups visible
     for (int i = 0; i < MAX_POWERUPS; i++) {
         const Powerup& it = item[i];
-        if (it.kind != Powerup::pup_unused && it.kind != Powerup::pup_respawning &&
-            it.px == player[p].roomx && it.py == player[p].roomy)
-                net->sendPowerupVisible(p, i, item[i]);
+        if (it.real() && it.px == player[p].roomx && it.py == player[p].roomy)
+            net->sendPowerupVisible(p, i, it);
     }
     // check for rockets visible to the new room
     for (int i = 0; i < MAX_ROCKETS; ++i)

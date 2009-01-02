@@ -5058,7 +5058,7 @@ void Client::draw_playfield() throw () {
 
     // draw powerups
     for (int i = 0; i < MAX_POWERUPS; i++)
-        if (fx.item[i].kind != Powerup::pup_unused && fx.item[i].kind != Powerup::pup_respawning && on_screen_exact(fx.item[i].px, fx.item[i].py, fx.item[i].x, fx.item[i].y, Graphics::extended_item_max_size_in_world / 2))
+        if (fx.item[i].real() && on_screen_exact(fx.item[i].px, fx.item[i].py, fx.item[i].x, fx.item[i].y, Graphics::extended_item_max_size_in_world / 2))
             graphics.draw_pup(fx.item[i], time, live);
 
     // draw turbo effects

@@ -714,6 +714,7 @@ public:
 
     Powerup() throw () : kind(pup_unused) { }
     WorldCoords position() const { return WorldCoords(px, py, x, y); }
+    bool real() const { return kind <= pup_last_real; }
 };
 
 class DeathbringerExplosion {
