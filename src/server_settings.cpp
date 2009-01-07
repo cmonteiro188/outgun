@@ -238,6 +238,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Int       ("win_score_difference",        &worldConfig.win_score_difference, 1));
     cat.add(new GS_Ulong     ("time_limit",                  &worldConfig.time_limit, 0, GS_Ulong::lim::max(), 60 * 10));    // convert minutes to frames
     cat.add(new GS_Ulong     ("extra_time",                  &worldConfig.extra_time, 0, GS_Ulong::lim::max(), 60 * 10));    // convert minutes to frames
+    cat.add(new GS_IntT<unsigned>("extra_time_periods",      &worldConfig.extra_time_periods, 1, 255));
     cat.add(new GS_Boolean   ("sudden_death",                &worldConfig.sudden_death));
     cat.add(new GS_Int       ("game_end_delay",              &game_end_delay, 0));
     cat.add(new GS_Double    ("flag_return_delay",           &worldConfig.flag_return_delay, 0));

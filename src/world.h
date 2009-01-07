@@ -954,6 +954,7 @@ public:
     double spawn_safe_time;
     uint32_t time_limit;
     uint32_t extra_time;
+    unsigned extra_time_periods;
     bool sudden_death;
     int capture_limit;
     int win_score_difference;     // minimum score difference needed to win the game
@@ -990,6 +991,7 @@ public:
     int getWinScoreDifference() const throw () { return win_score_difference; }
     uint32_t getTimeLimit() const throw () { return time_limit; }
     uint32_t getExtraTime() const throw () { return extra_time; }
+    unsigned getExtraTimePeriods() const throw () { return extra_time_periods; }
     double get_min_capture_time() const throw () { return min_capture_time; }
 
     Team_balance balanceTeams() const throw () { return balance_teams; }
@@ -1005,6 +1007,8 @@ class ServerWorld : public WorldBase {
     PowerupSettings pupConfig;
     WorldSettings config;
     LogSet log;
+
+    unsigned current_extra_time_period;
 
     uint8_t getFreeRocket() throw ();    // may give an existing rocket to overwrite if the table is full
     bool doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const throw ();
@@ -1026,7 +1030,7 @@ public:
     ServerPlayer player[MAX_PLAYERS];
 
     ServerWorld(Server* hostp, ServerNetworking* netp, LogSet logset) throw () :
-        host(hostp), net(netp), log(logset), frame(0), map_start_time(0)
+        host(hostp), net(netp), log(logset), current_extra_time_period(1), frame(0), map_start_time(0)
     {
         for (int i = 0; i < MAX_PLAYERS; ++i)
             WorldBase::player[i].setPtr(&player[i]);
@@ -1049,7 +1053,7 @@ public:
     int getMapTime() const throw () { return frame - map_start_time; }
     bool isTimeLimit() const throw () { return config.getTimeLimit() > 0; }
     int getTimeLeft() const throw () { return config.getTimeLimit() - getMapTime(); }
-    int getExtraTimeLeft() const throw () { return config.getTimeLimit() + config.getExtraTime() - getMapTime(); }
+    int getExtraTimeLeft() const throw () { return config.getTimeLimit() + current_extra_time_period * config.getExtraTime() - getMapTime(); }
     double get_frame() const throw () { return frame; }
 
     // server specific functions

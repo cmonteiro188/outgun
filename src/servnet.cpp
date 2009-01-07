@@ -826,6 +826,7 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     msg.U16(pupConfig.pup_max_time);
     world.physics.write(msg);
     msg.U16(static_cast<unsigned>(10 * config.flag_return_delay));
+    msg.U8(config.getExtraTimePeriods());
     /* TODO: 1.0.4 send more settings
        - locked flags?
        - captureable flags?

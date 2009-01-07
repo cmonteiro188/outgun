@@ -170,16 +170,16 @@ public:
 };
 
 class TM_ServerSettings : public ThreadMessage {
-    uint8_t caplimit, timelimit, extratime;
+    uint8_t caplimit, timelimit, extratime, extratime_periods;
     uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
     void addLine(Client* cl, const string& caption, const string& value) const throw ();
 
 public:
-    TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint16_t misc1_,
+    TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
                       uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
-        caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), misc1(misc1_),
+        caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), extratime_periods(extratime_periods_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
     void execute(Client* cl) const throw ();
 };
@@ -447,8 +447,16 @@ void TM_ServerSettings::execute(Client* cl) const throw () {
 
     addLine(cl, _("Capture limit"       ), ( caplimit == 0) ? _("none") :             itoa( caplimit));
     addLine(cl, _("Time limit"          ), (timelimit == 0) ? _("none") : _("$1 min", itoa(timelimit)));
-    if (timelimit != 0)
-        addLine(cl, _("Extra-time"      ), (extratime == 0) ? _("none") : _("$1 min", itoa(extratime)));
+    if (timelimit != 0) {
+        string value;
+        if (extratime == 0)
+            value = _("none");
+        else if (extratime_periods > 1)
+            value = _("$1×$2 min", itoa(extratime_periods), itoa(extratime));
+        else
+            value = _("$1 min", itoa(extratime));
+        addLine(cl, _("Extra-time"      ), value);
+    }
     if (flag_return_delay != -1)
         addLine(cl, _("Flag return delay"   ), _("$1 s", fcvt(flag_return_delay / 10., 1)));
     addLine(cl, _("Player collisions"   ),  cl->fx.physics.player_collisions == PhysicalSettings::PC_none ? _("off") :
@@ -3049,6 +3057,11 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             flag_return_delay = read.U16();
         else
             flag_return_delay = -1;
+        uint8_t et_periods;
+        if (read.hasMore())
+            et_periods = read.U8();
+        else
+            et_periods = 1;
         #ifndef DEDICATED_SERVER_ONLY
         fd.physics = fx.physics;
 
@@ -3072,7 +3085,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         out << "rocket_speed " << fx.physics.rocket_speed << '\n';
         out.close();
 
-        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
+        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, et_periods, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
         #else
         (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime);
         #endif

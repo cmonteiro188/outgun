@@ -1555,6 +1555,7 @@ void WorldSettings::reset() throw () {
     shoot_interval = shoot_interval_with_energy = .5;
     time_limit = 0;     // no time limit
     extra_time = 0;
+    extra_time_periods = 1;
     sudden_death = false;
     capture_limit = 8;
     win_score_difference = 1;
@@ -1610,6 +1611,8 @@ void ServerWorld::reset() throw () {
     teams[1].clear_stats();
 
     WorldBase::reset();
+
+    current_extra_time_period = 1;
 
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used) {
@@ -3401,10 +3404,18 @@ void ServerWorld::simulateFrame() throw () {
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         }
         else if (getExtraTimeLeft() == 0 && config.extra_time > 0) {
-            net->broadcast_extra_time_out();
-            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+            // If the score is drawn, start new extra-time period (if there is any remaining)
+            if (config.getExtraTimePeriods() > current_extra_time_period && teams[0].score() == teams[1].score()) {
+                current_extra_time_period++;
+                net->send_map_time(pid_all);
+            }
+            else {
+                net->broadcast_extra_time_out();
+                host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+            }
         }
         else if (timeLeft == 0) {
+            current_extra_time_period = 1;
             net->broadcast_normal_time_out(config.suddenDeath());
             net->send_map_time(pid_all);
         }
