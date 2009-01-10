@@ -1316,7 +1316,7 @@ void Graphics::draw_me_highlight(const WorldCoords& pos, double size) throw () {
             circle(drawbuf, sc.x(), sc.y(), scale((8 * size + 1) * PLAYER_RADIUS), colour[Colour::spawn_highlight]);
 }
 
-void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) throw () {
+void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int aimDist, int team) throw () {
     const double minDist = pf_scale(GUNPOINT_RADIUS);
     const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
     const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(pos.x, pos.y, gdx, gdy, ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
@@ -1337,6 +1337,12 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
                    y0 + static_cast<int>(gdy * maxDist),
                    pf_scale(ROCKET_RADIUS * .5),
                    colour[team == 0 ? Colour::aim_dot_redteam : Colour::aim_dot_blueteam]);
+        if (aimDist >= 0)
+            circlefill(drawbuf,
+                       x0 + static_cast<int>(gdx * aimDist),
+                       y0 + static_cast<int>(gdy * aimDist),
+                       pf_scale(ROCKET_RADIUS),
+                       makecol(255, 255, 0));
     }
 }
 

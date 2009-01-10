@@ -5135,8 +5135,17 @@ void Client::draw_playfield() throw () {
             static const double highlightTime = .5;
             if (menu.options.graphics.spawnHighlight() && time - spawnTime < highlightTime)
                 graphics.draw_me_highlight(playerPos(me), 1. - (time - spawnTime) / highlightTime);
-            if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way && !replaying)
-                graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, me / TSIZE);
+            if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() != Menu_controls::AM_8way && !replaying) {
+                int aimDist;
+                if (menu.options.controls.aimMode() == Menu_controls::AM_MousePos) {
+                    const int mx = mouse_x - SCREEN_W / 2;
+                    const int my = mouse_y - SCREEN_H / 2;
+                    aimDist = sqrt(mx * mx + my * my);
+                }
+                else
+                    aimDist = -1;
+                graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, aimDist, me / TSIZE);
+            }
         }
     }
 

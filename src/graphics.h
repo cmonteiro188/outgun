@@ -165,7 +165,7 @@ public:
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false) throw ();
     void draw_player_dead(const ClientPlayer& player, double respawn_delay = 0.) throw ();
     void draw_me_highlight(const WorldCoords& pos, double size) throw ();
-    void draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int team) throw ();
+    void draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int aimDist, int team) throw ();
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time) throw ();
     void draw_gun_explosion(const WorldCoords& pos, int rad, int team) throw ();
