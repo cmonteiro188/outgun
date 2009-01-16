@@ -265,6 +265,16 @@ bool Menu::handleKeypress(char scan, unsigned char chr) throw () {
         home();
     else if (scan == KEY_END)
         end();
+    else if (scan == KEY_PGDN) {
+        for (int i = 0; i < visible_items && next(); i++)
+            ;
+        start += visible_items;
+    }
+    else if (scan == KEY_PGUP) {
+        for (int i = 0; i < visible_items && prev(); i++)
+            ;
+        start -= visible_items;
+    }
     else if (shortcuts && ((isdigit(chr) && !components[selected_item]->needsNumberKeys()) || chr == 0)) {  // check for number, and Alt + number
         int shortcut;
         if (chr == 0)   // with alt
