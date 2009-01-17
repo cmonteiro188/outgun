@@ -865,7 +865,7 @@ void Server::init_bots() throw () {
 string Server::create_bot_name() throw () {
     const string bot_prefix = "BOT ";
     string name;
-    string file = settings.get_bot_file();
+    string file = settings.get_bot_name_file();
     if (!file.empty()) {
         // Put the game dir before a relative path (that has no '/' or '\' at the beginning and no Windows drive separator)
         if (file[0] != directory_separator && file.find(':') == string::npos)

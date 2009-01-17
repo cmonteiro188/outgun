@@ -222,7 +222,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("balance_bot",                 &balance_bot));
     cat.add(new GS_Int       ("bot_ping",                    &bot_ping, 0, 500));
     cat.add(new GS_String    ("bot_name_lang",               &bot_name_lang));
-    cat.add(new GS_String    ("bot_file",                    &bot_file));
+    cat.add(new GS_String    ("bot_name_file",               &bot_name_file));
     categories.push_back(cat);
 
     cat = Category("maps"    , "Map rotation");
