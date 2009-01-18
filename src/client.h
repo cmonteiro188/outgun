@@ -2,7 +2,7 @@
  *  client.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -215,8 +215,8 @@ public:
         friend AreaMap& AreaMap::operator=(const AreaMap& o) throw ();
     };
 
-          Area* identifyArea(int roomx, int roomy, double lx, double ly, bool allowInvalid)       throw (); // if allowInvalid is set, returns 0 if room coordinates are outside the map
-    const Area* identifyArea(int roomx, int roomy, double lx, double ly, bool allowInvalid) const throw ();
+          Area* identifyArea(int roomx, int roomy, double lx, double ly)       throw ();
+    const Area* identifyArea(int roomx, int roomy, double lx, double ly) const throw ();
 
     void clearRoutingTable(RouteTable num) throw ();
     void clearRoute(RouteTable num) throw ();
@@ -551,14 +551,14 @@ class Client : public ClientInterface {
 
     void BuildMap() throw ();
 
-          Area* area(int roomx, int roomy, double lx, double ly, bool allowInvalid)       throw () { return areaMap.identifyArea(roomx, roomy, lx, ly, allowInvalid); } // if allowInvalid is set, returns 0 if room coordinates are outside the map
-    const Area* area(int roomx, int roomy, double lx, double ly, bool allowInvalid) const throw () { return areaMap.identifyArea(roomx, roomy, lx, ly, allowInvalid); }
-          Area* area(const WorldCoords& c, bool allowInvalid)       throw () { return area(c.px, c.py, c.x, c.y, allowInvalid); }
-    const Area* area(const WorldCoords& c, bool allowInvalid) const throw () { return area(c.px, c.py, c.x, c.y, allowInvalid); }
-          Area* area(const ClientPlayer& p, bool allowInvalid)       throw () { return area(p.position(), allowInvalid); }
-    const Area* area(const ClientPlayer& p, bool allowInvalid) const throw () { return area(p.position(), allowInvalid); }
-          Area* myArea()       throw () { return area(fx.player[me], false); }
-    const Area* myArea() const throw () { return area(fx.player[me], false); }
+          Area* area(int roomx, int roomy, double lx, double ly)       throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
+    const Area* area(int roomx, int roomy, double lx, double ly) const throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
+          Area* area(const WorldCoords& c)       throw () { return area(c.px, c.py, c.x, c.y); }
+    const Area* area(const WorldCoords& c) const throw () { return area(c.px, c.py, c.x, c.y); }
+          Area* area(const ClientPlayer& p)       throw () { return area(p.position()); }
+    const Area* area(const ClientPlayer& p) const throw () { return area(p.position()); }
+          Area* myArea()       throw () { return area(fx.player[me]); }
+    const Area* myArea() const throw () { return area(fx.player[me]); }
 
     Routing     routing[Table_Max];
     const Area* routeTarget[Table_Max];
