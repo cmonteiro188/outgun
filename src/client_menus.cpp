@@ -2,7 +2,7 @@
  *  client_menus.cpp
  *
  *  Copyright (C) 2004, 2005, 2006, 2008 - Niko Ritari
- *  Copyright (C) 2004, 2005, 2006, 2008 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

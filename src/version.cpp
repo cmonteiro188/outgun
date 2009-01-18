@@ -37,7 +37,7 @@ const string GAME_BRANCH = "base";
  */
 const string GAME_RELEASED_VERSION_SHORT = "1.0.3";
 const string GAME_RELEASED_VERSION = "1.0.3";
-const string GAME_COPYRIGHT_YEAR = "2008";
+const string GAME_COPYRIGHT_YEAR = "2009";
 
 string getVersionString(bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) throw () {
     static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = SVN_REVISION;

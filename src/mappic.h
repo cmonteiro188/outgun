@@ -1,7 +1,7 @@
 /*
  *  mappic.h
  *
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

@@ -1,7 +1,7 @@
 /*
  *  mappic.cpp
  *
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2009 - Jani Rivinoja
  *  Copyright (C) 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
