@@ -2019,7 +2019,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     if (safeAfterSpawn)
                         frame.U8(world.frame & 2 ? 128 : 220);
                     else
-                        frame.U8(forceVisible ? 255 : h.visibility);
+                        frame.U8(forceVisible ? max(128, h.visibility) : h.visibility);
                 }
             }
 
