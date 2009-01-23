@@ -2,7 +2,7 @@
  *  client.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -463,13 +463,12 @@ void TM_ServerSettings::execute(Client* cl) const throw () {
                                             cl->fx.physics.player_collisions == PhysicalSettings::PC_normal ? _("on") : _("special"));
     addLine(cl, _("Friendly fire"       ), (cl->fx.physics.friendly_fire == 0.) ? _("off") : _("$1%", (itoa(iround(100. * cl->fx.physics.friendly_fire)))));
 
-    const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Switch deathbringer"), _("One hit shield") };
-    int i;
-    for (i = 0; i < 5; i++)
-        addLine(cl, caps[i], (misc1 & (1 << i)) ? _("on") : _("off"));
+    const string caps[] = { _("Balance teams"), _("Drop power-ups"), _("Invisible shadow"), _("Shadowed see each other"), _("Switch deathbringer"), _("One hit shield") };
+    const int bits[] = { 0, 1, 2, 9, 3, 4, -1 };
+    for (int i = 0; bits[i] != -1; i++)
+        addLine(cl, caps[i], (misc1 & (1 << bits[i])) ? _("on") : _("off"));
 
-    addLine(cl, _("Maximum weapon level"), itoa((misc1 >> i) & 0x0F));
-    i += 4;
+    addLine(cl, _("Maximum weapon level"), itoa((misc1 >> 5) & 0x0F));
 
     const bool pupMinP = pupMin >= 100,
                pupMaxP = pupMax >= 100;

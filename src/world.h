@@ -2,7 +2,7 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -913,6 +913,7 @@ public:
     double pup_power_damage;
     int pup_weapon_max;
     int pup_shield_hits;
+    bool shadow_see_shadow;
     int deathbringer_health_limit, deathbringer_energy_limit;
     double deathbringer_health_degradation, deathbringer_energy_degradation;
 

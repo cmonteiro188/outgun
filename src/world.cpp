@@ -2,7 +2,7 @@
  *  world.cpp
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1480,6 +1480,7 @@ void PowerupSettings::reset() throw () {
     pup_weapon_max = 9;
     pup_shield_hits = 0;
     pup_deathbringer_time = 5.0;
+    shadow_see_shadow = false;
     deathbringer_health_limit = deathbringer_energy_limit = 100;
     deathbringer_health_degradation = deathbringer_energy_degradation = 2.5;
 

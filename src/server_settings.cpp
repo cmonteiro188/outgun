@@ -1,7 +1,7 @@
 /*
  *  server_settings.cpp - implementation of Server::SettingManager
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2009 - Niko Ritari
  *  Copyright (C) 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -304,6 +304,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Double    ("pup_deathbringer_health_degradation", &pupConfig.deathbringer_health_degradation, 0.));
     cat.add(new GS_Double    ("pup_deathbringer_energy_degradation", &pupConfig.deathbringer_energy_degradation, 0.));
     cat.add(new GS_Int       ("pup_shadow_invisibility",     &worldConfig.shadow_minimum, 0, 1, -WorldSettings::shadow_minimum_normal, +WorldSettings::shadow_minimum_normal));  // 0->smn, 1->0
+    cat.add(new GS_Boolean   ("pup_shadow_see_shadow",       &pupConfig.shadow_see_shadow));
     cat.add(new GS_Int       ("pup_shield_one_hit",          &pupConfig.pup_shield_hits, 0));
     cat.add(new GS_Int       ("pup_chance_shield",           &pupConfig.pup_chance_shield,       0));
     cat.add(new GS_Int       ("pup_chance_turbo",            &pupConfig.pup_chance_turbo,        0));

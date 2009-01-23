@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -818,6 +818,9 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     i++;
     settings |= (pupConfig.pup_weapon_max << i);
     i += 4; // 4 bits are required to transfer pup_weapon_max, in range [1, 9]
+    if (pupConfig.shadow_see_shadow)
+        settings |= (1 << i);
+    i++;
     nAssert(i <= 16);
     msg.U16(settings);
     msg.U16(pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
@@ -1853,7 +1856,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                           world.getConfig().always_send_flag_location && world.player[j].stats().has_flag()))
                         normalView[t] |= 1 << j;
             }
-            else if (!world.player[i].item_shadow() || world.player[i].stats().has_flag())
+            else if (world.getPupConfig().shadow_see_shadow || !world.player[i].item_shadow() || world.player[i].stats().has_flag())
                 shadowView[t] += static_cast<uint32_t>(1 << i);
         }
         shadowView[t] |= normalView[t];
@@ -1939,81 +1942,84 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 
             for (int j = 0; j < maxplayers; j++) {
                 const ServerPlayer& h = world.player[j];
-                // player j exists, in same room, visible or in same team or has a flag
-                if (h.used && h.roomx == recipient.roomx && h.roomy == recipient.roomy && (h.visibility > 0 || i / TSIZE == j / TSIZE || h.stats().has_flag())) {
-                    players_onscreen |= (1 << j);
+                if (!h.used || h.roomx != recipient.roomx || h.roomy != recipient.roomy)
+                    continue;
+                const bool forceVisible = recipient.item_shadow() && world.getPupConfig().shadow_see_shadow && &h != &recipient;
+                if (h.visibility == 0 && i / TSIZE != j / TSIZE && !h.stats().has_flag() && !forceVisible)
+                    continue;
 
-                    // position in 3 bytes
-                    uint8_t xy;
-                    uint16_t hx, hy;
-                    hx = static_cast<uint16_t>(h.lx * (double(0xFFF) / plw) + .5);
-                    hy = static_cast<uint16_t>(h.ly * (double(0xFFF) / plh) + .5);
-                    xy = static_cast<uint8_t>(hx & 0x0FF);
-                    frame.U8(xy);
-                    xy = static_cast<uint8_t>(hy & 0x0FF);
-                    frame.U8(xy);
-                    xy = static_cast<uint8_t>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
-                    frame.U8(xy);
+                players_onscreen |= (1 << j);
 
-                    if (recipient.protocolExtensionsLevel < 0) {
-                        // speed in 2 bytes
-                        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                        frame.U8(SpeedType::toByte(h.sx));
-                        frame.U8(SpeedType::toByte(h.sy));
-                    }
+                // position in 3 bytes
+                uint8_t xy;
+                uint16_t hx, hy;
+                hx = static_cast<uint16_t>(h.lx * (double(0xFFF) / plw) + .5);
+                hy = static_cast<uint16_t>(h.ly * (double(0xFFF) / plh) + .5);
+                xy = static_cast<uint8_t>(hx & 0x0FF);
+                frame.U8(xy);
+                xy = static_cast<uint8_t>(hy & 0x0FF);
+                frame.U8(xy);
+                xy = static_cast<uint8_t>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
+                frame.U8(xy);
 
-                    // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
-                    uint8_t extra = 0;
-                    if (h.dead)
-                        extra |= 1;
-                    if (h.item_deathbringer)
-                        extra |= 2;
-                    if (h.deathbringer_end > get_time())
-                        extra |= 4;
-                    if (h.item_shield)
-                        extra |= 8;
-                    if (h.item_turbo)
-                        extra |= 16;
-                    if (h.item_power)
-                        extra |= 32;
-                    const bool preciseGundir = recipient.protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
-                    if (preciseGundir)
-                        extra |= 64;
-                    frame.U8(extra);
+                if (recipient.protocolExtensionsLevel < 0) {
+                    // speed in 2 bytes
+                    typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                    frame.U8(SpeedType::toByte(h.sx));
+                    frame.U8(SpeedType::toByte(h.sy));
+                }
 
-                    if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
-                        // speed in 2 bytes
-                        typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                        frame.U8(SpeedType::toByte(h.sx));
-                        frame.U8(SpeedType::toByte(h.sy));
-                    }
+                // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
+                uint8_t extra = 0;
+                if (h.dead)
+                    extra |= 1;
+                if (h.item_deathbringer)
+                    extra |= 2;
+                if (h.deathbringer_end > get_time())
+                    extra |= 4;
+                if (h.item_shield)
+                    extra |= 8;
+                if (h.item_turbo)
+                    extra |= 16;
+                if (h.item_power)
+                    extra |= 32;
+                const bool preciseGundir = recipient.protocolExtensionsLevel >= 0 && world.physics.allowFreeTurning;
+                if (preciseGundir)
+                    extra |= 64;
+                frame.U8(extra);
 
-                    // controls and gundirection in 1 byte
-                    uint8_t ccb;
-                    if (!h.dead) // if dead player, don't send keys
-                        ccb = h.controls.toNetwork(true);
+                if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
+                    // speed in 2 bytes
+                    typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
+                    frame.U8(SpeedType::toByte(h.sx));
+                    frame.U8(SpeedType::toByte(h.sy));
+                }
+
+                // controls and gundirection in 1 byte
+                uint8_t ccb;
+                if (!h.dead) // if dead player, don't send keys
+                    ccb = h.controls.toNetwork(true);
+                else
+                    ccb = ClientControls().toNetwork(true);
+                if (preciseGundir) {
+                    const uint16_t gundir = h.gundir.toNetworkLongForm();
+                    ccb |= (gundir >> 8) << 5;
+                    frame.U8(ccb);
+                    ccb = gundir & 0xFF;
+                    frame.U8(ccb);
+                }
+                else {
+                    ccb |= h.gundir.toNetworkShortForm() << 5;
+                    frame.U8(ccb);
+                }
+
+                if (!h.dead || recipient.protocolExtensionsLevel < 0) {
+                    // visibility in 1 byte
+                    const bool safeAfterSpawn = world.frame < h.start_take_damage_frame;
+                    if (safeAfterSpawn)
+                        frame.U8(world.frame & 2 ? 128 : 220);
                     else
-                        ccb = ClientControls().toNetwork(true);
-                    if (preciseGundir) {
-                        const uint16_t gundir = h.gundir.toNetworkLongForm();
-                        ccb |= (gundir >> 8) << 5;
-                        frame.U8(ccb);
-                        ccb = gundir & 0xFF;
-                        frame.U8(ccb);
-                    }
-                    else {
-                        ccb |= h.gundir.toNetworkShortForm() << 5;
-                        frame.U8(ccb);
-                    }
-
-                    if (!h.dead || recipient.protocolExtensionsLevel < 0) {
-                        // visibility in 1 byte
-                        const bool safeAfterSpawn = world.frame < h.start_take_damage_frame;
-                        if (safeAfterSpawn)
-                            frame.U8(world.frame & 2 ? 128 : 220);
-                        else
-                            frame.U8(h.visibility);
-                    }
+                        frame.U8(forceVisible ? 255 : h.visibility);
                 }
             }
 
