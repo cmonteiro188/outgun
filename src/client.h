@@ -585,7 +585,7 @@ class Client : public ClientInterface {
     double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
     double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
-    bool        IsBehindWall(double mex, double mey, double dx, double dy) const throw ();
+    bool        IsBehindWall(double mex, double mey, double dx, double dy, double radius) const throw ();
     double      ScanDir(double mex, double mey, GunDirection dir) const throw (); // return length to wall
     std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw (); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
     GunDirection GetDir(double dx, double dy) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...

@@ -44,8 +44,6 @@ using std::pair;
 using std::queue;
 using std::vector;
 
-const int SCAN_RADIUS = ROCKET_RADIUS;
-
 const int S_W = plw;
 const int S_H = plh;
 const int FADEOUT = 50;
@@ -53,64 +51,21 @@ const int FADEOUT = 50;
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
 
-bool Client::IsBehindWall(double mex, double mey, double dx, double dy) const throw () {
-    const double tx = mex + dx;
-    const double ty = mey + dy;
-    const double dist = sqrt(sqr(dx) + sqr(dy));
-    if (dist < PLAYER_RADIUS)
-        return false;
-    const double sx = dx / dist * 2 * SCAN_RADIUS;
-    const double sy = dy / dist * 2 * SCAN_RADIUS;
-
+bool Client::IsBehindWall(double mex, double mey, double dx, double dy, double radius) const throw () {
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
-
-    while (1) {
-        const bool blocked = room.fall_on_wall(mex, mey, SCAN_RADIUS);
-        if (blocked && !at_wall)
-            return true;
-        if (!blocked)
-            at_wall = false;
-
-        mex += sx;
-        mey += sy;
-        if (fabs(tx - mex) < PLAYER_RADIUS && fabs(ty - mey) < PLAYER_RADIUS)
-            break;
-        if (mex > S_W || mex < 0)
-            break;
-        if (mey > S_H || mey < 0)
-            break;
-    }
-    return false;
+    return room.genGetTimeTillWall(mex, mey, dx, dy, radius, 1.).first < 1.;
 }
 
 double Client::ScanDir(double mex, double mey, GunDirection dir) const throw () {
     const double deg = dir.toRad();
-
-    const double sx = cos(deg) * 2 * SCAN_RADIUS;
-    const double sy = sin(deg) * 2 * SCAN_RADIUS;
-
-    double tx = mex;
-    double ty = mey;
-
+    const double sx = cos(deg), sy = sin(deg);
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
-    bool at_wall = room.fall_on_wall(mex, mey, SCAN_RADIUS);
-    while (1) {
-        const bool blocked = room.fall_on_wall(tx, ty, SCAN_RADIUS);
-        if (blocked && !at_wall)
-            break;
-        if (!blocked && at_wall)
-            at_wall = false;
-
-        tx += sx;
-        ty += sy;
-
-        if (tx > S_W || tx < 0)
-            break;
-        if (ty > S_H || ty < 0)
-            break;
-    }
-    return sqrt((tx - mex) * (tx - mex) + (ty - mey) * (ty - mey));
+    double maxDist = 1e99;
+    if (sx != 0)
+        maxDist = min(maxDist, (sx > 0 ? S_W - mex : -mex) / sx);
+    if (sy != 0)
+        maxDist = min(maxDist, (sy > 0 ? S_H - mey : -mey) / sy);
+    return min(maxDist, room.genGetTimeTillWall(mex, mey, sx, sy, PLAYER_RADIUS, maxDist).first);
 }
 
 int Client::IsAimed(double mex, double mey, int i) const throw () { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
@@ -138,7 +93,7 @@ int Client::IsAimed(double mex, double mey, int i) const throw () { // return 2 
     if (myGundir != dir)
         return 0;
 
-    if (IsBehindWall(mex, mey, dx, dy))
+    if (IsBehindWall(mex, mey, dx, dy, ROCKET_RADIUS))
         return 0;
 
     static const int rocketsPerWeaponLevel[9] = { 1, 2, 3, 2, 3, 2, 3, 2, 3 };
@@ -225,7 +180,7 @@ int Client::GetEasyEnemy(double mex, double mey) const throw () {
                 rocketPlaneDist = fabs(dy + dx) / sqrt(2.);
         }
 
-        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey, ROCKET_RADIUS)) { //was 4
             target = i;
             nearestDist = rocketPlaneDist + escapeDist;
         }
@@ -285,7 +240,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const throw () {
                 rocketPlaneDist = fabs(dy + dx) / sqrt(2.);
         }
 
-        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey)) { //was 4
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(mex, mey, ttx - mex, tty - mey, ROCKET_RADIUS)) { //was 4
             target = i;
             nearestDist = rocketPlaneDist + escapeDist;
         }
@@ -345,7 +300,7 @@ pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) cons
     dx += tm * fx.player[target].sx;
     dy += tm * fx.player[target].sy;
 
-    return make_pair(!IsBehindWall(mex, mey, dx, dy), GetDir(dx, dy));
+    return make_pair(!IsBehindWall(mex, mey, dx, dy, ROCKET_RADIUS), GetDir(dx, dy));
 }
 
 double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw () {
@@ -526,7 +481,7 @@ int Client::FreeDir(double mex, double mey) const throw () {
         const int d = (i + 8) % 8;
         const double dist = ScanDir(mex, mey, GunDirection().from8way(d));
 
-        if (dist > mdist || mdist == 0 || dist == mdist && i == myGundir) {
+        if (dist > mdist || mdist == 0 || dist >= mdist - ROCKET_RADIUS && i == myGundir) {
             mdist = dist;
             mdir = d;
         }
@@ -652,7 +607,7 @@ ClientControls Client::FreeWalk(double mex, double mey) const throw () {
 }
 
 ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy) const throw () {
-    if (IsBehindWall(mex, mey, dx, dy)) { //walking
+    if (IsBehindWall(mex, mey, dx, dy, PLAYER_RADIUS)) { //walking
         const int mdir = FreeDir(mex, mey);
         return MoveDir(mdir);
     }
@@ -665,7 +620,7 @@ ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, doub
 
 ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) const throw () {
     int mdir;
-    if (IsBehindWall(mex, mey, dx, dy))//walking
+    if (IsBehindWall(mex, mey, dx, dy, PLAYER_RADIUS))//walking
         mdir = FreeDir(mex, mey);
     else
         mdir = GetDir(dx, dy).to8way();
