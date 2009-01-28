@@ -1919,6 +1919,7 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
+    nAssert(svframe == fx.frame + 1 || fx.frame == -1);
 
     ClientPhysicsCallbacks cb(*this);
     fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
@@ -4043,16 +4044,8 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
             connect_command(true);
         }
     }
-    else if (!extConfig.autoSpectate.empty()) {
-        Network::Address addr;
-        Network::ResolveError err;
-        if (!addr.tryResolve(extConfig.autoSpectate, &err))
-            log.error(err.str());
-        else if (addr.getPort() == 0)
-            log.error(_("Port is missing from $1.", extConfig.autoSpectate));
-        else
-            start_spectating(addr);
-    }
+    else if (!extConfig.autoSpectate.empty())
+        start_spectating(extConfig.autoSpectate);
     else if (!extConfig.autoReplay.empty())
         start_replay(extConfig.autoReplay);
 
@@ -4477,6 +4470,17 @@ void Client::stop_replay() throw () {
     extConfig.statusOutput(_("Outgun client"));
 
     menusel = menu_none;
+}
+
+void Client::start_spectating(const string& host) throw () {
+    Network::Address addr;
+    Network::ResolveError err;
+    if (!addr.tryResolve(host, &err))
+        log.error(err.str());
+    else if (addr.getPort() == 0)
+        log.error(_("Port is missing from $1.", host));
+    else
+        start_spectating(addr);
 }
 
 void Client::start_spectating(const Network::Address& address) throw () {
@@ -5375,6 +5379,8 @@ void Client::initMenus() throw () {
     menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
     menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));
 
+    menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &Client::MCF_spectateEntryKeyHandler>(this));
+
     menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_preparePlayerMenu      >(this));
     menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawPlayerMenu  >(this));
     menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &Client::MCF_playerMenuClose        >(this));
@@ -5991,6 +5997,15 @@ void Client::MCF_refreshServers() throw () {
                                            RedirectToMemFun0<Client, void>(this, &Client::refreshThread),
                                            extConfig.lowerPriority);
     }
+}
+
+bool Client::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () {
+    (void)chr;
+    if (scan != KEY_ENTER)
+        return false;
+    if (!menu.spectate.manualEntry().empty())
+        start_spectating(menu.spectate.manualEntry());
+    return true; // the key is considered handled even if it has no effect when the field is empty
 }
 
 void Client::MCF_prepareOwnServerMenu() throw () {

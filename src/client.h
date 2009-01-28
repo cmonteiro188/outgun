@@ -743,6 +743,7 @@ class Client : public ClientInterface {
     void MCF_addServer() throw ();
     bool MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw ();
     bool MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw ();
+    bool MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw ();
     void MCF_playerPasswordAccept() throw ();
     void MCF_serverPasswordAccept() throw ();
     void MCF_clearErrors() throw ();
@@ -889,6 +890,7 @@ class Client : public ClientInterface {
     void continue_replay() throw ();
     void continue_replay(std::istream& in) throw ();
     void stop_replay() throw ();
+    void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
     #endif

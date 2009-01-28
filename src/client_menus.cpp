@@ -195,6 +195,18 @@ Network::Address Menu_serverList::getAddress(const Textarea& target) throw () {
     return Network::Address();
 }
 
+Menu_spectate::Menu_spectate() throw () :
+    manualEntry     (_("Enter host"), "", 50),
+
+    menu            (_("Spectate"), true)
+{ }
+
+void Menu_spectate::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector&) throw () {
+    menu.setHook(opener);
+    BasicComponentAdder add(menu);
+    add(&manualEntry);
+}
+
 Menu_player::Menu_player() throw () :
     name            (_("Name"), "", 15),
     randomName      (_("Get random name")),
@@ -827,6 +839,7 @@ Menu_main::Menu_main() throw () :
     newVersion  (""),
 
     connect     (),
+    spectate    (),
     disconnect  (_("Disconnect")),
 
     options     (),
@@ -844,6 +857,7 @@ Menu_main::Menu_main() throw () :
 void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
     connect.initialize(opener->clone(), collector);
+    spectate.initialize(opener->clone(), collector);
     options.initialize(opener->clone(), collector);
     ownServer.initialize(opener->clone(), collector);
     replays.initialize(opener->clone(), collector);
@@ -851,6 +865,7 @@ void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     DualComponentAdder add(menu, collector);
     add(&newVersion);
     add(&connect.menu);
+    add(&spectate.menu);
     add(&disconnect);
     add.space();
     add(&options.menu);

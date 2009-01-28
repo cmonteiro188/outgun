@@ -152,6 +152,17 @@ public:
     Network::Address getAddress(const Textarea& target) throw ();
 };
 
+class Menu_spectate {
+public:
+    Textfield           manualEntry;
+
+    Menu menu;
+
+    Menu_spectate() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook, KeyHookable<Textarea>::HookFunctionT* keyHook) throw ();
+};
+
 class Menu_player {
 public:
     Textfield   name;
@@ -446,6 +457,7 @@ class Menu_main {
 public:
     StaticText      newVersion;
     Menu_serverList connect;
+    Menu_spectate   spectate;
     Textarea        disconnect;
     Menu_options    options;
     Menu_ownServer  ownServer;
