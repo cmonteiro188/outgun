@@ -2392,6 +2392,8 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     break; case data_gameover_show: {
         #ifndef DEDICATED_SERVER_ONLY
         extra_time_running = false;
+        if (replaying)
+            map_ready = false;
         #endif
         const uint8_t plaque = read.U8();
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
