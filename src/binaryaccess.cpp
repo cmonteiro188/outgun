@@ -1,7 +1,7 @@
 /*
  *  binaryaccess.cpp
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2009 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -326,8 +326,8 @@ ConstDataBlockRef BinaryDataBlockReader::getBlock(unsigned length) throw (ReadOu
 
 ConstDataBlockRef BinaryDataBlockReader::getBlockUpTo(unsigned length) throw () {
     if (pos + length > dataLength)
-        length = dataLength - pos;
-    pos = dataLength;
+        length = pos > dataLength ? 0 : dataLength - pos;
+    pos += length;
     return ConstDataBlockRef(data + pos - length, length);
 }
 
@@ -337,7 +337,7 @@ void BinaryDataBlockReader::storeBlock(DataBlockRef buffer) throw (ReadOutside) 
 }
 
 ConstDataBlockRef BinaryDataBlockReader::storeBlockUpTo(DataBlockRef buffer) throw () {
-    const unsigned length = std::min(buffer.size(), dataLength - pos);
+    const unsigned length = pos > dataLength ? 0 : std::min(buffer.size(), dataLength - pos);
     memcpy(buffer.data(), data + pos, length);
     pos += length;
     return ConstDataBlockRef(buffer.data(), length);
