@@ -2824,7 +2824,7 @@ void ServerNetworking::RelayThread::threadMain() throw () {
 
         try {
             Unlock mu(mutex);
-            socket.persistentWrite(data, &quitFlag, 100, 50); // 5 second timeout
+            socket.persistentWrite(data, &quitFlag, 5000, 50); // 5 second timeout
         } catch (Network::ExternalAbort) {
             break;
         } catch (const Network::Error& e) {
