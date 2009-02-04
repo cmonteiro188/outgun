@@ -26,6 +26,8 @@
 
 #include <map>
 
+#include "nassert.h"
+
 class NotInMap { }; // exception
 
 template<class T1, class T2, class T1EquivT> const T2& map_get(const std::map<T1, T2>& m, const T1EquivT& key) throw (NotInMap) {

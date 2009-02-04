@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -857,7 +857,7 @@ void Server::init_bots() throw () {
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
-        bots.push_back(bot);
+        bots.push_back(give_control(bot));
         log("Bot added");
     }
 }
@@ -1793,26 +1793,21 @@ void Server::run_bot_thread() throw () {
         const bool adjust_pings = bot_ping_changed;
         if (adjust_pings)
             bot_ping_changed = false;
-        for (vector<ClientInterface*>::iterator bi = bots.begin(); bi != bots.end(); ) {
-            nAssert(*bi);
-            if ((*bi)->bot_finished()) {
-                delete *bi;
+        for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ) {
+            if (bi->bot_finished()) {
                 bi = bots.erase(bi);
                 check_bots = true; // a needed bot might not have been added because of the now removed one which was already out of the server
             }
             else {
                 if (adjust_pings)
-                    (*bi)->set_ping(settings.get_bot_ping());
-                (*bi)->bot_loop();
+                    bi->set_ping(settings.get_bot_ping());
+                bi->bot_loop();
                 ++bi;
             }
         }
     }
-    for (vector<ClientInterface*>::iterator bi = bots.begin(); bi != bots.end(); ++bi) {
-        nAssert(*bi);
-        (*bi)->stop();
-        delete *bi;
-    }
+    for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+        bi->stop();
     bots.clear();
 }
 

@@ -26,13 +26,14 @@
 #ifndef SERVER_H_INC
 #define SERVER_H_INC
 
+#include "auth.h"
 #include "binaryaccess.h"
-#include "world.h"
 #include "gameserver_interface.h"
 #include "log.h"
-#include "auth.h"
-#include "servnet.h"
+#include "pointervector.h"
 #include "utility.h"
+#include "servnet.h"
+#include "world.h"
 
 class ClientInterface; // bots are Clients
 class GamemodSetting;
@@ -105,7 +106,7 @@ class Server : private NoCopying {
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;
-    std::vector<ClientInterface*> bots;
+    PointerVector<ClientInterface> bots;
     int extra_bots;
     volatile bool quit_bots;
     NoLog botNoLog;
