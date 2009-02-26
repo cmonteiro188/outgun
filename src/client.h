@@ -649,6 +649,7 @@ class Client : public ClientInterface {
     bool screenshot;
     bool replaying;
     std::ifstream replay;
+    unsigned replay_version;
     double replay_rate, replayTime, replaySubFrame;
     bool replay_paused;
     bool replay_stopped;

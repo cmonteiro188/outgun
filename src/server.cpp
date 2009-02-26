@@ -703,7 +703,6 @@ void Server::record_init_data() throw () {
     network.send_map_change_message(pid_record, NEXTMAP_NONE, maprot[currmap].file.c_str());
 
     // Player data
-    network.record_players_present();
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
             network.send_player_crap_update(pid_record, i);
@@ -1592,20 +1591,20 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (pl.item_power) byte |= (1 << 5);
             const bool preciseGundir = world.physics.allowFreeTurning;
             if (preciseGundir) byte |= (1 << 6);
-
-            /*if (pl.record_position) */byte |= (1 << 7);
+            const bool record_position = pl.record_position || world.frame % 100 == 0;
+            if (record_position) byte |= (1 << 7);
             recordFrame.U8(byte);
 
-            if (true || pl.record_position) {
+            if (record_position) {
                 world.player[i].record_position = false;
                 // Position
                 recordFrame.U8(pl.roomx);
                 recordFrame.U8(pl.roomy);
-                recordFrame.U16(static_cast<uint16_t>(pl.lx));
-                recordFrame.U16(static_cast<uint16_t>(pl.ly));
+                recordFrame.dbl(pl.lx);
+                recordFrame.dbl(pl.ly);
                 // Speed
-                recordFrame.flt(pl.sx);
-                recordFrame.flt(pl.sy);
+                recordFrame.dbl(pl.sx);
+                recordFrame.dbl(pl.sy);
             }
 
             // Controls

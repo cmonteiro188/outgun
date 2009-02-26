@@ -2478,6 +2478,8 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
         deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, 252);     //do not blink
     else
         deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
+
+    player[pid].record_position = true;
     return player[pid].dead;
 }
 
@@ -2606,6 +2608,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
         }
     }
 
+    player[pid1].record_position = player[pid2].record_position = true;
     return PhysicsCallbacksBase::PlayerHitResult(pl1.dead, pl2.dead, toss_a ? 2. : 1., toss_b ? 2. : 1.);
 }
 
@@ -3110,6 +3113,7 @@ void ServerWorld::simulateFrame() throw () {
                     damagePlayer(i, player[i].deathbringer_attacker, 12, DT_deathbringer);
                 else
                     damagePlayer(i, player[i].deathbringer_attacker, 3, DT_deathbringer); // 30 / s, 150 / 5 s
+                player[i].record_position = true;
             }
         }
     }

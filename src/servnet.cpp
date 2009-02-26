@@ -575,17 +575,6 @@ void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw
     server->send_message(player.cid, msg);
 }
 
-void ServerNetworking::record_players_present() const throw () {
-    uint32_t players_present = 0;
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            players_present |= (1 << i);
-    BinaryBuffer<32> msg;
-    msg.U8(data_players_present);
-    msg.U32(players_present);
-    record_message(msg);
-}
-
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_new_player);

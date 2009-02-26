@@ -1921,8 +1921,10 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
     nAssert(svframe == fx.frame + 1 || fx.frame == -1);
 
-    ClientPhysicsCallbacks cb(*this);
-    fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
+    if (replay_version == 0) {
+        ClientPhysicsCallbacks cb(*this);
+        fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
+    }
     fx.frame = svframe;
 
     frameReceiveTime = get_time();
@@ -1938,6 +1940,10 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
         ClientPlayer& pl = fx.player[i];
         if (!(players_present & (1 << i)))
             continue;
+        else if (!fx.player[i].used && replay_version >= 1) { // New player
+            fx.player[i].clear(true, i, " ", i / TSIZE);
+            players_sb.push_back(&fx.player[i]);
+        }
 
         // Dead and powerup flags
         const uint8_t byte = read.U8();
@@ -1953,11 +1959,10 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
         if (position_data) {
             pl.roomx = read.U8();
             pl.roomy = read.U8();
-            pl.lx = read.U16();
-            pl.ly = read.U16();
-
-            pl.sx = read.flt();
-            pl.sy = read.flt();
+            pl.lx = replay_version == 0 ? read.U16() : read.dbl();
+            pl.ly = replay_version == 0 ? read.U16() : read.dbl();
+            pl.sx = replay_version == 0 ? read.flt() : read.dbl();
+            pl.sy = replay_version == 0 ? read.flt() : read.dbl();
         }
 
         // Controls
@@ -2862,7 +2867,9 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         #endif
     }
 
-    break; case data_players_present: {    // this is only sent immediately after connecting to the server
+    break; case data_players_present: {       // this is only sent immediately after connecting to the server
+        if (replaying && replay_version >= 1) // Reset players and update scoreboard when parsing replay frame data.
+            return false;                     // This message should be only in a replay of version 0.
         const uint32_t pp = read.U32();
         for (int i = 0; i < maxplayers; ++i) {
             if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
@@ -2879,6 +2886,10 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     break; case data_new_player: {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         nAssert(!fx.player[pid].used || replaying);
+        if (replaying && replay_version >= 1) { // Reset players when parsing replay frame data.
+            fx.player[pid].name = "";           // Clear to show the join message.
+            break;
+        }
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
         fx.player[pid].stats().set_start_time(time);
         #ifndef DEDICATED_SERVER_ONLY
@@ -3269,6 +3280,10 @@ void Client::process_incoming_data(ConstDataBlockRef data) throw () {
 
     if (replaying) {
         #ifndef DEDICATED_SERVER_ONLY
+        if (replay_version >= 1) { // Version 0 has the needed physics data in every frame.
+            ClientPhysicsCallbacks cb(*this);
+            fx.applyPhysics(cb, PLAYER_RADIUS, 1.);
+        }
         const int frameSize = process_replay_frame_data(data);
         BinaryDataBlockReader read(data);
         read.block(frameSize);
@@ -4349,7 +4364,7 @@ bool Client::start_replay(istream& replay) throw () {
         return false;
     }
 
-    unsigned replay_version = read.U32();
+    replay_version = read.U32();
     log("Replay version: %u", replay_version);
     if (replay_version > REPLAY_VERSION) {   // incompatible replay
         log.error(_("This is a newer replay version ($1).", itoa(replay_version)));

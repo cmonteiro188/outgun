@@ -336,7 +336,6 @@ public:
     void plprintf(int pid, Message_type type, const char* fmt, ...) const throw () PRINTF_FORMAT(4, 5);
     void player_message(int pid, Message_type type, const std::string& text) const throw ();
     void broadcast_text(Message_type type, const std::string& text) const throw ();
-    void record_players_present() const throw ();
 
     void set_relay_server(const std::string& address) throw ();
     std::string get_relay_server() const throw ();
