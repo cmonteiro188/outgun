@@ -4516,7 +4516,9 @@ void Client::start_spectating(const Network::Address& address) throw () {
 
     spectating = true;
     replaying = true;
+    replay_stopped = false;
     replay_rate = 1;
+    replay_length = 0;
     spectate_data_received = false;
 
     openMenus.clear();
