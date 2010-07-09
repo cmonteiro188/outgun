@@ -3535,7 +3535,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 }
 
 // Save stats in HTML file.
-void WorldBase::save_stats(const string& dir, const string& map_name) const throw () {
+void WorldBase::save_stats(const string& dir, const string& map_name, const SimpleGameSettings& settings) const throw () {
     const string date_time = date_and_time();
     const string date = date_time.substr(0, date_time.find(' '));
     const string time = date_time.substr(date_time.find(' ') + 1);
@@ -3559,6 +3559,35 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
         out << "<H1>Outgun statistics " << date << "</H1>\n\n";
     }
     out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << escape_for_html(map_name) << "</H2>\n\n";
+
+    out << "<H3>Game info</H3>\n\n";
+    out << "<TABLE BORDER CLASS=\"info\">";
+    out << "\n <TR><TH>Capture limit<TD>";
+    if (settings.capture_limit == 0)
+        out << "none";
+    else {
+        out << settings.capture_limit;
+        if (settings.win_score_difference > 1)
+            out << " with difference of " << settings.win_score_difference;
+    }
+    out << "\n <TR><TH>Time limit<TD>";
+    if (settings.time_limit == 0)
+        out << "none";
+    else {
+        out << settings.time_limit << " min";
+        out << "\n <TR><TH>Extra time<TD>";
+        if (settings.extra_time == 0)
+            out << "none";
+        else {
+            if (settings.extra_time_periods > 1)
+                out << settings.extra_time_periods << "×" << settings.extra_time << " min";
+            else
+                out << settings.extra_time << " min";
+            if (settings.sudden_death)
+                out << " (sudden death)";
+        }
+    }
+    out << "\n</TABLE>\n\n";
 
     out << "<H3>Team stats</H3>\n\n";
     const Team& red = teams[0];

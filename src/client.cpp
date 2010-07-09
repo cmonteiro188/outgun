@@ -2613,7 +2613,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             pi->stats().finish_stats(time);
         #ifndef DEDICATED_SERVER_ONLY
         if (menu.options.game.saveStats())
-            fx.save_stats("client_stats", fx.map.title);
+            fx.save_stats("client_stats", fx.map.title, gameSettings);
         #endif
     }
 
@@ -3088,6 +3088,12 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         out.close();
 
         addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, et_periods, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
+        gameSettings.capture_limit = caplimit;
+        gameSettings.time_limit = timelimit;
+        gameSettings.extra_time = extratime;
+        gameSettings.extra_time_periods = et_periods;
+        // sudden death data is missing
+        // win score difference is missing
         #else
         (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime);
         #endif

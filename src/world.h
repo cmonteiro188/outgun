@@ -797,6 +797,25 @@ public:
     virtual bool shouldApplyPhysicsToPlayer(int pid) throw () = 0; // returns true if physics should be run to player pid
 };
 
+class SimpleGameSettings {
+public:
+    SimpleGameSettings() :
+        time_limit(),
+        extra_time(),
+        extra_time_periods(),
+        sudden_death(),
+        capture_limit(),
+        win_score_difference(1)
+    { }
+
+    uint32_t time_limit;
+    uint32_t extra_time;
+    unsigned extra_time_periods;
+    bool sudden_death;
+    int capture_limit;
+    int win_score_difference;     // minimum score difference needed to win the game
+};
+
 class WorldBase {
 public:
     static const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
@@ -861,7 +880,7 @@ public:
     virtual void dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly) throw ();
     virtual void stealFlag(int team, int flag, int carrier) throw ();
 
-    void save_stats(const std::string& dir, const std::string& map_name) const throw ();
+    void save_stats(const std::string& dir, const std::string& map_name, const SimpleGameSettings& settings) const throw ();
 
     void addDeathbringerExplosion(const DeathbringerExplosion& db) throw () { dbExplosions.push_back(db); }
     void cleanOldDeathbringerExplosions() throw ();
@@ -934,7 +953,7 @@ public:
     double addTime(double t) const throw () { t += pup_add_time; if (t > pup_max_time) t = pup_max_time; return t; }
 };
 
-class WorldSettings {
+class WorldSettings : public SimpleGameSettings {
 public:
     enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
 
@@ -953,12 +972,6 @@ public:
     double hit_stun_time;
     double shoot_interval, shoot_interval_with_energy;
     double spawn_safe_time;
-    uint32_t time_limit;
-    uint32_t extra_time;
-    unsigned extra_time_periods;
-    bool sudden_death;
-    int capture_limit;
-    int win_score_difference;     // minimum score difference needed to win the game
     double flag_return_delay; // in seconds
     Team_balance balance_teams;
     double min_capture_time; // in seconds

@@ -680,6 +680,7 @@ class Client : public ClientInterface {
     const ClientExternalSettings extConfig;
     #ifndef DEDICATED_SERVER_ONLY
     ServerExternalSettings serverExtConfig;
+    SimpleGameSettings gameSettings; // for stats only
 
     class GFXMode {
     public:
