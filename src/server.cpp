@@ -355,6 +355,9 @@ void Server::swap_players(int a, int b) throw () {
 
     world.dropFlagIfAny(a, true);
     world.dropFlagIfAny(b, true);
+    world.resetCarrierData(a);
+    world.resetCarrierData(b);
+
     if (!world.player[a].dead)
         world.resetPlayer(a);   // no need to tell clients because it's inferred by team_change message
     if (!world.player[b].dead)

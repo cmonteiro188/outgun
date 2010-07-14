@@ -1748,6 +1748,17 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
     return true;
 }
 
+void ServerWorld::resetCarrierData(int pid) throw () {
+    // reset the previous carrier info from the relevant flags
+    const int enemy = 1 - pid / TSIZE;
+    teams[enemy].reset_prev_carrier(pid);
+    for (vector<Flag>::iterator fi = wild_flags.begin(); fi != wild_flags.end(); fi++)
+        if (fi->prev_carrier() == pid)
+            fi->reset_prev_carrier();
+        else if (fi->prev_prev_carrier() == pid)
+            fi->reset_prev_prev_carrier();
+}
+
 void ServerWorld::start_game() throw () {
     net->ctf_net_flag_status(pid_record, 0);
     net->ctf_net_flag_status(pid_record, 1);
@@ -2318,6 +2329,7 @@ void ServerWorld::removePlayer(int pid) throw () {
     }
 
     dropFlagIfAny(pid, true);
+    resetCarrierData(pid);
 
     player[pid].used = false;
 }
@@ -3350,7 +3362,8 @@ void ServerWorld::simulateFrame() throw () {
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
                         if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
-                            player_captures_flag(i, flagTeam, f);
+                            const int ass_pid = fi->prev_carrier();
+                            player_captures_flag(i, flagTeam, f, ass_pid);
                             if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                         teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
                                         extra_time_and_sudden_death) {
@@ -3453,9 +3466,11 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
         player[pid].visibility = maximum_shadow_visibility;
 }
 
-void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
+void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {
     const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
+    if (ass_pid / TSIZE != myteam)
+        ass_pid = -1; // only teammate can be assistant for a capture
     const double timeDiff = get_time() - capt_flag.grab_time();
     if (timeDiff <= config.get_min_capture_time()) // can't capture yet
         return;
@@ -3469,11 +3484,16 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
                 host->score_neg(i, 1);  // small neg point penalty for your flag being captured
         }
     host->score_frag(pid, 3);
+    if (ass_pid != -1)
+        host->score_frag(ass_pid, 3);
     player[pid].stats().add_capture(get_time());
-    teams[myteam].add_score(getMapTime() / 10, player[pid].name);
+    string capturers = player[pid].name;
+    if (ass_pid != -1)
+        capturers += " (" + player[ass_pid].name + ")";
+    teams[myteam].add_score(getMapTime() / 10, capturers);
     returnFlag(team, flag);
 
-    net->broadcast_capture(player[pid], team);
+    net->broadcast_capture(player[pid], team, ass_pid);
 
     net->ctf_update_teamscore(myteam);
 
@@ -3607,28 +3627,30 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Simp
     out << "</TABLE>\n\n";
 
     out << "<H3>Player stats</H3>\n\n";
-    out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
+    out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Assists<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
     vector<const PlayerBase*> players;
     for (vector<PointerAsReference<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
         if (pl->getPtr()->used)
             players.push_back(pl->getPtr());
     stable_sort(players.begin(), players.end(), compare_players);
+    const int columns = 18;
     int team = 0;
     for (vector<const PlayerBase*>::const_iterator pl = players.begin(); pl != players.end(); ++pl) {
         if (!(*pl)->used)
             continue;
         if (team == 0 && (*pl)->team() == 0) {      // red players should be first
-            out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Red team\n";
+            out << " <TR><TH COLSPAN=\"" << columns << "\" ALIGN=\"left\">Red team\n";
             team++;
         }
         else if (team <= 1 && (*pl)->team() == 1) {
-            out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
+            out << " <TR><TH COLSPAN=\"" << columns << "\" ALIGN=\"left\">Blue team\n";
             team++;
         }
         out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << escape_for_html((*pl)->name);
         const Statistics& stats = (*pl)->stats();
         out << "<TD>" << stats.frags();
         out << "<TD>" << stats.captures();
+        out << "<TD>" << stats.assists();
         out << "<TD>" << stats.kills();
         out << "<TD>" << stats.deaths();
         out << "<TD>" << stats.suicides();
@@ -3776,6 +3798,14 @@ void Team::set_flag_return_time(int n, double time) throw () {
     team_flags[n].set_return_time(time);
 }
 
+void Team::reset_prev_carrier(int pid) throw () {
+    for (vector<Flag>::iterator fi = team_flags.begin(); fi != team_flags.end(); ++fi)
+        if (fi->prev_carrier() == pid)
+            fi->reset_prev_carrier();
+        else if (fi->prev_prev_carrier() == pid)
+            fi->reset_prev_prev_carrier();
+}
+
 double Team::accuracy() const throw () {
     if (total_shots == 0)
         return 0;
@@ -3788,6 +3818,8 @@ double Team::accuracy() const throw () {
 Flag::Flag(const WorldCoords& pos_) throw () :
     status(status_at_base),
     carrier_id(-1),
+    prev_carrier_id(-1),
+    prev_prev_carrier_id(-1),
     drop_t(-1e10),
     return_t(-1e10),
     home_pos(pos_),
@@ -3799,24 +3831,33 @@ Flag::Flag(const WorldCoords& pos_) throw () :
 void Flag::take(int carr) throw () {
     status = status_carried;
     carrier_id = carr;
+    if (prev_carrier_id == carrier_id) // keep another player than the carrier as the previous carrier
+        prev_carrier_id = prev_prev_carrier_id;
+    prev_prev_carrier_id = -1;
 }
 
 void Flag::take(int carr, double time) throw () {
     if (status == status_at_base)
         grab_t = time;
-    status = status_carried;
-    carrier_id = carr;
+    take(carr);
 }
 
 void Flag::return_to_base() throw () {
     status = status_at_base;
     pos = home_pos;
     carrier_id = -1;
+    prev_carrier_id = -1;
+    prev_prev_carrier_id = -1;
     cteam = -1;
 }
 
 void Flag::drop() throw () {
     status = status_dropped;
+    if (prev_carrier_id != carrier_id)
+        prev_prev_carrier_id = prev_carrier_id;
+    else if (prev_prev_carrier_id == carrier_id)
+        prev_prev_carrier_id = -1;
+    prev_carrier_id = carrier_id;
     carrier_id = -1;
 }
 
@@ -3843,6 +3884,7 @@ Statistics::Statistics() throw () :
     current_consecutive_deaths(0),
     total_suicides(0),
     total_captures(0),
+    total_assists(0),
     total_flags_taken(0),
     total_flags_dropped(0),
     total_flags_returned(0),

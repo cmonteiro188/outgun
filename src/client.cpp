@@ -2619,16 +2619,22 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
     break; case data_capture: {
         uint8_t pid = read.U8();
+        const int8_t ass_pid = read.hasMore() ? read.S8() : -1;
         #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = pid & 0x80;
         #endif
         pid &= ~0x80;
-        if (pid >= maxplayers)
+        if (pid >= maxplayers || ass_pid >= maxplayers || ass_pid < -1)
             return false;
         fx.player[pid].stats().add_capture(time);
         #ifndef DEDICATED_SERVER_ONLY
+        string capturers = fx.player[pid].name;
+        if (ass_pid != -1) {
+            fx.player[ass_pid].stats().add_assist();
+            capturers += " (" + fx.player[ass_pid].name + ")";
+        }
         const int team = pid / TSIZE;
-        fx.teams[team].add_score(time - map_start_time, fx.player[pid].name);
+        fx.teams[team].add_score(time - map_start_time, capturers);
         string msg;
         if (wild_flag)
             msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);

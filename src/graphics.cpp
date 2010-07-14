@@ -1905,7 +1905,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
             line_height = min(line_height, text_height(stfont) + 4);
         }
     }
-    const int w = 43 * text_length(stfont, "M") + 6;
+    const int w = 52 * text_length(stfont, "M") + 6;
     const int h = min<int>(SCREEN_H, (20 + total_captures) * line_height);
     const int mx = SCREEN_W / 2;
     const int my = SCREEN_H / 2;
@@ -2005,7 +2005,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
         else
             break;
         if (!skip)
-            textout_ex(drawbuf, stfont, message.str().c_str(), x1 + 30, y1 + line++ * line_height, color, -1);
+            textout_ex(drawbuf, stfont, message.str().c_str(), x1 + 20, y1 + line++ * line_height, color, -1);
     }
     // draw scrollbar if there are more captures than visible on the screen
     if (team_captures_size < total_captures) {

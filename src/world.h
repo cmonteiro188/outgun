@@ -279,6 +279,7 @@ public:
     void add_death(bool deathbringer, double time) throw ();
     void add_suicide(double time) throw ();
     void add_capture(double time) throw ();
+    void add_assist() throw () { ++total_assists; }
     void add_flag_take(double time, bool wild) throw ();
     void add_flag_drop(double time) throw ();
     void add_flag_return() throw () { ++total_flags_returned; }
@@ -301,6 +302,7 @@ public:
     int current_cons_deaths() const throw () { return current_consecutive_deaths; }
     int suicides() const throw () { return total_suicides; }
     int captures() const throw () { return total_captures; }
+    int assists() const throw () { return total_assists; }
     int flags_taken() const throw () { return total_flags_taken; }
     int flags_dropped() const throw () { return total_flags_dropped; }
     int flags_returned() const throw () { return total_flags_returned; }
@@ -334,6 +336,7 @@ private:
     int current_consecutive_deaths;
     int total_suicides;
     int total_captures;
+    int total_assists;
     int total_flags_taken;
     int total_flags_dropped;
     int total_flags_returned;
@@ -574,10 +577,15 @@ public:
     void reset_carrying_time() throw () { ctime = 0; }
     void add_carrying_time(int team) throw ();
 
+    void reset_prev_carrier() throw () { prev_carrier_id = -1; }
+    void reset_prev_prev_carrier() throw () { prev_prev_carrier_id = -1; }
+
     bool carried() const throw () { return status == status_carried; }
     bool at_base() const throw () { return status == status_at_base; }
 
     int carrier() const throw () { return carrier_id; }
+    int prev_carrier() const throw () { return prev_carrier_id; }
+    int prev_prev_carrier() const throw () { return prev_prev_carrier_id; }
     double grab_time() const throw () { return grab_t; }
     double drop_time() const throw () { return drop_t; }
     double return_time() const throw () { return return_t; }
@@ -593,6 +601,8 @@ private:
 
     Status status;
     int carrier_id;
+    int prev_carrier_id;      // for determining assistants for captures
+    int prev_prev_carrier_id; // for a case when same player drops and retakes the flag
     double grab_t;
     double drop_t;
     double return_t;    // for client only
@@ -649,6 +659,8 @@ public:
 
     void set_flag_drop_time(int n, double time) throw ();
     void set_flag_return_time(int n, double time) throw ();
+
+    void reset_prev_carrier(int pid) throw ();
 
     int score() const throw () { return points; }
     int kills() const throw () { return total_kills; }
@@ -1033,7 +1045,7 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
-    void player_captures_flag(int pid, int team, int flag) throw ();
+    void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 
     bool all_kind_of_flags_exist() const throw ();
@@ -1088,6 +1100,8 @@ public:
     void game_player_screen_change(int p) throw ();
 
     bool dropFlagIfAny(int pid, bool purpose = false) throw ();
+    void resetCarrierData(int pid) throw ();
+
     void shootRockets(int pid, int numshots) throw ();
     void deleteRocket(int r, int16_t hitx, int16_t hity, int targ) throw ();
     void changeEmbeddedPids(int source, int target) throw ();
