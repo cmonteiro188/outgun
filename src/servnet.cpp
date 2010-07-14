@@ -1648,8 +1648,10 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     }
     break; case data_drop_flag:
         sender.drop_key = true;
-        sender.dropped_flag = true;
-        world.dropFlagIfAny(pid, true);
+        if (!sender.under_deathbringer_effect(get_time())) {
+            sender.dropped_flag = true;
+            world.dropFlagIfAny(pid, true);
+        }
     break; case data_stop_drop_flag:
         sender.drop_key = false;
     break; case data_map_vote: {

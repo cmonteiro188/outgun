@@ -3296,6 +3296,10 @@ void ServerWorld::simulateFrame() throw () {
         else if (pl.energy > config.energy_max)
             pl.energy = config.energy_max;
 
+        // Players under deathbringer effect can not take, capture, drop or return flags.
+        if (pl.under_deathbringer_effect(get_time()))
+            continue;
+
         // Flag steal - touch other team's flag or wild flag
         // ft = 0 => Touch enemy flag
         // ft = 1 => Touch wild flag
