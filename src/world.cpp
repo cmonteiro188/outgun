@@ -3279,13 +3279,15 @@ void ServerWorld::simulateFrame() throw () {
         // --> ITEM POWERUP
         const int touchRadius = POWERUP_RADIUS + PLAYER_RADIUS;
 
-        for (int k = 0; k < MAX_POWERUPS; k++)
-            if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
-                const double dx = item[k].x - pl.lx;
-                const double dy = item[k].y - pl.ly;
-                if (dx * dx + dy * dy < touchRadius * touchRadius)
-                    game_touch_powerup(i, k);
-            }
+        // Players under deathbringer effect can not take powerups.
+        if (!pl.under_deathbringer_effect(get_time()))
+            for (int k = 0; k < MAX_POWERUPS; k++)
+                if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
+                    const double dx = item[k].x - pl.lx;
+                    const double dy = item[k].y - pl.ly;
+                    if (dx * dx + dy * dy < touchRadius * touchRadius)
+                        game_touch_powerup(i, k);
+                }
 
         // limit health and energy (after powerups because they might have an effect)
         nAssert(pl.health > 0);
