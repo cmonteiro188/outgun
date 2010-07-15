@@ -1257,18 +1257,18 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
     int t2 = 0;     //blue team count
-    int red_bots = 0, blue_bots = 0;
+    int red_humans = 0, blue_humans = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
             if (i / TSIZE == 0) {
                 t1++;
-                if (world.player[i].is_bot())
-                    red_bots++;
+                if (!world.player[i].is_bot())
+                    red_humans++;
             }
             else {
                 t2++;
-                if (world.player[i].is_bot())
-                    blue_bots++;
+                if (!world.player[i].is_bot())
+                    blue_humans++;
             }
         }
 
@@ -1279,10 +1279,19 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     else if (t1 > t2)
         targ = TSIZE;
     else {
-        if (red_bots > blue_bots)
+        const int red_bots = t1 - red_humans;
+        const int blue_bots = t2 - blue_humans;
+        // If only one team contains humans and also bots, put the new player there.
+        if (red_humans > 0 && red_bots > 0 && blue_humans == 0)
             targ = 0;
-        else if (blue_bots > red_bots)
+        else if (blue_humans > 0 && blue_bots > 0 && red_humans == 0)
             targ = TSIZE;
+        // Otherwise put the player to a team with less number of humans.
+        else if (red_humans < blue_humans)
+            targ = 0;
+        else if (red_humans > blue_humans)
+            targ = TSIZE;
+        // Both teams contain the same number of humans and bots.
         else {
             host->refresh_team_score_modifiers();
             targ = TSIZE * host->getLessScoredTeam();
