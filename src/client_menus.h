@@ -457,11 +457,11 @@ class Menu_main {
 public:
     StaticText      newVersion;
     Menu_serverList connect;
-    Menu_spectate   spectate;
     Textarea        disconnect;
     Menu_options    options;
     Menu_ownServer  ownServer;
     Menu_replays    replays;
+    Menu_spectate   spectate;
     Menu_help       help;
     Textarea        exitOutgun;
 
