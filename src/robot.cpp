@@ -2,7 +2,7 @@
  *  robot.cpp
  *
  *  Copyright (C) 2006, 2008 - Peter Kosyh
- *  Copyright (C) 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -213,7 +213,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const throw () {
 
         bool aimed;
         if (fx.physics.allowFreeTurning) {
-            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90° range are considered dangerous
+            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90ï¿½ range are considered dangerous
             const double diff = positiveFmod(enemy.gundir.toRad() - aimTowardsMe.toRad(), 2 * N_PI);
             aimed = diff < tolerance || diff > 2 * N_PI - tolerance;
         }
@@ -797,7 +797,7 @@ void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
 ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
     const Room& room = map.room[roomx][roomy];
 
-    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
+    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw ï¿½ 3 / 4)
     static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
     static const double pointDistance = double(plw) / (xPoints - 1);
     nAssert(plh * (xPoints - 1) == plw * (yPoints - 1)); // to ensure that points on the bottom fall at the room edge, as well as the points on the right (equal to plh / (yPoints - 1) == pointDistance but workable in integer arithmetic)
@@ -805,7 +805,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
     /* To deem a point wall-free, we want there to be a player-sized path between it and
      * all non-diagonal wall-free neighbors. Generally, a clear path of width w across the
      * distance d between points A and B, is ensured if around both A and B, a radius of
-     * sqrt((½w)² + (½d)²) is clear.
+     * sqrt((ï¿½w)ï¿½ + (ï¿½d)ï¿½) is clear.
      * Here, d = pointDistance and w = PLAYER_RADIUS * 2. Some extra breathing room is
      * gained by adding to PLAYER_RADIUS.
      */
@@ -1382,7 +1382,8 @@ bool Client::IsDefender() throw () {
         return false;
 
     const int npl = GetPlayers(team);
-    const int defNum = npl / 2 / tflags.size();
+    const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
+    const int defNum = npl / nAllFlags; // split players evenly between all flags of all teams, rounding down the number of defenders per flag
 
     const Area* const here = myArea();
 
@@ -1952,7 +1953,7 @@ ClientControls Client::Robot() throw () {
         // adjust gunDir
         static const double turnCeilingPerFrame = N_PI_2;
         static const double displacementMul = .7;
-        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22° of target
+        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22ï¿½ of target
         const double targetDiff = positiveFmod(shootDir.second.toRad() - gunDir.toRad() + N_PI, 2 * N_PI) - N_PI;
         double actualDiff = targetDiff;
         if (fabs(actualDiff) > turnCeilingPerFrame)
