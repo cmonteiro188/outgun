@@ -1,7 +1,7 @@
 /*
  *  timer.cpp
  *
- *  Copyright (C) 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -21,7 +21,21 @@
  *
  */
 
+#include "incpthread.h"
 #include "timer.h"
 
 SystemTimer* g_systemTimer = 0;
 TimeCounter g_timeCounter;
+
+static bool quickSleepDelay = true;
+
+void quickSleep() throw () {
+    if (quickSleepDelay)
+        platSleep(2);
+    else
+        sched_yield();
+}
+
+void removeQuickSleepDelay() throw () {
+    quickSleepDelay = false;
+}

@@ -821,7 +821,7 @@ DLOG_ScopeNegStart("CTR");
 
         if (amount == 0) {
 DLOG_ScopeNeg s("CTR");
-            platSleep(2);  //alternativa, usar BLOCKING I/O
+            quickSleep();
             continue;
         }
 

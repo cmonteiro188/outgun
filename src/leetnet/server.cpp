@@ -1196,7 +1196,7 @@ void thread_master_f(server_ci* server) throw ()
 
         // if no data, keep reading
         if (result.length == 0) {
-            platSleep(2);
+            quickSleep();
             continue;
         }
 

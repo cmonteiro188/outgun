@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -78,6 +78,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     threadLockMutex("Server::threadLockMutex"),
     abortFlag(false),
     quit_bots(false),
+    botTestMode(false),
+    botReactedFrame(0),
     world(this, &network, log),
     network(this, settings, world, log, threadLock, threadLockMutex),
     settings(*this, config),
@@ -92,6 +94,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     fav_colors[0].resize(MAX_PLAYERS / 2, false);
     fav_colors[1].resize(MAX_PLAYERS / 2, false);
     Thread::setCallerPriority(config.priority);
+    if (botTestMode)
+        removeQuickSleepDelay();
 }
 
 Server::~Server() throw () { }
@@ -566,6 +570,9 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
     }
     network.broadcast_stats_ready();
 
+    if (botTestMode)
+        std::cout << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": " << world.teams[0].score() << " - " << world.teams[1].score() << '\n' << std::flush;
+
     vector<int> winners;
     int maxVotes = 0;
     uint32_t longest_time = world.frame;
@@ -672,7 +679,9 @@ void Server::stop_recording() throw () {
     recording_started = false;
     if (record) {
         if (gameover && end_game_human_count >= settings.get_recording() ||
-                !gameover && network.get_human_count() >= settings.get_recording()) {
+            !gameover && network.get_human_count() >= settings.get_recording() ||
+            botTestMode)
+        {
             // write the length of the record
             record.seekp(16);
             {
@@ -1742,7 +1751,11 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) throw () {
             g_timeCounter.refresh();
             if (get_time() >= nextFrameTime)
                 break;
-            platSleep(2); //#opt
+            if (botTestMode && network.get_bot_count() == (int)bots.size() && botReactedFrame == world.frame - 1) { // -1 because of frame++ above after send
+                g_timeCounter.advanceArtificially(nextFrameTime - get_time());
+                break;
+            }
+            quickSleep(); //#opt
         }
         nextFrameTime += .1;
 
@@ -1782,6 +1795,8 @@ void Server::run_bot_thread() throw () {
             platSleep(1000);
             continue;
         }
+        else if (botTestMode)
+            quickSleep();
         else
             platSleep(15);
         if (check_bots) {
@@ -1807,6 +1822,19 @@ void Server::run_bot_thread() throw () {
                 bi->bot_loop();
                 ++bi;
             }
+        }
+        if (botTestMode) {
+            sched_yield();
+            nAssert(settings.get_bot_ping() == 0); // this is a user (not code) error, but bot test mode is a dev feature
+            const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
+            bool upToDate = true;
+            for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+                if (bi->bot_reacted_frame() != currentFrame || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
+                    //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
+                    upToDate = false;
+                }
+            if (upToDate)
+                botReactedFrame = currentFrame;
         }
     }
     for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)

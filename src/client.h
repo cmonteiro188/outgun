@@ -2,7 +2,7 @@
  *  client.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -922,6 +922,10 @@ public:
     void set_ping(int ping) throw ();
     bool is_connected() const throw () { return connected; }
     bool bot_finished() const throw () { return finished; }
+
+    int bot_player_id() const throw () { return me; }
+    double bot_reacted_frame() const throw () { return botReactedFrame; }
+    uint8_t bot_sent_frame() const throw () { return clFrameSent; }
 
     void set_bot_password(const std::string& pass) throw () { bot_password = pass; }
 

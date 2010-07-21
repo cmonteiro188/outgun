@@ -1,7 +1,7 @@
 /*
  *  client_interface.h
  *
- *  Copyright (C) 2003, 2004, 2005 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -77,6 +77,10 @@ public:
     virtual void set_ping(int ping) throw () = 0;
     virtual bool is_connected() const throw () = 0;
     virtual bool bot_finished() const throw () = 0;
+
+    virtual int bot_player_id() const throw () = 0;
+    virtual double bot_reacted_frame() const throw () = 0;
+    virtual uint8_t bot_sent_frame() const throw () = 0;
 
     virtual void set_bot_password(const std::string& pass) throw () = 0;
 
