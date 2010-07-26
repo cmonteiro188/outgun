@@ -229,7 +229,8 @@ public:
     std::string title, author, file;
     int width, height;
     bool random;
-    float over_edge;
+    float over_edge;    // probability (0...1) for routes over the edge
+    float respawn_area; // probability (0...1) for specific respawn areas
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
     bool highlight;     // for the map list in the client
@@ -1070,7 +1071,7 @@ public:
 
     // common (virtual in base) extended functions
     void reset() throw ();
-    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, const std::string& title, const std::string& author) throw ();
+    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, float respawn_area, const std::string& title, const std::string& author) throw ();
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer) throw ();
     void returnAllFlags() throw ();
     void returnFlag(int team, int flag) throw ();

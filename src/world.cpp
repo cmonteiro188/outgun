@@ -1668,10 +1668,10 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
     printer(map_time.str());
 }
 
-void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, float over_edge, const string& title, const string& author) throw () {
+void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, float over_edge, float respawn_area, const string& title, const string& author) throw () {
     MapGenerator generator;
     for (int i = 0; i < 50; i++) {
-        const int base_distance = generator.generate(width, height, rand() % 1000 < 1000 * over_edge);
+        const int base_distance = generator.generate(width, height, rand() % 1000 < 1000 * over_edge, rand() % 1000 < 1000 * respawn_area);
         if (base_distance > 1 || width <= 2 || height <= 2)
             break;
     }

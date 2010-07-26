@@ -44,7 +44,7 @@ using std::pair;
 using std::string;
 using std::vector;
 
-int MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
+int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area) throw () {
     over_edge = allow_over_edge;
     room.clear();
     room.resize(w);
@@ -91,6 +91,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
 
     shift_rooms_if_needed();
 
+    // flags
     const Dist base = select_base();
     const int x1 = base.coords.first, y1 = base.coords.second;
     const int x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
@@ -101,6 +102,21 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge) throw () {
         flags = 1;
     else
         flags = 2;
+
+    // respawn areas
+    if (respawn_area) {
+        const int respawn_x1 = rand() % w;
+        const int respawn_y1 = rand() % h;
+        const int respawn_x2 = symmetry == vertical   ? respawn_x1 : width()  - 1 - respawn_x1;
+        const int respawn_y2 = symmetry == horizontal ? respawn_y1 : height() - 1 - respawn_y1;
+        if (respawn_x1 == respawn_x2 && respawn_y1 == respawn_y2)
+            room[respawn_x1][respawn_y1].respawn = 2;
+        else {
+            room[respawn_x1][respawn_y1].respawn = 0;
+            room[respawn_x2][respawn_y2].respawn = 1;
+        }
+    }
+
     return base.dist;
 }
 
@@ -346,6 +362,8 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 out << "flag " << (flags == 1 ? 2 : flag_team) << ' ' << x << ' ' << y << " 8 6\n";
                 flag_team = 1 - flag_team;
             }
+            if (current.respawn != -1)
+                out << "V respawn " << current.respawn << ' ' << x << ' ' << y << " 0 0 16 12\n";
             vector<string> walls;
             if (current.top)
                 walls.push_back("top");
