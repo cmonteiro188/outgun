@@ -627,11 +627,18 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy) cons
     return MoveDir(mdir);
 }
 
-ClientControls Client::GetPowerup(double mex, double mey) const throw () {
+ClientControls Client::GetPowerup(double mex, double mey, bool onImportantMission) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (!fx.item[i].real() || area(fx.item[i].position()) != myArea())
             continue;
-        return MoveTo(mex, mey, fx.item[i].x - mex, fx.item[i].y - mey);
+        const double dx = fx.item[i].x - mex, dy = fx.item[i].y - mey;
+        if (onImportantMission) {
+            if (IsBehindWall(mex, mey, dx, dy, PLAYER_RADIUS))
+                continue;
+            if (dx * fx.player[me].sx + dy * fx.player[me].sy < 0 && dx * dx + dy * dy > sqr(5 * PLAYER_RADIUS)) // dot product; don't bother if the powerup is behind
+                continue;
+        }
+        return MoveTo(mex, mey, dx, dy);
     }
     return ClientControls();
 }
@@ -1838,7 +1845,7 @@ ClientControls Client::getRobotControls() throw () {
         }
     }
 
-    if (last_seen == -1) {
+    if (last_seen == -1 || HaveFlag(me)) {
         const ClientControls ctrl = GetFlag(mex, mey);
         if (!ctrl.idle()) { // if any
             #ifdef DEBUGSTRATEGY
@@ -1869,8 +1876,10 @@ ClientControls Client::getRobotControls() throw () {
         return Aim(mex, mey, last_seen);
     }
 
+    const bool importantMission = HaveFlag(me) && IsMission(Table_Main);
+
     // ok, free tour ;)
-    ClientControls ctrl = GetPowerup(mex, mey);
+    ClientControls ctrl = GetPowerup(mex, mey, importantMission);
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());

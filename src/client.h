@@ -598,7 +598,7 @@ class Client : public ClientInterface {
     ClientControls EscapeRocket(double mex, double mey, int mrock) const throw ();
     ClientControls GetFlag(double mex, double mey) const throw ();
     ClientControls FollowFlag(double mex, double mey) const throw ();
-    ClientControls GetPowerup(double mex, double mey) const throw ();
+    ClientControls GetPowerup(double mex, double mey, bool onImportantMission) const throw ();
     ClientControls MoveDirNoAggregate(int dir) const throw ();
     ClientControls MoveTo(double mex, double mey, double dx, double dy) const throw ();
     ClientControls MoveToDoor(double mex, double mey, const Area::Neighbor& n) const throw ();
