@@ -2612,7 +2612,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             pi->stats().finish_stats(time);
         #ifndef DEDICATED_SERVER_ONLY
-        if (menu.options.game.saveStats())
+        if (menu.options.game.saveStats() && players_sb.size() > 1)
             fx.save_stats("client_stats", fx.map.title, gameSettings);
         #endif
     }
