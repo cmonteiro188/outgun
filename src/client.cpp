@@ -2,7 +2,7 @@
  *  client.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -87,10 +87,10 @@ int benchmarkRuns = 0;
 #endif
 
 class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
-    Client& c;
+    ClientBase& c;
 
 public:
-    ClientPhysicsCallbacks(Client& c_) throw () : c(c_) { }
+    ClientPhysicsCallbacks(ClientBase& c_) throw () : c(c_) { }
 
     bool collideToRockets() const throw () { return false; }
     bool collidesToRockets(int) const throw () { return false; }
@@ -109,7 +109,7 @@ public:
 
 class TM_DoDisconnect : public ThreadMessage {
 public:
-    void execute(Client* cl) const throw () { cl->disconnect_command(); }
+    void execute(ClientBase* cl) const throw () { cl->disconnect_command(); }
 };
 
 class TM_Text : public ThreadMessage {
@@ -120,12 +120,15 @@ class TM_Text : public ThreadMessage {
 public:
     TM_Text(Message_type type_, const string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
     ~TM_Text() throw () { }
-    void execute(Client* cl) const throw () {
+    void execute(ClientBase* cl) const throw () {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         cl->print_message(type, text, team);
         #else
         (void)cl;
         #endif
+        */
+        (void)cl;
     }
 };
 
@@ -134,12 +137,15 @@ class TM_Sound : public ThreadMessage {
 
 public:
     TM_Sound(int sample_) throw () : sample(sample_) { }
-    void execute(Client* cl) const throw () {
+    void execute(ClientBase* cl) const throw () {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         cl->play_sound(sample);
         #else
         (void)cl;
         #endif
+        */
+        (void)cl;
     }
 };
 
@@ -150,13 +156,19 @@ class TM_MapChange : public ThreadMessage {
 public:
     TM_MapChange(const string& name_, uint16_t crc_) throw () : name(name_), crc(crc_) { }
     ~TM_MapChange() throw () { }
-    void execute(Client* cl) const throw () { cl->server_map_command(name, crc); }
+    void execute(ClientBase* cl) const throw () { cl->server_map_command(name, crc); }
 };
 
 #ifndef DEDICATED_SERVER_ONLY
 class TM_NameAuthorizationRequest : public ThreadMessage {
 public:
-    void execute(Client* cl) const throw () { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
+    void execute(ClientBase* cl) const throw () {
+        /* #@refactor
+        cl->m_playerPassword.setup(cl->playername, false);
+        cl->showMenu(cl->m_playerPassword);
+        */
+        (void)cl;
+    }
 };
 
 class TM_GunexploEffect : public ThreadMessage {
@@ -166,7 +178,12 @@ class TM_GunexploEffect : public ThreadMessage {
 
 public:
     TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) throw () : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const throw () { cl->graphics.create_gunexplo(pos, team, time); }
+    void execute(ClientBase* cl) const throw () {
+        /* #@refactor
+        cl->graphics.create_gunexplo(pos, team, time);
+        */
+        (void)cl;
+    }
 };
 
 class TM_ServerSettings : public ThreadMessage {
@@ -174,14 +191,14 @@ class TM_ServerSettings : public ThreadMessage {
     uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
-    void addLine(Client* cl, const string& caption, const string& value) const throw ();
+    void addLine(ClientBase* cl, const string& caption, const string& value) const throw ();
 
 public:
     TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
                       uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), extratime_periods(extratime_periods_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
-    void execute(Client* cl) const throw ();
+    void execute(ClientBase* cl) const throw ();
 };
 #endif
 
@@ -192,7 +209,7 @@ class TM_ConnectionUpdate : public ThreadMessage {
 public:
     TM_ConnectionUpdate(int code_, ConstDataBlockRef data_) throw () : code(code_), data(data_) { }
     ~TM_ConnectionUpdate() throw () { }
-    void execute(Client* cl) const throw ();
+    void execute(ClientBase* cl) const throw ();
 };
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -436,12 +453,13 @@ void FileDownload::finish() throw () {
     fp = 0;
 }
 
-void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const throw () {
+/* #@refactor
+void TM_ServerSettings::addLine(ClientBase* cl, const string& caption, const string& value) const throw () {
     const int capWidth = 25;
     cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth), value);
 }
 
-void TM_ServerSettings::execute(Client* cl) const throw () {
+void TM_ServerSettings::execute(ClientBase* cl) const throw () {
     cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
@@ -490,12 +508,14 @@ void TM_ServerSettings::execute(Client* cl) const throw () {
     if (cl->menu.options.game.showServerInfo() && !cl->replaying)
         cl->showMenu(cl->m_serverInfo);
 }
+*/
 #endif
 
-void TM_ConnectionUpdate::execute(Client* cl) const throw () {
+void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
     switch (code) {
     /*break;*/ case 0: cl->client_connected(data);
         break; case 1: cl->client_disconnected(data);
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         break; case 2: cl->connect_failed_denied(data);
         break; case 3: cl->connect_failed_unreachable();
@@ -503,12 +523,13 @@ void TM_ConnectionUpdate::execute(Client* cl) const throw () {
         break; case 4: cl->connect_failed_denied(_("The server is full."));
         break; default: nAssert(0);
         #endif
+        */
     }
     if (cl->botmode && code != 0)
         cl->stop();
 }
 
-void Client::ConstDisappearedFlagIterator::findValid() throw () {
+void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
     for (; valid(); next()) {
         const Flag& fl = flag();
         if (!fl.carried())
@@ -521,6 +542,7 @@ void Client::ConstDisappearedFlagIterator::findValid() throw () {
     }
 }
 
+#if 0 // #@refactor
 Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
@@ -838,20 +860,21 @@ bool Client::start() throw () {
 
     return true;
 }
+#endif
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::language_selection_start(volatile bool* quitFlag) throw () {
+void GuiClient::language_selection_start(volatile bool* quitFlag) throw () {
     log("language_selection_start()");
     extConfig.statusOutput(_("Outgun client"));
 
     if (!graphics.init(640, 480, desktop_color_depth(), true, false))
         return;
 
-    typedef MenuCallback<Client> MCB;
-    m_initialLanguage.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
+    typedef MenuCallback<GuiClient> MCB;
+    m_initialLanguage.initialize(new MCB::A<Menu, &GuiClient::MCF_menuOpener>(this), settings);
 
     const int menu_selection_index = refreshLanguages(m_initialLanguage);
-    m_initialLanguage.addHooks(new MCB::A<Textarea, &Client::MCF_acceptInitialLanguage>(this));
+    m_initialLanguage.addHooks(new MCB::A<Textarea, &GuiClient::MCF_acceptInitialLanguage>(this));
     m_initialLanguage.menu.setSelection(menu_selection_index);
 
     showMenu(m_initialLanguage);
@@ -887,7 +910,7 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
 }
 #endif
 
-void Client::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
+void Robot::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
     Lock ml(frameMutex);
     #ifndef DEDICATED_SERVER_ONLY
     botmode = true;
@@ -906,14 +929,14 @@ void Client::bot_start(const Network::Address& addr, int ping, const string& nam
     connect_command(false);
 }
 
-void Client::set_ping(int ping) throw () {
+void Robot::set_ping(int ping) throw () {
     while (client->decreasePacketDelay()) { }
     for (int i = 0; i < ping / 10; ++i)
         client->increasePacketDelay();
 }
 
 //send "client ready" message to server (when map load and/or download completes)
-void Client::send_client_ready() throw () {
+void ClientBase::send_client_ready() throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_client_ready);
     client->send_message(msg);
@@ -921,7 +944,7 @@ void Client::send_client_ready() throw () {
 
 #ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
-void Client::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () {
+void GuiClient::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () {
     Lock ml(downloadMutex);
     if (downloads.empty() || !downloads.front().isActive()) {
         log.error("Server sent a file we aren't expecting");
@@ -966,7 +989,7 @@ void Client::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw
 /* check_download: if there is a download pending, and nothing is downloading, activate it
  * call with downloadMutex locked
  */
-void Client::check_download() throw () { // call with downloadMutex locked
+void GuiClient::check_download() throw () { // call with downloadMutex locked
     if (downloads.empty())
         return;
     FileDownload& dl = downloads.front();
@@ -985,7 +1008,7 @@ void Client::check_download() throw () { // call with downloadMutex locked
     client->send_message(msg);
 }
 
-void Client::download_server_file(const string& type, const string& name) throw () {
+void GuiClient::download_server_file(const string& type, const string& name) throw () {
     nAssert(type == "map");
     if (name.find_first_of("./:\\") != string::npos) {
         log.error("Illegal file download request: map \"" + name + "\"");
@@ -1003,7 +1026,7 @@ void Client::download_server_file(const string& type, const string& name) throw 
 // Server tells client of current map / map change.
 // Client checks from the "cmaps" and "maps" directory.
 // If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
-void Client::server_map_command(const string& mapname, uint16_t server_crc) throw () {
+void ClientBase::server_map_command(const string& mapname, uint16_t server_crc) throw () {
     log("Received map change: '%s'", mapname.c_str());
 
     servermap = mapname;
@@ -1021,6 +1044,7 @@ void Client::server_map_command(const string& mapname, uint16_t server_crc) thro
 
     nAssert(!botmode); // ### FIX: Disconnect bot or something.
 
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     // start download
     const string msg = _("Downloading map \"$1\"...", mapname);
@@ -1029,9 +1053,10 @@ void Client::server_map_command(const string& mapname, uint16_t server_crc) thro
 
     download_server_file("map", mapname);
     #endif
+    */
 }
 
-bool Client::load_map(const string& directory, const string& mapname, uint16_t server_crc) throw () {
+bool ClientBase::load_map(const string& directory, const string& mapname, uint16_t server_crc) throw () {
     LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
 
     const bool ok =
@@ -1050,7 +1075,7 @@ bool Client::load_map(const string& directory, const string& mapname, uint16_t s
     return false;
 }
 
-void Client::sendMinimapBandwidthAny(int players) throw () {
+void ClientBase::sendMinimapBandwidthAny(int players) throw () {
     if (protocolExtensions >= 0) {
         BinaryBuffer<256> msg;
         msg.U8(data_set_minimap_player_bandwidth);
@@ -1060,7 +1085,7 @@ void Client::sendMinimapBandwidthAny(int players) throw () {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::sendFavoriteColors() throw () {
+void GuiClient::sendFavoriteColors() throw () {
     if (menu.options.player.favoriteColors.values().empty())
         return;
     BinaryBuffer<256> msg;
@@ -1077,17 +1102,17 @@ void Client::sendFavoriteColors() throw () {
     client->send_message(msg);
 }
 
-void Client::sendMinimapBandwidth() throw () {
+void GuiClient::sendMinimapBandwidth() throw () {
     sendMinimapBandwidthAny(menu.options.game.minimapBandwidth() / 20);
 }
 #endif // DEDICATED_SERVER_ONLY
 
-void Client::disconnect_command() throw () { // do not call from a network thread
+void ClientBase::disconnect_command() throw () { // do not call from a network thread
     //disconnect the client here if was connected, else does nothing
     client->connect(false);
 }
 
-void Client::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
+void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
     log("Connection successful");
 
     connected = true;
@@ -1168,6 +1193,7 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     fx.skipped = true;
     fx.physics = PhysicalSettings(); // to be filled later by a message
 
+    /* #@refactor
     if (botmode) {
         bot_send_frame(ClientControls());
         return;
@@ -1246,10 +1272,11 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
 
     send_frame(true, true);
     #endif
+    */
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::send_ranking_participation() throw () {
+void GuiClient::send_ranking_participation() throw () {
     BinaryBuffer<8> msg;
     msg.U8(data_ranking_participation);
     msg.U8(menu.options.player.ranking() ? 1 : 0);
@@ -1257,7 +1284,7 @@ void Client::send_ranking_participation() throw () {
 }
 #endif
 
-void Client::client_disconnected(ConstDataBlockRef data) throw () {
+void ClientBase::client_disconnected(ConstDataBlockRef data) throw () {
     if (!connected)
         return;
 
@@ -1266,6 +1293,7 @@ void Client::client_disconnected(ConstDataBlockRef data) throw () {
 
     BinaryDataBlockReader read(data);
 
+    #if 0 // #@refactor
     if (botmode) {
         const uint8_t reason = read.U8();
         numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
@@ -1310,10 +1338,11 @@ void Client::client_disconnected(ConstDataBlockRef data) throw () {
         downloads.clear();
     }
     #endif
+    #endif
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
+void GuiClient::connect_failed_denied(ConstDataBlockRef data) throw () {
     string message;
     bool userHandled = false;
     if (data.size() > 1) {
@@ -1372,19 +1401,19 @@ void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
     }
 }
 
-void Client::connect_failed_unreachable() throw () {
+void GuiClient::connect_failed_unreachable() throw () {
     m_connectProgress.wrapLine(_("No response from server."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-void Client::connect_failed_socket() throw () {
+void GuiClient::connect_failed_socket() throw () {
     m_connectProgress.wrapLine(_("Can't open socket."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-string Client::load_player_password(const string& name, const string& address) const throw () {
+string GuiClient::load_player_password(const string& name, const string& address) const throw () {
     ifstream in(password_file.c_str());
     while (in) {
         string load_name, load_address, load_password;
@@ -1397,7 +1426,7 @@ string Client::load_player_password(const string& name, const string& address) c
     return string();
 }
 
-vector<vector<string> > Client::load_all_player_passwords() const throw () {
+vector<vector<string> > GuiClient::load_all_player_passwords() const throw () {
     vector<vector<string> > passwords;
     ifstream in(password_file.c_str());
     while (1) {
@@ -1418,7 +1447,7 @@ vector<vector<string> > Client::load_all_player_passwords() const throw () {
     return passwords;
 }
 
-void Client::save_player_password(const string& name, const string& address, const string& password) const throw () {
+void GuiClient::save_player_password(const string& name, const string& address, const string& password) const throw () {
     nAssert(!name.empty() && !address.empty() && !password.empty());    // empty lines cause trouble
     vector<vector<string> > passwd_list = load_all_player_passwords();
     // check if player already has a password
@@ -1448,7 +1477,7 @@ void Client::save_player_password(const string& name, const string& address, con
     }
 }
 
-void Client::remove_player_password(const string& name, const string& address) const throw () {
+void GuiClient::remove_player_password(const string& name, const string& address) const throw () {
     // check if player has a password
     const string test = load_player_password(name, address);
     if (test.empty())
@@ -1465,7 +1494,7 @@ void Client::remove_player_password(const string& name, const string& address) c
                 out << (*item)[i] << '\n';
 }
 
-int Client::remove_player_passwords(const string& name) const throw () {
+int GuiClient::remove_player_passwords(const string& name) const throw () {
     vector<vector<string> > passwd_list = load_all_player_passwords();
     ofstream out(password_file.c_str());
     if (!out)
@@ -1482,14 +1511,16 @@ int Client::remove_player_passwords(const string& name) const throw () {
 }
 #endif
 
-void Client::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
+void ClientBase::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
     const bool alreadyConnected = connected;
 
     // disconnect
     client->connect(false);
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
     #endif
+    */
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
         platSleep(500);
@@ -1504,6 +1535,7 @@ void Client::connect_command(bool loadPassword) throw () {   // call with frameM
     const string strAddress = serverIP.toString();
     client->set_server_address(strAddress.c_str());
 
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     if (loadPassword && !botmode)
         m_playerPassword.password.set(load_player_password(playername, strAddress));
@@ -1512,6 +1544,8 @@ void Client::connect_command(bool loadPassword) throw () {   // call with frameM
         m_serverPassword.password().empty() ? "no" : "yes",
         m_playerPassword.password().empty() ? "no" : "yes");
     #endif
+    */
+    (void)loadPassword;
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     BinaryBuffer<256> msg;
@@ -1537,6 +1571,7 @@ void Client::connect_command(bool loadPassword) throw () {   // call with frameM
     client->set_connect_data(msg);
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
 
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     if (!botmode) {
         m_connectProgress.clear();
@@ -1546,9 +1581,10 @@ void Client::connect_command(bool loadPassword) throw () {   // call with frameM
     #else
     (void)loadPassword;
     #endif
+    */
 }
 
-void Client::issue_change_name_command() throw () {
+void ClientBase::issue_change_name_command() throw () {
     if (!connected)
         return;
     //regular change name
@@ -1564,7 +1600,7 @@ void Client::issue_change_name_command() throw () {
     client->send_message(msg);
 }
 
-void Client::bot_send_frame(ClientControls controls) throw () {
+void Robot::bot_send_frame(ClientControls controls) throw () {
     ++clFrameSent;
     controlHistory[clFrameSent] = sentControls = controls;
     svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
@@ -1577,7 +1613,7 @@ void Client::bot_send_frame(ClientControls controls) throw () {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::change_name_command() throw () {
+void GuiClient::change_name_command() throw () {
     //set new name, close menu
     menu.options.player.name.set(trim(menu.options.player.name()));
     const string& newName = menu.options.player.name();
@@ -1592,7 +1628,7 @@ void Client::change_name_command() throw () {
     rankingPassword.changeData(playername, menu.options.player.password());
 }
 
-ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
+ClientControls GuiClient::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
     ClientControls ctrl;
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
@@ -1602,7 +1638,7 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const
     return ctrl;
 }
 
-ClientControls Client::readControlsInGame() const throw () {
+ClientControls GuiClient::readControlsInGame() const throw () {
     if (!openMenus.empty()) // don't move at all when a real menu is open
         return ClientControls();
     const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
@@ -1613,7 +1649,7 @@ ClientControls Client::readControlsInGame() const throw () {
     return ctrl;
 }
 
-bool Client::firePressed() throw () {
+bool GuiClient::firePressed() throw () {
     static double checkTime = 0;
     if (get_time() > checkTime + 1.)
         mouseClicked.clear();
@@ -1624,7 +1660,7 @@ bool Client::firePressed() throw () {
 }
 
 //send the client's frame to server (keypresses)
-void Client::send_frame(bool newFrame, bool forceSend) throw () {
+void GuiClient::send_frame(bool newFrame, bool forceSend) throw () {
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls = readControlsInGame();
@@ -1678,7 +1714,7 @@ void Client::send_frame(bool newFrame, bool forceSend) throw () {
     client->send_frame(msg);
 }
 
-void Client::refreshGunDir() throw () {
+void GuiClient::refreshGunDir() throw () {
     if (!fx.physics.allowFreeTurning)
         return;
     if (menu.options.controls.aimMode() == Menu_controls::AM_MouseTurn) {
@@ -1710,7 +1746,7 @@ void Client::refreshGunDir() throw () {
 
 #endif // DEDICATED_SERVER_ONLY
 
-void Client::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
+void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
     const uint8_t whox = reader.U8(), whoy = reader.U8();
     if (pid == me || fx.player[pid].onscreen)
         return;
@@ -1736,7 +1772,7 @@ void Client::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
         fx.player[pid].gundir.fromRad(atan2(dy, dx));
 }
 
-bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
+bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32();    //server's frame
@@ -1915,7 +1951,7 @@ bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // retur
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
@@ -1980,7 +2016,7 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
 #endif
 
 // process a message (update fx, and add the non frame-related messages to messageQueue)
-bool Client::process_message(ConstDataBlockRef data) throw () {
+bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     const double time = fx.frame / 10;
     BinaryDataBlockReader read(data);
 
@@ -2198,10 +2234,12 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         ClientPhysicsCallbacks cb(*this);
         fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         if (on_screen_exact(rpx, rpy, rx, ry))
             addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
         #endif
+        */
     }
 
     break; case data_old_rocket_visible: {
@@ -2239,6 +2277,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
 
         const uint8_t rockid = read.U8();
         fx.rock[rockid].owner = -1;
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const uint8_t target = read.U8();
         if (target != 255) {    // hit player
@@ -2254,15 +2293,18 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
                 addThreadMessage(new TM_Sound(SAMPLE_HIT));
         }
         #endif
+        */
     }
 
     break; case data_power_collision: {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const uint8_t target = read.U8(0, maxplayers - 1);
         fx.player[target].hitfx = time + .3;
         if (!replaying || player_on_screen(target))
             addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
         #endif
+        */
     }
 
     break; case data_score_update: {
@@ -2271,6 +2313,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_sound: {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const uint8_t sample = read.U8();
         if (replaying && read.hasMore()) {
@@ -2281,6 +2324,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         if (sample < NUM_OF_SAMPLES)
             addThreadMessage(new TM_Sound(sample));
         #endif
+        */
     }
 
     break; case data_pup_visible: {
@@ -2460,11 +2504,13 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_file_download: {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const uint16_t chunkSize = read.U16();
         const uint8_t last = read.U8();
         process_udp_download_chunk(read.block(chunkSize), (last != 0));
         #endif
+        */
     }
 
     break; case data_registration_response:
@@ -2655,9 +2701,11 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         const bool flag_defended = attacker & 0x20;
         #endif
         const bool flag = target & 0x80;
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = target & 0x40;
         #endif
+        */
         attacker &= 0x1F;
         target &= 0x1F;
         if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
@@ -2666,6 +2714,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         const bool target_team = target / TSIZE;
         const bool same_team = (attacker_team == target_team);
         const bool known_attacker = fx.player[attacker].used;
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         string msg;
         if (cause == DT_deathbringer) {
@@ -2728,6 +2777,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
         if (target == me)
             deadAfterHighlighted = true;
         #endif // !DEDICATED_SERVER_ONLY
+        */
         if (!same_team) {
             if (known_attacker)
                 fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
@@ -2741,6 +2791,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
                 fx.player[attacker].stats().add_carrier_kill();
             fx.player[target].stats().add_flag_drop(time);
             fx.teams[target_team].add_flag_drop();
+            /* #@refactor
             #ifndef DEDICATED_SERVER_ONLY
             if (wild_flag)
                 msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
@@ -2752,7 +2803,9 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
                 addThreadMessage(new TM_Text(msg_info, msg));
             addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
             #endif
+            */
         }
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
             if (attacker == me)
@@ -2762,6 +2815,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
                 addThreadMessage(new TM_Text(msg_info, msg));
         }
         #endif
+        */
     }
 
     break; case data_flag_take: {
@@ -2862,10 +2916,12 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
             addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
             #endif
         }
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         if (player_on_screen_exact(pid))
             addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
         #endif
+        */
     }
 
     break; case data_players_present: {    // this is only sent immediately after connecting to the server
@@ -3271,7 +3327,7 @@ bool Client::process_message(ConstDataBlockRef data) throw () {
     return true;
 }
 
-void Client::process_incoming_data(ConstDataBlockRef data) throw () {
+void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
     Lock ml(frameMutex);
 
     if (!connected && !replaying) // means that the connection notification is still in the thread message queue
@@ -3280,6 +3336,7 @@ void Client::process_incoming_data(ConstDataBlockRef data) throw () {
     lastpackettime = get_time();
 
     if (replaying) {
+        /* #@refactor
         #ifndef DEDICATED_SERVER_ONLY
         const int frameSize = process_replay_frame_data(data);
         BinaryDataBlockReader read(data);
@@ -3291,6 +3348,7 @@ void Client::process_incoming_data(ConstDataBlockRef data) throw () {
                 return;
             }
         #endif
+        */
     }
     else {
         if (!process_live_frame_data(data)) {
@@ -3314,7 +3372,7 @@ void Client::process_incoming_data(ConstDataBlockRef data) throw () {
 
 #ifndef DEDICATED_SERVER_ONLY
 //send chat message
-void Client::send_chat(const string& text) throw () {
+void GuiClient::send_chat(const string& text) throw () {
     if (text.empty() || text == "." || isFlood(text))
         return;
     BinaryBuffer<256> msg;
@@ -3324,7 +3382,7 @@ void Client::send_chat(const string& text) throw () {
 }
 
 //print message to "console"
-void Client::print_message(Message_type type, const string& msg, int sender_team) throw () {
+void GuiClient::print_message(Message_type type, const string& msg, int sender_team) throw () {
     if (botmode)
         return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
@@ -3352,7 +3410,7 @@ void Client::print_message(Message_type type, const string& msg, int sender_team
     }
 }
 
-void Client::save_screenshot() throw () {
+void GuiClient::save_screenshot() throw () {
     string filename;
     for (int i = 0; i < 1000; i++) {
         // filename: screens/outgxxx.ext
@@ -3374,7 +3432,7 @@ void Client::save_screenshot() throw () {
 }
 
 //toggle help screen
-void Client::toggle_help() throw () {
+void GuiClient::toggle_help() throw () {
     if (openMenus.safeTop() == &menu.help.menu)
         openMenus.close();
     else
@@ -3382,7 +3440,7 @@ void Client::toggle_help() throw () {
 }
 #endif
 
-void Client::handlePendingThreadMessages() throw () {    // should only be called by the main thread
+void ClientBase::handlePendingThreadMessages() throw () {    // should only be called by the main thread
     while (!messageQueue.empty()) {
         ThreadMessage* msg = messageQueue.front();
         messageQueue.pop_front();
@@ -3392,7 +3450,7 @@ void Client::handlePendingThreadMessages() throw () {    // should only be calle
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-string Client::refreshStatusAsString() const throw () {
+string GuiClient::refreshStatusAsString() const throw () {
     switch (refreshStatus) {
     /*break;*/ case RS_none:       return _("Inactive");
         break; case RS_running:    return _("Running");
@@ -3405,7 +3463,7 @@ string Client::refreshStatusAsString() const throw () {
     nAssert(0); return 0;
 }
 
-void Client::getServerListThread() throw () {
+void GuiClient::getServerListThread() throw () {
     nAssert(refreshStatus == RS_running);
 
     // get server list and refresh
@@ -3419,12 +3477,12 @@ void Client::getServerListThread() throw () {
     refreshStatus = ok ? RS_none : RS_failed;
 }
 
-void Client::refreshThread() throw () {
+void GuiClient::refreshThread() throw () {
     nAssert(refreshStatus == RS_running);
     refreshStatus = refresh_all_servers() ? RS_none : RS_failed;
 }
 
-class TempPingData {    // internal to Client::refresh_all_servers
+class TempPingData {    // internal to GuiClient::refresh_all_servers
     double st[4];   // send time
     int rc;         // count of received packets
     double rt;      // sum of pings (for averaging)
@@ -3437,7 +3495,7 @@ public:
     int ping() const throw () { return static_cast<int>(1000 * rt / rc); }
 };
 
-bool Client::refresh_all_servers() throw () {
+bool GuiClient::refresh_all_servers() throw () {
     refreshStatus = RS_contacting;
 
     serverListMutex.lock();
@@ -3554,7 +3612,7 @@ bool Client::refresh_all_servers() throw () {
     return true;
 }
 
-bool Client::getServerList() throw () {
+bool GuiClient::getServerList() throw () {
     if (!g_masterSettings.address().valid())
         return false;
 
@@ -3593,7 +3651,7 @@ bool Client::getServerList() throw () {
     }
 }
 
-bool Client::get_local_servers() throw () {
+bool GuiClient::get_local_servers() throw () {
     refreshStatus = RS_connecting;
 
     try {
@@ -3633,7 +3691,7 @@ bool Client::get_local_servers() throw () {
     }
 }
 
-bool Client::parseServerList(istream& response) throw () {
+bool GuiClient::parseServerList(istream& response) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 
     string line, empty;
@@ -3713,7 +3771,7 @@ bool Client::parseServerList(istream& response) throw () {
     return true;
 }
 
-void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+void GuiClient::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
@@ -3816,7 +3874,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     handleGameKeypress(sc, ch, withControl, alt_sequence);
 }
 
-bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+bool GuiClient::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     (void)(withControl & alt_sequence);
     if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
         return false;
@@ -3890,7 +3948,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
     }
 }
 
-void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     if (key[KEY_P] && !replaying)         // ping setting
         if (sc == KEY_PLUS_PAD) {
             print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
@@ -4028,7 +4086,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
     }
 }
 
-void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
+void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     nAssert(quitFlag);
     quitCommand = false;
 
@@ -4339,7 +4397,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void Client::start_replay(const std::string& filename) throw () {
+void GuiClient::start_replay(const std::string& filename) throw () {
     disconnect_command();
     stop_replay();
     openMenus.clear();
@@ -4351,7 +4409,7 @@ void Client::start_replay(const std::string& filename) throw () {
         replay.close();
 }
 
-bool Client::start_replay(istream& replay) throw () {
+bool GuiClient::start_replay(istream& replay) throw () {
     BinaryStreamReader read(replay);
 
     const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
@@ -4445,14 +4503,14 @@ bool Client::start_replay(istream& replay) throw () {
     return true;
 }
 
-void Client::continue_replay() throw () {
+void GuiClient::continue_replay() throw () {
     if (spectating)
         continue_replay(spectate_buffer);
     else
         continue_replay(replay);
 }
 
-void Client::continue_replay(istream& in) throw () {
+void GuiClient::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
     BinaryStreamReader read(in);
     try {
@@ -4467,7 +4525,7 @@ void Client::continue_replay(istream& in) throw () {
     }
 }
 
-void Client::stop_replay() throw () {
+void GuiClient::stop_replay() throw () {
     if (!replaying)
         return;
 
@@ -4486,7 +4544,7 @@ void Client::stop_replay() throw () {
     menusel = menu_none;
 }
 
-void Client::start_spectating(const string& host) throw () {
+void GuiClient::start_spectating(const string& host) throw () {
     Network::Address addr;
     Network::ResolveError err;
     if (!addr.tryResolve(host, &err))
@@ -4497,7 +4555,7 @@ void Client::start_spectating(const string& host) throw () {
         start_spectating(addr);
 }
 
-void Client::start_spectating(const Network::Address& address) throw () {
+void GuiClient::start_spectating(const Network::Address& address) throw () {
     disconnect_command();
     stop_replay();
 
@@ -4539,7 +4597,7 @@ void Client::start_spectating(const Network::Address& address) throw () {
     showMenu(m_connectProgress);
 }
 
-void Client::continue_spectating() throw () {
+void GuiClient::continue_spectating() throw () {
     if (!spectate_socket.isOpen()) {
         log.error(_("Connection to the server closed."));
         openMenus.close(&m_connectProgress.menu);
@@ -4579,7 +4637,7 @@ void Client::continue_spectating() throw () {
 }
 #endif // !DEDICATED_SERVER_ONLY
 
-void Client::bot_loop() throw () {
+void Robot::bot_loop() throw () {
     Lock ml(frameMutex);
 
     handlePendingThreadMessages();
@@ -4601,18 +4659,19 @@ void Client::bot_loop() throw () {
 
     fx.cleanOldDeathbringerExplosions();
 
-    ClientControls controls = Robot();
+    ClientControls controls = RobotMain();
     controls.clearModifiersIfIdle();
     bot_send_frame(controls);
 }
 
-void Client::stop() throw () {
+void ClientBase::stop() throw () {
     log("Client exiting: stop() called");
 
     abortThreads = true;
 
     //at least disconnect
     disconnect_command();
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
     #endif
@@ -4700,10 +4759,12 @@ void Client::stop() throw () {
 
     log("Client stop() completed");
     #endif
+    */
 }
 
-void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
+void ClientBase::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
     fx.rock[rid].owner = -1;   // erase from clientside simulation
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
     if (botmode)
@@ -4723,16 +4784,19 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
     #else
     (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
     #endif
+    */
+    (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
 }
 
-void Client::rocketOutOfBoundsCallback(int rid) throw () {
+void ClientBase::rocketOutOfBoundsCallback(int rid) throw () {
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
     #endif
 }
 
-void Client::playerHitWallCallback(int pid) throw () {
+void ClientBase::playerHitWallCallback(int pid) throw () {
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
@@ -4743,9 +4807,12 @@ void Client::playerHitWallCallback(int pid) throw () {
     #else
     (void)pid;
     #endif
+    */
+    (void)pid;
 }
 
-void Client::playerHitPlayerCallback(int pid1, int pid2) throw () {
+void ClientBase::playerHitPlayerCallback(int pid1, int pid2) throw () {
+    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
@@ -4757,13 +4824,15 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) throw () {
     #else
     (void)pid1; (void)pid2;
     #endif
+    */
+    (void)pid1; (void)pid2;
 }
 
-bool Client::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
+bool ClientBase::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
     return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
 }
 
-void Client::remove_useless_flags() throw () {
+void ClientBase::remove_useless_flags() throw () {
     for (int i = 0; i < 3; i++)
         if (remove_flags & (0x01 << i)) {
             fx.remove_team_flags(i);
@@ -4774,7 +4843,7 @@ void Client::remove_useless_flags() throw () {
 }
 
 #ifndef DEDICATED_SERVER_ONLY
-void Client::play_sound(int sample) throw () {
+void GuiClient::play_sound(int sample) throw () {
     int freq = 1000;
     if (replaying) {
         if (replay_rate > 10)
@@ -4784,7 +4853,7 @@ void Client::play_sound(int sample) throw () {
     client_sounds.play(sample, freq);
 }
 
-WorldCoords Client::playerPos(int pid) const throw () {
+WorldCoords GuiClient::playerPos(int pid) const throw () {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
     return WorldCoords(world.player[pid].roomx,
                        world.player[pid].roomy,
@@ -4816,7 +4885,7 @@ static pair<int, double> splitCompositeCoord(double comp, int roomSize, int mapS
     return pair<int, double>(positiveModulo(iround(comp - local), mapSize), local * roomSize); // iround because of inaccuracies; it should be very close to integral really
 }
 
-WorldCoords Client::viewTopLeft() const throw () {
+WorldCoords GuiClient::viewTopLeft() const throw () {
     if (!map_ready)
         return WorldCoords(0, 0, 0, 0);
     else if (me < 0)
@@ -4833,13 +4902,13 @@ WorldCoords Client::viewTopLeft() const throw () {
     }
 }
 
-pair<int, int> Client::topLeftRoom() const throw () {
+pair<int, int> GuiClient::topLeftRoom() const throw () {
     const WorldCoords c = viewTopLeft();
     return pair<int, int>(c.px, c.py);
 }
 
 //draw the whole game screen
-void Client::draw_game_frame() throw () {    // call with frameMutex locked
+void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0;
 
@@ -4967,13 +5036,13 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
     }
 }
 
-bool Client::on_screen(int x, int y) const throw () {
+bool GuiClient::on_screen(int x, int y) const throw () {
     const WorldCoords topLeft = viewTopLeft();
     return positiveModulo(x - topLeft.px, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
            positiveModulo(y - topLeft.py, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
 }
 
-bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
+bool GuiClient::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
     const int mapw = fx.map.w * plw,
               maph = fx.map.h * plh;
     const double x = rx * plw + lx,
@@ -4986,20 +5055,20 @@ bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const
     return relX < graphics.get_visible_rooms_x() * plw + 2 * fudge && relY < graphics.get_visible_rooms_y() * plh + 2 * fudge;
 }
 
-bool Client::on_screen_exact(int x, int y) const throw () {
+bool GuiClient::on_screen_exact(int x, int y) const throw () {
     if (replaying)
         return on_screen(x, y);
     else
         return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
-bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
+bool GuiClient::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
     if (!on_screen(rx, ry, lx, ly, fudge))
         return false;
     return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
 }
 
-bool Client::player_on_screen(int pid) const throw () {
+bool GuiClient::player_on_screen(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (fx.player[pid].posUpdated >= fx.frame - 20 || fx.player[pid].dead && fx.player[pid].posUpdated >= 0)
@@ -5008,7 +5077,7 @@ bool Client::player_on_screen(int pid) const throw () {
         return false;
 }
 
-bool Client::player_on_screen_exact(int pid) const throw () {
+bool GuiClient::player_on_screen_exact(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (replaying)
@@ -5017,7 +5086,7 @@ bool Client::player_on_screen_exact(int pid) const throw () {
         return fx.player[pid].onscreen;
 }
 
-void Client::draw_map(const VisibilityMap& roomVis) throw () {
+void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
     const double time = fd.frame / 10;
 
     // paint fog of war in all invisible rooms
@@ -5064,7 +5133,7 @@ void Client::draw_map(const VisibilityMap& roomVis) throw () {
         }
 }
 
-void Client::draw_playfield() throw () {
+void GuiClient::draw_playfield() throw () {
     const double time = fd.frame / 10;
     const bool live = !replaying || !replay_paused && !replay_stopped;
 
@@ -5233,7 +5302,7 @@ void Client::draw_playfield() throw () {
     graphics.endPlayfieldDraw();
 }
 
-Client::VisibilityMap Client::calculateVisibilities() throw () {
+GuiClient::VisibilityMap GuiClient::calculateVisibilities() throw () {
     const double time = fd.frame / 10;
 
     VisibilityMap roomVis(fx.map.w);
@@ -5267,7 +5336,7 @@ Client::VisibilityMap Client::calculateVisibilities() throw () {
     return roomVis;
 }
 
-int Client::calculatePlayerAlpha(int pid) const throw () {
+int GuiClient::calculatePlayerAlpha(int pid) const throw () {
     static const int min_alpha_friends = 128;
     const int baseAlpha = fd.player[pid].visibility;
     if ((replaying || fx.player[pid].team() == fx.player[me].team()) && baseAlpha < min_alpha_friends)
@@ -5276,7 +5345,7 @@ int Client::calculatePlayerAlpha(int pid) const throw () {
         return baseAlpha;
 }
 
-void Client::draw_player(int pid, double time, bool live) throw () {
+void GuiClient::draw_player(int pid, double time, bool live) throw () {
     ClientPlayer& player = fx.player[pid];
     const bool fullyVisible = player_on_screen_exact(pid);
     const int alpha = fullyVisible ? calculatePlayerAlpha(pid) : fx.player[pid].alpha * 2 / 3;
@@ -5343,7 +5412,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
 }
 
 //draws the game menu
-void Client::draw_game_menu() throw () {
+void GuiClient::draw_game_menu() throw () {
     switch (menusel) {
     /*break;*/ case menu_maps: {
             Lock ml(mapInfoMutex);
@@ -5372,94 +5441,94 @@ void Client::draw_game_menu() throw () {
         openMenus.draw(graphics.drawbuffer(), graphics.colours());
 }
 
-void Client::initMenus() throw () {
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
-                          new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
+void GuiClient::initMenus() throw () {
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.connect.addHooks(new MCB::A<Textarea, &GuiClient::MCF_connect>(this),
+                          new MKC::A<Textarea, &GuiClient::MCF_addRemoveServer>(this));
 
-    menu.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
+    menu.initialize(new MCB::A<Menu, &GuiClient::MCF_menuOpener>(this), settings);
 
-    menu.menu                       .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareMainMenu        >(this));
+    menu.menu                       .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareMainMenu        >(this));
 
-    menu.disconnect                     .setHook(new MCB::N<Textarea,       &Client::MCF_disconnect             >(this));
-    menu.exitOutgun                     .setHook(new MCB::N<Textarea,       &Client::MCF_exitOutgun             >(this));
+    menu.disconnect                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_disconnect             >(this));
+    menu.exitOutgun                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_exitOutgun             >(this));
 
-    menu.connect.menu               .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareServerMenu      >(this));
-    menu.connect.menu               .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareServerMenu      >(this));   //#fix: inefficient!
-    menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &Client::MCF_prepareServerMenu      >(this));
-    menu.connect.update                 .setHook(new MCB::N<Textarea,       &Client::MCF_updateServers          >(this));
-    menu.connect.refresh                .setHook(new MCB::N<Textarea,       &Client::MCF_refreshServers         >(this));
-    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &Client::MCF_addressEntryKeyHandler >(this));
+    menu.connect.menu               .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareServerMenu      >(this));
+    menu.connect.menu               .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareServerMenu      >(this));   //#fix: inefficient!
+    menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_prepareServerMenu      >(this));
+    menu.connect.update                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_updateServers          >(this));
+    menu.connect.refresh                .setHook(new MCB::N<Textarea,       &GuiClient::MCF_refreshServers         >(this));
+    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &GuiClient::MCF_addressEntryKeyHandler >(this));
 
-    menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
-    menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));
+    menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareAddServer       >(this));
+    menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_addServer              >(this));
 
-    menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &Client::MCF_spectateEntryKeyHandler>(this));
+    menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &GuiClient::MCF_spectateEntryKeyHandler>(this));
 
-    menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_preparePlayerMenu      >(this));
-    menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawPlayerMenu  >(this));
-    menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &Client::MCF_playerMenuClose        >(this));
-    menu.options.player.name            .setHook(new MCB::N<Textfield,      &Client::MCF_nameChange             >(this));
-    menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &Client::MCF_randomName             >(this));
-    menu.options.player.favoriteColors  .setHook(new MCB::N<Colorselect,    &Client::sendFavoriteColors         >(this));
-    menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
+    menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_preparePlayerMenu      >(this));
+    menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareDrawPlayerMenu  >(this));
+    menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_playerMenuClose        >(this));
+    menu.options.player.name            .setHook(new MCB::N<Textfield,      &GuiClient::MCF_nameChange             >(this));
+    menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &GuiClient::MCF_randomName             >(this));
+    menu.options.player.favoriteColors  .setHook(new MCB::N<Colorselect,    &GuiClient::sendFavoriteColors         >(this));
+    menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &GuiClient::MCF_removePasswords        >(this));
 
-    menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
-    menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &Client::sendMinimapBandwidth       >(this));
+    menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareGameMenu        >(this));
+    menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &GuiClient::sendMinimapBandwidth       >(this));
     typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
-    menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &Client::MCF_messageLogging         >(this));
+    menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &GuiClient::MCF_messageLogging         >(this));
 
-    menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareControlsMenu    >(this));
-    menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &Client::MCF_keyboardLayout         >(this));
-    menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &Client::MCF_joystick               >(this));
+    menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareControlsMenu    >(this));
+    menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &GuiClient::MCF_keyboardLayout         >(this));
+    menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_joystick               >(this));
 
-    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareScrModeMenu     >(this));
-    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawScrModeMenu >(this));
-    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
-    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareScrModeMenu     >(this));
+    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareDrawScrModeMenu >(this));
+    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_screenModeChange       >(this));
+    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &GuiClient::MCF_screenDepthChange      >(this));
+    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &GuiClient::MCF_screenModeChange       >(this));
 
-    menu.options.theme.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxThemeMenu     >(this));
-    menu.options.theme.theme             .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
+    menu.options.theme.menu          .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareGfxThemeMenu     >(this));
+    menu.options.theme.theme             .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.background        .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.font              .setHook(new MCB::N<Select<string>, &GuiClient::MCF_fontChange              >(this));
 
-    menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));
-    menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsReplayChange>(this));
-    menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange         >(this));
-    menu.options.graphics.minTransp         .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange            >(this));
-    menu.options.graphics.statsBgAlpha      .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange           >(this));
+    menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &GuiClient::MCF_visibleRoomsPlayChange  >(this));
+    menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &GuiClient::MCF_visibleRoomsReplayChange>(this));
+    menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_antialiasChange         >(this));
+    menu.options.graphics.minTransp         .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_transpChange            >(this));
+    menu.options.graphics.statsBgAlpha      .setHook(new MCB::N<Slider,         &GuiClient::MCF_statsBgChange           >(this));
 
-    menu.options.sounds.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareSndMenu         >(this));
-    menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &Client::MCF_sndEnableChange        >(this));
-    menu.options.sounds.volume          .setHook(new MCB::N<Slider,         &Client::MCF_sndVolumeChange        >(this));
-    menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &Client::MCF_sndThemeChange         >(this));
+    menu.options.sounds.menu        .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareSndMenu         >(this));
+    menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_sndEnableChange        >(this));
+    menu.options.sounds.volume          .setHook(new MCB::N<Slider,         &GuiClient::MCF_sndVolumeChange        >(this));
+    menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &GuiClient::MCF_sndThemeChange         >(this));
 
-    menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_refreshLanguages       >(this));
+    menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_refreshLanguages       >(this));
 
-    menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
-    menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
+    menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
+    menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_menuCloser             >(this));
 
-    menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareOwnServerMenu   >(this));
-    menu.ownServer.start                .setHook(new MCB::N<Textarea,       &Client::MCF_startServer            >(this));
-    menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &Client::MCF_playServer             >(this));
-    menu.ownServer.stop                 .setHook(new MCB::N<Textarea,       &Client::MCF_stopServer             >(this));
+    menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareOwnServerMenu   >(this));
+    menu.ownServer.start                .setHook(new MCB::N<Textarea,       &GuiClient::MCF_startServer            >(this));
+    menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_playServer             >(this));
+    menu.ownServer.stop                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_stopServer             >(this));
 
-    menu.replays.menu               .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareReplayMenu      >(this));
+    menu.replays.menu               .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareReplayMenu      >(this));
 
-    m_playerPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_playerPasswordAccept   >(this));
-    m_serverPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_serverPasswordAccept   >(this));
-    m_connectProgress.accept            .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));
-    m_connectProgress.cancel            .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));
-    m_connectProgress.menu         .setCloseHook(new MCB::N<Menu,           &Client::MCF_cancelConnect          >(this));
-    m_dialog.accept                     .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));   // cancel not used
-    m_errors.accept                     .setHook(new MCB::N<Textarea,       &Client::MCF_clearErrors            >(this));   // cancel not used
-    m_serverInfo.accept                 .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));   // cancel not used
+    m_playerPassword.menu             .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_playerPasswordAccept   >(this));
+    m_serverPassword.menu             .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_serverPasswordAccept   >(this));
+    m_connectProgress.accept            .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));
+    m_connectProgress.cancel            .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));
+    m_connectProgress.menu         .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_cancelConnect          >(this));
+    m_dialog.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
+    m_errors.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_clearErrors            >(this));   // cancel not used
+    m_serverInfo.accept                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
 
     m_errors.menu.setCaption(_("Errors"));
 
@@ -5476,59 +5545,59 @@ void Client::initMenus() throw () {
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
-void Client::MCF_menuOpener(Menu& menu) throw () {
+void GuiClient::MCF_menuOpener(Menu& menu) throw () {
     openMenus.open(&menu);
 }
 
-void Client::MCF_menuCloser() throw () {
+void GuiClient::MCF_menuCloser() throw () {
     openMenus.close();
 }
 
-void Client::MCF_prepareMainMenu() throw () {
+void GuiClient::MCF_prepareMainMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.disconnect.setEnable(connected || spectating);
 }
 
-void Client::MCF_disconnect() throw () {
+void GuiClient::MCF_disconnect() throw () {
     disconnect_command();
     stop_replay();
 }
 
-void Client::MCF_exitOutgun() throw () {
+void GuiClient::MCF_exitOutgun() throw () {
     quitCommand = true;
 }
 
-void Client::MCF_cancelConnect() throw () {
+void GuiClient::MCF_cancelConnect() throw () {
     if (!connected)
         disconnect_command();   // will cancel the (probably) ongoing connect attempt
 }
 
-void Client::MCF_preparePlayerMenu() throw () {
+void GuiClient::MCF_preparePlayerMenu() throw () {
     menu.options.player.name.set(playername);
     menu.options.player.favoriteColors.setGraphicsCallBack(graphics);
 }
 
-void Client::MCF_prepareDrawPlayerMenu() throw () {
+void GuiClient::MCF_prepareDrawPlayerMenu() throw () {
     menu.options.player.namestatus.set(rankingPassword.statusAsString());
 }
 
-void Client::MCF_playerMenuClose() throw () {
+void GuiClient::MCF_playerMenuClose() throw () {
     change_name_command();
     send_ranking_participation();
 }
 
-void Client::MCF_nameChange() throw () { // only function to clear the password
+void GuiClient::MCF_nameChange() throw () { // only function to clear the password
     menu.options.player.password.set("");
     rankingPassword.changeData(playername, "");
 }
 
-void Client::MCF_randomName() throw () {
+void GuiClient::MCF_randomName() throw () {
     const string name = language.code() == "fi" ? finnish_name(maxPlayerNameLength) : RandomName();
     menu.options.player.name.set(name);
     MCF_nameChange();
 }
 
-void Client::MCF_removePasswords() throw () {
+void GuiClient::MCF_removePasswords() throw () {
     const int removed = remove_player_passwords(menu.options.player.name());
     string dialog;
     if (removed == 1)
@@ -5542,10 +5611,10 @@ void Client::MCF_removePasswords() throw () {
     showMenu(m_dialog);
 }
 
-void Client::MCF_prepareGameMenu() throw () {
+void GuiClient::MCF_prepareGameMenu() throw () {
 }
 
-void Client::MCF_prepareControlsMenu() throw () {
+void GuiClient::MCF_prepareControlsMenu() throw () {
     ClientControls ctrl = readControls(true, true);
     string active;
     if (ctrl.isUp())
@@ -5577,60 +5646,60 @@ void Client::MCF_prepareControlsMenu() throw () {
     menu.options.controls.activeMouse.set(active);
 }
 
-void Client::MCF_keyboardLayout() throw () {
+void GuiClient::MCF_keyboardLayout() throw () {
     const string cfg = string("[system]\nkeyboard=") + menu.options.controls.keyboardLayout() + '\n';
     remove_keyboard();
     override_config_data(cfg.data(), cfg.length());
     install_keyboard();
 }
 
-void Client::MCF_joystick() throw () {
+void GuiClient::MCF_joystick() throw () {
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
     else
         remove_joystick();
 }
 
-void Client::MCF_messageLogging() throw () {
+void GuiClient::MCF_messageLogging() throw () {
     if (menu.options.game.messageLogging() != Menu_game::ML_none)
         openMessageLog();
     else
         closeMessageLog();
 }
 
-void Client::MCF_prepareScrModeMenu() throw () {
+void GuiClient::MCF_prepareScrModeMenu() throw () {
     menu.options.screenMode.update(graphics);
 }
 
-void Client::MCF_prepareDrawScrModeMenu() throw () {
+void GuiClient::MCF_prepareDrawScrModeMenu() throw () {
     menu.options.screenMode.flipping.setEnable(!menu.options.screenMode.windowed());
     menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
 }
 
-void Client::MCF_prepareGfxThemeMenu() throw () {
+void GuiClient::MCF_prepareGfxThemeMenu() throw () {
     menu.options.theme.update(graphics);
 }
 
-void Client::MCF_gfxThemeChange() throw () {
+void GuiClient::MCF_gfxThemeChange() throw () {
     graphics.select_theme(menu.options.theme.theme(),
                           menu.options.theme.background(), menu.options.theme.useThemeBackground(),
                           menu.options.theme.colours(), menu.options.theme.useThemeColours());
 }
 
-void Client::MCF_fontChange() throw () {
+void GuiClient::MCF_fontChange() throw () {
     graphics.select_font(menu.options.theme.font());
 }
 
-void Client::MCF_screenDepthChange() throw () {
+void GuiClient::MCF_screenDepthChange() throw () {
     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
 }
 
-void Client::MCF_screenModeChange() throw () {   // used to lose the return value
+void GuiClient::MCF_screenModeChange() throw () {   // used to lose the return value
     const bool ret = screenModeChange();
     nAssert(ret); // it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
 }
 
-bool Client::screenModeChange() throw () {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
+bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
     if (!menu.options.screenMode.newMode())
         return true;
 
@@ -5690,7 +5759,7 @@ bool Client::screenModeChange() throw () {   // returns true whenever Graphics i
     return true;
 }
 
-void Client::MCF_visibleRoomsPlayChange() throw () {
+void GuiClient::MCF_visibleRoomsPlayChange() throw () {
     if (!replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsPlay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5698,7 +5767,7 @@ void Client::MCF_visibleRoomsPlayChange() throw () {
     }
 }
 
-void Client::MCF_visibleRoomsReplayChange() throw () {
+void GuiClient::MCF_visibleRoomsReplayChange() throw () {
     if (replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsReplay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5706,39 +5775,39 @@ void Client::MCF_visibleRoomsReplayChange() throw () {
     }
 }
 
-void Client::MCF_antialiasChange() throw () {
+void GuiClient::MCF_antialiasChange() throw () {
     graphics.set_antialiasing(menu.options.graphics.antialiasing());
 }
 
-void Client::MCF_transpChange() throw () {
+void GuiClient::MCF_transpChange() throw () {
     graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
-void Client::MCF_statsBgChange() throw () {
+void GuiClient::MCF_statsBgChange() throw () {
     graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
-void Client::MCF_prepareSndMenu() throw () {
+void GuiClient::MCF_prepareSndMenu() throw () {
     menu.options.sounds.update(client_sounds);
 }
 
-void Client::MCF_sndEnableChange() throw () {
+void GuiClient::MCF_sndEnableChange() throw () {
     client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
-void Client::MCF_sndVolumeChange() throw () {
+void GuiClient::MCF_sndVolumeChange() throw () {
     client_sounds.setVolume(menu.options.sounds.volume());
     client_sounds.play(SAMPLE_POWER_FIRE, 1000);
 }
 
-void Client::MCF_sndThemeChange() throw () {
+void GuiClient::MCF_sndThemeChange() throw () {
     client_sounds.select_theme(menu.options.sounds.theme());
 }
 
-void Client::MCF_refreshLanguages() throw () {
+void GuiClient::MCF_refreshLanguages() throw () {
     const int menu_selection_index = refreshLanguages(menu.options.language);
-    typedef MenuCallback<Client> MCB;
-    menu.options.language.addHooks(new MCB::A<Textarea, &Client::MCF_acceptLanguage>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    menu.options.language.addHooks(new MCB::A<Textarea, &GuiClient::MCF_acceptLanguage>(this));
     menu.options.language.menu.setSelection(menu_selection_index);
 }
 
@@ -5748,7 +5817,7 @@ bool translationSort(const pair<string, string>& t1, const pair<string, string>&
     return platStricmp(t1.second.c_str(), t2.second.c_str()) < 0;
 }
 
-int Client::refreshLanguages(Menu_language& lang_menu) throw () {
+int GuiClient::refreshLanguages(Menu_language& lang_menu) throw () {
     lang_menu.reset();
 
     // search the languages directory for translations to add
@@ -5789,19 +5858,19 @@ int Client::refreshLanguages(Menu_language& lang_menu) throw () {
     return current_lang_index;
 }
 
-void Client::MCF_acceptLanguage(Textarea& target) throw () {
+void GuiClient::MCF_acceptLanguage(Textarea& target) throw () {
     const string lang_code = menu.options.language.getCode(target);
     MCF_menuCloser();
     acceptLanguage(lang_code, true);
 }
 
-void Client::MCF_acceptInitialLanguage(Textarea& target) throw () {
+void GuiClient::MCF_acceptInitialLanguage(Textarea& target) throw () {
     const string lang_code = m_initialLanguage.getCode(target);
     MCF_menuCloser();
     acceptLanguage(lang_code, false);
 }
 
-void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
+void GuiClient::acceptLanguage(const string& lang, bool restart_message) throw () {
     Language newLang;
     if (!newLang.load(lang, log))
         return; // load already logs an error message
@@ -5819,7 +5888,7 @@ void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
         log.error(_("config/language.txt can't be written."));
 }
 
-void Client::MCF_acceptBugReporting() throw () {
+void GuiClient::MCF_acceptBugReporting() throw () {
     g_autoBugReporting = menu.options.bugReports.policy();
     const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
     ofstream os(main_cfg_file.c_str());
@@ -5836,7 +5905,7 @@ void Client::MCF_acceptBugReporting() throw () {
         log.error(_("Can't open $1 for writing.", main_cfg_file));
 }
 
-void Client::MCF_playerPasswordAccept() throw () {
+void GuiClient::MCF_playerPasswordAccept() throw () {
     if (m_playerPassword.password().empty()) // if no password is needed, we're never asked for one (even if we gave a wrong one)
         return;
     openMenus.close(&m_playerPassword.menu);
@@ -5848,18 +5917,18 @@ void Client::MCF_playerPasswordAccept() throw () {
         connect_command(false);
 }
 
-void Client::MCF_serverPasswordAccept() throw () {
+void GuiClient::MCF_serverPasswordAccept() throw () {
     openMenus.close(&m_serverPassword.menu);
     nAssert(!connected);
     connect_command(false);
 }
 
-void Client::MCF_clearErrors() throw () {
+void GuiClient::MCF_clearErrors() throw () {
     openMenus.close(&m_errors.menu);
     m_errors.clear();
 }
 
-void Client::MCF_prepareServerMenu() throw () {
+void GuiClient::MCF_prepareServerMenu() throw () {
     const int oldSel = menu.connect.menu.selection();
 
     menu.connect.reset();
@@ -5906,10 +5975,10 @@ void Client::MCF_prepareServerMenu() throw () {
             }
     serverListMutex.unlock();
 
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
-                          new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.connect.addHooks(new MCB::A<Textarea, &GuiClient::MCF_connect>(this),
+                          new MKC::A<Textarea, &GuiClient::MCF_addRemoveServer>(this));
     const bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
     menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
     menu.connect.refresh.setEnable(!refreshActive);
@@ -5918,12 +5987,12 @@ void Client::MCF_prepareServerMenu() throw () {
     menu.connect.menu.setSelection(oldSel);
 }
 
-void Client::MCF_prepareAddServer() throw () {
+void GuiClient::MCF_prepareAddServer() throw () {
     menu.connect.addServer.save.set(menu.connect.favorites());
     menu.connect.addServer.address.set("");
 }
 
-void Client::MCF_addServer() throw () {
+void GuiClient::MCF_addServer() throw () {
     if (!menu.connect.addServer.address().empty()) {
         ServerListEntry spy;
         if (!spy.setAddress(menu.connect.addServer.address())) {
@@ -5940,7 +6009,7 @@ void Client::MCF_addServer() throw () {
     MCF_menuCloser();
 }
 
-bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan != KEY_ENTER && scan != KEY_INSERT)
         return false;
@@ -5967,7 +6036,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
     return true;
 }
 
-bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan == KEY_DEL) {
         vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
@@ -5991,31 +6060,31 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
     return false;
 }
 
-void Client::MCF_connect(Textarea& target) throw () {
+void GuiClient::MCF_connect(Textarea& target) throw () {
     serverIP = menu.connect.getAddress(target);
     m_serverPassword.password.set("");
     connect_command(true);
 }
 
-void Client::MCF_updateServers() throw () {
+void GuiClient::MCF_updateServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert("Client::getServerListThread",
-                                           RedirectToMemFun0<Client, void>(this, &Client::getServerListThread),
+        Thread::startDetachedThread_assert("GuiClient::getServerListThread",
+                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::getServerListThread),
                                            extConfig.lowerPriority);
     }
 }
 
-void Client::MCF_refreshServers() throw () {
+void GuiClient::MCF_refreshServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert("Client::refreshThread",
-                                           RedirectToMemFun0<Client, void>(this, &Client::refreshThread),
+        Thread::startDetachedThread_assert("GuiClient::refreshThread",
+                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::refreshThread),
                                            extConfig.lowerPriority);
     }
 }
 
-bool Client::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan != KEY_ENTER)
         return false;
@@ -6024,12 +6093,12 @@ bool Client::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () 
     return true; // the key is considered handled even if it has no effect when the field is empty
 }
 
-void Client::MCF_prepareOwnServerMenu() throw () {
+void GuiClient::MCF_prepareOwnServerMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.ownServer.refreshEnables(listenServer.running(), connected);
 }
 
-void Client::MCF_startServer() throw () {
+void GuiClient::MCF_startServer() throw () {
     if (!listenServer.running()) {
         serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
         serverExtConfig.port = menu.ownServer.port();
@@ -6040,7 +6109,7 @@ void Client::MCF_startServer() throw () {
     }
 }
 
-void Client::MCF_playServer() throw () {
+void GuiClient::MCF_playServer() throw () {
     if (listenServer.running()) {
         serverIP.fromValidIP("127.0.0.1");
         serverIP.setPort(listenServer.port());
@@ -6050,18 +6119,18 @@ void Client::MCF_playServer() throw () {
     }
 }
 
-void Client::MCF_stopServer() throw () {
+void GuiClient::MCF_stopServer() throw () {
     if (listenServer.running())
         listenServer.stop();
 }
 
-void Client::MCF_replay(Textarea& target) throw () {
+void GuiClient::MCF_replay(Textarea& target) throw () {
     const string& replay_name = menu.replays.getFile(target);
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
 
-void Client::MCF_prepareReplayMenu() throw () {
+void GuiClient::MCF_prepareReplayMenu() throw () {
     menu.replays.reset();
     vector<pair<string, string> > replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
@@ -6101,12 +6170,12 @@ void Client::MCF_prepareReplayMenu() throw () {
     for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second);
 
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.replays.addHooks(new MCB::A<Textarea, &Client::MCF_replay>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
 }
 
-void Client::load_highlight_texts() throw () {
+void GuiClient::load_highlight_texts() throw () {
     highlight_text.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "texts.txt";
     ifstream in(configFile.c_str());
@@ -6115,7 +6184,7 @@ void Client::load_highlight_texts() throw () {
         highlight_text.push_back(toupper(trim(line)));
 }
 
-void Client::load_fav_maps() throw () {
+void GuiClient::load_fav_maps() throw () {
     fav_maps.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
@@ -6124,13 +6193,13 @@ void Client::load_fav_maps() throw () {
         fav_maps.insert(toupper(trim(line)));
 }
 
-void Client::apply_fav_maps() throw () {
+void GuiClient::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
         mi->highlight = !!fav_maps.count(toupper(mi->title));
     mapListChangedAfterSort = true;
 }
 
-void Client::loadHelp() throw () {
+void GuiClient::loadHelp() throw () {
     menu.help.clear();
     const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
@@ -6143,13 +6212,13 @@ void Client::loadHelp() throw () {
         menu.help.addLine(line);
 }
 
-void Client::addSplashLine(string line) throw () { // internal to loadSplashScreen
+void GuiClient::addSplashLine(string line) throw () { // internal to loadSplashScreen
     replace_all_in_place(line, "@VERSION@", getVersionString());
     replace_all_in_place(line, "@YEAR@", GAME_COPYRIGHT_YEAR);
     menu.options.bugReports.addLine(line);
 }
 
-void Client::loadSplashScreen() throw () {
+void GuiClient::loadSplashScreen() throw () {
     menu.options.bugReports.clear();
     const string splashFile = wheregamedir + "languages" + directory_separator + "splash." + language.code() + ".txt";
     ifstream in(splashFile.c_str());
@@ -6185,7 +6254,7 @@ void Client::loadSplashScreen() throw () {
     }
 }
 
-void Client::openMessageLog() throw () {
+void GuiClient::openMessageLog() throw () {
     if (!messageLogOpen) {
         message_log.clear();    // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
         message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
@@ -6193,14 +6262,14 @@ void Client::openMessageLog() throw () {
     }
 }
 
-void Client::closeMessageLog() throw () {
+void GuiClient::closeMessageLog() throw () {
     if (messageLogOpen) {
         message_log.close();
         messageLogOpen = false;
     }
 }
 
-void Client::CB_rankingToken(string token) throw () { // callback called by rankingPassword from another thread
+void GuiClient::CB_rankingToken(string token) throw () { // callback called by rankingPassword from another thread
     if (connected) {
         BinaryBuffer<256> msg;
         msg.U8(data_registration_token);
@@ -6211,20 +6280,22 @@ void Client::CB_rankingToken(string token) throw () { // callback called by rank
 }
 #endif
 
-void Client::cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw () {
-    Client* cl = static_cast<Client*>(customp);
+void ClientBase::cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw () {
+    ClientBase* cl = static_cast<ClientBase*>(customp);
     cl->connection_update(connect_result, data);
 }
 
-void Client::connection_update(int connect_result, ConstDataBlockRef data) throw () {
+void ClientBase::connection_update(int connect_result, ConstDataBlockRef data) throw () {
     addThreadMessage(new TM_ConnectionUpdate(connect_result, data));
 }
 
-void Client::cfunc_server_data(void* customp, ConstDataBlockRef data) throw () {
-    Client* cl = static_cast<Client*>(customp);
+void ClientBase::cfunc_server_data(void* customp, ConstDataBlockRef data) throw () {
+    ClientBase* cl = static_cast<ClientBase*>(customp);
     cl->process_incoming_data(data);
 }
 
+/* #@refactor
 ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
     return new Client(config, serverConfig, clientLog, externalErrorLog_);
 }
+*/

@@ -341,7 +341,7 @@ public:
     void release() throw () { if (acquired) { storage.release(mid); acquired = false; } }
 };
 
-class Client;
+class ClientBase;
 class client_c; // of leetnet
 class client_runes_t;
 
@@ -350,13 +350,13 @@ class client_runes_t;
  * Note: they will be executed in order relative to each other but out of order relative to messages processed in the network thread.
  * Handling anything that isn't protected by mutexes (frameMutex and downloadMutex) should be applied only through the ThreadMessage queue.
  */
-class ThreadMessage {   // the subclasses (named starting with TM_) are direct property of the Client class and internally declared in client.cpp
+class ThreadMessage {   // the subclasses (named starting with TM_) are direct property of the ClientBase class and internally declared in client.cpp
 public:
     virtual ~ThreadMessage() throw () { }
-    virtual void execute(Client* cl) const throw () = 0;
+    virtual void execute(ClientBase* cl) const throw () = 0;
 };
 
-class Client : public ClientInterface {
+class ClientBase : public ClientInterface {
     friend class ClientPhysicsCallbacks;
     friend class TM_DoDisconnect;
     friend class TM_Text;
@@ -369,6 +369,8 @@ class Client : public ClientInterface {
     #endif
     friend class TM_ConnectionUpdate;
 
+protected:
+
     static const int disappearedFlagAlpha = 150;
 
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
@@ -377,12 +379,6 @@ class Client : public ClientInterface {
     mutable LogSet log; // this is the only access to logs in normal operation
 
     #ifndef DEDICATED_SERVER_ONLY
-    std::vector<std::vector<std::string> > load_all_player_passwords() const throw ();
-    std::string load_player_password(const std::string& name, const std::string& address) const throw ();
-    void save_player_password(const std::string& name, const std::string& address, const std::string& password) const throw ();
-    void remove_player_password(const std::string& name, const std::string& address) const throw ();
-    int remove_player_passwords(const std::string& name) const throw ();
-
     ServerThreadOwner listenServer;
 
     class SettingManager : public SettingCollector {
@@ -542,23 +538,8 @@ class Client : public ClientInterface {
     int botId;
     bool finished;
 
-    struct TeamCounts {
-        int enemies, friends;
-    };
-
     AreaMap areaMap;
     typedef AreaMap::Area Area;
-
-    void BuildMap() throw ();
-
-          Area* area(int roomx, int roomy, double lx, double ly)       throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
-    const Area* area(int roomx, int roomy, double lx, double ly) const throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
-          Area* area(const WorldCoords& c)       throw () { return area(c.px, c.py, c.x, c.y); }
-    const Area* area(const WorldCoords& c) const throw () { return area(c.px, c.py, c.x, c.y); }
-          Area* area(const ClientPlayer& p)       throw () { return area(p.position()); }
-    const Area* area(const ClientPlayer& p) const throw () { return area(p.position()); }
-          Area* myArea()       throw () { return area(fx.player[me]); }
-    const Area* myArea() const throw () { return area(fx.player[me]); }
 
     Routing     routing[Table_Max];
     const Area* routeTarget[Table_Max];
@@ -566,69 +547,6 @@ class Client : public ClientInterface {
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
-
-    bool        IsDefender() throw (); // am i defender? (role)
-    bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
-    bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
-    int         GetPlayers(int team) const throw (); // get num of players
-    TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
-    bool        IsHome(const Area* a) const throw (); //is it base
-
-    bool        AmILast() const throw ();
-    bool        IsMission(RouteTable num) const throw (); // have i mission? (No agression mode)
-    int         GetEasyEnemy(double mex, double mey) const throw (); // get easy enemy to kill
-    bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
-    int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
-    bool        IsFlagAtBase(const Flag& f, int team) const throw ();
-    int         IsAimed(double mex, double mey, int i) const throw (); // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
-    std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const throw (); // for free turning; returns (shoot?, direction)
-    double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
-    double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
-
-    bool        IsBehindWall(double mex, double mey, double dx, double dy, double radius) const throw ();
-    double      ScanDir(double mex, double mey, GunDirection dir) const throw (); // return length to wall
-    std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw (); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
-    GunDirection GetDir(double dx, double dy) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
-    int         GetDangerousRocket() const throw (); // get danger rocket index
-    int         GetDangerousEnemy(double mex, double mey) const throw (); // same for enemy
-    int         GetNearestEnemy(double mex, double mey) const throw (); // get nearest enemy
-    int         FreeDir(double mex, double mey) const throw (); // maximum free space at front
-
-    ClientControls Aim(double mex, double mey, int i) const throw ();
-    ClientControls EscapeRocket(double mex, double mey, int mrock) const throw ();
-    ClientControls GetFlag(double mex, double mey) const throw ();
-    ClientControls FollowFlag(double mex, double mey) const throw ();
-    ClientControls GetPowerup(double mex, double mey, bool onImportantMission) const throw ();
-    ClientControls MoveDirNoAggregate(int dir) const throw ();
-    ClientControls MoveTo(double mex, double mey, double dx, double dy) const throw ();
-    ClientControls MoveToDoor(double mex, double mey, const Area::Neighbor& n) const throw ();
-    ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const throw ();
-    ClientControls MoveDir(int dir) const throw ();
-    ClientControls Escape(double mex, double mey) const throw ();
-    ClientControls FreeWalk(double mex, double mey) const throw ();
-    ClientControls Route(double mex, double mey, RouteTable num) const throw (); // follow route
-
-    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table (labeled) from single points
-    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
-    int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
-    bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
-
-    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-    void TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
-    int TargetFog(RouteTable num) throw ();
-
-    int TargetRoute(int efb, int efd, int efc,
-                    int mfb, int mfd, int mfc,
-                    int wfb, int wfd, int wfce, int wfcf,
-                    int en,  int fr,
-                    int eb,  int fb, int wb,
-                    RouteTable num) throw ();
-
-    ClientControls getRobotControls() throw ();
-
-    ClientControls Robot() throw ();
 
     volatile bool abortThreads;
 
@@ -693,6 +611,63 @@ class Client : public ClientInterface {
     };
 
     GFXMode workingGfxMode;
+    #endif
+
+    void addThreadMessage(ThreadMessage* msg) throw () { messageQueue.push_back(msg); }
+    void setMaxPlayers(int num) throw () {
+        maxplayers = num;
+        fx.setMaxPlayers(num);
+        #ifndef DEDICATED_SERVER_ONLY
+        fd.setMaxPlayers(num);
+        #endif
+    }
+
+    // world    //#fix: should these be moved to ClientWorld?
+    void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
+    void rocketOutOfBoundsCallback(int rid) throw ();
+    void playerHitWallCallback(int pid) throw ();
+    void playerHitPlayerCallback(int pid1, int pid2) throw ();
+    bool shouldApplyPhysicsToPlayerCallback(int pid) throw ();
+
+    void remove_useless_flags() throw ();
+
+    // network
+    void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
+    void disconnect_command() throw ();  // do not call from a network thread
+    void connection_update(int connect_result, ConstDataBlockRef data) throw ();
+    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    void client_disconnected(ConstDataBlockRef data) throw ();
+    void sendMinimapBandwidthAny(int players) throw ();
+    void issue_change_name_command() throw ();
+    void send_client_ready() throw ();
+    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw ();
+    bool process_live_frame_data(ConstDataBlockRef data) throw (); // returns false if an error occured that requires disconnecting
+    bool process_message(ConstDataBlockRef data) throw (); // if returns false, discard the server/replay
+    void process_incoming_data(ConstDataBlockRef data) throw ();
+
+    void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
+    bool load_map(const std::string& directory, const std::string& mapname, uint16_t server_crc) throw ();
+
+    void handlePendingThreadMessages() throw (); // should only be called by the main thread; call with frameMutex locked
+
+    // client callbacks
+    static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
+    static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
+
+public:
+    ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    ~ClientBase() throw ();
+
+    bool start() throw ();
+    void stop() throw ();
+};
+
+class GuiClient : public ClientBase {
+    std::vector<std::vector<std::string> > load_all_player_passwords() const throw ();
+    std::string load_player_password(const std::string& name, const std::string& address) const throw ();
+    void save_player_password(const std::string& name, const std::string& address, const std::string& password) const throw ();
+    void remove_player_password(const std::string& name, const std::string& address) const throw ();
+    int remove_player_passwords(const std::string& name) const throw ();
 
     void initMenus() throw ();
 
@@ -768,61 +743,24 @@ class Client : public ClientInterface {
     void CB_rankingToken(std::string token) throw (); // callback called by rankingPassword from another thread
 
     bool screenModeChange() throw ();    // the return value should be tested at the first call
-    #endif
-
-    void addThreadMessage(ThreadMessage* msg) throw () { messageQueue.push_back(msg); }
-    void setMaxPlayers(int num) throw () {
-        maxplayers = num;
-        fx.setMaxPlayers(num);
-        #ifndef DEDICATED_SERVER_ONLY
-        fd.setMaxPlayers(num);
-        #endif
-    }
-
-    // world    //#fix: should these be moved to ClientWorld?
-    void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
-    void rocketOutOfBoundsCallback(int rid) throw ();
-    void playerHitWallCallback(int pid) throw ();
-    void playerHitPlayerCallback(int pid1, int pid2) throw ();
-    bool shouldApplyPhysicsToPlayerCallback(int pid) throw ();
-
-    void remove_useless_flags() throw ();
 
     // network
-    void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
-    void disconnect_command() throw ();  // do not call from a network thread
-    void connection_update(int connect_result, ConstDataBlockRef data) throw ();
-    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
-    void client_disconnected(ConstDataBlockRef data) throw ();
     void connect_failed_denied(ConstDataBlockRef data) throw ();
     void connect_failed_unreachable() throw ();
     void connect_failed_socket() throw ();
-    void sendMinimapBandwidthAny(int players) throw ();
-    #ifndef DEDICATED_SERVER_ONLY
+
     void send_player_token() throw ();
     void send_ranking_participation() throw ();
     void sendFavoriteColors() throw ();
     void sendMinimapBandwidth() throw ();
-    #endif
-    void issue_change_name_command() throw ();
-    #ifndef DEDICATED_SERVER_ONLY
+
     void change_name_command() throw ();
-    #endif
-    void send_client_ready() throw ();
-    #ifndef DEDICATED_SERVER_ONLY
+
     void send_chat(const std::string& msg) throw ();
     void send_frame(bool newFrame, bool forceSend) throw ();
-    #endif
-    void bot_send_frame(ClientControls controls) throw ();
-    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw ();
-    bool process_live_frame_data(ConstDataBlockRef data) throw (); // returns false if an error occured that requires disconnecting
-    #ifndef DEDICATED_SERVER_ONLY
-    int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
-    #endif
-    bool process_message(ConstDataBlockRef data) throw (); // if returns false, discard the server/replay
-    void process_incoming_data(ConstDataBlockRef data) throw ();
 
-    #ifndef DEDICATED_SERVER_ONLY
+    int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
+
     std::string refreshStatusAsString() const throw ();
     void getServerListThread() throw ();
     void refreshThread() throw ();
@@ -834,17 +772,7 @@ class Client : public ClientInterface {
     void check_download() throw ();  // call with downloadMutex locked
     void process_udp_download_chunk(ConstDataBlockRef, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
-    #endif
-    void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
-    bool load_map(const std::string& directory, const std::string& mapname, uint16_t server_crc) throw ();
 
-    void handlePendingThreadMessages() throw (); // should only be called by the main thread; call with frameMutex locked
-
-    // client callbacks
-    static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
-    static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
-
-    #ifndef DEDICATED_SERVER_ONLY
     WorldCoords playerPos(int pid) const throw ();
     WorldCoords viewTopLeft() const throw ();
     std::pair<int, int> topLeftRoom() const throw ();
@@ -894,28 +822,109 @@ class Client : public ClientInterface {
     void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
-    #endif
 
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
-        const Client& c;
+        const GuiClient& c;
 
         void findValid() throw ();
 
     public:
-        ConstDisappearedFlagIterator(const Client* host) throw () : ConstFlagIterator(host->fx), c(*host) { findValid(); }
+        ConstDisappearedFlagIterator(const GuiClient* host) throw () : ConstFlagIterator(host->fx), c(*host) { findValid(); }
         ConstDisappearedFlagIterator& operator++() throw () { next(); findValid(); return *this; }
     };
 
 public:
-    Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
-    ~Client() throw ();
+    GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    ~GuiClient() throw ();
 
-    bool start() throw ();
-    #ifndef DEDICATED_SERVER_ONLY
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
     void language_selection_start(volatile bool* quitFlag) throw ();
-    #endif
-    void stop() throw ();
+};
+
+class Robot : public ClientBase {
+    struct TeamCounts {
+        int enemies, friends;
+    };
+
+    void BuildMap() throw ();
+
+          Area* area(int roomx, int roomy, double lx, double ly)       throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
+    const Area* area(int roomx, int roomy, double lx, double ly) const throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
+          Area* area(const WorldCoords& c)       throw () { return area(c.px, c.py, c.x, c.y); }
+    const Area* area(const WorldCoords& c) const throw () { return area(c.px, c.py, c.x, c.y); }
+          Area* area(const ClientPlayer& p)       throw () { return area(p.position()); }
+    const Area* area(const ClientPlayer& p) const throw () { return area(p.position()); }
+          Area* myArea()       throw () { return area(fx.player[me]); }
+    const Area* myArea() const throw () { return area(fx.player[me]); }
+
+    bool        IsDefender() throw (); // am i defender? (role)
+    bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
+    bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
+    int         GetPlayers(int team) const throw (); // get num of players
+    TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
+    bool        IsHome(const Area* a) const throw (); //is it base
+
+    bool        AmILast() const throw ();
+    bool        IsMission(RouteTable num) const throw (); // have i mission? (No agression mode)
+    int         GetEasyEnemy(double mex, double mey) const throw (); // get easy enemy to kill
+    bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
+    int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
+    bool        IsFlagAtBase(const Flag& f, int team) const throw ();
+    int         IsAimed(double mex, double mey, int i) const throw (); // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+    std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const throw (); // for free turning; returns (shoot?, direction)
+    double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
+    double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
+
+    bool        IsBehindWall(double mex, double mey, double dx, double dy, double radius) const throw ();
+    double      ScanDir(double mex, double mey, GunDirection dir) const throw (); // return length to wall
+    std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw (); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
+    GunDirection GetDir(double dx, double dy) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
+    int         GetDangerousRocket() const throw (); // get danger rocket index
+    int         GetDangerousEnemy(double mex, double mey) const throw (); // same for enemy
+    int         GetNearestEnemy(double mex, double mey) const throw (); // get nearest enemy
+    int         FreeDir(double mex, double mey) const throw (); // maximum free space at front
+
+    ClientControls Aim(double mex, double mey, int i) const throw ();
+    ClientControls EscapeRocket(double mex, double mey, int mrock) const throw ();
+    ClientControls GetFlag(double mex, double mey) const throw ();
+    ClientControls FollowFlag(double mex, double mey) const throw ();
+    ClientControls GetPowerup(double mex, double mey, bool onImportantMission) const throw ();
+    ClientControls MoveDirNoAggregate(int dir) const throw ();
+    ClientControls MoveTo(double mex, double mey, double dx, double dy) const throw ();
+    ClientControls MoveToDoor(double mex, double mey, const Area::Neighbor& n) const throw ();
+    ClientControls MoveToNoAggregate(double mex, double mey, double dx, double dy) const throw ();
+    ClientControls MoveDir(int dir) const throw ();
+    ClientControls Escape(double mex, double mey) const throw ();
+    ClientControls FreeWalk(double mex, double mey) const throw ();
+    ClientControls Route(double mex, double mey, RouteTable num) const throw (); // follow route
+
+    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table (labeled) from single points
+    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
+    int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
+    bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
+
+    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
+    void TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
+    int TargetFog(RouteTable num) throw ();
+
+    int TargetRoute(int efb, int efd, int efc,
+                    int mfb, int mfd, int mfc,
+                    int wfb, int wfd, int wfce, int wfcf,
+                    int en,  int fr,
+                    int eb,  int fb, int wb,
+                    RouteTable num) throw ();
+
+    ClientControls getRobotControls() throw ();
+
+    ClientControls RobotMain() throw ();
+
+    void bot_send_frame(ClientControls controls) throw ();
+
+public:
+    Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    ~Robot() throw () { }
 
     void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();
     void bot_loop() throw ();
