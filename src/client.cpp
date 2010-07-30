@@ -179,7 +179,7 @@ class TM_ServerSettings : public ThreadMessage {
     uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
-    void addLine(ClientBase* cl, const string& caption, const string& value) const throw ();
+    void addLine(GuiClient* cl, const string& caption, const string& value) const throw ();
 
 public:
     TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
@@ -441,13 +441,16 @@ void FileDownload::finish() throw () {
     fp = 0;
 }
 
-/* #@refactor
-void TM_ServerSettings::addLine(ClientBase* cl, const string& caption, const string& value) const throw () {
+void TM_ServerSettings::addLine(GuiClient* cl, const string& caption, const string& value) const throw () {
     const int capWidth = 25;
     cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth), value);
 }
 
-void TM_ServerSettings::execute(ClientBase* cl) const throw () {
+void TM_ServerSettings::execute(ClientBase* pClBase) const throw () {
+    GuiClient* const cl = dynamic_cast<GuiClient*>(pClBase);
+    if (!cl)
+        return;
+
     cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
@@ -496,7 +499,6 @@ void TM_ServerSettings::execute(ClientBase* cl) const throw () {
     if (cl->menu.options.game.showServerInfo() && !cl->replaying)
         cl->showMenu(cl->m_serverInfo);
 }
-*/
 #endif
 
 void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {

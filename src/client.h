@@ -365,7 +365,6 @@ class ClientBase : public ClientInterface {
     #ifndef DEDICATED_SERVER_ONLY
     friend class TM_NameAuthorizationRequest;
     friend class TM_GunexploEffect;
-    friend class TM_ServerSettings;
     #endif
     friend class TM_ConnectionUpdate;
 
@@ -673,6 +672,8 @@ public:
 };
 
 class GuiClient : public ClientBase {
+    friend class TM_ServerSettings;
+
     std::vector<std::vector<std::string> > load_all_player_passwords() const throw ();
     std::string load_player_password(const std::string& name, const std::string& address) const throw ();
     void save_player_password(const std::string& name, const std::string& address, const std::string& password) const throw ();
