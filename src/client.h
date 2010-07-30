@@ -654,6 +654,14 @@ protected:
     static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
     static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
 
+    // functionality from subclasses
+    virtual void print_message(Message_type type, const std::string& msg, int sender_team = -1) throw () { (void)type; (void)msg; (void)sender_team; }
+    virtual void play_sound(int sample) throw () { (void)sample; }
+    virtual void connect_failed_denied(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
+    virtual void connect_failed_unreachable() throw () { nAssert(0); }
+    virtual void connect_failed_socket() throw () { nAssert(0); }
+    virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
+
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~ClientBase() throw ();

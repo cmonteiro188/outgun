@@ -121,14 +121,7 @@ public:
     TM_Text(Message_type type_, const string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
     ~TM_Text() throw () { }
     void execute(ClientBase* cl) const throw () {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         cl->print_message(type, text, team);
-        #else
-        (void)cl;
-        #endif
-        */
-        (void)cl;
     }
 };
 
@@ -138,14 +131,7 @@ class TM_Sound : public ThreadMessage {
 public:
     TM_Sound(int sample_) throw () : sample(sample_) { }
     void execute(ClientBase* cl) const throw () {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         cl->play_sound(sample);
-        #else
-        (void)cl;
-        #endif
-        */
-        (void)cl;
     }
 };
 
@@ -515,15 +501,11 @@ void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
     switch (code) {
     /*break;*/ case 0: cl->client_connected(data);
         break; case 1: cl->client_disconnected(data);
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         break; case 2: cl->connect_failed_denied(data);
         break; case 3: cl->connect_failed_unreachable();
         break; case 5: cl->connect_failed_socket();
         break; case 4: cl->connect_failed_denied(_("The server is full."));
         break; default: nAssert(0);
-        #endif
-        */
     }
     if (cl->botmode && code != 0)
         cl->stop();
@@ -2504,13 +2486,9 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_file_download: {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         const uint16_t chunkSize = read.U16();
         const uint8_t last = read.U8();
         process_udp_download_chunk(read.block(chunkSize), (last != 0));
-        #endif
-        */
     }
 
     break; case data_registration_response:
