@@ -41,8 +41,6 @@
 
 #include "world.h"
 
-static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
-
 const int maximum_shadow_visibility = 254;
 
 using std::ifstream;
