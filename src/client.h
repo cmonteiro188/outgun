@@ -662,6 +662,7 @@ protected:
     virtual void connect_failed_socket() throw () { nAssert(0); }
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
+    virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
 
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
@@ -833,6 +834,8 @@ class GuiClient : public ClientBase {
     void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
+
+    void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
 
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
         const GuiClient& c;

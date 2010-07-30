@@ -166,12 +166,13 @@ class TM_GunexploEffect : public ThreadMessage {
 public:
     TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) throw () : team(team_), pos(pos_), time(time_) { }
     void execute(ClientBase* cl) const throw () {
-        /* #@refactor
-        cl->graphics.create_gunexplo(pos, team, time);
-        */
-        (void)cl;
+        cl->createGunexploEffect(pos, team, time);
     }
 };
+
+void GuiClient::createGunexploEffect(const WorldCoords& pos, int team, double time) throw () {
+    graphics.create_gunexplo(pos, team, time);
+}
 
 class TM_ServerSettings : public ThreadMessage {
     uint8_t caplimit, timelimit, extratime, extratime_periods;
