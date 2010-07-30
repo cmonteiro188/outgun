@@ -664,6 +664,8 @@ protected:
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
 
+    virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
+
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~ClientBase() throw ();

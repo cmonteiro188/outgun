@@ -528,8 +528,7 @@ void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
     }
 }
 
-#if 0 // #@refactor
-Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -540,7 +539,7 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     frameMutex("Client::frameMutex"),
     downloadMutex("Client::downloadMutex"),
     #ifndef DEDICATED_SERVER_ONLY
-    rankingPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_rankingToken), config.lowerPriority),
+    rankingPassword(log, new RedirectToMemFun1<ClientBase, void, string>(this, &ClientBase::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
@@ -607,7 +606,15 @@ Client::Client(const ClientExternalSettings& config, const ServerExternalSetting
     Thread::setCallerPriority(config.priority);
 }
 
-Client::~Client() throw () {
+GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+    ClientBase(config, serverConfig, clientLog, externalErrorLog_)
+{ }
+
+Robot::Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+    ClientBase(config, serverConfig, clientLog, externalErrorLog_)
+{ }
+
+ClientBase::~ClientBase() throw () {
     log("Exiting client: destructor");
 
     abortThreads = true;
@@ -626,6 +633,9 @@ Client::~Client() throw () {
     log("Exiting client: destructor exiting");
 }
 
+GuiClient::~GuiClient() throw () { }
+
+#if 0 // #@refactor
 bool Client::start() throw () {
     #ifndef DEDICATED_SERVER_ONLY
     if (!botmode) {
