@@ -149,13 +149,14 @@ public:
 class TM_NameAuthorizationRequest : public ThreadMessage {
 public:
     void execute(ClientBase* cl) const throw () {
-        /* #@refactor
-        cl->m_playerPassword.setup(cl->playername, false);
-        cl->showMenu(cl->m_playerPassword);
-        */
-        (void)cl;
+        cl->processNameAuthorizationRequest();
     }
 };
+
+void GuiClient::processNameAuthorizationRequest() throw () {
+    m_playerPassword.setup(playername, false);
+    showMenu(m_playerPassword);
+}
 
 class TM_GunexploEffect : public ThreadMessage {
     int team;

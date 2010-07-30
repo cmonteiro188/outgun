@@ -661,6 +661,7 @@ protected:
     virtual void connect_failed_unreachable() throw () { nAssert(0); }
     virtual void connect_failed_socket() throw () { nAssert(0); }
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
+    virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
 
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
@@ -780,6 +781,8 @@ class GuiClient : public ClientBase {
     void check_download() throw ();  // call with downloadMutex locked
     void process_udp_download_chunk(ConstDataBlockRef, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
+
+    void processNameAuthorizationRequest() throw ();
 
     WorldCoords playerPos(int pid) const throw ();
     WorldCoords viewTopLeft() const throw ();
