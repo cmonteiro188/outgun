@@ -635,20 +635,7 @@ ClientBase::~ClientBase() throw () {
 
 GuiClient::~GuiClient() throw () { }
 
-#if 0 // #@refactor
-bool Client::start() throw () {
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode) {
-        extConfig.statusOutput(_("Outgun client"));
-        initMenus();
-        showMenu(menu);
-    }
-    menusel = menu_none;
-
-    totalframecount = 0;
-    framecount = 0;
-    #endif
-
+void ClientBase::startBase() throw () {
     clFrameSent = clFrameWorld = 0;
     fx.frame = -1;
     #ifndef DEDICATED_SERVER_ONLY
@@ -675,10 +662,19 @@ bool Client::start() throw () {
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
+}
 
-    #ifndef DEDICATED_SERVER_ONLY
-    if (botmode)
-        return true;
+bool GuiClient::start() throw () {
+    extConfig.statusOutput(_("Outgun client"));
+    initMenus();
+    showMenu(menu);
+
+    menusel = menu_none;
+
+    totalframecount = 0;
+    framecount = 0;
+
+    startBase();
 
     if (language.code() == "fi")
         playername = finnish_name(maxPlayerNameLength);
@@ -852,11 +848,9 @@ bool Client::start() throw () {
 
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
-    #endif
 
     return true;
 }
-#endif
 
 #ifndef DEDICATED_SERVER_ONLY
 void GuiClient::language_selection_start(volatile bool* quitFlag) throw () {
@@ -914,7 +908,7 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
     botId = bot_id;
     serverIP = addr;
 
-    nAssert(start());
+    startBase();
 
     playername = name;
 

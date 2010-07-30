@@ -666,11 +666,12 @@ protected:
 
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
+    void startBase() throw ();
+
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~ClientBase() throw ();
 
-    bool start() throw ();
     void stop() throw ();
 };
 
@@ -855,6 +856,7 @@ public:
     GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~GuiClient() throw ();
 
+    bool start() throw ();
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
     void language_selection_start(volatile bool* quitFlag) throw ();
 };
