@@ -659,6 +659,7 @@ protected:
     virtual void connect_failed_denied(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
     virtual void connect_failed_unreachable() throw () { nAssert(0); }
     virtual void connect_failed_socket() throw () { nAssert(0); }
+    virtual void download_server_file(const std::string& type, const std::string& name) throw () { nAssert(0); (void)type; (void)name; } // ### FIX: Override in Robot to disconnect bot or something.
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }

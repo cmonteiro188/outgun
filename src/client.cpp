@@ -1028,18 +1028,12 @@ void ClientBase::server_map_command(const string& mapname, uint16_t server_crc) 
         return;
     }
 
-    nAssert(!botmode); // ### FIX: Disconnect bot or something.
-
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
     // start download
     const string msg = _("Downloading map \"$1\"...", mapname);
     print_message(msg_info, msg);
     log("%s", msg.c_str());
 
     download_server_file("map", mapname);
-    #endif
-    */
 }
 
 bool ClientBase::load_map(const string& directory, const string& mapname, uint16_t server_crc) throw () {
