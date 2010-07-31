@@ -504,7 +504,7 @@ void TM_ServerSettings::execute(ClientBase* pClBase) const throw () {
 void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
     switch (code) {
     /*break;*/ case 0: cl->client_connected(data);
-        break; case 1: cl->client_disconnected(data);
+        break; case 1: cl->disconnected_base(data);
         break; case 2: cl->connect_failed_denied(data);
         break; case 3: cl->connect_failed_unreachable();
         break; case 5: cl->connect_failed_socket();
@@ -1266,25 +1266,28 @@ void GuiClient::send_ranking_participation() throw () {
 }
 #endif
 
-void ClientBase::client_disconnected(ConstDataBlockRef data) throw () {
+void ClientBase::disconnected_base(ConstDataBlockRef data) throw () {
     if (!connected)
         return;
 
     connected = false;
     gameshow = false;
 
+    client_disconnected(data);
+}
+
+void Robot::client_disconnected(ConstDataBlockRef data) throw () {
     BinaryDataBlockReader read(data);
 
-    #if 0 // #@refactor
-    if (botmode) {
-        const uint8_t reason = read.U8();
-        numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
-                                       || reason == server_c::disconnect_timeout || reason == disconnect_kick),
-                   data.size(), reason);
-        return;
-    }
+    const uint8_t reason = read.U8();
+    numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
+                                   || reason == server_c::disconnect_timeout || reason == disconnect_kick),
+               data.size(), reason);
+}
 
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
+    BinaryDataBlockReader read(data);
+
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -1319,8 +1322,6 @@ void ClientBase::client_disconnected(ConstDataBlockRef data) throw () {
         Lock ml(downloadMutex);
         downloads.clear();
     }
-    #endif
-    #endif
 }
 
 #ifndef DEDICATED_SERVER_ONLY

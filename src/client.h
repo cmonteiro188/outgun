@@ -635,7 +635,7 @@ protected:
     void disconnect_command() throw ();  // do not call from a network thread
     void connection_update(int connect_result, ConstDataBlockRef data) throw ();
     virtual void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
-    void client_disconnected(ConstDataBlockRef data) throw ();
+    void disconnected_base(ConstDataBlockRef data) throw ();
     void sendMinimapBandwidthAny(int players) throw ();
     void issue_change_name_command() throw ();
     void send_client_ready() throw ();
@@ -656,6 +656,7 @@ protected:
     // functionality from subclasses
     virtual void print_message(Message_type type, const std::string& msg, int sender_team = -1) throw () { (void)type; (void)msg; (void)sender_team; }
     virtual void play_sound(int sample) throw () { (void)sample; }
+    virtual void client_disconnected(ConstDataBlockRef data) throw () = 0;
     virtual void connect_failed_denied(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
     virtual void connect_failed_unreachable() throw () { nAssert(0); }
     virtual void connect_failed_socket() throw () { nAssert(0); }
@@ -761,6 +762,7 @@ class GuiClient : public ClientBase {
 
     // network
     void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    void client_disconnected(ConstDataBlockRef data) throw ();
     void connect_failed_denied(ConstDataBlockRef data) throw ();
     void connect_failed_unreachable() throw ();
     void connect_failed_socket() throw ();
@@ -942,6 +944,7 @@ class Robot : public ClientBase {
     ClientControls RobotMain() throw ();
 
     void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    void client_disconnected(ConstDataBlockRef data) throw ();
 
     void bot_send_frame(ClientControls controls) throw ();
 
