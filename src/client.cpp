@@ -916,7 +916,7 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
 
     set_ping(ping);
 
-    connect_command(false);
+    connect_command();
 }
 
 void Robot::set_ping(int ping) throw () {
@@ -1494,57 +1494,56 @@ int GuiClient::remove_player_passwords(const string& name) const throw () {
 }
 #endif
 
-void ClientBase::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
+void ClientBase::prepareForConnect() throw () {   // call with frameMutex locked
     const bool alreadyConnected = connected;
 
     // disconnect
     client->connect(false);
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
-    stop_replay();
-    #endif
-    */
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
         platSleep(500);
 
     handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
-    #ifndef DEDICATED_SERVER_ONLY
+}
+
+void GuiClient::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
+    stop_replay();
+    prepareForConnect();
     openMenus.close(&m_connectProgress.menu);
-    #endif
 
-    // start connecting to specified IP/port
-    // connection results will come through the CFUNC_CONNECTION_UPDATE callback
     const string strAddress = serverIP.toString();
-    client->set_server_address(strAddress.c_str());
 
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
     if (loadPassword && !botmode)
         m_playerPassword.password.set(load_player_password(playername, strAddress));
 
     log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
         m_serverPassword.password().empty() ? "no" : "yes",
         m_playerPassword.password().empty() ? "no" : "yes");
-    #endif
-    */
-    (void)loadPassword;
+
+    connect(strAddress, m_serverPassword.password(), m_playerPassword.password());
+
+    m_connectProgress.clear();
+    m_connectProgress.wrapLine(_("Trying to connect..."), true);
+    showMenu(m_connectProgress);
+}
+
+void Robot::connect_command() throw () {   // call with frameMutex locked
+    prepareForConnect();
+    connect(serverIP.toString(), bot_password, "");
+}
+
+void ClientBase::connect(const string& serverAddress, const string& serverPassword, const string& playerPassword) throw () {   // call with frameMutex locked
+    // start connecting to specified IP/port
+    // connection results will come through the CFUNC_CONNECTION_UPDATE callback
+    client->set_server_address(serverAddress.c_str());
 
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     BinaryBuffer<256> msg;
     msg.str(GAME_STRING);
     msg.str(GAME_PROTOCOL);
     msg.str(playername);
-    if (botmode) {
-        msg.str(bot_password);
-        msg.str("");
-    }
-    #ifndef DEDICATED_SERVER_ONLY
-    else {
-        msg.str(m_serverPassword.password());    // empty or not, it's needed
-        msg.str(m_playerPassword.password());    // empty or not, it's needed
-    }
-    #endif
+    msg.str(serverPassword);    // empty or not, it's needed
+    msg.str(playerPassword);    // empty or not, it's needed
     msg.U8(PROTOCOL_EXTENSIONS_VERSION);
     /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
      * msg.U32(EXAMPLE_IDENTIFIER);
@@ -1553,18 +1552,6 @@ void ClientBase::connect_command(bool loadPassword) throw () {   // call with fr
      */
     client->set_connect_data(msg);
     client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
-
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode) {
-        m_connectProgress.clear();
-        m_connectProgress.wrapLine(_("Trying to connect..."), true);
-        showMenu(m_connectProgress);
-    }
-    #else
-    (void)loadPassword;
-    #endif
-    */
 }
 
 void ClientBase::issue_change_name_command() throw () {

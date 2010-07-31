@@ -631,7 +631,8 @@ protected:
     void remove_useless_flags() throw ();
 
     // network
-    void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
+    void prepareForConnect() throw (); // call with frameMutex locked
+    void connect(const std::string& serverAddress, const std::string& serverPassword, const std::string& playerPassword) throw (); // call with frameMutex locked
     void disconnect_command() throw ();  // do not call from a network thread
     void connection_update(int connect_result, ConstDataBlockRef data) throw ();
     virtual void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
@@ -761,6 +762,8 @@ class GuiClient : public ClientBase {
     bool screenModeChange() throw ();    // the return value should be tested at the first call
 
     // network
+    void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
+
     void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
     void client_disconnected(ConstDataBlockRef data) throw ();
     void connect_failed_denied(ConstDataBlockRef data) throw ();
@@ -942,6 +945,8 @@ class Robot : public ClientBase {
     ClientControls getRobotControls() throw ();
 
     ClientControls RobotMain() throw ();
+
+    void connect_command() throw ();    // call with frameMutex locked
 
     void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
     void client_disconnected(ConstDataBlockRef data) throw ();
