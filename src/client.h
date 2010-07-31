@@ -634,7 +634,7 @@ protected:
     void connect_command(bool loadPassword) throw ();    // call with frameMutex locked
     void disconnect_command() throw ();  // do not call from a network thread
     void connection_update(int connect_result, ConstDataBlockRef data) throw ();
-    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
+    virtual void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
     void client_disconnected(ConstDataBlockRef data) throw ();
     void sendMinimapBandwidthAny(int players) throw ();
     void issue_change_name_command() throw ();
@@ -760,6 +760,7 @@ class GuiClient : public ClientBase {
     bool screenModeChange() throw ();    // the return value should be tested at the first call
 
     // network
+    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
     void connect_failed_denied(ConstDataBlockRef data) throw ();
     void connect_failed_unreachable() throw ();
     void connect_failed_socket() throw ();
@@ -939,6 +940,8 @@ class Robot : public ClientBase {
     ClientControls getRobotControls() throw ();
 
     ClientControls RobotMain() throw ();
+
+    void client_connected(ConstDataBlockRef data) throw ();    // call with frameMutex locked
 
     void bot_send_frame(ClientControls controls) throw ();
 

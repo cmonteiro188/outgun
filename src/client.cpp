@@ -1177,18 +1177,20 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     fx.skipped = true;
     fx.physics = PhysicalSettings(); // to be filled later by a message
 
-    /* #@refactor
-    if (botmode) {
-        bot_send_frame(ClientControls());
-        return;
-    }
-
     lock_team_flags_in_effect = false;
     lock_wild_flags_in_effect = false;
     capture_on_team_flags_in_effect = true;
     capture_on_wild_flags_in_effect = false;
+}
 
-    #ifndef DEDICATED_SERVER_ONLY
+void Robot::client_connected(ConstDataBlockRef data) throw () { // call with frameMutex locked
+    ClientBase::client_connected(data);
+
+    bot_send_frame(ClientControls());
+}
+
+void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
+    ClientBase::client_connected(data);
 
     fd.reset();
     fd.frame = -1;
@@ -1198,12 +1200,10 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    if (!botmode) {
-        sendFavoriteColors();
-        sendMinimapBandwidth();
+    sendFavoriteColors();
+    sendMinimapBandwidth();
 
-        extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
-    }
+    extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -1255,8 +1255,6 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     mouseClicked.clear();
 
     send_frame(true, true);
-    #endif
-    */
 }
 
 #ifndef DEDICATED_SERVER_ONLY
