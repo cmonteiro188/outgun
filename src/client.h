@@ -670,6 +670,7 @@ protected:
     virtual void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () { (void)(rockid && rokx && roky && time); }
     virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
     virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }
+    virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw (); // empty
 
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
@@ -857,6 +858,7 @@ class GuiClient : public ClientBase {
     void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw ();
     void netPowerCollision(int target, double time) throw ();
     void net_data_sound(BinaryReader& read) throw ();
+    void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
 
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
         const GuiClient& c;

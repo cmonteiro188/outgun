@@ -2633,88 +2633,23 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_kill: {
         uint8_t attacker = read.U8(), target = read.U8();
         const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-        #ifdef DEFENDING_MESSAGES
         const bool carrier_defended = attacker & 0x40;
         const bool flag_defended = attacker & 0x20;
-        #endif
         const bool flag = target & 0x80;
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = target & 0x40;
-        #endif
-        */
         attacker &= 0x1F;
         target &= 0x1F;
         if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
             return false;
+
         const bool attacker_team = attacker / TSIZE;
         const bool target_team = target / TSIZE;
         const bool same_team = (attacker_team == target_team);
         const bool known_attacker = fx.player[attacker].used;
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (cause == DT_deathbringer) {
-            if (!known_attacker)
-                msg = _("$1 was choked.", fx.player[target].name);
-            else if (same_team)
-                msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
-        }
-        else if (cause == DT_collision) {
-            if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
-                msg = _("$1 received a mortal blow.", fx.player[target].name);
-            else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
-                msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        }
-        else {
-            nAssert(cause == DT_rocket);
-            if (!known_attacker)    // this should never happen with the current code, but it's here for future
-                msg = _("$1 was nailed.", fx.player[target].name);
-            else if (same_team)
-                msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        }
-        if (menu.options.game.showKillMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        #ifdef DEFENDING_MESSAGES
-        if (carrier_defended && known_attacker) {
-            if (attacker_team == 0)
-                msg = _("$1 defends the red carrier.", fx.player[attacker].name);
-            else
-                msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
-            addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        if (flag_defended && known_attacker) {
-            if (attacker_team == 0)
-                msg = _("$1 defends the red flag.", fx.player[attacker].name);
-            else
-                msg = _("$1 defends the blue flag.", fx.player[attacker].name);
-            addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif // DEFENDING_MESSAGES
-        if (fx.player[target].stats().current_cons_kills() >= 10) {
-            if (!known_attacker)
-                msg = _("$1's killing spree was ended.", fx.player[target].name);
-            else
-                msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (menu.options.game.showKillMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-        }
+        const bool spree_ended = fx.player[target].stats().current_cons_kills() >= 10;
+
         if (target == me)
             deadAfterHighlighted = true;
-        #endif // !DEDICATED_SERVER_ONLY
-        */
         if (!same_team) {
             if (known_attacker)
                 fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
@@ -2728,31 +2663,11 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 fx.player[attacker].stats().add_carrier_kill();
             fx.player[target].stats().add_flag_drop(time);
             fx.teams[target_team].add_flag_drop();
-            /* #@refactor
-            #ifndef DEDICATED_SERVER_ONLY
-            if (wild_flag)
-                msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
-            else if (1 - target_team == 0)
-                msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
-            else
-                msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
-            if (menu.options.game.showFlagMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-            #endif
-            */
         }
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
-            if (attacker == me)
-                addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-            msg = _("$1 is on a killing spree!", fx.player[attacker].name);
-            if (menu.options.game.showKillMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif
-        */
+
+        const bool spree_started = !same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0;
+
+        netKill(attacker, target, cause, carrier_defended, flag_defended, flag, wild_flag, spree_ended, spree_started);
     }
 
     break; case data_flag_take: {
@@ -3290,6 +3205,98 @@ void GuiClient::net_data_sound(BinaryReader& read) throw () {
     }
     if (sample < NUM_OF_SAMPLES)
         addThreadMessage(new TM_Sound(sample));
+}
+
+void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
+    (void)(attacker && target && cause && carrier_defended && flag_defended && flag && wild_flag && spree_ended && spree_started);
+}
+
+void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
+    const bool attacker_team = attacker / TSIZE;
+    const bool target_team = target / TSIZE;
+    const bool same_team = (attacker_team == target_team);
+    const bool known_attacker = fx.player[attacker].used;
+
+    string msg;
+    if (cause == DT_deathbringer) {
+        if (!known_attacker)
+            msg = _("$1 was choked.", fx.player[target].name);
+        else if (same_team)
+            msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+        else
+            msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
+    }
+    else if (cause == DT_collision) {
+        if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
+            msg = _("$1 received a mortal blow.", fx.player[target].name);
+        else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
+            msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
+        else
+            msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+    }
+    else {
+        nAssert(cause == DT_rocket);
+        if (!known_attacker)    // this should never happen with the current code, but it's here for future
+            msg = _("$1 was nailed.", fx.player[target].name);
+        else if (same_team)
+            msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+        else
+            msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+    }
+    if (menu.options.game.showKillMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+
+    #ifdef DEFENDING_MESSAGES
+    if (carrier_defended && known_attacker) {
+        if (attacker_team == 0)
+            msg = _("$1 defends the red carrier.", fx.player[attacker].name);
+        else
+            msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+    }
+    if (flag_defended && known_attacker) {
+        if (attacker_team == 0)
+            msg = _("$1 defends the red flag.", fx.player[attacker].name);
+        else
+            msg = _("$1 defends the blue flag.", fx.player[attacker].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+    }
+    #else
+    (void)(carrier_defended && flag_defended);
+    #endif // DEFENDING_MESSAGES
+    if (spree_ended) {
+        if (!known_attacker)
+            msg = _("$1's killing spree was ended.", fx.player[target].name);
+        else
+            msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
+        if (menu.options.game.showKillMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+    }
+
+    if (flag) {
+        if (wild_flag)
+            msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
+        else if (1 - target_team == 0)
+            msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
+        else
+            msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+    }
+    if (spree_started) {
+        if (attacker == me)
+            addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
+        msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+        if (menu.options.game.showKillMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+    }
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
