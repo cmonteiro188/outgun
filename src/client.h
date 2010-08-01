@@ -654,7 +654,7 @@ protected:
     static void cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw ();
     static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
 
-    // functionality from subclasses
+    // functionality from subclasses; if there is a default implementation (doing nothing), it's used for Robot
     virtual void print_message(Message_type type, const std::string& msg, int sender_team = -1) throw () { (void)type; (void)msg; (void)sender_team; }
     virtual void play_sound(int sample) throw () { (void)sample; }
     virtual void client_disconnected(ConstDataBlockRef data) throw () = 0;
@@ -665,6 +665,11 @@ protected:
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
+
+    virtual void netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () { (void)(rpx && rpy && rx && ry && power); }
+    virtual void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () { (void)(rockid && rokx && roky && time); }
+    virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
+    virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }
 
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
@@ -847,6 +852,11 @@ class GuiClient : public ClientBase {
     void continue_spectating() throw ();
 
     void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
+
+    void netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw ();
+    void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw ();
+    void netPowerCollision(int target, double time) throw ();
+    void net_data_sound(BinaryReader& read) throw ();
 
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
         const GuiClient& c;

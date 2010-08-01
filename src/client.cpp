@@ -461,7 +461,7 @@ void TM_ServerSettings::execute(ClientBase* pClBase) const throw () {
         if (extratime == 0)
             value = _("none");
         else if (extratime_periods > 1)
-            value = _("$1×$2 min", itoa(extratime_periods), itoa(extratime));
+            value = _("$1ï¿½$2 min", itoa(extratime_periods), itoa(extratime));
         else
             value = _("$1 min", itoa(extratime));
         addLine(cl, _("Extra-time"      ), value);
@@ -767,7 +767,7 @@ bool GuiClient::start() throw () {
                     menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
                     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
-                        log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
+                        log("Previous screen mode not available (%dï¿½%dï¿½%d)", width, height, depth);
                 }
             }
 
@@ -2204,12 +2204,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         ClientPhysicsCallbacks cb(*this);
         fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
 
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        if (on_screen_exact(rpx, rpy, rx, ry))
-            addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
-        #endif
-        */
+        netRocketFired(rpx, rpy, rx, ry, power);
     }
 
     break; case data_old_rocket_visible: {
@@ -2247,8 +2242,6 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
         const uint8_t rockid = read.U8();
         fx.rock[rockid].owner = -1;
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         const uint8_t target = read.U8();
         if (target != 255) {    // hit player
             if (target != 252) {  // not shield hit -> blink player
@@ -2258,23 +2251,13 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             }
             //hit position
             const int16_t rokx = read.S16(), roky = read.S16();
-            addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
-            if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
-                addThreadMessage(new TM_Sound(SAMPLE_HIT));
+            netRocketHitPlayer(rockid, rokx, roky, time);
         }
-        #endif
-        */
     }
 
     break; case data_power_collision: {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
         const uint8_t target = read.U8(0, maxplayers - 1);
-        fx.player[target].hitfx = time + .3;
-        if (!replaying || player_on_screen(target))
-            addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
-        #endif
-        */
+        netPowerCollision(target, time);
     }
 
     break; case data_score_update: {
@@ -2282,20 +2265,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         fx.teams[team].set_score(read.U32dyn8orU8(protocolExtensions >= 0));
     }
 
-    break; case data_sound: {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t sample = read.U8();
-        if (replaying && read.hasMore()) {
-            const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
-            if (!on_screen(rx, ry))
-                break;
-        }
-        if (sample < NUM_OF_SAMPLES)
-            addThreadMessage(new TM_Sound(sample));
-        #endif
-        */
-    }
+    break; case data_sound:
+        net_data_sound(read);
 
     break; case data_pup_visible: {
         const uint8_t iid = read.U8();
@@ -3291,6 +3262,34 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         // just ignore commands in reserved range: they're probably some extension we don't have to care about
     }
     return true;
+}
+
+void GuiClient::netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () {
+    if (on_screen_exact(rpx, rpy, rx, ry))
+        addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
+}
+
+void GuiClient::netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () {
+    addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
+    if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
+        addThreadMessage(new TM_Sound(SAMPLE_HIT));
+}
+
+void GuiClient::netPowerCollision(int target, double time) throw () {
+    fx.player[target].hitfx = time + .3;
+    if (!replaying || player_on_screen(target))
+        addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
+}
+
+void GuiClient::net_data_sound(BinaryReader& read) throw () {
+    const uint8_t sample = read.U8();
+    if (replaying && read.hasMore()) {
+        const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
+        if (!on_screen(rx, ry))
+            return;
+    }
+    if (sample < NUM_OF_SAMPLES)
+        addThreadMessage(new TM_Sound(sample));
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
@@ -5679,7 +5678,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
     for (int nTry = 0;; ++nTry) {
         if (graphics.init(res.width, res.height, depth, win(), flip())) {
             if (nTry != 0)
-                log.error(_("Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.",
+                log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in $4 mode; reverted to $5.",
                             itoa(res.width), itoa(res.height), itoa(depth),
                             owin  ? _("windowed") : (oflip  ? _("flipped fullscreen") : _("backbuffered fullscreen")),
                             win() ? _("windowed") : (flip() ? _("flipped fullscreen") : _("backbuffered fullscreen"))));
@@ -5701,7 +5700,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
             }
             nTry = 3;   // no point in changing flipping when windowed, skip round
         /*no break*/ case 3:
-            log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
+            log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
             if (workingGfxMode.used()) {    // revert to working mode
                 const GFXMode& wm = workingGfxMode;
                 nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
@@ -6195,7 +6194,7 @@ void GuiClient::loadSplashScreen() throw () {
     }
     else {
         static const char* msg[] = {
-            "Outgun @VERSION@, copyright © 2002-@YEAR@ multiple authors.",
+            "Outgun @VERSION@, copyright ï¿½ 2002-@YEAR@ multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
