@@ -2736,44 +2736,22 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_suicide: {
         uint8_t pid = read.U8();
         const bool flag = pid & 0x80;
-        #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = pid & 0x40;
-        #endif
+        const bool spree_ended = fx.player[pid].stats().current_cons_kills() >= 10 && menu.options.game.showKillMessages();
         pid &= ~0xC0;
         if (pid >= maxplayers)
             return false;
         const int team = pid / TSIZE;
-        #ifndef DEDICATED_SERVER_ONLY
-        if (fx.player[pid].stats().current_cons_kills() >= 10 && menu.options.game.showKillMessages())
-            addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
         if (pid == me)
             deadAfterHighlighted = true;
-        #endif
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
         fx.player[pid].dead = true;
         fx.teams[team].add_suicide();
         if (flag) {
             fx.player[pid].stats().add_flag_drop(time);
             fx.teams[team].add_flag_drop();
-            #ifndef DEDICATED_SERVER_ONLY
-            string msg;
-            if (wild_flag)
-                msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
-            else if (1 - team == 0)
-                msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
-            else
-                msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
-            if (menu.options.game.showFlagMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-            #endif
         }
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        if (player_on_screen_exact(pid))
-            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        #endif
-        */
+        netSuicide(pid, flag, wild_flag, spree_ended);
     }
 
     break; case data_players_present: {    // this is only sent immediately after connecting to the server
@@ -3297,6 +3275,26 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
         if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
     }
+}
+
+void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () {
+    const int team = pid / TSIZE;
+    if (spree_ended)
+        addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
+    if (flag) {
+        string msg;
+        if (wild_flag)
+            msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
+        else if (1 - team == 0)
+            msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+    }
+    if (player_on_screen_exact(pid))
+        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
