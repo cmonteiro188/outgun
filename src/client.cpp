@@ -2046,7 +2046,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 sender_team = read.S8();
         }
         else if (type == msg_team)
-            sender_team = team();
+            sender_team = fx.player[me].team();
         addThreadMessage(new TM_Text(type, chatmsg, sender_team));
         if (type == msg_team || type == msg_normal)
             addThreadMessage(new TM_Sound(SAMPLE_TALK));
@@ -4633,7 +4633,7 @@ void Robot::bot_loop() throw () {
     bot_send_frame(controls);
 }
 
-void ClientBase::stopBase() throw () {
+void ClientBase::stop() throw () {
     abortThreads = true;
 
     //at least disconnect
@@ -4641,14 +4641,14 @@ void ClientBase::stopBase() throw () {
 }
 
 void Robot::stop() throw () {
-    stopBase();
+    ClientBase::stop();
     finished = true;
 }
 
 void GuiClient::stop() throw () {
     log("Client exiting: stop() called");
     stop_replay();
-    stopBase();
+    ClientBase::stop();
     rankingPassword.stop();
 
     //save configuration file
@@ -6244,8 +6244,10 @@ void ClientBase::cfunc_server_data(void* customp, ConstDataBlockRef data) throw 
     cl->process_incoming_data(data);
 }
 
-/* #@refactor
 ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Client(config, serverConfig, clientLog, externalErrorLog_);
+    return new GuiClient(config, serverConfig, clientLog, externalErrorLog_);
 }
-*/
+
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+    return new Robot(config, serverConfig, clientLog, externalErrorLog_);
+}

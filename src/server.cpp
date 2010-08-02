@@ -873,7 +873,7 @@ void Server::init_bots() throw () {
     address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);
+        BotInterface* bot = BotInterface::newBot(clientCfg, serverCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
@@ -1819,7 +1819,7 @@ void Server::run_bot_thread() throw () {
         const bool adjust_pings = bot_ping_changed;
         if (adjust_pings)
             bot_ping_changed = false;
-        for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ) {
+        for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ) {
             if (bi->bot_finished()) {
                 bi = bots.erase(bi);
                 check_bots = true; // a needed bot might not have been added because of the now removed one which was already out of the server
@@ -1836,7 +1836,7 @@ void Server::run_bot_thread() throw () {
             nAssert(settings.get_bot_ping() == 0); // this is a user (not code) error, but bot test mode is a dev feature
             const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
             bool upToDate = true;
-            for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+            for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
                 if (bi->bot_reacted_frame() != currentFrame || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
                     //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
                     upToDate = false;
@@ -1845,7 +1845,7 @@ void Server::run_bot_thread() throw () {
                 botReactedFrame = currentFrame;
         }
     }
-    for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+    for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
         bi->stop();
     bots.clear();
 }

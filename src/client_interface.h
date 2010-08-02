@@ -66,14 +66,24 @@ public:
     virtual ~ClientInterface() throw () { }
 
     virtual bool start() throw () = 0;
-    #ifndef DEDICATED_SERVER_ONLY
     virtual void loop(volatile bool* quitFlag, bool firstTimeSplash) throw () = 0;
     virtual void language_selection_start(volatile bool* quitFlag) throw () = 0;
-    #endif
     virtual void stop() throw () = 0;
+};
+
+class BotInterface {
+protected:
+    BotInterface() throw () { }
+
+public:
+    static BotInterface* newBot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+
+    virtual ~BotInterface() throw () { }
 
     virtual void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw () = 0;
     virtual void bot_loop() throw () = 0;
+    virtual void stop() throw () = 0;
+
     virtual void set_ping(int ping) throw () = 0;
     virtual bool is_connected() const throw () = 0;
     virtual bool bot_finished() const throw () = 0;

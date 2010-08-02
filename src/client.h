@@ -356,7 +356,7 @@ public:
     virtual void execute(ClientBase* cl) const throw () = 0;
 };
 
-class ClientBase : public ClientInterface {
+class ClientBase {
     friend class ClientPhysicsCallbacks;
     friend class TM_DoDisconnect;
     friend class TM_Text;
@@ -677,14 +677,14 @@ protected:
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
     void startBase() throw ();
-    void stopBase() throw ();
+    virtual void stop() throw ();
 
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
-    ~ClientBase() throw ();
+    virtual ~ClientBase() throw ();
 };
 
-class GuiClient : public ClientBase {
+class GuiClient : private ClientBase, public ClientInterface {
     friend class TM_ServerSettings;
 
     std::vector<std::vector<std::string> > load_all_player_passwords() const throw ();
@@ -887,7 +887,7 @@ public:
     void language_selection_start(volatile bool* quitFlag) throw ();
 };
 
-class Robot : public ClientBase {
+class Robot : private ClientBase, public BotInterface {
     struct TeamCounts {
         int enemies, friends;
     };
