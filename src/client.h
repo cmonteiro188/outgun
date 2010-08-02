@@ -665,6 +665,7 @@ protected:
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
+    virtual void process_replay_packet(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
 
     virtual void netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () { (void)(rpx && rpy && rx && ry && power); }
     virtual void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () { (void)(rockid && rokx && roky && time); }
@@ -787,6 +788,7 @@ class GuiClient : public ClientBase {
     void send_chat(const std::string& msg) throw ();
     void send_frame(bool newFrame, bool forceSend) throw ();
 
+    void process_replay_packet(ConstDataBlockRef data) throw ();
     int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
 
     std::string refreshStatusAsString() const throw ();

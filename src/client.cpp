@@ -3305,21 +3305,8 @@ void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
 
     lastpackettime = get_time();
 
-    if (replaying) {
-        /* #@refactor
-        #ifndef DEDICATED_SERVER_ONLY
-        const int frameSize = process_replay_frame_data(data);
-        BinaryDataBlockReader read(data);
-        read.block(frameSize);
-        while (read.hasMore())
-            if (!process_message(read.block(read.U32()))) {
-                log.error(_("Format error in replay file."));
-                stop_replay();
-                return;
-            }
-        #endif
-        */
-    }
+    if (replaying)
+        process_replay_packet(data);
     else {
         if (!process_live_frame_data(data)) {
             nAssert(!botmode);
@@ -3338,6 +3325,18 @@ void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
             }
         }
     }
+}
+
+void GuiClient::process_replay_packet(ConstDataBlockRef data) throw () {
+    const int frameSize = process_replay_frame_data(data);
+    BinaryDataBlockReader read(data);
+    read.block(frameSize);
+    while (read.hasMore())
+        if (!process_message(read.block(read.U32()))) {
+            log.error(_("Format error in replay file."));
+            stop_replay();
+            return;
+        }
 }
 
 #ifndef DEDICATED_SERVER_ONLY
