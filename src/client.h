@@ -677,12 +677,11 @@ protected:
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
     void startBase() throw ();
+    void stopBase() throw ();
 
 public:
     ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~ClientBase() throw ();
-
-    void stop() throw ();
 };
 
 class GuiClient : public ClientBase {
@@ -879,6 +878,7 @@ public:
     ~GuiClient() throw ();
 
     bool start() throw ();
+    void stop() throw ();
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
     void language_selection_start(volatile bool* quitFlag) throw ();
 };
@@ -974,6 +974,7 @@ public:
     ~Robot() throw () { }
 
     void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();
+    void stop() throw ();
     void bot_loop() throw ();
     void set_ping(int ping) throw ();
     bool is_connected() const throw () { return connected; }

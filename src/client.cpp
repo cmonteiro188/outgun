@@ -4633,24 +4633,22 @@ void Robot::bot_loop() throw () {
     bot_send_frame(controls);
 }
 
-void ClientBase::stop() throw () {
-    log("Client exiting: stop() called");
-
+void ClientBase::stopBase() throw () {
     abortThreads = true;
 
     //at least disconnect
     disconnect_command();
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
+}
+
+void Robot::stop() throw () {
+    stopBase();
+    finished = true;
+}
+
+void GuiClient::stop() throw () {
+    log("Client exiting: stop() called");
     stop_replay();
-    #endif
-
-    if (botmode) {
-        finished = true;
-        return;
-    }
-
-    #ifndef DEDICATED_SERVER_ONLY
+    stopBase();
     rankingPassword.stop();
 
     //save configuration file
@@ -4727,8 +4725,6 @@ void ClientBase::stop() throw () {
         listenServer.stop();
 
     log("Client stop() completed");
-    #endif
-    */
 }
 
 void ClientBase::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
