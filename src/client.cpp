@@ -4728,12 +4728,16 @@ void GuiClient::stop() throw () {
 }
 
 void ClientBase::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
+    (void)(power && x && y && roomx && roomy);
     fx.rock[rid].owner = -1;   // erase from clientside simulation
-    /* #@refactor
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;
-    if (botmode)
-        return;
+    #endif
+}
+
+void GuiClient::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
+    ClientBase::rocketHitWallCallback(rid, power, x, y, roomx, roomy);
+
     const double time = fx.frame / 10;
     const bool sound = on_screen_exact(roomx, roomy, x, y);
     if (power) {
@@ -4746,11 +4750,6 @@ void ClientBase::rocketHitWallCallback(int rid, bool power, double x, double y, 
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }
-    #else
-    (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
-    #endif
-    */
-    (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
 }
 
 void ClientBase::rocketOutOfBoundsCallback(int rid) throw () {
@@ -4760,25 +4759,16 @@ void ClientBase::rocketOutOfBoundsCallback(int rid) throw () {
     #endif
 }
 
-void ClientBase::playerHitWallCallback(int pid) throw () {
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::playerHitWallCallback(int pid) throw () {
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
     if (currTime > fx.player[pid].wall_sound_time && (!replaying || player_on_screen(pid))) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
         play_sound(SAMPLE_WALLBOUNCE);
     }
-    #else
-    (void)pid;
-    #endif
-    */
-    (void)pid;
 }
 
-void ClientBase::playerHitPlayerCallback(int pid1, int pid2) throw () {
-    /* #@refactor
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::playerHitPlayerCallback(int pid1, int pid2) throw () {
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
     if ((currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) &&
@@ -4786,11 +4776,6 @@ void ClientBase::playerHitPlayerCallback(int pid1, int pid2) throw () {
         fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
         play_sound(SAMPLE_PLAYERBOUNCE);
     }
-    #else
-    (void)pid1; (void)pid2;
-    #endif
-    */
-    (void)pid1; (void)pid2;
 }
 
 bool ClientBase::shouldApplyPhysicsToPlayerCallback(int pid) throw () {

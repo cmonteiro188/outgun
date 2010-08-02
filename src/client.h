@@ -622,10 +622,10 @@ protected:
     }
 
     // world    //#fix: should these be moved to ClientWorld?
-    void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
+    virtual void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
     void rocketOutOfBoundsCallback(int rid) throw ();
-    void playerHitWallCallback(int pid) throw ();
-    void playerHitPlayerCallback(int pid1, int pid2) throw ();
+    virtual void playerHitWallCallback(int pid) throw () { (void)pid; }
+    virtual void playerHitPlayerCallback(int pid1, int pid2) throw () { (void)(pid1 && pid2); }
     bool shouldApplyPhysicsToPlayerCallback(int pid) throw ();
 
     void remove_useless_flags() throw ();
@@ -862,6 +862,10 @@ class GuiClient : public ClientBase {
     void net_data_sound(BinaryReader& read) throw ();
     void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
     void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
+
+    void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
+    void playerHitWallCallback(int pid) throw ();
+    void playerHitPlayerCallback(int pid1, int pid2) throw ();
 
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
         const GuiClient& c;
