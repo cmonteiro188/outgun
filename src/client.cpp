@@ -554,9 +554,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     serverListMutex("Client::serverListMutex"),
     botmode(false),
     #endif
-    sharedDataHandle(static_botSharedDataStorage),
-    finished(false),
-    botPrevFire(false),
     abortThreads(false),
     #ifndef DEDICATED_SERVER_ONLY
     refreshStatus(RS_none),
@@ -611,7 +608,10 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
 { }
 
 Robot::Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    ClientBase(config, serverConfig, clientLog, externalErrorLog_)
+    ClientBase(config, serverConfig, clientLog, externalErrorLog_),
+    sharedDataHandle(static_botSharedDataStorage),
+    finished(false),
+    botPrevFire(false)
 { }
 
 ClientBase::~ClientBase() throw () {
@@ -635,7 +635,7 @@ ClientBase::~ClientBase() throw () {
 
 GuiClient::~GuiClient() throw () { }
 
-void ClientBase::startBase() throw () {
+void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
     clFrameSent = clFrameWorld = 0;
     fx.frame = -1;
     #ifndef DEDICATED_SERVER_ONLY
@@ -658,7 +658,7 @@ void ClientBase::startBase() throw () {
 
     connected = false;
 
-    client = new_client_c(extConfig.networkPriority, botmode ? "_bot" + itoa(botId) : "");
+    client = new_client_c(extConfig.networkPriority, leetnetLogPostfix);
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
@@ -908,7 +908,7 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
     botId = bot_id;
     serverIP = addr;
 
-    startBase();
+    startBase("_bot" + itoa(botId));
 
     playername = name;
 

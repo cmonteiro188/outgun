@@ -412,7 +412,6 @@ protected:
     client_c *client;
     double lastpackettime;
     uint8_t clFrameSent, clFrameWorld;
-    double botReactedFrame;
     double frameOffsetDeltaTotal;
     int frameOffsetDeltaNum;
     double netsendAdjustment;
@@ -516,36 +515,11 @@ protected:
 
     // for bots:
 
-    enum Routing {
-        Route_None,
-        Route_Flag,
-        Route_Base,
-        Route_Team,
-        Route_Fog
-    };
-
     #ifndef DEDICATED_SERVER_ONLY
     bool botmode;
     #else
     static const bool botmode = true;
     #endif
-
-    static BotSharedDataStorage static_botSharedDataStorage;
-    BotSharedDataHandle sharedDataHandle;
-
-    std::string bot_password;
-    int botId;
-    bool finished;
-
-    AreaMap areaMap;
-    typedef AreaMap::Area Area;
-
-    Routing     routing[Table_Max];
-    const Area* routeTarget[Table_Max];
-    const Area* routeTableCenter[Table_Max];
-    bool        botPrevFire;
-    int         last_seen;
-    int         myGundir;
 
     volatile bool abortThreads;
 
@@ -676,7 +650,7 @@ protected:
 
     virtual void CB_rankingToken(std::string token) throw () { nAssert(0); (void)token; } // #@remove
 
-    void startBase() throw ();
+    void startBase(const std::string& leetnetLogPostfix = std::string()) throw ();
     virtual void stop() throw ();
 
 public:
@@ -888,6 +862,32 @@ public:
 };
 
 class Robot : private ClientBase, public BotInterface {
+    enum Routing {
+        Route_None,
+        Route_Flag,
+        Route_Base,
+        Route_Team,
+        Route_Fog
+    };
+
+    static BotSharedDataStorage static_botSharedDataStorage;
+    BotSharedDataHandle sharedDataHandle;
+
+    std::string bot_password;
+    int botId;
+    double botReactedFrame;
+    bool finished;
+
+    AreaMap areaMap;
+    typedef AreaMap::Area Area;
+
+    Routing     routing[Table_Max];
+    const Area* routeTarget[Table_Max];
+    const Area* routeTableCenter[Table_Max];
+    bool        botPrevFire;
+    int         last_seen;
+    int         myGundir;
+
     struct TeamCounts {
         int enemies, friends;
     };
