@@ -362,8 +362,11 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 out << "flag " << (flags == 1 ? 2 : flag_team) << ' ' << x << ' ' << y << " 8 6\n";
                 flag_team = 1 - flag_team;
             }
-            if (current.respawn != -1)
+            if (current.respawn != -1) {
                 out << "V respawn " << current.respawn << ' ' << x << ' ' << y << " 0 0 16 12\n";
+                const int floor = current.respawn == 2 ? rand() % 2 + 1 : current.respawn + 3; // 1 and 2 alternative floors, 3 red floor, 4 blue floor
+                out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
+            }
             vector<string> walls;
             if (current.top)
                 walls.push_back("top");
