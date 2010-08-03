@@ -544,7 +544,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     #endif
     abortThreads(false),
     #ifndef DEDICATED_SERVER_ONLY
-    refreshStatus(RS_none),
     replaying(false),
     spectating(false),
     #endif
@@ -591,6 +590,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     totalframecount(0),
     frameCountStartTime(0),
     serverListMutex("GuiClient::serverListMutex"),
+    refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
     graphics(log),
     screenshot(false),
@@ -615,10 +615,6 @@ ClientBase::~ClientBase() throw () {
         delete client;
         client = 0;
     }
-    #ifndef DEDICATED_SERVER_ONLY
-    while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
-        platSleep(50);
-    #endif
 
     for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
         delete *mi;
@@ -626,7 +622,11 @@ ClientBase::~ClientBase() throw () {
     log("Exiting client: destructor exiting");
 }
 
-GuiClient::~GuiClient() throw () { }
+GuiClient::~GuiClient() throw () {
+    abortThreads = true;
+    while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
+        platSleep(50);
+}
 
 void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
     clFrameSent = clFrameWorld = 0;

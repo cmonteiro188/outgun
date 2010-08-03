@@ -468,9 +468,6 @@ protected:
     volatile bool abortThreads;
 
     #ifndef DEDICATED_SERVER_ONLY
-    enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
-    volatile RefreshStatus refreshStatus;   // thread communication variable
-
     bool stats_autoshowing;
     bool replaying;
     std::ifstream replay;
@@ -600,6 +597,9 @@ class GuiClient : private ClientBase, public ClientInterface {
     Mutex serverListMutex;
 
     RegisterMouseClicks mouseClicked;
+
+    enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
+    volatile RefreshStatus refreshStatus;   // thread communication variable
 
     std::string password_file;
 
