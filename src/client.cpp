@@ -533,46 +533,23 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
     log(&clientLog, &errorLog, 0),
-    #ifndef DEDICATED_SERVER_ONLY
-    listenServer(log),
-    #endif
     frameMutex("Client::frameMutex"),
-    downloadMutex("Client::downloadMutex"),
     #ifndef DEDICATED_SERVER_ONLY
     rankingPassword(log, new RedirectToMemFun1<ClientBase, void, string>(this, &ClientBase::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
-    mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
-    player_stats_page(0),
-    lastAltEnterTime(0),
-    FPS(0),
-    framecount(0),
-    totalframecount(0),
-    frameCountStartTime(0),
-    serverListMutex("Client::serverListMutex"),
     botmode(false),
     #endif
     abortThreads(false),
     #ifndef DEDICATED_SERVER_ONLY
     refreshStatus(RS_none),
-    password_file(wheregamedir + "config" + directory_separator + "passwd"),
-    graphics(log),
-    screenshot(false),
     replaying(false),
-    visible_rooms(1),
     spectating(false),
     #endif
     mapChanged(false),
-    #ifndef DEDICATED_SERVER_ONLY
-    client_sounds(log),
-    messageLogOpen(false),
-    #endif
     extConfig(config)
-    #ifndef DEDICATED_SERVER_ONLY
-    , serverExtConfig(serverConfig)
-    #endif
 {
     //net client
     client = 0;
@@ -593,9 +570,8 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     #ifndef DEDICATED_SERVER_ONLY
     //if player wants to changeteams
     want_change_teams = false;
-    #else
-    (void)serverConfig;
     #endif
+    (void)serverConfig; //#@fix
 
     //connected? (that is, "connection accepted")
     connected = false;
@@ -604,7 +580,24 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
 }
 
 GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    ClientBase(config, serverConfig, clientLog, externalErrorLog_)
+    ClientBase(config, serverConfig, clientLog, externalErrorLog_),
+    listenServer(log),
+    downloadMutex("GuiClient::downloadMutex"),
+    mapListSortKey(MLSK_Number),
+    player_stats_page(0),
+    lastAltEnterTime(0),
+    FPS(0),
+    framecount(0),
+    totalframecount(0),
+    frameCountStartTime(0),
+    serverListMutex("GuiClient::serverListMutex"),
+    password_file(wheregamedir + "config" + directory_separator + "passwd"),
+    graphics(log),
+    screenshot(false),
+    visible_rooms(1),
+    client_sounds(log),
+    messageLogOpen(false),
+    serverExtConfig(serverConfig)
 { }
 
 Robot::Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :

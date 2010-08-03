@@ -370,38 +370,15 @@ class ClientBase {
 
 protected:
 
-    static const int disappearedFlagAlpha = 150;
-
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
     // currently not in use:    SupplementaryLog<FileLog> securityLog;
     mutable LogSet log; // this is the only access to logs in normal operation
 
-    #ifndef DEDICATED_SERVER_ONLY
-    ServerThreadOwner listenServer;
-
-    class SettingManager : public SettingCollector {
-    public:
-        typedef std::map<ClientCfgSetting, SaverLoader*> MapT;
-
-        ~SettingManager() throw () { for (MapT::iterator i = settings.begin(); i != settings.end(); ++i) delete i->second; }
-
-        void add(ClientCfgSetting key, SaverLoader* sl) throw () { settings[key] = sl; }
-
-        SettingCollector::SaverLoader* find(ClientCfgSetting key) const throw () { MapT::const_iterator i = settings.find(key); return i == settings.end() ? 0 : i->second; }
-        const MapT& read() const throw () { return settings; }
-
-    private:
-        MapT settings;
-    };
-    SettingManager settings;
-    #endif
-
     // world (these variables all locked by frameMutex)
     ClientWorld fx; //#fix fx and fd: two maps, etc.
     #ifndef DEDICATED_SERVER_ONLY
     ClientWorld fd;
-    bool mapWrapsX, mapWrapsY;
     std::vector<ClientPlayer*> players_sb;  // player pointers for scoreboard
     #endif
     int me;
@@ -434,22 +411,14 @@ protected:
 
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
-    Mutex downloadMutex;
     #ifndef DEDICATED_SERVER_ONLY
-    std::list<FileDownload> downloads;
-
     RankingPasswordManager rankingPassword;
 
-    uint32_t fdp;
     uint32_t max_world_rank;
-    #endif
 
-    #ifndef DEDICATED_SERVER_ONLY
     Mutex mapInfoMutex;
     std::vector<MapInfo> maps;
-    std::vector< std::pair<const MapInfo*, int> > sortedMaps;
 
-    MapListSortKey mapListSortKey;
     bool mapListChangedAfterSort;
 
     std::set<std::string> fav_maps;
@@ -470,21 +439,11 @@ protected:
     bool capture_on_wild_flags_in_effect;
 
     #ifndef DEDICATED_SERVER_ONLY
-    // GUI
     Menu_main menu;
-    Menu_text m_connectProgress;
-    Menu_text m_dialog; // take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
-    Menu_text m_errors;
     Menu_playerPassword m_playerPassword;
-    Menu_serverPassword m_serverPassword;
-    Menu_text m_serverInfo;
-    Menu_text m_notResponding; // not to be put to openMenus
-
-    Menu_language m_initialLanguage; // only for setting the language at startup
 
     MenuStack openMenus;
 
-    bool quitCommand;
     Menu_selection menusel; // a special screen rather than menu: maplist, stats
     #endif
 
@@ -494,26 +453,11 @@ protected:
     #ifndef DEDICATED_SERVER_ONLY
     int red_final_score, blue_final_score;
     std::string hostname;
-    std::string edit_map_vote;
-    int player_stats_page;
-    double lastAltEnterTime;
     bool deadAfterHighlighted;
-
-    double FPS;
-    int framecount, totalframecount;
-    double frameCountStartTime;
-
-    std::vector<ServerListEntry> gamespy;
-    std::vector<ServerListEntry> mgamespy;  //gamespy of master server
-    Mutex serverListMutex;
-
-    RegisterMouseClicks mouseClicked;
     #endif
 
     std::string playername;
     Network::Address serverIP;
-
-    // for bots:
 
     #ifndef DEDICATED_SERVER_ONLY
     bool botmode;
@@ -527,63 +471,18 @@ protected:
     enum RefreshStatus { RS_none, RS_running, RS_failed, RS_contacting, RS_connecting, RS_receiving };
     volatile RefreshStatus refreshStatus;   // thread communication variable
 
-    std::string password_file;
-
-    std::string talkbuffer;
-    int talkbuffer_cursor;
-    std::list<Message> chatbuffer;
-    bool show_all_messages;
-    std::vector<std::string> highlight_text;
-
     bool stats_autoshowing;
-    Graphics graphics;
-    bool screenshot;
     bool replaying;
     std::ifstream replay;
-    double replay_rate, replayTime, replaySubFrame;
-    bool replay_paused;
-    bool replay_stopped;
-    bool replay_first_frame_loaded;
-    unsigned replay_start_frame;
-    unsigned replay_length;
-    std::pair<int, int> replayTopLeftRoom;
-    double visible_rooms;
-
     bool spectating;
-    Network::TCPSocket spectate_socket;
-    bool spectate_data_received;
-    std::stringstream spectate_buffer;
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
     #endif
     volatile bool mapChanged;
-    #ifndef DEDICATED_SERVER_ONLY
-    Sounds client_sounds;
-
-    std::pair<int, int> predrawnRoom;
-    int predrawnVisibleRooms;
-    bool predrawnWithScroll;
-
-    std::ofstream message_log;
-    bool messageLogOpen;
-    #endif
 
     const ClientExternalSettings extConfig;
     #ifndef DEDICATED_SERVER_ONLY
-    ServerExternalSettings serverExtConfig;
     SimpleGameSettings gameSettings; // for stats only
-
-    class GFXMode {
-    public:
-        int width, height, depth;
-        bool windowed, flipping;
-
-        GFXMode() throw () : width(-1) { }
-        GFXMode(int w, int h, int d, bool win, int flip) throw () : width(w), height(h), depth(d), windowed(win), flipping(flip) { }
-        bool used() const throw () { return width != -1; }
-    };
-
-    GFXMode workingGfxMode;
     #endif
 
     void addThreadMessage(ThreadMessage* msg) throw () { messageQueue.push_back(msg); }
@@ -660,6 +559,109 @@ public:
 
 class GuiClient : private ClientBase, public ClientInterface {
     friend class TM_ServerSettings;
+
+    static const int disappearedFlagAlpha = 150;
+
+    ServerThreadOwner listenServer;
+
+    bool mapWrapsX, mapWrapsY;
+
+    Mutex downloadMutex;
+    std::list<FileDownload> downloads;
+
+    uint32_t fdp;
+
+    std::vector< std::pair<const MapInfo*, int> > sortedMaps;
+
+    MapListSortKey mapListSortKey;
+
+    // GUI
+    Menu_text m_connectProgress;
+    Menu_text m_dialog; // take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
+    Menu_text m_errors;
+    Menu_serverPassword m_serverPassword;
+    Menu_text m_serverInfo;
+    Menu_text m_notResponding; // not to be put to openMenus
+
+    Menu_language m_initialLanguage; // only for setting the language at startup
+
+    bool quitCommand;
+
+    std::string edit_map_vote;
+    int player_stats_page;
+    double lastAltEnterTime;
+
+    double FPS;
+    int framecount, totalframecount;
+    double frameCountStartTime;
+
+    std::vector<ServerListEntry> gamespy;
+    std::vector<ServerListEntry> mgamespy;  //gamespy of master server
+    Mutex serverListMutex;
+
+    RegisterMouseClicks mouseClicked;
+
+    std::string password_file;
+
+    std::string talkbuffer;
+    int talkbuffer_cursor;
+    std::list<Message> chatbuffer;
+    bool show_all_messages;
+    std::vector<std::string> highlight_text;
+
+    Graphics graphics;
+    bool screenshot;
+    double replay_rate, replayTime, replaySubFrame;
+    bool replay_paused;
+    bool replay_stopped;
+    bool replay_first_frame_loaded;
+    unsigned replay_start_frame;
+    unsigned replay_length;
+    std::pair<int, int> replayTopLeftRoom;
+    double visible_rooms;
+
+    Network::TCPSocket spectate_socket;
+    bool spectate_data_received;
+    std::stringstream spectate_buffer;
+
+    Sounds client_sounds;
+
+    std::pair<int, int> predrawnRoom;
+    int predrawnVisibleRooms;
+    bool predrawnWithScroll;
+
+    std::ofstream message_log;
+    bool messageLogOpen;
+
+    ServerExternalSettings serverExtConfig;
+
+    class GFXMode {
+    public:
+        int width, height, depth;
+        bool windowed, flipping;
+
+        GFXMode() throw () : width(-1) { }
+        GFXMode(int w, int h, int d, bool win, int flip) throw () : width(w), height(h), depth(d), windowed(win), flipping(flip) { }
+        bool used() const throw () { return width != -1; }
+    };
+
+    GFXMode workingGfxMode;
+
+    class SettingManager : public SettingCollector {
+    public:
+        typedef std::map<ClientCfgSetting, SaverLoader*> MapT;
+
+        ~SettingManager() throw () { for (MapT::iterator i = settings.begin(); i != settings.end(); ++i) delete i->second; }
+
+        void add(ClientCfgSetting key, SaverLoader* sl) throw () { settings[key] = sl; }
+
+        SettingCollector::SaverLoader* find(ClientCfgSetting key) const throw () { MapT::const_iterator i = settings.find(key); return i == settings.end() ? 0 : i->second; }
+        const MapT& read() const throw () { return settings; }
+
+    private:
+        MapT settings;
+    };
+    SettingManager settings;
 
     std::vector<std::vector<std::string> > load_all_player_passwords() const throw ();
     std::string load_player_password(const std::string& name, const std::string& address) const throw ();
