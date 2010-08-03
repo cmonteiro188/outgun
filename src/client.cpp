@@ -535,7 +535,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     log(&clientLog, &errorLog, 0),
     frameMutex("Client::frameMutex"),
     #ifndef DEDICATED_SERVER_ONLY
-    rankingPassword(log, new RedirectToMemFun1<ClientBase, void, string>(this, &ClientBase::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
     mapListChangedAfterSort(false),
     current_map(-1),
@@ -582,6 +581,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     ClientBase(config, serverConfig, clientLog, externalErrorLog_),
     listenServer(log),
     downloadMutex("GuiClient::downloadMutex"),
+    rankingPassword(log, new RedirectToMemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
     mapListSortKey(MLSK_Number),
     player_stats_page(0),
     lastAltEnterTime(0),
@@ -2444,12 +2444,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_registration_response:
-        #ifndef DEDICATED_SERVER_ONLY
-        if (read.U8() == 1)  // success
-            rankingPassword.serverAcceptsToken();
-        else
-            rankingPassword.serverRejectsToken();
-        #endif
+        net_data_registration_response(read);
 
     break; case data_crap_update: {
         #ifndef DEDICATED_SERVER_ONLY
@@ -3176,6 +3171,13 @@ void GuiClient::net_data_sound(BinaryReader& read) throw () {
     }
     if (sample < NUM_OF_SAMPLES)
         addThreadMessage(new TM_Sound(sample));
+}
+
+void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
+    if (read.U8() == 1)  // success
+        rankingPassword.serverAcceptsToken();
+    else
+        rankingPassword.serverRejectsToken();
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
