@@ -2581,41 +2581,19 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         fx.player[pid].stats().add_flag_return();
         fx.teams[pid / TSIZE].add_flag_return();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (pid / TSIZE == 0)
-            msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
-        else
-            msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
-        if (menu.options.game.showFlagMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
-        #endif
+        netFlagReturn(pid);
     }
 
     break; case data_flag_drop: {
         uint8_t pid = read.U8();
-        #ifndef DEDICATED_SERVER_ONLY
         const bool wild_flag = pid & 0x80;
-        #endif
         pid &= ~0x80;
         if (pid >= maxplayers)
             return false;
         fx.player[pid].stats().add_flag_drop(time);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_drop();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (wild_flag)
-            msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
-        else if (1 - team == 0)
-            msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
-        else
-            msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
-        if (menu.options.game.showFlagMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-        #endif
+        netFlagDrop(pid, wild_flag);
     }
 
     break; case data_suicide: {
@@ -3298,6 +3276,31 @@ void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended)
     }
     if (player_on_screen_exact(pid))
         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+}
+
+void GuiClient::netFlagReturn(int pid) throw () {
+    string msg;
+    if (pid / TSIZE == 0)
+        msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
+}
+
+void GuiClient::netFlagDrop(int pid, bool wild_flag) throw () {
+    const int team = pid / TSIZE;
+    string msg;
+    if (wild_flag)
+        msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
+    else if (1 - team == 0)
+        msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
