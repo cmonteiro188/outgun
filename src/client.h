@@ -540,6 +540,12 @@ protected:
     virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
     virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_registration_response(BinaryReader& read) throw () { nAssert(0); (void)read; }
+    virtual void net_data_map_list(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_crap_update(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_reset_map_list(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_current_map(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_map_vote(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_map_votes_update(BinaryReader& read) throw () { (void)read; }
     virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw (); // empty
     virtual void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () { (void)(pid && flag && wild_flag && spree_ended); }
 
@@ -835,6 +841,13 @@ class GuiClient : private ClientBase, public ClientInterface {
     void netPowerCollision(int target, double time) throw ();
     void net_data_sound(BinaryReader& read) throw ();
     void net_data_registration_response(BinaryReader& read) throw ();
+    void net_data_map_list(BinaryReader& read) throw ();
+    void net_data_crap_update(BinaryReader& read) throw ();
+    void net_data_reset_map_list(BinaryReader& read) throw ();
+    void net_data_current_map(BinaryReader& read) throw ();
+    void net_data_map_vote(BinaryReader& read) throw ();
+    void net_data_map_votes_update(BinaryReader& read) throw ();
+
     void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
     void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
 

@@ -2446,63 +2446,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_registration_response:
         net_data_registration_response(read);
 
-    break; case data_crap_update: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t pid = read.U8();
-        fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
-        ClientLoginStatus ls;
-        ls.fromNetwork(read.U8());
-        const uint32_t prank = read.U32(0, INT_MAX), pscore = read.U32(0, INT_MAX), nscore = read.U32(0, INT_MAX);
-        max_world_rank = read.U32();
-
-        const ClientLoginStatus& os = fx.player[me].reg_status;
-        const bool newMePrintout =
-            !replaying &&
-            pid == me &&
-            (ls.token() != os.token() ||
-             (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.ranking() != os.ranking())) ||
-             ls.localAuth() != os.localAuth() ||
-             ls.admin() != os.admin());
-        if (newMePrintout) {
-            ostringstream msg;
-            msg << _("Status") << ": ";
-            if (ls.token()) {
-                if (ls.masterAuth()) {
-                    msg << _("master authorized") << ", ";
-                    if (ls.ranking())
-                        msg << _("recording");
-                    else
-                        msg << _("not recording");
-                }
-                else {
-                    msg << _("master auth pending") << ", ";
-                    if (ls.ranking())
-                        msg << _("will record");
-                    else
-                        msg << _("will not record");
-                }
-            }
-            else
-                msg << _("no ranking login");
-            if (ls.localAuth())
-                msg << "; " << _("locally authorized");
-            if (ls.admin())
-                msg << "; " << _("administrator");
-            addThreadMessage(new TM_Text(msg_info, msg.str()));
-        }
-        fx.player[pid].reg_status = ls;
-        fx.player[pid].rank = prank;
-        fx.player[pid].score = pscore;
-        fx.player[pid].neg_score = nscore;
-        // update new team powers
-        double power[2] = { 0, 0 };
-        for (int i = 0; i < fx.maxplayers; i++)
-            if (fx.player[i].used)
-                power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
-        for (int t = 0; t < 2; t++)
-            fx.teams[t].set_power(power[t]);
-        #endif
-    }
+    break; case data_crap_update:
+        net_data_crap_update(read);
 
     break; case data_map_time: {
         #ifndef DEDICATED_SERVER_ONLY
@@ -2519,55 +2464,20 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         #endif
     }
 
-    break; case data_reset_map_list: {
-        #ifndef DEDICATED_SERVER_ONLY
-        Lock ml(mapInfoMutex);
-        maps.clear();
-        mapListChangedAfterSort = true;
-        map_vote = -1;
-        #endif
-    }
+    break; case data_reset_map_list:
+        net_data_reset_map_list(read);
 
     break; case data_current_map:
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        #endif
+        net_data_current_map(read);
 
-    break; case data_map_list: {
-        #ifndef DEDICATED_SERVER_ONLY
-        MapInfo mapinfo;
-        mapinfo.title = read.str();
-        mapinfo.author = read.str();
-        mapinfo.width = read.U8();
-        mapinfo.height = read.U8();
-        mapinfo.votes = read.U8();
-        mapinfo.random = read.hasMore() ? read.U8() : false;
-        mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
-        Lock ml(mapInfoMutex);
-        maps.push_back(mapinfo);
-        mapListChangedAfterSort = true;
-        #endif
-    }
+    break; case data_map_list:
+        net_data_map_list(read);
 
-    break; case data_map_vote: {
-        #ifndef DEDICATED_SERVER_ONLY
-        map_vote = read.S8();
-        #endif
-    }
+    break; case data_map_vote:
+        net_data_map_vote(read);
 
-    break; case data_map_votes_update: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t total = read.U8();
-        Lock ml(mapInfoMutex);
-        for (int i = 0; i < total; i++) {
-            const uint8_t map_nr = read.U8(), votes = read.U8();
-            if (map_nr < maps.size()) {
-                maps[map_nr].votes = votes;
-                mapListChangedAfterSort = true;
-            }
-        }
-        #endif
-    }
+    break; case data_map_votes_update:
+        net_data_map_votes_update(read);
 
     break; case data_stats_ready: {
         #ifndef DEDICATED_SERVER_ONLY
@@ -3178,6 +3088,104 @@ void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
         rankingPassword.serverAcceptsToken();
     else
         rankingPassword.serverRejectsToken();
+}
+
+void GuiClient::net_data_map_list(BinaryReader& read) throw () {
+    MapInfo mapinfo;
+    mapinfo.title = read.str();
+    mapinfo.author = read.str();
+    mapinfo.width = read.U8();
+    mapinfo.height = read.U8();
+    mapinfo.votes = read.U8();
+    mapinfo.random = read.hasMore() ? read.U8() : false;
+    mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+    Lock ml(mapInfoMutex);
+    maps.push_back(mapinfo);
+    mapListChangedAfterSort = true;
+}
+
+void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
+    const uint8_t pid = read.U8();
+    fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
+    ClientLoginStatus ls;
+    ls.fromNetwork(read.U8());
+    const uint32_t prank = read.U32(0, INT_MAX), pscore = read.U32(0, INT_MAX), nscore = read.U32(0, INT_MAX);
+    max_world_rank = read.U32();
+
+    const ClientLoginStatus& os = fx.player[me].reg_status;
+    const bool newMePrintout =
+            !replaying &&
+            pid == me &&
+            (ls.token() != os.token() ||
+             (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.ranking() != os.ranking())) ||
+             ls.localAuth() != os.localAuth() ||
+             ls.admin() != os.admin());
+    if (newMePrintout) {
+        ostringstream msg;
+        msg << _("Status") << ": ";
+        if (ls.token()) {
+            if (ls.masterAuth()) {
+                msg << _("master authorized") << ", ";
+                if (ls.ranking())
+                    msg << _("recording");
+                else
+                    msg << _("not recording");
+            }
+            else {
+                msg << _("master auth pending") << ", ";
+                if (ls.ranking())
+                    msg << _("will record");
+                else
+                    msg << _("will not record");
+            }
+        }
+        else
+            msg << _("no ranking login");
+        if (ls.localAuth())
+            msg << "; " << _("locally authorized");
+        if (ls.admin())
+            msg << "; " << _("administrator");
+        addThreadMessage(new TM_Text(msg_info, msg.str()));
+    }
+    fx.player[pid].reg_status = ls;
+    fx.player[pid].rank = prank;
+    fx.player[pid].score = pscore;
+    fx.player[pid].neg_score = nscore;
+    // update new team powers
+    double power[2] = { 0, 0 };
+    for (int i = 0; i < fx.maxplayers; i++)
+        if (fx.player[i].used)
+            power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+    for (int t = 0; t < 2; t++)
+        fx.teams[t].set_power(power[t]);
+}
+
+void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
+    (void)read;
+    Lock ml(mapInfoMutex);
+    maps.clear();
+    mapListChangedAfterSort = true;
+    map_vote = -1;
+}
+
+void GuiClient::net_data_current_map(BinaryReader& read) throw () {
+    current_map = read.U8();
+}
+
+void GuiClient::net_data_map_vote(BinaryReader& read) throw () {
+    map_vote = read.S8();
+}
+
+void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
+    const uint8_t total = read.U8();
+    Lock ml(mapInfoMutex);
+    for (int i = 0; i < total; i++) {
+        const uint8_t map_nr = read.U8(), votes = read.U8();
+        if (map_nr < maps.size()) {
+            maps[map_nr].votes = votes;
+            mapListChangedAfterSort = true;
+        }
+    }
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
