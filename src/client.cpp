@@ -2480,22 +2480,9 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         net_data_map_votes_update(read);
 
     break; case data_stats_ready: {
-        #ifndef DEDICATED_SERVER_ONLY
-        if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
-            switch (menu.options.game.showStats()) {
-            /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
-                break; case Menu_game::SS_players: menusel = menu_players;
-                break; default: nAssert(0);
-            }
-            stats_autoshowing = true;
-        }
-        #endif
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             pi->stats().finish_stats(time);
-        #ifndef DEDICATED_SERVER_ONLY
-        if (menu.options.game.saveStats() && players_sb.size() > 1)
-            fx.save_stats("client_stats", fx.map.title, gameSettings);
-        #endif
+        netStatsReady();
     }
 
     break; case data_capture: {
@@ -3186,6 +3173,19 @@ void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
             mapListChangedAfterSort = true;
         }
     }
+}
+
+void GuiClient::netStatsReady() throw () {
+    if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
+        switch (menu.options.game.showStats()) {
+        /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
+            break; case Menu_game::SS_players: menusel = menu_players;
+            break; default: nAssert(0);
+        }
+        stats_autoshowing = true;
+    }
+    if (menu.options.game.saveStats() && players_sb.size() > 1)
+        fx.save_stats("client_stats", fx.map.title, gameSettings);
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
