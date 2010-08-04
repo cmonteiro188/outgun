@@ -2622,7 +2622,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         uint8_t pid = read.U8();
         const bool flag = pid & 0x80;
         const bool wild_flag = pid & 0x40;
-        const bool spree_ended = fx.player[pid].stats().current_cons_kills() >= 10 && menu.options.game.showKillMessages();
+        const bool spree_ended = fx.player[pid].stats().current_cons_kills() >= 10;
         pid &= ~0xC0;
         if (pid >= maxplayers)
             return false;
@@ -3282,7 +3282,7 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
 
 void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () {
     const int team = pid / TSIZE;
-    if (spree_ended)
+    if (spree_ended && menu.options.game.showKillMessages())
         addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
     if (flag) {
         string msg;
