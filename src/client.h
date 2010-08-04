@@ -429,11 +429,6 @@ protected:
     bool capture_on_wild_flags_in_effect;
 
     #ifndef DEDICATED_SERVER_ONLY
-    Menu_main menu;
-    Menu_playerPassword m_playerPassword;
-
-    MenuStack openMenus;
-
     Menu_selection menusel; // a special screen rather than menu: maplist, stats
     #endif
 
@@ -545,6 +540,8 @@ protected:
     virtual void netFlagDrop(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
     virtual void netStatsReady() throw () { }
 
+    virtual std::string getPlayerPassword() const throw () = 0;
+
     void startBase(const std::string& leetnetLogPostfix = std::string()) throw ();
     virtual void stop() throw ();
 
@@ -579,14 +576,18 @@ class GuiClient : private ClientBase, public ClientInterface {
     std::set<std::string> fav_maps;
 
     // GUI
+    Menu_main menu;
     Menu_text m_connectProgress;
     Menu_text m_dialog; // take care not to open multiple dialogs (same goes to other menus too); to allow that, a vector of Menu_text should be created
     Menu_text m_errors;
+    Menu_playerPassword m_playerPassword;
     Menu_serverPassword m_serverPassword;
     Menu_text m_serverInfo;
     Menu_text m_notResponding; // not to be put to openMenus
 
     Menu_language m_initialLanguage; // only for setting the language at startup
+
+    MenuStack openMenus;
 
     bool quitCommand;
 
@@ -861,6 +862,8 @@ class GuiClient : private ClientBase, public ClientInterface {
     void playerHitWallCallback(int pid) throw ();
     void playerHitPlayerCallback(int pid1, int pid2) throw ();
 
+    std::string getPlayerPassword() const throw () { return m_playerPassword.password(); }
+
     class ConstDisappearedFlagIterator : public ConstFlagIterator {
         const GuiClient& c;
 
@@ -992,6 +995,8 @@ class Robot : private ClientBase, public BotInterface {
     void client_disconnected(ConstDataBlockRef data) throw ();
 
     void bot_send_frame(ClientControls controls) throw ();
+
+    std::string getPlayerPassword() const throw () { return std::string(); }
 
 public:
     Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();

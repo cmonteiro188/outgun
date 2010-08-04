@@ -1555,11 +1555,7 @@ void ClientBase::issue_change_name_command() throw () {
     msg.U8(data_name_update);
     nAssert(check_name(playername));
     msg.str(playername);
-    #ifndef DEDICATED_SERVER_ONLY
-    msg.str(m_playerPassword.password());    // empty or not, it's needed
-    #else
-    msg.str("");
-    #endif
+    msg.str(getPlayerPassword());    // empty or not, it's needed
     client->send_message(msg);
 }
 
