@@ -2001,46 +2001,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             log.error("Invalid name for player " + itoa(pid) + '.');
     }
 
-    break; case data_text_message: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const Message_type type = static_cast<Message_type>(read.U8(0, Message_types - 1));
-        string chatmsg = read.str();
-        if (find_nonprintable_char(chatmsg)) {
-            log.error("Server sent non-printable characters in a message.");
-            nAssert(!botmode);
-            addThreadMessage(new TM_DoDisconnect());
-            break;
-        }
-        // This is a kludge because of compatibility.
-        // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
-        if (type == msg_server) {
-            if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
-                chatmsg = _("Your vote has no effect until you vote for a specific map.");
-                want_map_exit_delayed = true;
-            }
-            string::size_type pos = chatmsg.find(" decided it's time for a map change.");
-            if (pos != string::npos) {
-                const string name = chatmsg.substr(0, pos);
-                chatmsg = _("$1 decided it's time for a map change.", name);
-            }
-            pos = chatmsg.find(" decided it's time for a restart.");
-            if (pos != string::npos) {
-                const string name = chatmsg.substr(0, pos);
-                chatmsg = _("$1 decided it's time for a restart.", name);
-            }
-        }
-        int8_t sender_team = -1;
-        if (protocolExtensions >= 0 || replaying) {
-            if (type == msg_team || type == msg_normal)
-                sender_team = read.S8();
-        }
-        else if (type == msg_team)
-            sender_team = fx.player[me].team();
-        addThreadMessage(new TM_Text(type, chatmsg, sender_team));
-        if (type == msg_team || type == msg_normal)
-            addThreadMessage(new TM_Sound(SAMPLE_TALK));
-        #endif
-    }
+    break; case data_text_message:
+        net_data_text_message(read);
 
     break; case data_first_packet: {
         me = read.U8();
@@ -3137,6 +3099,44 @@ void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
             mapListChangedAfterSort = true;
         }
     }
+}
+
+void GuiClient::net_data_text_message(BinaryReader& read) throw () {
+    const Message_type type = static_cast<Message_type>(read.U8(0, Message_types - 1));
+    string chatmsg = read.str();
+    if (find_nonprintable_char(chatmsg)) {
+        log.error("Server sent non-printable characters in a message.");
+        addThreadMessage(new TM_DoDisconnect());
+        return;
+    }
+    // This is a kludge because of compatibility.
+    // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
+    if (type == msg_server) {
+        if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
+            chatmsg = _("Your vote has no effect until you vote for a specific map.");
+            want_map_exit_delayed = true;
+        }
+        string::size_type pos = chatmsg.find(" decided it's time for a map change.");
+        if (pos != string::npos) {
+            const string name = chatmsg.substr(0, pos);
+            chatmsg = _("$1 decided it's time for a map change.", name);
+        }
+        pos = chatmsg.find(" decided it's time for a restart.");
+        if (pos != string::npos) {
+            const string name = chatmsg.substr(0, pos);
+            chatmsg = _("$1 decided it's time for a restart.", name);
+        }
+    }
+    int8_t sender_team = -1;
+    if (protocolExtensions >= 0 || replaying) {
+        if (type == msg_team || type == msg_normal)
+            sender_team = read.S8();
+    }
+    else if (type == msg_team)
+        sender_team = fx.player[me].team();
+    addThreadMessage(new TM_Text(type, chatmsg, sender_team));
+    if (type == msg_team || type == msg_normal)
+        addThreadMessage(new TM_Sound(SAMPLE_TALK));
 }
 
 void GuiClient::netStatsReady() throw () {
