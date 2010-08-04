@@ -2564,17 +2564,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         fx.player[pid].stats().add_flag_take(time, wild_flag);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_take();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (wild_flag)
-            msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
-        else if (1 - team == 0)
-            msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
-        else
-            msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
-        if (menu.options.game.showFlagMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
+        netFlagTake(pid, wild_flag);
     }
 
     break; case data_flag_return: {
@@ -3276,6 +3266,19 @@ void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended)
     }
     if (player_on_screen_exact(pid))
         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+}
+
+void GuiClient::netFlagTake(int pid, bool wild_flag) throw () {
+    const int team = pid / TSIZE;
+    string msg;
+    if (wild_flag)
+        msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
+    else if (1 - team == 0)
+        msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
 }
 
 void GuiClient::netFlagReturn(int pid) throw () {

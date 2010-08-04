@@ -540,6 +540,7 @@ protected:
     virtual void net_data_map_votes_update(BinaryReader& read) throw () { (void)read; }
     virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw (); // empty
     virtual void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () { (void)(pid && flag && wild_flag && spree_ended); }
+    virtual void netFlagTake(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
     virtual void netFlagReturn(int pid) throw () { (void)pid; }
     virtual void netFlagDrop(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
     virtual void netStatsReady() throw () { }
@@ -851,6 +852,7 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
     void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
+    void netFlagTake(int pid, bool wild_flag) throw ();
     void netFlagReturn(int pid) throw ();
     void netFlagDrop(int pid, bool wild_flag) throw ();
     void netStatsReady() throw ();
