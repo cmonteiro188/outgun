@@ -459,11 +459,10 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         }
         for (unsigned i = 0; i < tinfo[t].respawn.size(); ++i) {
             const WorldRect& area = tinfo[t].respawn[i];
-            const int xStepSize = max(static_cast<int>(area.x2 - area.x1) / 5, PLAYER_RADIUS * 2),
-                      yStepSize = max(static_cast<int>(area.y2 - area.y1) / 5, PLAYER_RADIUS * 2);
+            const int xStepSize = PLAYER_RADIUS, yStepSize = PLAYER_RADIUS;
             const int xSteps = static_cast<int>(area.x2 - area.x1) / xStepSize + 1,
                       ySteps = static_cast<int>(area.y2 - area.y1) / yStepSize + 1;
-            const int minFreeSpace = max(1, xSteps * ySteps / 5); // for area size 1..9, 1 free spot is enough
+            const int minFreeSpace = max(1, xSteps * ySteps / 20); // for area size 1..39, 1 free spot is enough
             int freeSpace = 0;
             bool ok = false;
             for (double y = area.y1; y <= area.y2 && !ok; y += yStepSize)
