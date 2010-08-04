@@ -535,8 +535,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     log(&clientLog, &errorLog, 0),
     frameMutex("Client::frameMutex"),
     #ifndef DEDICATED_SERVER_ONLY
-    mapInfoMutex("Client::mapInfoMutex"),
-    mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
     botmode(false),
@@ -582,7 +580,9 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     listenServer(log),
     downloadMutex("GuiClient::downloadMutex"),
     rankingPassword(log, new RedirectToMemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
+    mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
+    mapListChangedAfterSort(false),
     player_stats_page(0),
     lastAltEnterTime(0),
     FPS(0),

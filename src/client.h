@@ -412,14 +412,6 @@ protected:
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
     #ifndef DEDICATED_SERVER_ONLY
-    uint32_t max_world_rank;
-
-    Mutex mapInfoMutex;
-    std::vector<MapInfo> maps;
-
-    bool mapListChangedAfterSort;
-
-    std::set<std::string> fav_maps;
     int current_map;
     int map_vote;
     bool want_change_teams;
@@ -571,10 +563,16 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     RankingPasswordManager rankingPassword;
     uint32_t fdp;
+    uint32_t max_world_rank;
 
+    Mutex mapInfoMutex;
+    std::vector<MapInfo> maps;
     std::vector< std::pair<const MapInfo*, int> > sortedMaps;
 
     MapListSortKey mapListSortKey;
+    bool mapListChangedAfterSort;
+
+    std::set<std::string> fav_maps;
 
     // GUI
     Menu_text m_connectProgress;
