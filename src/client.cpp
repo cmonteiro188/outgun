@@ -535,8 +535,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     log(&clientLog, &errorLog, 0),
     frameMutex("Client::frameMutex"),
     #ifndef DEDICATED_SERVER_ONLY
-    current_map(-1),
-    map_vote(-1),
     botmode(false),
     #endif
     abortThreads(false),
@@ -583,6 +581,8 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
+    current_map(-1),
+    map_vote(-1),
     player_stats_page(0),
     lastAltEnterTime(0),
     FPS(0),
@@ -2008,12 +2008,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         me = read.U8();
 
         fx.player[me].set_color(read.U8(0, PlayerBase::invalid_color - 1));
-
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        #else
-        read.U8();
-        #endif
+        netSetCurrentMap(read.U8());
 
         const bool e = protocolExtensions >= 0;
 
@@ -2373,7 +2368,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         net_data_reset_map_list(read);
 
     break; case data_current_map:
-        net_data_current_map(read);
+        netSetCurrentMap(read.U8());
 
     break; case data_map_list:
         net_data_map_list(read);
@@ -3026,10 +3021,6 @@ void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
     maps.clear();
     mapListChangedAfterSort = true;
     map_vote = -1;
-}
-
-void GuiClient::net_data_current_map(BinaryReader& read) throw () {
-    current_map = read.U8();
 }
 
 void GuiClient::net_data_map_vote(BinaryReader& read) throw () {

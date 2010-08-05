@@ -412,11 +412,7 @@ protected:
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
     #ifndef DEDICATED_SERVER_ONLY
-    int current_map;
-    int map_vote;
     bool want_change_teams;
-    bool want_map_exit;
-    bool want_map_exit_delayed;
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
@@ -529,7 +525,6 @@ protected:
     virtual void net_data_map_list(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_crap_update(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_reset_map_list(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_current_map(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_map_vote(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_map_votes_update(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_text_message(BinaryReader& read) throw () { (void)read; }
@@ -543,6 +538,7 @@ protected:
     virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
     virtual void netGameoverPeriodEnd() throw () { }
     virtual void netGameStarted() throw () { }
+    virtual void netSetCurrentMap(int idx) throw () { (void)idx; }
 
     virtual std::string getPlayerPassword() const throw () = 0;
 
@@ -578,6 +574,10 @@ class GuiClient : private ClientBase, public ClientInterface {
     bool mapListChangedAfterSort;
 
     std::set<std::string> fav_maps;
+    int current_map;
+    int map_vote;
+    bool want_map_exit;
+    bool want_map_exit_delayed;
 
     // GUI
     Menu_main menu;
@@ -852,7 +852,6 @@ class GuiClient : private ClientBase, public ClientInterface {
     void net_data_map_list(BinaryReader& read) throw ();
     void net_data_crap_update(BinaryReader& read) throw ();
     void net_data_reset_map_list(BinaryReader& read) throw ();
-    void net_data_current_map(BinaryReader& read) throw ();
     void net_data_map_vote(BinaryReader& read) throw ();
     void net_data_map_votes_update(BinaryReader& read) throw ();
     void net_data_text_message(BinaryReader& read) throw ();
@@ -867,6 +866,7 @@ class GuiClient : private ClientBase, public ClientInterface {
     void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw ();
     void netGameoverPeriodEnd() throw ();
     void netGameStarted() throw ();
+    void netSetCurrentMap(int idx) throw () { current_map = idx; }
 
     void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
     void playerHitWallCallback(int pid) throw ();
