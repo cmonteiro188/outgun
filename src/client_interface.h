@@ -76,7 +76,7 @@ protected:
     BotInterface() throw () { }
 
 public:
-    static BotInterface* newBot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    static BotInterface* newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
 
     virtual ~BotInterface() throw () { }
 

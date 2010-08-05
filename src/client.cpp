@@ -528,7 +528,7 @@ void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
     }
 }
 
-ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+ClientBase::ClientBase(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
     //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
@@ -565,7 +565,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
     //if player wants to changeteams
     want_change_teams = false;
     #endif
-    (void)serverConfig; //#@fix
 
     //connected? (that is, "connection accepted")
     connected = false;
@@ -574,7 +573,7 @@ ClientBase::ClientBase(const ClientExternalSettings& config, const ServerExterna
 }
 
 GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    ClientBase(config, serverConfig, clientLog, externalErrorLog_),
+    ClientBase(config, clientLog, externalErrorLog_),
     listenServer(log),
     downloadMutex("GuiClient::downloadMutex"),
     rankingPassword(log, new RedirectToMemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
@@ -600,8 +599,8 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     serverExtConfig(serverConfig)
 { }
 
-Robot::Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    ClientBase(config, serverConfig, clientLog, externalErrorLog_),
+Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+    ClientBase(config, clientLog, externalErrorLog_),
     sharedDataHandle(static_botSharedDataStorage),
     finished(false),
     botPrevFire(false)
@@ -1506,7 +1505,7 @@ void GuiClient::connect_command(bool loadPassword) throw () {   // call with fra
 
     const string strAddress = serverIP.toString();
 
-    if (loadPassword && !botmode)
+    if (loadPassword)
         m_playerPassword.password.set(load_player_password(playername, strAddress));
 
     log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
@@ -3355,8 +3354,6 @@ void GuiClient::send_chat(const string& text) throw () {
 
 //print message to "console"
 void GuiClient::print_message(Message_type type, const string& msg, int sender_team) throw () {
-    if (botmode)
-        return;
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
@@ -6251,6 +6248,6 @@ ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config
     return new GuiClient(config, serverConfig, clientLog, externalErrorLog_);
 }
 
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Robot(config, serverConfig, clientLog, externalErrorLog_);
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+    return new Robot(config, clientLog, externalErrorLog_);
 }

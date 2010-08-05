@@ -546,7 +546,7 @@ protected:
     virtual void stop() throw ();
 
 public:
-    ClientBase(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    ClientBase(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     virtual ~ClientBase() throw ();
 };
 
@@ -1009,7 +1009,7 @@ class Robot : private ClientBase, public BotInterface {
     std::string getPlayerPassword() const throw () { return std::string(); }
 
 public:
-    Robot(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     ~Robot() throw () { }
 
     void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();

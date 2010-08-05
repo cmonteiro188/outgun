@@ -862,7 +862,6 @@ void Server::init_bots() throw () {
     }
     if (static_cast<int>(bots.size()) >= needed_bots)
         return;
-    ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     int policy;
     sched_param param;
@@ -873,7 +872,7 @@ void Server::init_bots() throw () {
     address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        BotInterface* bot = BotInterface::newBot(clientCfg, serverCfg, botNoLog, botErrorLog);
+        BotInterface* bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
