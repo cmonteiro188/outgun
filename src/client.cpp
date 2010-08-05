@@ -2329,13 +2329,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             pi->stats().clear(true);
         gameover_plaque = NEXTMAP_NONE;
-        #ifndef DEDICATED_SERVER_ONLY
-        if (stats_autoshowing) {
-            menusel = menu_none;
-            stats_autoshowing = false;
-        }
-        deadAfterHighlighted = true;
-        #endif
+        netGameStarted();
 
     break; case data_deathbringer: {
         const uint8_t team = read.U8();
@@ -3155,6 +3149,14 @@ void GuiClient::netGameoverPeriodEnd() throw () {
         menusel = menu_none;
         stats_autoshowing = false;
     }
+}
+
+void GuiClient::netGameStarted() throw () {
+    if (stats_autoshowing) {
+        menusel = menu_none;
+        stats_autoshowing = false;
+    }
+    deadAfterHighlighted = true;
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
