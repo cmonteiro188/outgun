@@ -2246,19 +2246,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         fx.player[me].weapon = read.U8(1, 9);
 
     break; case data_map_change: {
-        map_ready = false;  // map NOT ready anymore: must load/change
-        #ifndef DEDICATED_SERVER_ONLY
-        want_map_exit = false;      // and player does not want to exit the map anymore
-        want_map_exit_delayed = false;
-        deadAfterHighlighted = true;
-
-        // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
-        if (!replaying) {
-            BinaryBuffer<16> msg;
-            msg.U8(data_map_exit_off);
-            client->send_message(msg);
-        }
-        #endif
+        map_ready = false;
 
         fx.teams[0].remove_flags();
         fx.teams[1].remove_flags();
@@ -2266,16 +2254,10 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         for (int i = 0; i < MAX_ROCKETS; ++i)
             fx.rock[i].owner = -1;
         const uint16_t crc = read.U16();
-        const string mapname = read.str(), maptitle = read.str();
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        if (map_vote == current_map)
-            map_vote = -1;
+        const string mapname = read.str();
+        const string maptitle = read.str();
+        const uint8_t map_number = read.U8();
         const uint8_t total_maps = read.U8();
-        #else
-        read.U8();
-        read.U8();
-        #endif
         if (me != -1) {
             fx.player[me].oldx = -1;
             fx.player[me].oldy = -1;
@@ -2284,16 +2266,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             remove_flags = read.S8();
         else
             remove_flags = 0;
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        #endif
-        if (!replaying) {
+        if (!replaying)
             addThreadMessage(new TM_MapChange(mapname, crc));
-            #ifndef DEDICATED_SERVER_ONLY
-            msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
-            #endif
-        }
-        #ifndef DEDICATED_SERVER_ONLY
         else { // The map is saved with the message
             stringstream mapStream;
             const ConstDataBlockRef mapData = read.block(read.U32());
@@ -2307,10 +2281,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             remove_useless_flags();
             mapChanged = true;
             map_ready = true;
-            msg = _("This map is $1.", maptitle);
         }
-        addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
+        netMapChange(maptitle, map_number, total_maps);
     }
 
     break; case data_world_reset:
@@ -3150,6 +3122,30 @@ void GuiClient::netStatsReady() throw () {
     }
     if (menu.options.game.saveStats() && players_sb.size() > 1)
         fx.save_stats("client_stats", fx.map.title, gameSettings);
+}
+
+void GuiClient::netMapChange(const string& maptitle, const int map_number, const int total_maps) throw () {
+    want_map_exit = false;
+    want_map_exit_delayed = false;
+    deadAfterHighlighted = true;
+
+    // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
+    if (!replaying) {
+        BinaryBuffer<16> msg;
+        msg.U8(data_map_exit_off);
+        client->send_message(msg);
+    }
+
+    current_map = map_number;
+    if (map_vote == current_map)
+        map_vote = -1;
+
+    string msg;
+    if (!replaying)
+        msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
+    else
+        msg = _("This map is $1.", maptitle);
+    addThreadMessage(new TM_Text(msg_info, msg));
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
