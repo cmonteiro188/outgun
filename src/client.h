@@ -455,7 +455,6 @@ protected:
     #ifndef DEDICATED_SERVER_ONLY
     bool stats_autoshowing;
     bool replaying;
-    std::ifstream replay;
     bool spectating;
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
@@ -620,6 +619,7 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     Graphics graphics;
     bool screenshot;
+    std::ifstream replay;
     double replay_rate, replayTime, replaySubFrame;
     bool replay_paused;
     bool replay_stopped;

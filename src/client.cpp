@@ -2315,7 +2315,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
             addThreadMessage(new TM_Text(msg_info, msg));
             addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
-            if (!replay) {
+            if (!(replaying && !spectating)) { // avoid text related to the next game at the end of a single game replay
                 msg.clear();
                 if (caplimit > 0)
                     msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
