@@ -540,6 +540,8 @@ protected:
     virtual void netFlagDrop(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
     virtual void netStatsReady() throw () { }
     virtual void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw () { (void)maptitle; (void)(map_number && total_maps); }
+    virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
+    virtual void netGameoverPeriodEnd() throw () { }
 
     virtual std::string getPlayerPassword() const throw () = 0;
 
@@ -861,6 +863,8 @@ class GuiClient : private ClientBase, public ClientInterface {
     void netFlagDrop(int pid, bool wild_flag) throw ();
     void netStatsReady() throw ();
     void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw ();
+    void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw ();
+    void netGameoverPeriodEnd() throw ();
 
     void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
     void playerHitWallCallback(int pid) throw ();

@@ -2306,39 +2306,20 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const uint8_t plaque = read.U8();
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
             gameover_plaque = plaque;
-            #ifndef DEDICATED_SERVER_ONLY
             const bool e = protocolExtensions >= 0;
-            red_final_score = read.U32dyn8orU8(e);
-            blue_final_score = read.U32dyn8orU8(e);
-            const uint8_t caplimit = read.U8(), timelimit = read.U8();
+            const uint32_t redScore = read.U32dyn8orU8(e);
+            const uint32_t blueScore = read.U32dyn8orU8(e);
+            const uint8_t caplimit = read.U8();
+            const uint8_t timelimit = read.U8();
 
-            string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
-            addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
-            if (!(replaying && !spectating)) { // avoid text related to the next game at the end of a single game replay
-                msg.clear();
-                if (caplimit > 0)
-                    msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
-                if (timelimit > 0) {
-                    if (!msg.empty())
-                        msg += ' ';
-                    msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
-                }
-                if (!msg.empty())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-            }
-            #endif
             for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                 pi->stats().finish_stats(time);
+
+            netGameoverPeriodStart(redScore, blueScore, caplimit, timelimit);
         }
         else {
             gameover_plaque = NEXTMAP_NONE;
-            #ifndef DEDICATED_SERVER_ONLY
-            if (stats_autoshowing) {
-                menusel = menu_none;
-                stats_autoshowing = false;
-            }
-            #endif
+            netGameoverPeriodEnd();
         }
     }
 
@@ -3146,6 +3127,34 @@ void GuiClient::netMapChange(const string& maptitle, const int map_number, const
     else
         msg = _("This map is $1.", maptitle);
     addThreadMessage(new TM_Text(msg_info, msg));
+}
+
+void GuiClient::netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () {
+    red_final_score = redScore;
+    blue_final_score = blueScore;
+
+    string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
+    addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
+    if (!(replaying && !spectating)) { // avoid text related to the next game at the end of a single game replay
+        msg.clear();
+        if (caplimit > 0)
+            msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
+        if (timelimit > 0) {
+            if (!msg.empty())
+                msg += ' ';
+            msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
+        }
+        if (!msg.empty())
+            addThreadMessage(new TM_Text(msg_info, msg));
+    }
+}
+
+void GuiClient::netGameoverPeriodEnd() throw () {
+    if (stats_autoshowing) {
+        menusel = menu_none;
+        stats_autoshowing = false;
+    }
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
