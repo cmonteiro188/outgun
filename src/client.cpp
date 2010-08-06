@@ -1094,11 +1094,7 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
 
     setMaxPlayers(read.U8(0, MAX_PLAYERS));
 
-    #ifndef DEDICATED_SERVER_ONLY
-    hostname = read.str();
-    #else
-    read.str();
-    #endif
+    netSetHostname(read.str());
 
     if (read.hasMore()) {
         const int protoExt = read.U8();
@@ -2685,25 +2681,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         #ifndef DEDICATED_SERVER_ONLY
         fd.physics = fx.physics;
 
-        log("Server friction/drag/acceleration %f/%f/%f",
-            fx.physics.fric, fx.physics.drag, fx.physics.accel);
-        log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
-            fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
-        log("Server ff/dbff/rocketspeed %f/%f/%f",
-            fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
-
-        ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
-        out << hostname << '\n';
-        out << "friction     " << fx.physics.fric << '\n';
-        out << "drag         " << fx.physics.drag << '\n';
-        out << "acceleration " << fx.physics.accel << '\n';
-        out << "brake_acceleration " << fx.physics.brake_mul << '\n';
-        out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
-        out << "run_acceleration   " << fx.physics.run_mul << '\n';
-        out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
-        out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
-        out << "rocket_speed " << fx.physics.rocket_speed << '\n';
-        out.close();
+        netPhysicsChanged();
 
         addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, et_periods, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
         gameSettings.capture_limit = caplimit;
@@ -3121,6 +3099,28 @@ void GuiClient::netGameStarted() throw () {
         stats_autoshowing = false;
     }
     deadAfterHighlighted = true;
+}
+
+void GuiClient::netPhysicsChanged() throw () {
+    log("Server friction/drag/acceleration %f/%f/%f",
+        fx.physics.fric, fx.physics.drag, fx.physics.accel);
+    log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
+        fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
+    log("Server ff/dbff/rocketspeed %f/%f/%f",
+        fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+
+    ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
+    out << hostname << '\n';
+    out << "friction     " << fx.physics.fric << '\n';
+    out << "drag         " << fx.physics.drag << '\n';
+    out << "acceleration " << fx.physics.accel << '\n';
+    out << "brake_acceleration " << fx.physics.brake_mul << '\n';
+    out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
+    out << "run_acceleration   " << fx.physics.run_mul << '\n';
+    out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
+    out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
+    out << "rocket_speed " << fx.physics.rocket_speed << '\n';
+    out.close();
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {

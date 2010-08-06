@@ -430,10 +430,6 @@ protected:
     bool gameshow;
     int gameover_plaque;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    std::string hostname;
-    #endif
-
     std::string playername;
     Network::Address serverIP;
 
@@ -535,6 +531,8 @@ protected:
     virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
     virtual void netGameoverPeriodEnd() throw () { }
     virtual void netGameStarted() throw () { }
+    virtual void netPhysicsChanged() throw () { }
+    virtual void netSetHostname(const std::string& name) throw () { (void)name; }
     virtual void netSetCurrentMap(int idx) throw () { (void)idx; }
 
     virtual std::string getPlayerPassword() const throw () = 0;
@@ -595,6 +593,7 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     bool quitCommand;
 
+    std::string hostname;
     int red_final_score, blue_final_score;
 
     std::string edit_map_vote;
@@ -870,6 +869,8 @@ class GuiClient : private ClientBase, public ClientInterface {
     void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw ();
     void netGameoverPeriodEnd() throw ();
     void netGameStarted() throw ();
+    void netPhysicsChanged() throw ();
+    void netSetHostname(const std::string& name) throw () { hostname = name; }
     void netSetCurrentMap(int idx) throw () { current_map = idx; }
 
     void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
