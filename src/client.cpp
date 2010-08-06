@@ -511,8 +511,6 @@ void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
         break; case 4: cl->connect_failed_denied(_("The server is full."));
         break; default: nAssert(0);
     }
-    if (cl->botmode && code != 0)
-        cl->stop();
 }
 
 void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
@@ -1267,6 +1265,8 @@ void Robot::client_disconnected(ConstDataBlockRef data) throw () {
     numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
                                    || reason == server_c::disconnect_timeout || reason == disconnect_kick),
                data.size(), reason);
+
+    stop();
 }
 
 void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
