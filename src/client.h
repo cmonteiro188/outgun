@@ -423,10 +423,6 @@ protected:
     bool capture_on_team_flags_in_effect;
     bool capture_on_wild_flags_in_effect;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    Menu_selection menusel; // a special screen rather than menu: maplist, stats
-    #endif
-
     bool gameshow;
     int gameover_plaque;
 
@@ -589,6 +585,7 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     MenuStack openMenus;
 
+    Menu_selection menusel; // a special screen rather than menu: maplist, stats
     bool stats_autoshowing;
 
     bool quitCommand;
