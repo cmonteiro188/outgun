@@ -561,11 +561,6 @@ ClientBase::ClientBase(const ClientExternalSettings& config, Log& clientLog, Mem
     //game showing?
     gameshow = false;
 
-    #ifndef DEDICATED_SERVER_ONLY
-    //if player wants to changeteams
-    want_change_teams = false;
-    #endif
-
     //connected? (that is, "connection accepted")
     connected = false;
 
@@ -582,6 +577,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
+    want_change_teams(false),
     player_stats_page(0),
     lastAltEnterTime(0),
     FPS(0),
@@ -2432,8 +2428,6 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool known_attacker = fx.player[attacker].used;
         const bool spree_ended = fx.player[target].stats().current_cons_kills() >= 10;
 
-        if (target == me)
-            deadAfterHighlighted = true;
         if (!same_team) {
             if (known_attacker)
                 fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
@@ -2494,8 +2488,6 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         if (pid >= maxplayers)
             return false;
         const int team = pid / TSIZE;
-        if (pid == me)
-            deadAfterHighlighted = true;
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
         fx.player[pid].dead = true;
         fx.teams[team].add_suicide();
@@ -2550,17 +2542,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool swap = (col2 != 255);
         nAssert(fx.player[from].used && swap == fx.player[to].used);
 
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (swap)
-            msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
-        else if (to / TSIZE == 0)
-            msg = _("$1 moved to red team.", fx.player[from].name);
-        else
-            msg = _("$1 moved to blue team.", fx.player[from].name);
-        addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
-        #endif
+        netTeamChange(from, swap ? to : -1);
 
         if (swap) {
             std::swap(fx.player[from], fx.player[to]);
@@ -2587,12 +2569,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             #endif
         }
 
-        if (from == me || to == me) {
-            #ifndef DEDICATED_SERVER_ONLY
-            want_change_teams = false;
-            #endif
+        if (from == me || to == me)
             me = (me == from) ? to : from;
-        }
 
         #ifndef DEDICATED_SERVER_ONLY
         if (col1 >= PlayerBase::invalid_color)
@@ -2612,10 +2590,6 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             fx.player[from].stats().kill(static_cast<int>(time), true);
             fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
         }
-        #ifndef DEDICATED_SERVER_ONLY
-        if (from == me || to == me)
-            deadAfterHighlighted = true;
-        #endif
     }
 
     break; case data_spawn: {
@@ -3154,6 +3128,9 @@ void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrie
 }
 
 void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
+    if (target == me)
+        deadAfterHighlighted = true;
+
     const bool attacker_team = attacker / TSIZE;
     const bool target_team = target / TSIZE;
     const bool same_team = (attacker_team == target_team);
@@ -3242,6 +3219,9 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
 }
 
 void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () {
+    if (pid == me)
+        deadAfterHighlighted = true;
+
     const int team = pid / TSIZE;
     if (spree_ended && menu.options.game.showKillMessages())
         addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
@@ -3297,6 +3277,23 @@ void GuiClient::netFlagDrop(int pid, bool wild_flag) throw () {
     if (menu.options.game.showFlagMessages())
         addThreadMessage(new TM_Text(msg_info, msg));
     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+}
+
+void GuiClient::netTeamChange(int pl1, int pl2) throw () {
+    if (pl1 == me || pl2 == me) {
+        want_change_teams = false;
+        deadAfterHighlighted = true;
+    }
+
+    string msg;
+    if (pl2 != -1)
+        msg = _("$1 and $2 swapped teams.", fx.player[pl1].name, fx.player[pl2].name);
+    else if (pl1 / TSIZE == 1)
+        msg = _("$1 moved to red team.", fx.player[pl1].name);
+    else
+        msg = _("$1 moved to blue team.", fx.player[pl1].name);
+    addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {

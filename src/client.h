@@ -412,7 +412,6 @@ protected:
     std::deque<ThreadMessage*> messageQueue;    // access with frameMutex locked; delete the object when removing from the queue
 
     #ifndef DEDICATED_SERVER_ONLY
-    bool want_change_teams;
     bool map_time_limit;
     int map_start_time; // in get_time() seconds -> can be negative
     int map_end_time;
@@ -432,9 +431,7 @@ protected:
     int gameover_plaque;
 
     #ifndef DEDICATED_SERVER_ONLY
-    int red_final_score, blue_final_score;
     std::string hostname;
-    bool deadAfterHighlighted;
     #endif
 
     std::string playername;
@@ -449,7 +446,6 @@ protected:
     volatile bool abortThreads;
 
     #ifndef DEDICATED_SERVER_ONLY
-    bool stats_autoshowing;
     bool replaying;
     bool spectating;
     #else
@@ -533,6 +529,7 @@ protected:
     virtual void netFlagTake(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
     virtual void netFlagReturn(int pid) throw () { (void)pid; }
     virtual void netFlagDrop(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
+    virtual void netTeamChange(int pl1, int pl2 = -1) throw () { (void)(pl1 && pl2); }
     virtual void netStatsReady() throw () { }
     virtual void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw () { (void)maptitle; (void)(map_number && total_maps); }
     virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
@@ -576,6 +573,7 @@ class GuiClient : private ClientBase, public ClientInterface {
     std::set<std::string> fav_maps;
     int current_map;
     int map_vote;
+    bool want_change_teams;
     bool want_map_exit;
     bool want_map_exit_delayed;
 
@@ -593,11 +591,16 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     MenuStack openMenus;
 
+    bool stats_autoshowing;
+
     bool quitCommand;
+
+    int red_final_score, blue_final_score;
 
     std::string edit_map_vote;
     int player_stats_page;
     double lastAltEnterTime;
+    bool deadAfterHighlighted;
 
     double FPS;
     int framecount, totalframecount;
@@ -861,6 +864,7 @@ class GuiClient : private ClientBase, public ClientInterface {
     void netFlagTake(int pid, bool wild_flag) throw ();
     void netFlagReturn(int pid) throw ();
     void netFlagDrop(int pid, bool wild_flag) throw ();
+    void netTeamChange(int pl1, int pl2 = -1) throw ();
     void netStatsReady() throw ();
     void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw ();
     void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw ();
