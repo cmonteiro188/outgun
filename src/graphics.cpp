@@ -1987,7 +1987,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
             if (!skip) {
                 color = teamlcol[0];
                 message << setw(3) << red->first / 60 << ':' << setw(2) << setfill('0') << red->first % 60 << setfill(' ');
-                message << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+                message << setw(4) << red_score << " - " << left << setw(4) << blue_score << right;
                 message << red->second;
             }
             ++red;
@@ -1997,7 +1997,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
             if (!skip) {
                 color = teamlcol[1];
                 message << setw(3) << blue->first / 60 << ':' << setw(2) << setfill('0') << blue->first % 60 << setfill(' ');
-                message << setw(3) << red_score << " - " << left << setw(3) << blue_score << right;
+                message << setw(4) << red_score << " - " << left << setw(4) << blue_score << right;
                 message << blue->second;
             }
             ++blue;
