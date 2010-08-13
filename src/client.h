@@ -350,7 +350,7 @@ class client_runes_t;
  * Note: they will be executed in order relative to each other but out of order relative to messages processed in the network thread.
  * Handling anything that isn't protected by mutexes (frameMutex and downloadMutex) should be applied only through the ThreadMessage queue.
  */
-class ThreadMessage {   // the subclasses (named starting with TM_) are direct property of the ClientBase class and internally declared in client.cpp
+class ThreadMessage {   // the subclasses (named starting with TM_) except TM_ServerSettings are direct property of the ClientBase class and mostly internally declared in client.cpp
 public:
     virtual ~ThreadMessage() throw () { }
     virtual void execute(ClientBase* cl) const throw () = 0;
@@ -539,6 +539,85 @@ protected:
 public:
     ClientBase(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
     virtual ~ClientBase() throw ();
+};
+
+class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
+    ClientBase& c;
+
+public:
+    ClientPhysicsCallbacks(ClientBase& c_) throw () : c(c_) { }
+
+    bool collideToRockets() const throw () { return false; }
+    bool collidesToRockets(int) const throw () { return false; }
+    bool collidesToPlayers(int) const throw () { return true; }
+    bool gatherMovementDistance() const throw () { return false; }
+    bool allowRoomChange() const throw () { return false; }
+    void addMovementDistance(int, double) throw () { }
+    void playerScreenChange(int) throw () { }
+    void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) throw () { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
+    bool rocketHitPlayer(int, int) throw () { return false; }
+    void playerHitWall(int pid) throw () { c.playerHitWallCallback(pid); }
+    PlayerHitResult playerHitPlayer(int pid1, int pid2, double) throw () { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }
+    void rocketOutOfBounds(int rid) throw () { c.rocketOutOfBoundsCallback(rid); }
+    bool shouldApplyPhysicsToPlayer(int pid) throw () { return c.shouldApplyPhysicsToPlayerCallback(pid); }
+};
+
+class TM_DoDisconnect : public ThreadMessage {
+public:
+    void execute(ClientBase* cl) const throw () { cl->disconnect_command(); }
+};
+
+class TM_Text : public ThreadMessage {
+    Message_type type;
+    std::string text;
+    int team;   // -1 for non-team messages
+
+public:
+    TM_Text(Message_type type_, const std::string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
+    ~TM_Text() throw () { }
+    void execute(ClientBase* cl) const throw () {
+        cl->print_message(type, text, team);
+    }
+};
+
+class TM_Sound : public ThreadMessage {
+    int sample;
+
+public:
+    TM_Sound(int sample_) throw () : sample(sample_) { }
+    void execute(ClientBase* cl) const throw () {
+        cl->play_sound(sample);
+    }
+};
+
+#ifndef DEDICATED_SERVER_ONLY
+class TM_GunexploEffect : public ThreadMessage {
+    int team;
+    WorldCoords pos;
+    double time;
+
+public:
+    TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) throw () : team(team_), pos(pos_), time(time_) { }
+    void execute(ClientBase* cl) const throw () {
+        cl->createGunexploEffect(pos, team, time);
+    }
+};
+
+class GuiClient;
+
+class TM_ServerSettings : public ThreadMessage { // implementation in guiclient.cpp
+    uint8_t caplimit, timelimit, extratime, extratime_periods;
+    uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+    int flag_return_delay;
+
+    void addLine(GuiClient* cl, const std::string& caption, const std::string& value) const throw ();
+
+public:
+    TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
+                      uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
+        caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), extratime_periods(extratime_periods_), misc1(misc1_),
+        pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
+    void execute(ClientBase* cl) const throw ();
 };
 
 class GuiClient : private ClientBase, public ClientInterface {
@@ -895,6 +974,7 @@ public:
     void loop(volatile bool* quitFlag, bool firstTimeSplash) throw ();
     void language_selection_start(volatile bool* quitFlag) throw ();
 };
+#endif
 
 class Robot : private ClientBase, public BotInterface {
     enum Routing {
