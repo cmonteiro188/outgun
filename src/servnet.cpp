@@ -1567,7 +1567,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     break; case data_map_exit_on:
         if (sender.want_map_exit == false) {
             sender.want_map_exit = true;
-            // Make sure that this message matches with the one in client.cpp.
+            // Make sure that this message matches with the one in guiclient.cpp.
             if (host->specific_map_vote_required() && sender.mapVote == -1)
                 player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
             host->check_map_exit();
@@ -1670,7 +1670,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
                 sender.mapVote = vote;
             else {
                 sender.mapVote = -1;
-                // Make sure that this message matches with the one in client.cpp.
+                // Make sure that this message matches with the one in guiclient.cpp.
                 if (host->specific_map_vote_required() && sender.want_map_exit)
                     player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
             }
@@ -3204,7 +3204,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
                         switch (extensionId) {
                             /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
                              * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
-                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in client.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
+                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
                              *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
                              *    reply.U32(EXAMPLE_IDENTIFIER);
                              *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this

@@ -1259,7 +1259,7 @@ void Server::chat(int pid, const string& message) throw () {
             }
         }
         else if (command == "forcemap" && access.isAdmin()) {
-            // Make sure that these messages match with the ones in client.cpp.
+            // Make sure that these messages match with the ones in guiclient.cpp.
             if (pid != shell_pid && world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 logAdminAction(pid, "forced a map change");

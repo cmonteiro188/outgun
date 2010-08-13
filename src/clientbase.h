@@ -1,5 +1,5 @@
 /*
- *  client.h
+ *  clientbase.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef CLIENT_H_INC
-#define CLIENT_H_INC
+#ifndef CLIENTBASE_H_INC
+#define CLIENTBASE_H_INC
 
 #include "client_interface.h"
 #include "function_utility.h"
