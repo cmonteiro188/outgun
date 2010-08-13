@@ -36,7 +36,7 @@
 #include "protocol.h"
 #include "timer.h"
 
-#include "client.h"
+#include "robot.h"
 
 using std::make_pair;
 using std::map;

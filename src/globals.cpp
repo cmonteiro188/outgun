@@ -22,12 +22,12 @@
  *
  */
 
-#include "client.h"
 #include "commont.h"
 #include "debug.h"
 #include "debugconfig.h"
 #include "mutex.h"
 #include "protocol.h"
+#include "robot.h"
 
 // put here only those globals that don't have a module they naturally belong to; also keep globals to be eliminated in commont.cpp
 
