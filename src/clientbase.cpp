@@ -23,6 +23,8 @@
  *
  */
 
+#include <sstream>
+
 #include "binaryaccess.h"
 #include "debugconfig.h" // for LOG_MESSAGE_TRAFFIC
 #include "language.h"
@@ -30,6 +32,7 @@
 #include "network.h"
 #include "protocol.h"
 #include "timer.h"
+#include "thread.h"
 
 #include "client.h"
 

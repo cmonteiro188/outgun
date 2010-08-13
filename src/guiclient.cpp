@@ -34,7 +34,7 @@
 #include "timer.h"
 #include "version.h"
 
-#include "client.h"
+#include "guiclient.h"
 
 using std::endl;
 using std::ifstream;
