@@ -593,13 +593,6 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     serverExtConfig(serverConfig)
 { }
 
-Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    ClientBase(config, clientLog, externalErrorLog_),
-    sharedDataHandle(static_botSharedDataStorage),
-    finished(false),
-    botPrevFire(false)
-{ }
-
 ClientBase::~ClientBase() throw () {
     log("Exiting client: destructor");
 
@@ -886,31 +879,6 @@ void GuiClient::language_selection_start(volatile bool* quitFlag) throw () {
 }
 #endif
 
-void Robot::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
-    Lock ml(frameMutex);
-    #ifndef DEDICATED_SERVER_ONLY
-    botmode = true;
-    #endif
-    botId = bot_id;
-    serverIP = addr;
-
-    startBase("_bot" + itoa(botId));
-
-    playername = name;
-
-    botReactedFrame = -1;
-
-    set_ping(ping);
-
-    connect_command();
-}
-
-void Robot::set_ping(int ping) throw () {
-    while (client->decreasePacketDelay()) { }
-    for (int i = 0; i < ping / 10; ++i)
-        client->increasePacketDelay();
-}
-
 //send "client ready" message to server (when map load and/or download completes)
 void ClientBase::send_client_ready() throw () {
     BinaryBuffer<256> msg;
@@ -1165,12 +1133,6 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     capture_on_wild_flags_in_effect = false;
 }
 
-void Robot::client_connected(ConstDataBlockRef data) throw () { // call with frameMutex locked
-    ClientBase::client_connected(data);
-
-    bot_send_frame(ClientControls());
-}
-
 void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
     ClientBase::client_connected(data);
 
@@ -1256,17 +1218,6 @@ void ClientBase::disconnected_base(ConstDataBlockRef data) throw () {
     gameshow = false;
 
     client_disconnected(data);
-}
-
-void Robot::client_disconnected(ConstDataBlockRef data) throw () {
-    BinaryDataBlockReader read(data);
-
-    const uint8_t reason = read.U8();
-    numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
-                                   || reason == server_c::disconnect_timeout || reason == disconnect_kick),
-               data.size(), reason);
-
-    stop();
 }
 
 void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
@@ -1511,11 +1462,6 @@ void GuiClient::connect_command(bool loadPassword) throw () {   // call with fra
     showMenu(m_connectProgress);
 }
 
-void Robot::connect_command() throw () {   // call with frameMutex locked
-    prepareForConnect();
-    connect(serverIP.toString(), bot_password, "");
-}
-
 void ClientBase::connect(const string& serverAddress, const string& serverPassword, const string& playerPassword) throw () {   // call with frameMutex locked
     // start connecting to specified IP/port
     // connection results will come through the CFUNC_CONNECTION_UPDATE callback
@@ -1548,18 +1494,6 @@ void ClientBase::issue_change_name_command() throw () {
     msg.str(playername);
     msg.str(getPlayerPassword());    // empty or not, it's needed
     client->send_message(msg);
-}
-
-void Robot::bot_send_frame(ClientControls controls) throw () {
-    ++clFrameSent;
-    controlHistory[clFrameSent] = sentControls = controls;
-    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
-    BinaryBuffer<256> msg;
-    msg.U8(clFrameSent);
-    msg.U8(sentControls.toNetwork(false));
-    if (fx.physics.allowFreeTurning)
-        msg.U16(gunDir.toNetworkLongForm());
-    client->send_frame(msg);
 }
 
 #ifndef DEDICATED_SERVER_ONLY
@@ -4603,43 +4537,11 @@ void GuiClient::continue_spectating() throw () {
 }
 #endif // !DEDICATED_SERVER_ONLY
 
-void Robot::bot_loop() throw () {
-    Lock ml(frameMutex);
-
-    handlePendingThreadMessages();
-
-    if (!connected || fx.frame == botReactedFrame)
-        return;
-
-    botReactedFrame = fx.frame;
-
-    while (clientReadiesWaiting > 0) {
-        send_client_ready();
-        --clientReadiesWaiting;
-    }
-
-    if (mapChanged) {
-        mapChanged = false;
-        BuildMap();
-    }
-
-    fx.cleanOldDeathbringerExplosions();
-
-    ClientControls controls = RobotMain();
-    controls.clearModifiersIfIdle();
-    bot_send_frame(controls);
-}
-
 void ClientBase::stop() throw () {
     abortThreads = true;
 
     //at least disconnect
     disconnect_command();
-}
-
-void Robot::stop() throw () {
-    ClientBase::stop();
-    finished = true;
 }
 
 void GuiClient::stop() throw () {
@@ -6243,8 +6145,4 @@ void ClientBase::cfunc_server_data(void* customp, ConstDataBlockRef data) throw 
 
 ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
     return new GuiClient(config, serverConfig, clientLog, externalErrorLog_);
-}
-
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Robot(config, clientLog, externalErrorLog_);
 }
