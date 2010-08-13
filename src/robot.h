@@ -27,7 +27,7 @@
 #define ROBOT_H_INC
 
 #include "bot_support.h"
-#include "client.h"
+#include "clientbase.h"
 #include "client_interface.h"
 
 class Robot : private ClientBase, public BotInterface {

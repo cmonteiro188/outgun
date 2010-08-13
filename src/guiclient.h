@@ -30,7 +30,7 @@
 #include <set>
 #include <sstream>
 
-#include "client.h"
+#include "clientbase.h"
 #include "client_menus.h"
 #include "gameserver_interface.h"
 #include "graphics.h"

@@ -34,7 +34,7 @@
 #include "timer.h"
 #include "thread.h"
 
-#include "client.h"
+#include "clientbase.h"
 
 using std::deque;
 using std::max;
