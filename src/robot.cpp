@@ -27,20 +27,21 @@
 
 #include <iomanip>
 #include <queue>
-#include <vector>
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
 #include "nassert.h"
+#include "network.h"
 #include "protocol.h"
+#include "timer.h"
 
-#include "client.h"
+#include "robot.h"
 
 using std::make_pair;
-using std::map;
 using std::max;
 using std::min;
 using std::pair;
+using std::string;
 using std::queue;
 using std::vector;
 
@@ -51,7 +52,7 @@ const int FADEOUT = 50;
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
 
-bool Client::IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw () {
+bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw () {
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
     const double dist = sqrt(sqr(dx) + sqr(dy));
     if (dist == 0)
@@ -62,7 +63,7 @@ bool Client::IsBehindWall(double mex, double mey, double dx, double dy, double r
     return room.genGetTimeTillWall(mex, mey, dx, dy, radius, nearEnoughFraction).first < nearEnoughFraction;
 }
 
-double Client::ScanDir(double mex, double mey, GunDirection dir) const throw () {
+double Robot::ScanDir(double mex, double mey, GunDirection dir) const throw () {
     const double deg = dir.toRad();
     const double sx = cos(deg), sy = sin(deg);
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
@@ -74,7 +75,7 @@ double Client::ScanDir(double mex, double mey, GunDirection dir) const throw () 
     return min(maxDist, room.genGetTimeTillWall(mex, mey, sx, sy, PLAYER_RADIUS, maxDist).first);
 }
 
-int Client::IsAimed(double mex, double mey, int i) const throw () { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+int Robot::IsAimed(double mex, double mey, int i) const throw () { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
     nAssert(!fx.physics.allowFreeTurning);
 
     // XXX?
@@ -114,11 +115,11 @@ int Client::IsAimed(double mex, double mey, int i) const throw () { // return 2 
     return fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2) ? 2 : 1;
 }
 
-GunDirection Client::GetDir(double dx, double dy) const throw () {
+GunDirection Robot::GetDir(double dx, double dy) const throw () {
     return GunDirection().fromRad(atan2(dy, dx));
 }
 
-int Client::GetDangerousRocket() const throw () {
+int Robot::GetDangerousRocket() const throw () {
     static const int thinkAheadFrames = 10;
     static const double safetyRoomMul = 4., framesAfterBounce = .5;
 
@@ -152,7 +153,7 @@ int Client::GetDangerousRocket() const throw () {
     return nearRocket;
 }
 
-int Client::GetEasyEnemy(double mex, double mey) const throw () {
+int Robot::GetEasyEnemy(double mex, double mey) const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -198,7 +199,7 @@ int Client::GetEasyEnemy(double mex, double mey) const throw () {
     return target;
 }
 
-int Client::GetDangerousEnemy(double mex, double mey) const throw () {
+int Robot::GetDangerousEnemy(double mex, double mey) const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -258,7 +259,7 @@ int Client::GetDangerousEnemy(double mex, double mey) const throw () {
     return target;
 }
 
-int Client::GetNearestEnemy(double mex, double mey) const throw () {
+int Robot::GetNearestEnemy(double mex, double mey) const throw () {
     int target = -1;
     double mdist = 0;
 
@@ -288,7 +289,7 @@ int Client::GetNearestEnemy(double mex, double mey) const throw () {
     return target;
 }
 
-pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) const throw () {
+pair<bool, GunDirection> Robot::TryAim(double mex, double mey, int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
     const double ttx = fx.player[target].lx + averageLag * fx.player[target].sx;
@@ -309,7 +310,7 @@ pair<bool, GunDirection> Client::TryAim(double mex, double mey, int target) cons
     return make_pair(!IsBehindWall(mex, mey, dx, dy, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS), GetDir(dx, dy));
 }
 
-double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw () {
+double Robot::GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw () {
     const ClientPlayer& target = fx.player[iTarget];
 
     if (!target.onscreen || target.dead)
@@ -336,7 +337,7 @@ double Client::GetHitTime(double mex, double mey, const GunDirection& dir, int i
     return sqrt(sqr(dx) + sqr(dy)) < 3 * PLAYER_RADIUS ? hitTime : 1e100;
 }
 
-double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw () {
+double Robot::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw () {
     double hitTime = 1e100;
     if (fx.physics.friendly_fire == 0)
         return hitTime;
@@ -346,7 +347,7 @@ double Client::GetHitTeammateTime(double mex, double mey, const GunDirection& di
     return hitTime;
 }
 
-pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw () {
+pair<bool, GunDirection> Robot::NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw () {
     const ClientPlayer& player = fx.player[me];
 
     vector<int> tryOrder;
@@ -385,7 +386,7 @@ pair<bool, GunDirection> Client::NeedShoot(double mex, double mey, const GunDire
     return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
-ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const throw () {
+ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
     const double sdx = rocket.x + averageLag * rocket.sx - mex;
     const double sdy = rocket.y + averageLag * rocket.sy - mey;
@@ -435,7 +436,7 @@ ClientControls Client::EscapeRocket(double mex, double mey, int mrock) const thr
     return ctrl;
 }
 
-ClientControls Client::Aim(double mex, double mey, int i) const throw () {
+ClientControls Robot::Aim(double mex, double mey, int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
@@ -479,7 +480,7 @@ ClientControls Client::Aim(double mex, double mey, int i) const throw () {
     return ctrl;
 }
 
-int Client::FreeDir(double mex, double mey) const throw () {
+int Robot::FreeDir(double mex, double mey) const throw () {
     int mdir = 0;
     double mdist = 0;
 
@@ -497,7 +498,7 @@ int Client::FreeDir(double mex, double mey) const throw () {
     return mdir;
 }
 
-ClientControls Client::MoveDirNoAggregate(int dir) const throw () {
+ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
     double sdx = 0;
     double sdy = 0;
 
@@ -572,7 +573,7 @@ ClientControls Client::MoveDirNoAggregate(int dir) const throw () {
     return ctrl;
 }
 
-ClientControls Client::MoveDir(int dir) const throw () {
+ClientControls Robot::MoveDir(int dir) const throw () {
     ClientControls ctrl;
     ctrl.setRun();
     switch(dir) {
@@ -608,11 +609,11 @@ ClientControls Client::MoveDir(int dir) const throw () {
     return ctrl;
 }
 
-ClientControls Client::FreeWalk(double mex, double mey) const throw () {
+ClientControls Robot::FreeWalk(double mex, double mey) const throw () {
     return MoveDirNoAggregate(FreeDir(mex, mey));
 }
 
-ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, double dy, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveToNoAggregate(double mex, double mey, double dx, double dy, double maxDistanceFromTarget) const throw () {
     if (IsBehindWall(mex, mey, dx, dy, PLAYER_RADIUS, maxDistanceFromTarget)) { //walking
         const int mdir = FreeDir(mex, mey);
         return MoveDir(mdir);
@@ -624,7 +625,7 @@ ClientControls Client::MoveToNoAggregate(double mex, double mey, double dx, doub
 }
 
 
-ClientControls Client::MoveTo(double mex, double mey, double dx, double dy, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveTo(double mex, double mey, double dx, double dy, double maxDistanceFromTarget) const throw () {
     int mdir;
     if (IsBehindWall(mex, mey, dx, dy, PLAYER_RADIUS, maxDistanceFromTarget))//walking
         mdir = FreeDir(mex, mey);
@@ -633,7 +634,7 @@ ClientControls Client::MoveTo(double mex, double mey, double dx, double dy, doub
     return MoveDir(mdir);
 }
 
-ClientControls Client::GetPowerup(double mex, double mey, bool onImportantMission) const throw () {
+ClientControls Robot::GetPowerup(double mex, double mey, bool onImportantMission) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (!fx.item[i].real() || area(fx.item[i].position()) != myArea())
             continue;
@@ -649,7 +650,7 @@ ClientControls Client::GetPowerup(double mex, double mey, bool onImportantMissio
     return ClientControls();
 }
 
-ClientControls Client::GetFlag(double mex, double mey) const throw () {
+ClientControls Robot::GetFlag(double mex, double mey) const throw () {
     const int myTeam = fx.player[me].team();
 
     if (HaveFlag(me)) {
@@ -684,7 +685,7 @@ ClientControls Client::GetFlag(double mex, double mey) const throw () {
     return ClientControls();
 }
 
-Client::TeamCounts Client::Teams(const Area* const a, bool countMe) const throw () {
+Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw () {
     TeamCounts c;
     c.enemies = c.friends = 0;
     bool meFound = false;
@@ -717,7 +718,7 @@ Client::TeamCounts Client::Teams(const Area* const a, bool countMe) const throw 
     return c;
 }
 
-bool Client::AmILast() const throw () {
+bool Robot::AmILast() const throw () {
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || !pl.onscreen || pl.dead)
@@ -728,7 +729,7 @@ bool Client::AmILast() const throw () {
     return true;
 }
 
-ClientControls Client::Escape(double mex, double mey) const throw () {
+ClientControls Robot::Escape(double mex, double mey) const throw () {
     if (!HaveFlag(me))
         return ClientControls();
 
@@ -747,7 +748,7 @@ ClientControls Client::Escape(double mex, double mey) const throw () {
     return ClientControls();
 }
 
-ClientControls Client::FollowFlag(double mex, double mey) const throw () {
+ClientControls Robot::FollowFlag(double mex, double mey) const throw () {
     double dx = 0;
     double dy = 0;
     double sx = 0;
@@ -780,428 +781,7 @@ ClientControls Client::FollowFlag(double mex, double mey) const throw () {
     return MoveToNoAggregate(mex, mey, dx, dy, PLAYER_RADIUS);
 }
 
-const AreaMap& BotSharedDataStorage::acquire(const Map& m) throw () {
-    const MapIdentifier mid(m);
-    Lock ml(mutex); // the return value is still usable outside the mutex lock because the data is constant and availability is ensured with nUsers
-    const map<MapIdentifier, MapData>::iterator mi = maps.find(mid);
-    if (mi == maps.end()) {
-        MapData md;
-        md.nUsers = 1;
-        md.areas = new AreaMap(m);
-        maps[mid] = md;
-        return *md.areas;
-    }
-    else {
-        ++mi->second.nUsers;
-        return *mi->second.areas;
-    }
-}
-
-void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
-    Lock ml(mutex);
-    const map<MapIdentifier, MapData>::iterator mi = maps.find(mid);
-    nAssert(mi != maps.end());
-    if (--mi->second.nUsers == 0) {
-        delete mi->second.areas;
-        maps.erase(mi);
-    }
-}
-
-ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
-    const Room& room = map.room[roomx][roomy];
-
-    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw � 3 / 4)
-    static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
-    static const double pointDistance = double(plw) / (xPoints - 1);
-    nAssert(plh * (xPoints - 1) == plw * (yPoints - 1)); // to ensure that points on the bottom fall at the room edge, as well as the points on the right (equal to plh / (yPoints - 1) == pointDistance but workable in integer arithmetic)
-
-    /* To deem a point wall-free, we want there to be a player-sized path between it and
-     * all non-diagonal wall-free neighbors. Generally, a clear path of width w across the
-     * distance d between points A and B, is ensured if around both A and B, a radius of
-     * sqrt((�w)� + (�d)�) is clear.
-     * Here, d = pointDistance and w = PLAYER_RADIUS * 2. Some extra breathing room is
-     * gained by adding to PLAYER_RADIUS.
-     */
-    const double pointRadius = sqrt(sqr(.5 * pointDistance) + sqr(1.1 * PLAYER_RADIUS));
-
-    static const int mapWall = -1, mapUnreached = -2;
-    int mapReachedCurrent = 0; // increased when starting a new area, to separate points reached by current and previous areas; in the end all non-negative points have been reached by some area
-    vector< vector<int> > roomMap(xPoints, vector<int>(yPoints));
-
-    for (unsigned ix = 0; ix < xPoints; ++ix) {
-        const double x = ix * pointDistance;
-        for (unsigned iy = 0; iy < yPoints; ++iy) {
-            const double y = iy * pointDistance;
-            roomMap[ix][iy] = room.fall_on_wall(x, y, pointRadius) ? mapWall : mapUnreached;
-        }
-    }
-
-    for (unsigned nextUncheckedX = 0; nextUncheckedX < xPoints; ++nextUncheckedX)
-        for (unsigned nextUncheckedY = 0; nextUncheckedY < yPoints; ++nextUncheckedY) {
-            if (roomMap[nextUncheckedX][nextUncheckedY] != mapUnreached)
-                continue;
-            roomMap[nextUncheckedX][nextUncheckedY] = mapReachedCurrent;
-
-            typedef BasicCoords<unsigned> PointCoords;
-            queue<PointCoords> workQueue;
-            workQueue.push(PointCoords(nextUncheckedX, nextUncheckedY));
-
-            #define checkExpand(x, y) if (roomMap[x][y] == mapUnreached) { roomMap[x][y] = mapReachedCurrent; workQueue.push(PointCoords(x, y)); }
-
-            while (!workQueue.empty()) {
-                const PointCoords pc = workQueue.front();
-                workQueue.pop();
-                if (pc.x > 0)
-                    checkExpand(pc.x - 1, pc.y);
-                if (pc.x < xPoints - 1)
-                    checkExpand(pc.x + 1, pc.y);
-                if (pc.y > 0)
-                    checkExpand(pc.x, pc.y - 1);
-                if (pc.y < yPoints - 1)
-                    checkExpand(pc.x, pc.y + 1);
-            }
-
-            #undef checkExpand
-
-            ++mapReachedCurrent;
-        }
-
-    vector<Area*> roomAreas;
-    unsigned nCancelledAreas = 0;
-    for (int areaIndex = 0; areaIndex < mapReachedCurrent; ++areaIndex) {
-        Area* const a = new Area(roomx, roomy);
-        for (int iEdge = 0; iEdge < 2; ++iEdge) {
-            const unsigned xEdge = iEdge ? xPoints - 1 : 0;
-            const unsigned yEdge = iEdge ? yPoints - 1 : 0;
-            const Area::Neighbor::Direction xDir = iEdge ? Area::Neighbor::Right : Area::Neighbor::Left;
-            const Area::Neighbor::Direction yDir = iEdge ? Area::Neighbor::Down  : Area::Neighbor::Up;
-            int door0 = -1;
-
-            #define checkDoor(iPoint, pointIsDoor, direction)           \
-                {                                                       \
-                    if ((pointIsDoor) && door0 == -1)                   \
-                        door0 = iPoint;                                 \
-                    else if (!(pointIsDoor) && door0 != -1) {           \
-                        a->n.push_back(Area::Neighbor(direction, door0 * pointDistance - pointRadius, (iPoint - 1) * pointDistance + pointRadius)); \
-                        door0 = -1;                                     \
-                    }                                                   \
-                }
-
-            for (unsigned x = 0; x < xPoints; ++x)
-                checkDoor(x, roomMap[x][yEdge] == areaIndex, yDir);
-            checkDoor(xPoints, false, yDir);
-            for (unsigned y = 0; y < yPoints; ++y)
-                checkDoor(y, roomMap[xEdge][y] == areaIndex, xDir);
-            checkDoor(yPoints, false, xDir);
-
-            #undef checkDoor
-        }
-
-        if (a->n.empty()) { // even if this area could be entered (from a small unnoticed opening or from another room "over a wall"), there are no known exits so it is not useful for navigation and would just needlessly complicate the room area map
-            ++nCancelledAreas;
-            roomAreas.push_back(0); // otherwise we'd need to renumber the higher numbered cells here to keep roomAreas in sync with roomMap
-            delete a;
-        }
-        else {
-            roomAreas.push_back(a);
-            areas.push_back(give_control(a));
-        }
-    }
-
-    if (roomAreas.size() == nCancelledAreas) {
-        roomAreas.clear();
-        nCancelledAreas = 0;
-        // every room still needs an area
-        Area* const a = new Area(roomx, roomy);
-        areas.push_back(give_control(a));
-        roomAreas.push_back(a);
-        // no need to touch roomMap because RoomAreaMap will see that there's only one area
-    }
-    else if (nCancelledAreas)
-        for (unsigned x = 0; x < xPoints; ++x)
-            for (unsigned y = 0; y < yPoints; ++y)
-                if (roomMap[x][y] >= 0 && !roomAreas[roomMap[x][y]])
-                    roomMap[x][y] = mapWall;
-
-    return give_control(new RoomAreaMap(roomMap, roomAreas));
-}
-
-AreaMap::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
-    for (int i = 0; i < Table_Max; i++) {
-        route[i] = false;
-        label[i] = -1;
-    }
-}
-
-void AreaMap::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
-    nAssert(value > 0);
-    if (value > bestValue) {
-        bestValue = value;
-        bestIsX = axisIsX;
-        bestPoint = point;
-    }
-}
-
-void AreaMap::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minimums, const vector<int>& maximums, int& minValue, int& maxValue, bool axisIsX) throw () { // fills in minValue and maxValue as well as tests the points
-    /* Example of overlapping ranges in one dimension:
-     *
-     * 1-1-1-1
-     *     2-2-2-2-2
-     *   3-3
-     *             4
-     *   5-5
-     *  | | | |   |   <- sensible cut-points are at each non-border min/max
-     *      | +   +   <- cut-points that leave an entire area on both sides are preferred
-     *        |       <- ones near the middle are best
-     */
-    minValue = minimums[0]; maxValue = maximums[0]; // can be taken over all minimums/maximums even if count == 0, since those can't have more extreme values than relevant ones
-    for (unsigned i = 1; i < minimums.size(); ++i) {
-        if (minimums[i] < minValue)
-            minValue = minimums[i];
-        if (maximums[i] > maxValue)
-            maxValue = maximums[i];
-    }
-    vector<int> points;
-    for (unsigned i = 0; i < minimums.size(); ++i)
-        if (count[i]) {
-            if (minimums[i] != minValue)
-                points.push_back(minimums[i]);
-            if (maximums[i] != maxValue)
-                points.push_back(maximums[i] + 1); // +1 because the "physical" point considered is "before" the stored value
-        }
-    if (minValue != maxValue)
-        testPoint(axisIsX, minValue + (maxValue - minValue + 1) / 2, (maxValue - minValue) * 10);
-    if (points.empty()) // all areas span an identical range
-        return;
-    sort(points.begin(), points.end());
-    unsigned unbrokenAreasBefore = 0, unbrokenAreasAfter = nActualAreas;
-    for (unsigned i = 0; i < minimums.size(); ++i)
-        if (count[i] && minimums[i] == minValue) // the first point considered in the actual loop is later than minValue
-            --unbrokenAreasAfter;
-    int prev = -1;
-    for (vector<int>::const_iterator pi = points.begin(); pi != points.end(); ++pi) {
-        if (*pi == prev)
-            continue;
-        prev = *pi;
-
-        // adjust to conditions at just before *pi
-        for (unsigned i = 0; i < minimums.size(); ++i)
-            if (count[i] && maximums[i] == *pi - 1) // these were stored as *pi, exactly because them closing just before *pi make *pi interesting
-                ++unbrokenAreasBefore;
-
-        // consider making a split just before *pi
-        const int sizeBefore = *pi - minValue, sizeAfter = maxValue + 1 - *pi;
-        testPoint(axisIsX, *pi,
-                  unbrokenAreasBefore * unbrokenAreasAfter * 100000 + // if there are unbroken areas on both sides, that will totally dominate
-                  ((unbrokenAreasBefore ? sizeAfter  : 0) +
-                   (unbrokenAreasAfter  ? sizeBefore : 0)) * 40 + // try to minimize the side with unbroken areas, but fall back to cutting at the middle (with the value [maxValue - minValue] * 10 above) if the cut away broken part would be less than 1/4 of the range
-                  min(sizeBefore, sizeAfter)); // given two equal choices, pick the one closer to the middle
-
-        // adjust to conditions after *pi
-        for (unsigned i = 0; i < minimums.size(); ++i)
-            if (count[i] && minimums[i] == *pi)
-                --unbrokenAreasAfter;
-    }
-    nAssert(unbrokenAreasAfter == 0);
-    #ifndef NDEBUG
-    for (unsigned i = 0; i < minimums.size(); ++i)
-        if (count[i] && maximums[i] == maxValue) // the last point considered in the actual loop is before maxValue (*pi == maxValue is possible but that point is still before maxValue)
-            ++unbrokenAreasBefore;
-    nAssert(unbrokenAreasBefore == nActualAreas);
-    #endif
-}
-
-AreaMap::RoomAreaMap::AreaSplitter::AreaSplitter(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas, int x0, int y0, int x1, int y1) throw () :
-    bestValue(0),
-    count(roomAreas.size(), 0)
-{
-    vector<int> minX(roomAreas.size(), x1),
-                minY(roomAreas.size(), y1),
-                maxX(roomAreas.size(), x0),
-                maxY(roomAreas.size(), y0);
-
-    for (int y = y0; y <= y1; ++y)
-        for (int x = x0; x <= x1; ++x) {
-            const int idx = roomMap[x][y];
-            if (idx < 0)
-                continue;
-            nAssert(unsigned(idx) < roomAreas.size());
-            if (x < minX[idx])
-                minX[idx] = x;
-            if (x > maxX[idx])
-                maxX[idx] = x;
-            if (y < minY[idx])
-                minY[idx] = y;
-            if (y > maxY[idx])
-                maxY[idx] = y;
-            ++count[idx];
-        }
-
-    unsigned last = 0; // initialized to please GCC
-    nActualAreas = 0;
-    for (unsigned i = 0; i < roomAreas.size(); ++i)
-        if (count[i]) {
-            ++nActualAreas;
-            last = i;
-        }
-    nAssert(nActualAreas != 0);
-    if (nActualAreas == 1) {
-        result = new SingleArea(roomAreas[last]);
-        return;
-    }
-
-    int minXinUse, maxXinUse, minYinUse, maxYinUse;
-    testAxisPoints(minX, maxX, minXinUse, maxXinUse, true);
-    testAxisPoints(minY, maxY, minYinUse, maxYinUse, false);
-
-    #if 0
-    std::cerr << "AreaSplitter(" << x0 << ", " << y0 << ", " << x1 << ", " << y1 << "):\nArea:\n";
-    for (int y = y0; y <= y1; ++y) {
-        std::cerr << std::setw(2) << y << ' ';
-        for (int x = x0; x <= x1; ++x) {
-            const int idx = roomMap[x][y];
-            std::cerr << ' ' << (idx < 0 ? '.' : idx > 9 ? 'X' : char('0' + idx));
-        }
-        std::cerr << '\n';
-    }
-    std::cerr << "   ";
-    for (int x = x0; x <= x1; ++x)
-        std::cerr << std::setw(2) << ((x == x0 || x % 10 == 0) ? x : x % 10);
-    std::cerr << "\nSplit in " << (bestIsX ? 'X' : 'Y') << " before " << bestPoint << "\n\n";
-    #endif
-
-    nAssert(bestValue != 0);
-    if (bestIsX)
-        result = new SplitByX(AreaSplitter(roomMap, roomAreas, minXinUse, minYinUse, bestPoint - 1, maxYinUse)(),
-                              AreaSplitter(roomMap, roomAreas, bestPoint, minYinUse, maxXinUse    , maxYinUse)(),
-                              (bestPoint - .5) / (roomMap.size() - 1) * plw);
-    else
-        result = new SplitByY(AreaSplitter(roomMap, roomAreas, minXinUse, minYinUse, maxXinUse, bestPoint - 1)(),
-                              AreaSplitter(roomMap, roomAreas, minXinUse, bestPoint, maxXinUse, maxYinUse    )(),
-                              (bestPoint - .5) / (roomMap[0].size() - 1) * plh);
-
-    #if 0
-    std::cerr << "AreaSplitter(" << x0 << ", " << y0 << ", " << x1 << ", " << y1 << ") completed recursion\n\n";
-    #endif
-}
-
-AreaMap::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const vector<Area*>& roomAreas) throw () {
-    nAssert(!roomAreas.empty());
-    if (roomAreas.size() == 1)
-        topLevel = new SingleArea(roomAreas.back());
-    else
-        topLevel = AreaSplitter(roomMap, roomAreas, 0, 0, roomMap.size() - 1, roomMap[0].size() - 1)();
-}
-
-AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly) throw () {
-    return const_cast<Area*>(static_cast<const AreaMap*>(this)->identifyArea(roomx, roomy, lx, ly));
-}
-
-const AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly) const throw () {
-    if (roomx >= 0 && roomy >= 0 && (unsigned)roomx < roomMaps.size() && (unsigned)roomy < roomMaps[0].size())
-        return roomMaps[roomx][roomy].identifyArea(lx, ly);
-    else
-        return &areas.front(); // just return some area even for invalid coordinates; they are temporary and won't cause much harm
-}
-
-AreaMap& AreaMap::operator=(const AreaMap& o) throw () {
-    areas.clear();
-    roomMaps.clear();
-    map<const Area*, Area*> newAreas;
-    for (PointerVector<Area>::const_iterator ai = o.areas.begin(); ai != o.areas.end(); ++ai) {
-        Area* na = new Area(*ai);
-        areas.push_back(give_control(na));
-        newAreas[&*ai] = na;
-    }
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        for (vector<Area::Neighbor>::iterator ni = ai->n.begin(); ni != ai->n.end(); ++ni)
-            ni->area = newAreas[ni->area];
-        for (vector<Area*>::iterator rni = ai->rn.begin(); rni != ai->rn.end(); ++rni)
-            *rni = newAreas[*rni];
-    }
-    roomMaps.reserve(o.roomMaps.size());
-    for (PointerVector< PointerVector<RoomAreaMap> >::const_iterator rmxi = o.roomMaps.begin(); rmxi != o.roomMaps.end(); ++rmxi) {
-        roomMaps.push_back(give_control(new PointerVector<RoomAreaMap>()));
-        roomMaps.back().reserve(rmxi->size());
-        for (PointerVector<RoomAreaMap>::const_iterator rmi = rmxi->begin(); rmi != rmxi->end(); ++rmi)
-            roomMaps.back().push_back(give_control(rmi->clone(newAreas)));
-    }
-    return *this;
-}
-
-void AreaMap::initialize(const Map& sourceMap) throw () {
-    areas.clear();
-    roomMaps.clear();
-
-    // create all Areas before creating links between them
-    for (int x = 0; x < sourceMap.w; ++x) {
-        roomMaps.push_back(give_control(new PointerVector<RoomAreaMap>()));
-        for (int y = 0; y < sourceMap.h; ++y)
-            roomMaps[x].push_back(splitRoom(sourceMap, x, y));
-    }
-
-    // link doors to target areas
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        map<Area*, unsigned> areaNeighborIndex; // stores the index to ai->n for each already seen neighboring area
-        Area::Neighbor::Direction prevDir = Area::Neighbor::Up; // initialized to please GCC
-        for (unsigned ni = 0; ni < ai->n.size(); ) {
-            Area::Neighbor& n = ai->n[ni];
-            nAssert(n.doors.size() == 1);
-            if (n.direction != prevDir) {
-                prevDir = n.direction;
-                areaNeighborIndex.clear(); // this is required because the same Area can be reachable in multiple directions if the map is just one room high and/or wide; we need separate Neighbors for each direction
-            }
-            const int dx = n.dx(), dy = n.dy();
-            n.area = identifyArea(positiveModulo(ai->roomx + dx, sourceMap.w),
-                                  positiveModulo(ai->roomy + dy, sourceMap.h),
-                                  dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
-                                  dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2);
-            const map<Area*, unsigned>::const_iterator nii = areaNeighborIndex.find(n.area);
-            if (nii == areaNeighborIndex.end()) {
-                areaNeighborIndex[n.area] = ni++;
-                n.area->rn.push_back(&*ai);
-            }
-            else {
-                Area::Neighbor& nPrimary = ai->n[nii->second];
-                nPrimary.doors.push_back(n.doors.back());
-                ai->n.erase(ai->n.begin() + ni);
-                // ni stays the same for next round, pointing to a new Neighbor now
-            }
-        }
-    }
-
-    #if 0
-    std::cerr << "\nArea dump:\n";
-    map<pair<int, int>, int> roomAreaCounts;
-    map<const Area*, int> areaInRoomIds;
-    for (PointerVector<Area>::const_iterator ai = areas.begin(); ai != areas.end(); ++ai)
-        areaInRoomIds[&*ai] = ++roomAreaCounts[make_pair(ai->roomx, ai->roomy)];
-    for (PointerVector<Area>::const_iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        std::cerr << ai->roomx << ',' << ai->roomy << '/' << areaInRoomIds[&*ai] << ':';
-        for (vector<Area::Neighbor>::const_iterator ni = ai->neighbors().begin(); ni != ai->neighbors().end(); ++ni) {
-            std::cerr << " ->" << (ni->direction == Area::Neighbor::Up ? 'U' : ni->direction == Area::Neighbor::Down ? 'D' : ni->direction == Area::Neighbor::Left ? 'L' : 'R')
-                      << ':' << ni->area->roomx << ',' << ni->area->roomy << '/' << areaInRoomIds[ni->area];
-            for (vector<pair<double, double> >::const_iterator di = ni->doors.begin(); di != ni->doors.end(); ++di)
-                std::cerr << " @" << int(di->first) << ".." << int(di->second);
-        }
-        std::cerr << '\n';
-    }
-    #endif
-}
-
-void AreaMap::clearRoutingTable(RouteTable num) throw () {
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        ai->label[num] = -1;
-        ai->route[num] = false;
-    }
-}
-
-void AreaMap::clearRoute(RouteTable num) throw () {
-    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai)
-        ai->route[num] = false;
-}
-
-void Client::BuildMap() throw () {
+void Robot::BuildMap() throw () {
     last_seen = -1;
     myGundir = -1;
 
@@ -1218,11 +798,11 @@ void Client::BuildMap() throw () {
     }
 }
 
-void Client::BuildRouteTable(Area* startPoint, RouteTable num) throw () {
+void Robot::BuildRouteTable(Area* startPoint, RouteTable num) throw () {
     return BuildRouteTable(vector<Area*>(1, startPoint), num);
 }
 
-void Client::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) throw () {
+void Robot::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) throw () {
     if (startPoints.size() == 1) {
         if (routeTableCenter[num] == startPoints[0])
             return;
@@ -1250,7 +830,7 @@ void Client::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) t
     }
 }
 
-int Client::BuildRoute(Area* const target, RouteTable num) throw () {
+int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
     #ifdef BOTDEBUG
     static const Area* oldTarget = 0;
     if (target != oldTarget) {
@@ -1290,7 +870,7 @@ int Client::BuildRoute(Area* const target, RouteTable num) throw () {
     return steps;
 }
 
-ClientControls Client::Route(double melx, double mely, RouteTable num) const throw () {
+ClientControls Robot::Route(double melx, double mely, RouteTable num) const throw () {
     if (routing[num] == Route_None)
         return ClientControls();
 
@@ -1318,7 +898,7 @@ ClientControls Client::Route(double melx, double mely, RouteTable num) const thr
     return MoveToDoor(melx, mely, *target);
 }
 
-ClientControls Client::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
+ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
     int fixedBorder, fixedTarget;
     bool xFixed;
     ClientControls ctrl;
@@ -1376,7 +956,7 @@ ClientControls Client::MoveToDoor(double mex, double mey, const Area::Neighbor& 
         return MoveToNoAggregate(mex, mey, freeTarget - mex, fixedTarget - mey, 0);
 }
 
-int Client::GetPlayers(int team) const throw () {
+int Robot::GetPlayers(int team) const throw () {
     int npl = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
@@ -1386,7 +966,7 @@ int Client::GetPlayers(int team) const throw () {
     return npl;
 }
 
-bool Client::IsDefender() throw () {
+bool Robot::IsDefender() throw () {
     // get flag base
     const int team = fx.player[me].team();
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
@@ -1420,7 +1000,7 @@ bool Client::IsDefender() throw () {
     return false;
 }
 
-bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
+bool Robot::RouteLogic(RouteTable num) throw () { // NEED rewrite
     const int flag = HaveFlag(me);
     routing[num] = Route_None;
 
@@ -1517,7 +1097,7 @@ bool Client::RouteLogic(RouteTable num) throw () { // NEED rewrite
     return routing[num] != Route_None;
 }
 
-bool Client::IsMassive() const throw () {
+bool Robot::IsMassive() const throw () {
     double dx = 0, dy = 0;
     int n = 0;
     for (int i = 0; i < maxplayers; ++i) {
@@ -1540,7 +1120,7 @@ bool Client::IsMassive() const throw () {
     return dist <= 2 * PLAYER_RADIUS;
 }
 
-int Client::HaveFlag(int n) const throw () {
+int Robot::HaveFlag(int n) const throw () {
     const int t = 1 - fx.player[n].team();
     nAssert(t == 0 || t == 1);
 
@@ -1557,7 +1137,7 @@ int Client::HaveFlag(int n) const throw () {
     return 0;
 }
 
-bool Client::IsFlagAtBase(const Flag& f, int team) const throw () {
+bool Robot::IsFlagAtBase(const Flag& f, int team) const throw () {
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
         if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - f.position().x) <= 5. && fabs(bi->y - f.position().y) <= 5.)
@@ -1565,7 +1145,7 @@ bool Client::IsFlagAtBase(const Flag& f, int team) const throw () {
     return false;
 }
 
-void Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
+void Robot::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
     int label = 0;
 
@@ -1582,7 +1162,7 @@ void Client::TargetNearestBase(int& m_label, Area*& targetArea, int team, RouteT
     }
 }
 
-void Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
+void Robot::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteTable num) throw () {
     // looking for soldiers
     const bool enemy = (fx.player[me].team() != team);
 
@@ -1615,7 +1195,7 @@ void Client::TargetNearestTeam(int& m_label, Area*& targetArea, int team, RouteT
     }
 }
 
-bool Client::IsCarriersDef(int team) throw () {
+bool Robot::IsCarriersDef(int team) throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
     vector<Area*> carrierAreas;
@@ -1643,7 +1223,7 @@ bool Client::IsCarriersDef(int team) throw () {
     return nearer >= teammates / 2;
 }
 
-bool Client::IsHome(const Area* a) const throw () {
+bool Robot::IsHome(const Area* a) const throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
     // our bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
@@ -1652,7 +1232,7 @@ bool Client::IsHome(const Area* a) const throw () {
     return false;
 }
 
-bool Client::IsFlagsAtBases(int team) const throw () {
+bool Robot::IsFlagsAtBases(int team) const throw () {
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
         if (fi->carried() || !IsFlagAtBase(*fi, team))
@@ -1660,7 +1240,7 @@ bool Client::IsFlagsAtBases(int team) const throw () {
     return true;
 }
 
-void Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int state, RouteTable num) throw () {
+void Robot::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int state, RouteTable num) throw () {
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
     const bool wantCarried = state == 2 || state == 3;
@@ -1706,7 +1286,7 @@ void Client::TargetNearestFlag(int& m_label, Area*& targetArea, int team, int st
     }
 }
 
-int Client::TargetFog(RouteTable num) throw () {
+int Robot::TargetFog(RouteTable num) throw () {
     const Area* const here = myArea();
     double max_delta = 0;
     Area* target = 0;
@@ -1741,7 +1321,7 @@ int Client::TargetFog(RouteTable num) throw () {
  * team: a living non-me player with probably known location
  * base: a base, regardless of where its flag is
  */
-int Client::TargetRoute(int efb, int efd, int efc,
+int Robot::TargetRoute(int efb, int efd, int efc,
                         int mfb, int mfd, int mfc,
                         int wfb, int wfd, int wfce, int wfcf,
                         int en,  int fr,
@@ -1818,7 +1398,7 @@ int Client::TargetRoute(int efb, int efd, int efc,
     return BuildRoute(targetArea, num);
 }
 
-bool Client::IsMission(RouteTable num) const throw () {
+bool Robot::IsMission(RouteTable num) const throw () {
     const int to_home = IsHome(routeTarget[num]);
     // if we are looking for flag or going to our base for something
     if (routeTarget[num] == myArea())
@@ -1826,7 +1406,7 @@ bool Client::IsMission(RouteTable num) const throw () {
     return HaveFlag(me) || routing[num] == Route_Flag || to_home || !to_home && routing[num] == Route_Base;
 }
 
-ClientControls Client::getRobotControls() throw () {
+ClientControls Robot::getRobotControls() throw () {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
 
@@ -1934,7 +1514,7 @@ ClientControls Client::getRobotControls() throw () {
     return ctrl;
 }
 
-ClientControls Client::Robot() throw () {
+ClientControls Robot::RobotMain() throw () {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
@@ -1995,4 +1575,106 @@ ClientControls Client::Robot() throw () {
     }
 
     return ctrl;
+}
+
+Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+    ClientBase(config, clientLog, externalErrorLog_),
+    sharedDataHandle(static_botSharedDataStorage),
+    finished(false),
+    botPrevFire(false)
+{ }
+
+void Robot::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
+    Lock ml(frameMutex);
+    #ifndef DEDICATED_SERVER_ONLY
+    botmode = true;
+    #endif
+    botId = bot_id;
+    serverIP = addr;
+
+    startBase("_bot" + itoa(botId));
+
+    playername = name;
+
+    botReactedFrame = -1;
+
+    set_ping(ping);
+
+    connect_command();
+}
+
+void Robot::set_ping(int ping) throw () {
+    while (client->decreasePacketDelay()) { }
+    for (int i = 0; i < ping / 10; ++i)
+        client->increasePacketDelay();
+}
+
+void Robot::client_connected(ConstDataBlockRef data) throw () { // call with frameMutex locked
+    ClientBase::client_connected(data);
+
+    bot_send_frame(ClientControls());
+}
+
+void Robot::client_disconnected(ConstDataBlockRef data) throw () {
+    BinaryDataBlockReader read(data);
+
+    const uint8_t reason = read.U8();
+    numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
+                                   || reason == server_c::disconnect_timeout || reason == disconnect_kick),
+               data.size(), reason);
+
+    stop();
+}
+
+void Robot::connect_command() throw () {   // call with frameMutex locked
+    prepareForConnect();
+    connect(serverIP.toString(), bot_password, "");
+}
+
+void Robot::bot_send_frame(ClientControls controls) throw () {
+    ++clFrameSent;
+    controlHistory[clFrameSent] = sentControls = controls;
+    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
+    BinaryBuffer<256> msg;
+    msg.U8(clFrameSent);
+    msg.U8(sentControls.toNetwork(false));
+    if (fx.physics.allowFreeTurning)
+        msg.U16(gunDir.toNetworkLongForm());
+    client->send_frame(msg);
+}
+
+void Robot::bot_loop() throw () {
+    Lock ml(frameMutex);
+
+    handlePendingThreadMessages();
+
+    if (!connected || fx.frame == botReactedFrame)
+        return;
+
+    botReactedFrame = fx.frame;
+
+    while (clientReadiesWaiting > 0) {
+        send_client_ready();
+        --clientReadiesWaiting;
+    }
+
+    if (mapChanged) {
+        mapChanged = false;
+        BuildMap();
+    }
+
+    fx.cleanOldDeathbringerExplosions();
+
+    ClientControls controls = RobotMain();
+    controls.clearModifiersIfIdle();
+    bot_send_frame(controls);
+}
+
+void Robot::stop() throw () {
+    ClientBase::stop();
+    finished = true;
+}
+
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+    return new Robot(config, clientLog, externalErrorLog_);
 }
