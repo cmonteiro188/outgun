@@ -103,13 +103,11 @@ double Robot::ScanDir(double mex, double mey, GunDirection dir) const throw () {
     return min(maxDist, room.genGetTimeTillWall(mex, mey, sx, sy, PLAYER_RADIUS, maxDist).first);
 }
 
-int Robot::IsAimed(double mex, double mey, int i) const throw () { // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
+pair<Robot::AimLevel, int> Robot::TryAimTradTurning(double mex, double mey, int target) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
-    // XXX?
-
-    const double ttx = fx.player[i].lx + averageLag * fx.player[i].sx;
-    const double tty = fx.player[i].ly + averageLag * fx.player[i].sy;
+    const double ttx = fx.player[target].lx + averageLag * fx.player[target].sx;
+    const double tty = fx.player[target].ly + averageLag * fx.player[target].sy;
 
     double dx = ttx - mex;
     double dy = tty - mey;
@@ -117,30 +115,29 @@ int Robot::IsAimed(double mex, double mey, int i) const throw () { // return 2 i
     const double dist = sqrt(dx * dx + dy * dy);
 
     if (dist <= PLAYER_RADIUS)
-        return 2;
+        return make_pair(AL_Full, myGundir);
 
     const double tm = dist / fx.physics.rocket_speed;
-    dx += tm * fx.player[i].sx;
-    dy += tm * fx.player[i].sy;
+    dx += tm * fx.player[target].sx;
+    dy += tm * fx.player[target].sy;
 
     const int dir = GetDir(dx, dy).to8way();
 
-    if (myGundir != dir)
-        return 0;
-
     if (IsBehindWall(mex, mey, dx, dy, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS))
-        return 0;
+        return make_pair(AL_None, dir);
 
     static const int rocketsPerWeaponLevel[9] = { 1, 2, 3, 2, 3, 2, 3, 2, 3 };
     const int w = fx.player[me].weapon;
     const int rockets = w >= 1 && w <= 9 ? rocketsPerWeaponLevel[w - 1] : 1;
     static const double treshold = 1.3 * PLAYER_RADIUS + .7 * WorldBase::shot_deltax * (rockets - 1); // both 1.3 and .7 are semi-arbitrary
+    bool belowTreshold;
     if (dir == 0 || dir == 4) // left or right
-        return fabs(dy) < treshold ? 2 : 1;
-    if (dir == 2 || dir == 6) // up or down
-        return fabs(dx) < treshold ? 2 : 1;
-    // diagonal
-    return fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2) ? 2 : 1;
+        belowTreshold = fabs(dy) < treshold;
+    else if (dir == 2 || dir == 6) // up or down
+        belowTreshold = fabs(dx) < treshold;
+    else // diagonal
+        belowTreshold = fabs(fabs(dy) - fabs(dx)) <= treshold * sqrt(2);
+    return make_pair(belowTreshold ? AL_Full : AL_Near, dir);
 }
 
 GunDirection Robot::GetDir(double dx, double dy) const throw () {
@@ -317,7 +314,7 @@ int Robot::GetNearestEnemy(double mex, double mey) const throw () {
     return target;
 }
 
-pair<bool, GunDirection> Robot::TryAim(double mex, double mey, int target) const throw () {
+pair<bool, GunDirection> Robot::TryAimFreeTurning(double mex, double mey, int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
     const double ttx = fx.player[target].lx + averageLag * fx.player[target].sx;
@@ -358,11 +355,33 @@ double Robot::GetHitTime(double mex, double mey, const GunDirection& dir, int iT
     const double rsx = cos(dir.toRad()) * fx.physics.rocket_speed;
     const double rsy = sin(dir.toRad()) * fx.physics.rocket_speed;
 
-    const double hitTime = initialDist / fx.physics.rocket_speed;
-    dx += hitTime * (target.sx - rsx);
-    dy += hitTime * (target.sy - rsy);
+    const double tsx = rsx - target.sx, tsy = rsy - target.sy;
 
-    return sqrt(sqr(dx) + sqr(dy)) < 3 * PLAYER_RADIUS ? hitTime : 1e100;
+    // divide D=(dx,dy) to components parallel with, and perpendicular to T=(tsx,tsy)
+
+    // D_par = T / |T| * (T dot D) / |T| = T * (T dot D) / |T|²
+    // D_perp = D - D_par
+
+    const double ts2 = sqr(tsx) + sqr(tsy);
+
+    if (ts2 == 0) // shouldn't really happen, but let's be safe
+        return 1e100;
+
+    const double mul = (dx * tsx + dy * tsy) / ts2;
+
+    nAssert(mul > 0.);
+
+    const double parx = tsx * mul, pary = tsy * mul;
+    const double perpx = dx - parx, perpy = dy - pary;
+
+    const double hitTime = sqrt((sqr(parx) + sqr(pary)) / ts2); // |par| / |ts|, combined under one square root op
+    const double perpDist = sqrt(sqr(perpx) + sqr(perpy));
+
+    const double rx = mex + hitTime * rsx, ry = mey + hitTime * rsy;
+    const double ex = ttx + hitTime * target.sx, ey = tty + hitTime * target.sy;
+    nAssert(fabs(sqrt(sqr(rx - ex) + sqr(ry - ey)) - perpDist < 1.));
+
+    return perpDist < 3 * PLAYER_RADIUS ? hitTime : 1e100;
 }
 
 double Robot::GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw () {
@@ -375,29 +394,17 @@ double Robot::GetHitTeammateTime(double mex, double mey, const GunDirection& dir
     return hitTime;
 }
 
-pair<bool, GunDirection> Robot::NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw () {
-    const ClientPlayer& player = fx.player[me];
-
+pair<bool, GunDirection> Robot::NeedShootFreeTurning(double mex, double mey, const GunDirection& defaultDir) throw () {
     vector<int> tryOrder;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() == player.team() || !pl.onscreen || pl.dead)
+        if (!pl.used || pl.team() == fx.player[me].team() || !pl.onscreen || pl.dead)
             continue;
-
-        if (fx.physics.allowFreeTurning) {
-            if (i != last_seen)
-                tryOrder.push_back(i);
-        }
-        else {
-            if (IsAimed(mex, mey, i) == 2 && GetHitTime(mex, mey, defaultDir, i) <= GetHitTeammateTime(mex, mey, defaultDir))
-                return make_pair(true, GunDirection()); // the direction doesn't make any difference with non-free turning
-        }
+        if (i != last_seen)
+            tryOrder.push_back(i);
     }
 
-    if (!fx.physics.allowFreeTurning)
-        return make_pair(false, GunDirection());
-
-    pair<bool, GunDirection> aimLastSeen = last_seen == -1 ? make_pair(false, defaultDir) : TryAim(mex, mey, last_seen);
+    pair<bool, GunDirection> aimLastSeen = last_seen == -1 ? make_pair(false, defaultDir) : TryAimFreeTurning(mex, mey, last_seen);
     if (aimLastSeen.first) {
         if (GetHitTime(mex, mey, aimLastSeen.second, last_seen) <= GetHitTeammateTime(mex, mey, aimLastSeen.second))
             return aimLastSeen;
@@ -405,13 +412,47 @@ pair<bool, GunDirection> Robot::NeedShoot(double mex, double mey, const GunDirec
     }
     random_shuffle(tryOrder.begin(), tryOrder.end());
     for (vector<int>::const_iterator ti = tryOrder.begin(); ti != tryOrder.end(); ++ti) {
-        const pair<bool, GunDirection> aim = TryAim(mex, mey, *ti);
+        const pair<bool, GunDirection> aim = TryAimFreeTurning(mex, mey, *ti);
         if (aim.first && GetHitTime(mex, mey, aim.second, *ti) <= GetHitTeammateTime(mex, mey, aim.second)) {
             last_seen = *ti;
             return aim;
         }
     }
     return aimLastSeen; // aim at last_seen if no one is actually shootable
+}
+
+pair<bool, int> Robot::NeedShootTradTurning(double mex, double mey) throw () {
+    vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || pl.team() == fx.player[me].team() || !pl.onscreen || pl.dead)
+            continue;
+
+        const pair<AimLevel, int> aim = TryAimTradTurning(mex, mey, i);
+        if (aim.first != AL_Full)
+            continue;
+        const double hitTime = GetHitTime(mex, mey, GunDirection().from8way(aim.second), i);
+        if (hitTime > 1e10) // GetHitTime signals "no hit" with a huge time, and uses a better calculation than TryAim
+            continue;
+        if (!dirDistances[aim.second].first || hitTime < dirDistances[aim.second].second)
+            dirDistances[aim.second] = make_pair(true, hitTime);
+    }
+    int bestDir = -1;
+    double bestValue = 1e99;
+    for (int dir = 0; dir < 8; ++dir) {
+        if (!dirDistances[dir].first || dirDistances[dir].second > GetHitTeammateTime(mex, mey, GunDirection().from8way(dir)))
+            continue;
+        int dirDiff = fabs(dir - myGundir);
+        nAssert(dirDiff < 8);
+        if (dirDiff > 4)
+            dirDiff = 8 - dirDiff;
+        const double value = dirDistances[dir].second * dirDiff; // at or near the current aim is heavily favored (at gives always the best value)
+        if (value < bestValue) {
+            bestValue = value;
+            bestDir = dir;
+        }
+    }
+    return make_pair(bestDir != -1, bestDir);
 }
 
 ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const throw () {
@@ -473,11 +514,12 @@ ClientControls Robot::Aim(double mex, double mey, int i) const throw () {
     const double dx = ttx - mex;
     const double dy = tty - mey;
 
-    const int aimed = IsAimed(mex, mey, i);
-    if (aimed == 2)
+    const pair<AimLevel, int> aim = TryAimTradTurning(mex, mey, i);
+    if (aim.first == AL_Full && aim.second == myGundir)
         return ClientControls();
-    else if (aimed == 0)
+    else if (aim.first == AL_None || aim.second != myGundir)
         return MoveTo(mex, mey, dx, dy, PLAYER_RADIUS + PLAYER_RADIUS);
+    nAssert(aim.first == AL_Near && aim.second == myGundir);
 
     // almost aimed
     ClientControls ctrl;
@@ -602,39 +644,7 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
 }
 
 ClientControls Robot::MoveDir(int dir) const throw () {
-    ClientControls ctrl;
-    ctrl.setRun();
-    switch(dir) {
-        case 0:
-            ctrl.setRight();
-            break;
-        case 1:
-            ctrl.setRight();
-            ctrl.setDown();
-            break;
-        case 2:
-            ctrl.setDown();
-            break;
-        case 3:
-            ctrl.setDown();
-            ctrl.setLeft();
-            break;
-        case 4:
-            ctrl.setLeft();
-            break;
-        case 5:
-            ctrl.setLeft();
-            ctrl.setUp();
-            break;
-        case 6:
-            ctrl.setUp();
-            break;
-        case 7:
-            ctrl.setUp();
-            ctrl.setRight();
-            break;
-    }
-    return ctrl;
+    return ClientControls().fromDirection(dir).setRun();
 }
 
 ClientControls Robot::FreeWalk(double mex, double mey) const throw () {
@@ -887,7 +897,7 @@ int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
     for (; at != here; ++steps) {
         vector<Area*> choices;
 
-        for (vector<Area*>::const_iterator rni = at->reverseNeighbors().begin(); rni!= at->reverseNeighbors().end(); ++rni)
+        for (vector<Area*>::const_iterator rni = at->reverseNeighbors().begin(); rni != at->reverseNeighbors().end(); ++rni)
             if ((*rni)->label[num] == at->label[num] - 1)
                 choices.push_back(*rni);
 
@@ -1560,19 +1570,19 @@ ClientControls Robot::RobotMain() throw () {
     if (myGundir == -1) // was dead, or something like that
         myGundir = fx.player[me].gundir.to8way();
 
-    const ClientControls ctrl = getRobotControls();
+    ClientControls ctrl = getRobotControls();
 
-    if (!ctrl.isStrafe()) {
-        const int newDirection = ctrl.getDirection();
-        if (newDirection != -1)
-            myGundir = newDirection;
-    }
+    const int currentGundir = myGundir;
+
+    if (!ctrl.isStrafe() && ctrl.getDirection() != -1)
+        myGundir = ctrl.getDirection();
 
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
-    const pair<bool, GunDirection> shootDir = NeedShoot(mex, mey, GunDirection().from8way(myGundir)); // if there's no player to target, aim where we're going
-    bool actuallyShoot = shootDir.first;
+    bool shoot;
     if (fx.physics.allowFreeTurning) {
+        const pair<bool, GunDirection> shootDir = NeedShootFreeTurning(mex, mey, GunDirection().from8way(myGundir)); // if there's no player to target, aim where we're going
+        shoot = shootDir.first;
         // adjust gunDir
         static const double turnCeilingPerFrame = N_PI_2;
         static const double displacementMul = .7;
@@ -1585,9 +1595,24 @@ ClientControls Robot::RobotMain() throw () {
         actualDiff *= 1. + displacementMul * modifier * modifier * modifier; // actually turn by something between actualDiff * (1 +/- displacementMul), weighted so that values in the middle are more likely than extremes
         gunDir.adjust(actualDiff);
         if (fabs(actualDiff - targetDiff) > shootTreshold)
-            actuallyShoot = false;
+            shoot = false;
     }
-    if (actuallyShoot) {
+    else {
+        const pair<bool, int> shootDir = NeedShootTradTurning(mex, mey);
+        shoot = shootDir.first;
+        if (shoot && shootDir.second != myGundir) {
+            if (shootDir.second == currentGundir) {
+                nAssert(!ctrl.isStrafe());
+                ctrl.setStrafe();
+                myGundir = currentGundir;
+            }
+            else {
+                ctrl.fromDirection(shootDir.second);
+                myGundir = shootDir.second;
+            }
+        }
+    }
+    if (shoot) {
         if (!botPrevFire) {
             BinaryBuffer<16> msg;
             msg.U8(data_fire_on);

@@ -86,14 +86,16 @@ class Robot : private ClientBase, public BotInterface {
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
     int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
     bool        IsFlagAtBase(const Flag& f, int team) const throw ();
-    int         IsAimed(double mex, double mey, int i) const throw (); // return 2 if in hit point, 1 if almost in the gun direction and not behind a wall, 0 if elsewhere
-    std::pair<bool, GunDirection> TryAim(double mex, double mey, int target) const throw (); // for free turning; returns (shoot?, direction)
-    double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
-    double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw (); // approximate time until a rocket shoot towards dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
+    enum AimLevel { AL_None, AL_Near, AL_Full };
+    std::pair<AimLevel, int> TryAimTradTurning(double mex, double mey, int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
+    std::pair<bool, GunDirection> TryAimFreeTurning(double mex, double mey, int target) const throw (); // returns (shoot?, direction)
+    double      GetHitTime(double mex, double mey, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
+    double      GetHitTeammateTime(double mex, double mey, const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
     bool        IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw ();
     double      ScanDir(double mex, double mey, GunDirection dir) const throw (); // return length to wall
-    std::pair<bool, GunDirection> NeedShoot(double mex, double mey, const GunDirection& defaultDir) throw (); // shoot or not to shoot? if free turning is set, also tells the gunDir required (same as old gunDir if there's no one to aim at)
+    std::pair<bool, GunDirection> NeedShootFreeTurning(double mex, double mey, const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
+    std::pair<bool, int> NeedShootTradTurning(double mex, double mey) throw (); // to shoot or not to shoot, and the direction if shooting
     GunDirection GetDir(double dx, double dy) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
     int         GetDangerousRocket() const throw (); // get danger rocket index
     int         GetDangerousEnemy(double mex, double mey) const throw (); // same for enemy

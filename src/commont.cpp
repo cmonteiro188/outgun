@@ -2,7 +2,7 @@
  *  commont.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -114,6 +114,22 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
 }
 
 #endif // DEDICATED_SERVER_ONLY
+
+ClientControls& ClientControls::fromDirection(int direction) throw () {
+    *this = ClientControls();
+    switch (direction) {
+        break; case 0: setRight();
+        break; case 1: setRight(); setDown();
+        break; case 2: setDown();
+        break; case 3: setDown(); setLeft();
+        break; case 4: setLeft();
+        break; case 5: setLeft(); setUp();
+        break; case 6: setUp();
+        break; case 7: setUp(); setRight();
+        break; default: nAssert(0);
+    }
+    return *this;
+}
 
 int ClientControls::getDirection() const throw () {
     // left
