@@ -37,6 +37,34 @@
 
 #include "robot.h"
 
+#ifdef BOT_TEST_COMPARE_TWO
+
+#ifdef ALTERNATE_BOT
+
+typedef Robot Robot1;
+#undef ROBOT_H_INC
+#define Robot Robot2 // both for include, and the rest of this file
+#include "robot2.h"
+
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+    static bool turn = false;
+    turn = !turn;
+    if (turn)
+        return new Robot2(config, clientLog, externalErrorLog_);
+    else
+        return new Robot1(config, clientLog, externalErrorLog_);
+}
+
+#endif
+
+#else
+
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+    return new Robot(config, clientLog, externalErrorLog_);
+}
+
+#endif
+
 using std::make_pair;
 using std::max;
 using std::min;
@@ -1579,7 +1607,7 @@ ClientControls Robot::RobotMain() throw () {
 
 Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     ClientBase(config, clientLog, externalErrorLog_),
-    sharedDataHandle(static_botSharedDataStorage),
+    sharedDataHandle(g_botSharedDataStorage),
     finished(false),
     botPrevFire(false)
 { }
@@ -1651,6 +1679,23 @@ void Robot::bot_loop() throw () {
     if (!connected || fx.frame == botReactedFrame)
         return;
 
+    #ifdef BOT_TEST_COMPARE_TWO // change team if necessary
+    #ifdef ALTERNATE_BOT
+    const int desiredTeam = 1;
+    #else
+    const int desiredTeam = 0;
+    #endif
+    nAssert(me >= 0 && me < maxplayers);
+    if (me / TSIZE != desiredTeam) {
+        nAssert(fx.frame < 100);
+        if (botReactedFrame == -1) {
+            BinaryBuffer<16> msg;
+            msg.U8(data_change_team_on);
+            client->send_message(msg);
+        }
+    }
+    #endif
+
     botReactedFrame = fx.frame;
 
     while (clientReadiesWaiting > 0) {
@@ -1673,8 +1718,4 @@ void Robot::bot_loop() throw () {
 void Robot::stop() throw () {
     ClientBase::stop();
     finished = true;
-}
-
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Robot(config, clientLog, externalErrorLog_);
 }

@@ -293,7 +293,7 @@ void Server::check_player_change_teams(int pid) throw () {
                 return;
             }
 
-    if (network.get_bot_count() == 0)
+    if (network.get_bot_count() == 0 || world.player[pid].is_bot())
         return;
 
     // Switch teams with a bot.
@@ -1812,6 +1812,8 @@ void Server::run_bot_thread() throw () {
             quickSleep();
         else
             platSleep(15);
+        if (quit_bots)
+            break;
         if (check_bots) {
             check_bots = false;
             if (threadLock)

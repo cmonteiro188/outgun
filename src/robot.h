@@ -30,6 +30,8 @@
 #include "clientbase.h"
 #include "client_interface.h"
 
+extern BotSharedDataStorage g_botSharedDataStorage;
+
 class Robot : private ClientBase, public BotInterface {
     enum Routing {
         Route_None,
@@ -39,7 +41,6 @@ class Robot : private ClientBase, public BotInterface {
         Route_Fog
     };
 
-    static BotSharedDataStorage static_botSharedDataStorage;
     BotSharedDataHandle sharedDataHandle;
 
     std::string bot_password;

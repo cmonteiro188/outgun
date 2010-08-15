@@ -53,4 +53,4 @@ ThreadLog g_threadLog; // from debug.h
 Mutex g_threadRandomSeedMutex("g_threadRandomSeedMutex"); // from thread.cpp
 Mutex nlOpenMutex("network.cpp:nlOpenMutex"); // from network.cpp
 MasterSettings g_masterSettings; // from commont.h, contains a Mutex
-BotSharedDataStorage Robot::static_botSharedDataStorage; // contains a Mutex
+BotSharedDataStorage g_botSharedDataStorage; // contains a Mutex
