@@ -1469,7 +1469,7 @@ ClientControls Robot::getRobotControls() throw () {
         }
     }
 
-    if (last_seen == -1 || HaveFlag(me)) {
+    {
         const ClientControls ctrl = GetFlag(mex, mey);
         if (!ctrl.idle()) { // if any
             #ifdef DEBUGSTRATEGY
@@ -1492,15 +1492,15 @@ ClientControls Robot::getRobotControls() throw () {
     else // get someone
         last_seen = GetNearestEnemy(mex, mey);
 
-    if (last_seen != -1 && !fx.physics.allowFreeTurning) {
+    const bool importantMission = HaveFlag(me) && IsMission(Table_Main);
+
+    if (!importantMission && last_seen != -1 && !fx.physics.allowFreeTurning) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Targetting enemy.\n");
         #endif
         return Aim(mex, mey, last_seen);
     }
-
-    const bool importantMission = HaveFlag(me) && IsMission(Table_Main);
 
     // ok, free tour ;)
     ClientControls ctrl = GetPowerup(mex, mey, importantMission);
