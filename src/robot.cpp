@@ -442,7 +442,7 @@ pair<bool, int> Robot::NeedShootTradTurning(double mex, double mey) throw () {
     for (int dir = 0; dir < 8; ++dir) {
         if (!dirDistances[dir].first || dirDistances[dir].second > GetHitTeammateTime(mex, mey, GunDirection().from8way(dir)))
             continue;
-        int dirDiff = fabs(dir - myGundir);
+        double dirDiff = fabs(dir - myGundir);
         nAssert(dirDiff < 8);
         if (dirDiff > 4)
             dirDiff = 8 - dirDiff;
