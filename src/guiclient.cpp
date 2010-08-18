@@ -2800,6 +2800,7 @@ bool GuiClient::start_replay(istream& replay) throw () {
     map_time_limit = false;
     map_start_time = 0;
     map_end_time = 0;
+    extra_time_running = false;
 
     map_ready = false;
     clientReadiesWaiting = 0;
