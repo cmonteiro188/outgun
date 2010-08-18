@@ -1300,8 +1300,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
         addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, et_periods, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
         gameSettings.capture_limit = caplimit;
-        gameSettings.time_limit = timelimit;
-        gameSettings.extra_time = extratime;
+        gameSettings.time_limit = timelimit * 600; // convert to frames
+        gameSettings.extra_time = extratime * 600; // convert to frames
         gameSettings.extra_time_periods = et_periods;
         // sudden death data is missing
         // win score difference is missing

@@ -823,8 +823,8 @@ public:
         win_score_difference(1)
     { }
 
-    uint32_t time_limit;
-    uint32_t extra_time;
+    uint32_t time_limit; // in frames
+    uint32_t extra_time; // in frames
     unsigned extra_time_periods;
     bool sudden_death;
     int capture_limit;

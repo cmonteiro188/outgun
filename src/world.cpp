@@ -3597,15 +3597,15 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Simp
     if (settings.time_limit == 0)
         out << "none";
     else {
-        out << settings.time_limit << " min";
+        out << settings.time_limit / 600 << " min";
         out << "\n <TR><TH>Extra time<TD>";
         if (settings.extra_time == 0)
             out << "none";
         else {
             if (settings.extra_time_periods > 1)
-                out << settings.extra_time_periods << "×" << settings.extra_time << " min";
+                out << settings.extra_time_periods << "×" << settings.extra_time / 600 << " min";
             else
-                out << settings.extra_time << " min";
+                out << settings.extra_time / 600 << " min";
             if (settings.sudden_death)
                 out << " (sudden death)";
         }
