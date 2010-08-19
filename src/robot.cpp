@@ -364,12 +364,10 @@ double Robot::GetHitTime(double mex, double mey, const GunDirection& dir, int iT
 
     const double ts2 = sqr(tsx) + sqr(tsy);
 
-    if (ts2 == 0) // shouldn't really happen, but let's be safe
+    if (ts2 == 0)
         return 1e100;
 
     const double mul = (dx * tsx + dy * tsy) / ts2;
-
-    nAssert(mul > 0.);
 
     const double parx = tsx * mul, pary = tsy * mul;
     const double perpx = dx - parx, perpy = dy - pary;
