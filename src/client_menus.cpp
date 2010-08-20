@@ -247,7 +247,9 @@ Menu_game::Menu_game() throw () :
     showKillMessages    (_("Show killing messages"), false),
 
     saveStats           (_("Save game statistics"), false),
+    saveReplayStats     (_("Save replay statistics"), false),
     showStats           (_("Show stats after the round")),
+
     showServerInfo      (_("Show server info when connected"), false),
     stayDead            (_("Stay dead when in a menu at round start"), true),
     underlineMasterAuth (_("Underline master-authenticated players"), true),
@@ -277,7 +279,9 @@ void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     add(&showKillMessages,       CCS_ShowKillMessages);
     add.space();
     add(&saveStats,              CCS_SaveStats);
+    add(&saveReplayStats,        CCS_SaveReplayStats);
     add(&showStats,              CCS_ShowStats);
+    add.space();
     add(&showServerInfo,         CCS_ShowServerInfo);
     add(&stayDead,               CCS_StayDeadInMenus);
     add(&underlineMasterAuth,    CCS_UnderlineMasterAuth);
@@ -839,7 +843,6 @@ Menu_main::Menu_main() throw () :
     newVersion  (""),
 
     connect     (),
-    spectate    (),
     disconnect  (_("Disconnect")),
 
     options     (),
@@ -847,6 +850,7 @@ Menu_main::Menu_main() throw () :
     ownServer   (),
 
     replays     (),
+    spectate    (),
 
     help        (),
     exitOutgun  (_("Exit Outgun")),
@@ -857,15 +861,14 @@ Menu_main::Menu_main() throw () :
 void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
     menu.setHook(opener);
     connect.initialize(opener->clone(), collector);
-    spectate.initialize(opener->clone(), collector);
     options.initialize(opener->clone(), collector);
     ownServer.initialize(opener->clone(), collector);
     replays.initialize(opener->clone(), collector);
+    spectate.initialize(opener->clone(), collector);
     help.initialize(opener->clone(), collector);
     DualComponentAdder add(menu, collector);
     add(&newVersion);
     add(&connect.menu);
-    add(&spectate.menu);
     add(&disconnect);
     add.space();
     add(&options.menu);
@@ -873,6 +876,7 @@ void Menu_main::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     add(&ownServer.menu);
     add.space();
     add(&replays.menu);
+    add(&spectate.menu);
     add.space();
     add(&help.menu);
     add(&exitOutgun);

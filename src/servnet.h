@@ -273,7 +273,7 @@ public:
     void broadcast_time_out() const throw ();
     void broadcast_extra_time_out() const throw ();
     void broadcast_normal_time_out(bool sudden_death) const throw ();
-    void broadcast_capture(const ServerPlayer& player, int flag_team) const throw ();
+    void broadcast_capture(const ServerPlayer& player, int flag_team, int assistant_pid) const throw ();
     void broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw ();
     void broadcast_flag_return(const ServerPlayer& player) const throw ();
     void broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw ();

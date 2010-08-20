@@ -40,6 +40,8 @@
 class BinaryReader;
 class BinaryWriter;
 
+static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
+
 typedef std::pair<double, double> Coords;
 typedef std::pair<double, Coords> BounceData;
 
@@ -229,7 +231,8 @@ public:
     std::string title, author, file;
     int width, height;
     bool random;
-    float over_edge;
+    float over_edge;    // probability (0...1) for routes over the edge
+    float respawn_area; // probability (0...1) for specific respawn areas
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
     bool highlight;     // for the map list in the client
@@ -279,6 +282,7 @@ public:
     void add_death(bool deathbringer, double time) throw ();
     void add_suicide(double time) throw ();
     void add_capture(double time) throw ();
+    void add_assist() throw () { ++total_assists; }
     void add_flag_take(double time, bool wild) throw ();
     void add_flag_drop(double time) throw ();
     void add_flag_return() throw () { ++total_flags_returned; }
@@ -301,6 +305,7 @@ public:
     int current_cons_deaths() const throw () { return current_consecutive_deaths; }
     int suicides() const throw () { return total_suicides; }
     int captures() const throw () { return total_captures; }
+    int assists() const throw () { return total_assists; }
     int flags_taken() const throw () { return total_flags_taken; }
     int flags_dropped() const throw () { return total_flags_dropped; }
     int flags_returned() const throw () { return total_flags_returned; }
@@ -334,6 +339,7 @@ private:
     int current_consecutive_deaths;
     int total_suicides;
     int total_captures;
+    int total_assists;
     int total_flags_taken;
     int total_flags_dropped;
     int total_flags_returned;
@@ -574,10 +580,15 @@ public:
     void reset_carrying_time() throw () { ctime = 0; }
     void add_carrying_time(int team) throw ();
 
+    void reset_prev_carrier() throw () { prev_carrier_id = -1; }
+    void reset_prev_prev_carrier() throw () { prev_prev_carrier_id = -1; }
+
     bool carried() const throw () { return status == status_carried; }
     bool at_base() const throw () { return status == status_at_base; }
 
     int carrier() const throw () { return carrier_id; }
+    int prev_carrier() const throw () { return prev_carrier_id; }
+    int prev_prev_carrier() const throw () { return prev_prev_carrier_id; }
     double grab_time() const throw () { return grab_t; }
     double drop_time() const throw () { return drop_t; }
     double return_time() const throw () { return return_t; }
@@ -593,6 +604,8 @@ private:
 
     Status status;
     int carrier_id;
+    int prev_carrier_id;      // for determining assistants for captures
+    int prev_prev_carrier_id; // for a case when same player drops and retakes the flag
     double grab_t;
     double drop_t;
     double return_t;    // for client only
@@ -649,6 +662,8 @@ public:
 
     void set_flag_drop_time(int n, double time) throw ();
     void set_flag_return_time(int n, double time) throw ();
+
+    void reset_prev_carrier(int pid) throw ();
 
     int score() const throw () { return points; }
     int kills() const throw () { return total_kills; }
@@ -797,6 +812,25 @@ public:
     virtual bool shouldApplyPhysicsToPlayer(int pid) throw () = 0; // returns true if physics should be run to player pid
 };
 
+class SimpleGameSettings {
+public:
+    SimpleGameSettings() :
+        time_limit(),
+        extra_time(),
+        extra_time_periods(),
+        sudden_death(),
+        capture_limit(),
+        win_score_difference(1)
+    { }
+
+    uint32_t time_limit; // in frames
+    uint32_t extra_time; // in frames
+    unsigned extra_time_periods;
+    bool sudden_death;
+    int capture_limit;
+    int win_score_difference;     // minimum score difference needed to win the game
+};
+
 class WorldBase {
 public:
     static const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
@@ -861,7 +895,7 @@ public:
     virtual void dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly) throw ();
     virtual void stealFlag(int team, int flag, int carrier) throw ();
 
-    void save_stats(const std::string& dir, const std::string& map_name) const throw ();
+    void save_stats(const std::string& dir, const std::string& map_name, const SimpleGameSettings& settings) const throw ();
 
     void addDeathbringerExplosion(const DeathbringerExplosion& db) throw () { dbExplosions.push_back(db); }
     void cleanOldDeathbringerExplosions() throw ();
@@ -934,7 +968,7 @@ public:
     double addTime(double t) const throw () { t += pup_add_time; if (t > pup_max_time) t = pup_max_time; return t; }
 };
 
-class WorldSettings {
+class WorldSettings : public SimpleGameSettings {
 public:
     enum Team_balance { TB_disabled = 0, TB_balance, TB_balance_and_shuffle };
 
@@ -953,12 +987,6 @@ public:
     double hit_stun_time;
     double shoot_interval, shoot_interval_with_energy;
     double spawn_safe_time;
-    uint32_t time_limit;
-    uint32_t extra_time;
-    unsigned extra_time_periods;
-    bool sudden_death;
-    int capture_limit;
-    int win_score_difference;     // minimum score difference needed to win the game
     double flag_return_delay; // in seconds
     Team_balance balance_teams;
     double min_capture_time; // in seconds
@@ -1020,7 +1048,7 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
-    void player_captures_flag(int pid, int team, int flag) throw ();
+    void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 
     bool all_kind_of_flags_exist() const throw ();
@@ -1045,7 +1073,7 @@ public:
 
     // common (virtual in base) extended functions
     void reset() throw ();
-    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, const std::string& title, const std::string& author) throw ();
+    void generate_map(const std::string& mapdir, const std::string& file_name, int width, int height, float over_edge, float respawn_area, const std::string& title, const std::string& author) throw ();
     bool load_map(const std::string& mapdir, const std::string& mapname, std::string* buffer) throw ();
     void returnAllFlags() throw ();
     void returnFlag(int team, int flag) throw ();
@@ -1075,6 +1103,8 @@ public:
     void game_player_screen_change(int p) throw ();
 
     bool dropFlagIfAny(int pid, bool purpose = false) throw ();
+    void resetCarrierData(int pid) throw ();
+
     void shootRockets(int pid, int numshots) throw ();
     void deleteRocket(int r, int16_t hitx, int16_t hity, int targ) throw ();
     void changeEmbeddedPids(int source, int target) throw ();

@@ -91,11 +91,15 @@ bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
     const bool ok = ist;
     float over_edge = 0.2;
     ist >> over_edge;
-    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1) {
+    float respawn_area = 0.1;
+    if (ist)
+        ist >> respawn_area;
+    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1) {
         mi.author = "Outgun";
         mi.title = "<Random>";
         mi.random = true;
         mi.over_edge = over_edge;
+        mi.respawn_area = respawn_area;
         var->push_back(mi);
         log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
         return true;

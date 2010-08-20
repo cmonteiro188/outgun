@@ -2,7 +2,7 @@
  *  server.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -35,7 +35,7 @@
 #include "servnet.h"
 #include "world.h"
 
-class ClientInterface; // bots are Clients
+class BotInterface;
 class GamemodSetting;
 
 //per-client struct (statically allocated to a single client)
@@ -106,13 +106,16 @@ class Server : private NoCopying {
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;
-    PointerVector<ClientInterface> bots;
+    PointerVector<BotInterface> bots;
     int extra_bots;
     volatile bool quit_bots;
     NoLog botNoLog;
     MemoryLog botErrorLog;
     bool check_bots;
     bool bot_ping_changed;
+
+    const bool botTestMode; // a special mode that runs as fast as possible (without a frame limiter), useful only for running bot-only games; developer only
+    uint32_t botReactedFrame; // only used in botTestMode
 
     void init_bots() throw ();
     void run_bot_thread() throw ();

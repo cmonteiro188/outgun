@@ -41,8 +41,6 @@
 
 #include "world.h"
 
-static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
-
 const int maximum_shadow_visibility = 254;
 
 using std::ifstream;
@@ -461,11 +459,10 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         }
         for (unsigned i = 0; i < tinfo[t].respawn.size(); ++i) {
             const WorldRect& area = tinfo[t].respawn[i];
-            const int xStepSize = max(static_cast<int>(area.x2 - area.x1) / 5, PLAYER_RADIUS * 2),
-                      yStepSize = max(static_cast<int>(area.y2 - area.y1) / 5, PLAYER_RADIUS * 2);
+            const int xStepSize = PLAYER_RADIUS, yStepSize = PLAYER_RADIUS;
             const int xSteps = static_cast<int>(area.x2 - area.x1) / xStepSize + 1,
                       ySteps = static_cast<int>(area.y2 - area.y1) / yStepSize + 1;
-            const int minFreeSpace = max(1, xSteps * ySteps / 5); // for area size 1..9, 1 free spot is enough
+            const int minFreeSpace = max(1, xSteps * ySteps / 20); // for area size 1..39, 1 free spot is enough
             int freeSpace = 0;
             bool ok = false;
             for (double y = area.y1; y <= area.y2 && !ok; y += yStepSize)
@@ -1668,10 +1665,10 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
     printer(map_time.str());
 }
 
-void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, float over_edge, const string& title, const string& author) throw () {
+void ServerWorld::generate_map(const string& mapdir, const string& file_name, int width, int height, float over_edge, float respawn_area, const string& title, const string& author) throw () {
     MapGenerator generator;
     for (int i = 0; i < 50; i++) {
-        const int base_distance = generator.generate(width, height, rand() % 1000 < 1000 * over_edge);
+        const int base_distance = generator.generate(width, height, rand() % 1000 < 1000 * over_edge, rand() % 1000 < 1000 * respawn_area);
         if (base_distance > 1 || width <= 2 || height <= 2)
             break;
     }
@@ -1746,6 +1743,17 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
     return true;
+}
+
+void ServerWorld::resetCarrierData(int pid) throw () {
+    // reset the previous carrier info from the relevant flags
+    const int enemy = 1 - pid / TSIZE;
+    teams[enemy].reset_prev_carrier(pid);
+    for (vector<Flag>::iterator fi = wild_flags.begin(); fi != wild_flags.end(); fi++)
+        if (fi->prev_carrier() == pid)
+            fi->reset_prev_carrier();
+        else if (fi->prev_prev_carrier() == pid)
+            fi->reset_prev_prev_carrier();
 }
 
 void ServerWorld::start_game() throw () {
@@ -2318,6 +2326,7 @@ void ServerWorld::removePlayer(int pid) throw () {
     }
 
     dropFlagIfAny(pid, true);
+    resetCarrierData(pid);
 
     player[pid].used = false;
 }
@@ -3271,13 +3280,15 @@ void ServerWorld::simulateFrame() throw () {
         // --> ITEM POWERUP
         const int touchRadius = POWERUP_RADIUS + PLAYER_RADIUS;
 
-        for (int k = 0; k < MAX_POWERUPS; k++)
-            if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
-                const double dx = item[k].x - pl.lx;
-                const double dy = item[k].y - pl.ly;
-                if (dx * dx + dy * dy < touchRadius * touchRadius)
-                    game_touch_powerup(i, k);
-            }
+        // Players under deathbringer effect can not take powerups.
+        if (!pl.under_deathbringer_effect(get_time()))
+            for (int k = 0; k < MAX_POWERUPS; k++)
+                if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
+                    const double dx = item[k].x - pl.lx;
+                    const double dy = item[k].y - pl.ly;
+                    if (dx * dx + dy * dy < touchRadius * touchRadius)
+                        game_touch_powerup(i, k);
+                }
 
         // limit health and energy (after powerups because they might have an effect)
         nAssert(pl.health > 0);
@@ -3287,6 +3298,10 @@ void ServerWorld::simulateFrame() throw () {
             pl.energy = 0;
         else if (pl.energy > config.energy_max)
             pl.energy = config.energy_max;
+
+        // Players under deathbringer effect can not take, capture, drop or return flags.
+        if (pl.under_deathbringer_effect(get_time()))
+            continue;
 
         // Flag steal - touch other team's flag or wild flag
         // ft = 0 => Touch enemy flag
@@ -3354,7 +3369,8 @@ void ServerWorld::simulateFrame() throw () {
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
                         if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
-                            player_captures_flag(i, flagTeam, f);
+                            const int ass_pid = fi->prev_carrier();
+                            player_captures_flag(i, flagTeam, f, ass_pid);
                             if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                         teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
                                         extra_time_and_sudden_death) {
@@ -3457,9 +3473,11 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
         player[pid].visibility = maximum_shadow_visibility;
 }
 
-void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
+void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {
     const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
+    if (ass_pid / TSIZE != myteam)
+        ass_pid = -1; // only teammate can be assistant for a capture
     const double timeDiff = get_time() - capt_flag.grab_time();
     if (timeDiff <= config.get_min_capture_time()) // can't capture yet
         return;
@@ -3473,11 +3491,16 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag) throw () {
                 host->score_neg(i, 1);  // small neg point penalty for your flag being captured
         }
     host->score_frag(pid, 3);
+    if (ass_pid != -1)
+        host->score_frag(ass_pid, 3);
     player[pid].stats().add_capture(get_time());
-    teams[myteam].add_score(getMapTime() / 10, player[pid].name);
+    string capturers = player[pid].name;
+    if (ass_pid != -1)
+        capturers += " (" + player[ass_pid].name + ")";
+    teams[myteam].add_score(getMapTime() / 10, capturers);
     returnFlag(team, flag);
 
-    net->broadcast_capture(player[pid], team);
+    net->broadcast_capture(player[pid], team, ass_pid);
 
     net->ctf_update_teamscore(myteam);
 
@@ -3539,7 +3562,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
 }
 
 // Save stats in HTML file.
-void WorldBase::save_stats(const string& dir, const string& map_name) const throw () {
+void WorldBase::save_stats(const string& dir, const string& map_name, const SimpleGameSettings& settings) const throw () {
     const string date_time = date_and_time();
     const string date = date_time.substr(0, date_time.find(' '));
     const string time = date_time.substr(date_time.find(' ') + 1);
@@ -3564,6 +3587,35 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
     }
     out << "<H2 ID=\"d" << date << 'T' << time << "\">" << time << ' ' << escape_for_html(map_name) << "</H2>\n\n";
 
+    out << "<H3>Game info</H3>\n\n";
+    out << "<TABLE BORDER CLASS=\"info\">";
+    out << "\n <TR><TH>Capture limit<TD>";
+    if (settings.capture_limit == 0)
+        out << "none";
+    else {
+        out << settings.capture_limit;
+        if (settings.win_score_difference > 1)
+            out << " with difference of " << settings.win_score_difference;
+    }
+    out << "\n <TR><TH>Time limit<TD>";
+    if (settings.time_limit == 0)
+        out << "none";
+    else {
+        out << settings.time_limit / 600 << " min";
+        out << "\n <TR><TH>Extra time<TD>";
+        if (settings.extra_time == 0)
+            out << "none";
+        else {
+            if (settings.extra_time_periods > 1)
+                out << settings.extra_time_periods << "×" << settings.extra_time / 600 << " min";
+            else
+                out << settings.extra_time / 600 << " min";
+            if (settings.sudden_death)
+                out << " (sudden death)";
+        }
+    }
+    out << "\n</TABLE>\n\n";
+
     out << "<H3>Team stats</H3>\n\n";
     const Team& red = teams[0];
     const Team& blue = teams[1];
@@ -3582,28 +3634,30 @@ void WorldBase::save_stats(const string& dir, const string& map_name) const thro
     out << "</TABLE>\n\n";
 
     out << "<H3>Player stats</H3>\n\n";
-    out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
+    out << "<TABLE BORDER CLASS=\"players\">\n <TR CLASS=\"pl-stats-thr\"><TH>Player<TH>Frags<TH>Captures<TH>Assists<TH>Kills<TH>Deaths<TH>Suicides<TH>Flags taken<TH>Flags dropped<TH>Flags returned<TH>Carriers killed<TH>Carry time<TH>Cons. kills<TH>Cons. deaths<TH>Shots<TH>Accuracy<TH>Shots taken<TH>Movement\n";
     vector<const PlayerBase*> players;
     for (vector<PointerAsReference<PlayerBase> >::const_iterator pl = player.begin(); pl != player.end(); ++pl)
         if (pl->getPtr()->used)
             players.push_back(pl->getPtr());
     stable_sort(players.begin(), players.end(), compare_players);
+    const int columns = 18;
     int team = 0;
     for (vector<const PlayerBase*>::const_iterator pl = players.begin(); pl != players.end(); ++pl) {
         if (!(*pl)->used)
             continue;
         if (team == 0 && (*pl)->team() == 0) {      // red players should be first
-            out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Red team\n";
+            out << " <TR><TH COLSPAN=\"" << columns << "\" ALIGN=\"left\">Red team\n";
             team++;
         }
         else if (team <= 1 && (*pl)->team() == 1) {
-            out << " <TR><TH COLSPAN=\"17\" ALIGN=\"left\">Blue team\n";
+            out << " <TR><TH COLSPAN=\"" << columns << "\" ALIGN=\"left\">Blue team\n";
             team++;
         }
         out << " <TR ALIGN=\"right\"><TD ALIGN=\"left\">" << escape_for_html((*pl)->name);
         const Statistics& stats = (*pl)->stats();
         out << "<TD>" << stats.frags();
         out << "<TD>" << stats.captures();
+        out << "<TD>" << stats.assists();
         out << "<TD>" << stats.kills();
         out << "<TD>" << stats.deaths();
         out << "<TD>" << stats.suicides();
@@ -3751,6 +3805,14 @@ void Team::set_flag_return_time(int n, double time) throw () {
     team_flags[n].set_return_time(time);
 }
 
+void Team::reset_prev_carrier(int pid) throw () {
+    for (vector<Flag>::iterator fi = team_flags.begin(); fi != team_flags.end(); ++fi)
+        if (fi->prev_carrier() == pid)
+            fi->reset_prev_carrier();
+        else if (fi->prev_prev_carrier() == pid)
+            fi->reset_prev_prev_carrier();
+}
+
 double Team::accuracy() const throw () {
     if (total_shots == 0)
         return 0;
@@ -3763,6 +3825,8 @@ double Team::accuracy() const throw () {
 Flag::Flag(const WorldCoords& pos_) throw () :
     status(status_at_base),
     carrier_id(-1),
+    prev_carrier_id(-1),
+    prev_prev_carrier_id(-1),
     drop_t(-1e10),
     return_t(-1e10),
     home_pos(pos_),
@@ -3774,24 +3838,33 @@ Flag::Flag(const WorldCoords& pos_) throw () :
 void Flag::take(int carr) throw () {
     status = status_carried;
     carrier_id = carr;
+    if (prev_carrier_id == carrier_id) // keep another player than the carrier as the previous carrier
+        prev_carrier_id = prev_prev_carrier_id;
+    prev_prev_carrier_id = -1;
 }
 
 void Flag::take(int carr, double time) throw () {
     if (status == status_at_base)
         grab_t = time;
-    status = status_carried;
-    carrier_id = carr;
+    take(carr);
 }
 
 void Flag::return_to_base() throw () {
     status = status_at_base;
     pos = home_pos;
     carrier_id = -1;
+    prev_carrier_id = -1;
+    prev_prev_carrier_id = -1;
     cteam = -1;
 }
 
 void Flag::drop() throw () {
     status = status_dropped;
+    if (prev_carrier_id != carrier_id)
+        prev_prev_carrier_id = prev_carrier_id;
+    else if (prev_prev_carrier_id == carrier_id)
+        prev_prev_carrier_id = -1;
+    prev_carrier_id = carrier_id;
     carrier_id = -1;
 }
 
@@ -3818,6 +3891,7 @@ Statistics::Statistics() throw () :
     current_consecutive_deaths(0),
     total_suicides(0),
     total_captures(0),
+    total_assists(0),
     total_flags_taken(0),
     total_flags_dropped(0),
     total_flags_returned(0),

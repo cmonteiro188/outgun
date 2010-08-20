@@ -1,7 +1,7 @@
 /*
  *  binaryaccess.h
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -26,6 +26,8 @@
 
 #include <stdint.h>
 #include <string>
+
+#include <cstring>
 
 #include "nassert.h"
 #include "utility.h"
@@ -289,6 +291,8 @@ template<unsigned sz> class BinaryBuffer : public BinaryWriter {
 
 public:
     BinaryBuffer() throw () : BinaryWriter(buffer, sz) { }
+    BinaryBuffer(const BinaryBuffer& o) throw () : BinaryWriter(buffer, sz) { *this = o; }
+    BinaryBuffer& operator=(const BinaryBuffer& o) throw ();
 };
 
 class ExpandingBinaryBuffer : public BinaryWriter {
@@ -301,5 +305,13 @@ public:
 
     ExpandingBinaryBuffer& operator=(const ExpandingBinaryBuffer& o) throw ();
 };
+
+// template implementation
+
+template<unsigned sz> BinaryBuffer<sz>& BinaryBuffer<sz>::operator=(const BinaryBuffer& o) throw () {
+    memcpy(buffer, o.buffer, sz);
+    setPosition(o.getPosition());
+    return *this;
+}
 
 #endif

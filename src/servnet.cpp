@@ -469,10 +469,12 @@ void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const throw 
     record_message(msg);
 }
 
-void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team) const throw () {
+void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team, int assistant_pid) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_capture);
     msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    if (player.protocolExtensionsLevel >= 0 && assistant_pid != -1)
+        msg.S8(assistant_pid);
     broadcast_message(msg);
     record_message(msg);
     if (shellssock.isOpen()) {
@@ -1244,18 +1246,18 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
     int t2 = 0;     //blue team count
-    int red_bots = 0, blue_bots = 0;
+    int red_humans = 0, blue_humans = 0;
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used) {
             if (i / TSIZE == 0) {
                 t1++;
-                if (world.player[i].is_bot())
-                    red_bots++;
+                if (!world.player[i].is_bot())
+                    red_humans++;
             }
             else {
                 t2++;
-                if (world.player[i].is_bot())
-                    blue_bots++;
+                if (!world.player[i].is_bot())
+                    blue_humans++;
             }
         }
 
@@ -1266,10 +1268,19 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     else if (t1 > t2)
         targ = TSIZE;
     else {
-        if (red_bots > blue_bots)
+        const int red_bots = t1 - red_humans;
+        const int blue_bots = t2 - blue_humans;
+        // If only one team contains humans and also bots, put the new player there.
+        if (red_humans > 0 && red_bots > 0 && blue_humans == 0)
             targ = 0;
-        else if (blue_bots > red_bots)
+        else if (blue_humans > 0 && blue_bots > 0 && red_humans == 0)
             targ = TSIZE;
+        // Otherwise put the player to a team with less number of humans.
+        else if (red_humans < blue_humans)
+            targ = 0;
+        else if (red_humans > blue_humans)
+            targ = TSIZE;
+        // Both teams contain the same number of humans and bots.
         else {
             host->refresh_team_score_modifiers();
             targ = TSIZE * host->getLessScoredTeam();
@@ -1545,7 +1556,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     break; case data_map_exit_on:
         if (sender.want_map_exit == false) {
             sender.want_map_exit = true;
-            // Make sure that this message matches with the one in client.cpp.
+            // Make sure that this message matches with the one in guiclient.cpp.
             if (host->specific_map_vote_required() && sender.mapVote == -1)
                 player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
             host->check_map_exit();
@@ -1635,8 +1646,10 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     }
     break; case data_drop_flag:
         sender.drop_key = true;
-        sender.dropped_flag = true;
-        world.dropFlagIfAny(pid, true);
+        if (!sender.under_deathbringer_effect(get_time())) {
+            sender.dropped_flag = true;
+            world.dropFlagIfAny(pid, true);
+        }
     break; case data_stop_drop_flag:
         sender.drop_key = false;
     break; case data_map_vote: {
@@ -1646,7 +1659,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
                 sender.mapVote = vote;
             else {
                 sender.mapVote = -1;
-                // Make sure that this message matches with the one in client.cpp.
+                // Make sure that this message matches with the one in guiclient.cpp.
                 if (host->specific_map_vote_required() && sender.want_map_exit)
                     player_message(pid, msg_server, "Your vote has no effect until you vote for a specific map.");
             }
@@ -3180,7 +3193,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
                         switch (extensionId) {
                             /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
                              * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
-                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in client.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
+                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
                              *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
                              *    reply.U32(EXAMPLE_IDENTIFIER);
                              *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this

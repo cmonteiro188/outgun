@@ -69,6 +69,7 @@ public:
     void fromNetwork(uint8_t d, bool server) throw () { data = d; if (server) data &= 31; }
     void fromKeyboard(bool use_pad, bool use_cursor_keys) throw ();
     void fromJoystick(int moving_stick, int run_button, int strafe_button) throw (); // uses pseudo button ids like readJoystickButton
+    ClientControls& fromDirection(int direction) throw ();
 
     bool isUp    () const throw () { return (data & up    ) != 0; }
     bool isDown  () const throw () { return (data & down  ) != 0; }

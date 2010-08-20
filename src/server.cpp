@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -78,6 +78,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     threadLockMutex("Server::threadLockMutex"),
     abortFlag(false),
     quit_bots(false),
+    botTestMode(false),
+    botReactedFrame(0),
     world(this, &network, log),
     network(this, settings, world, log, threadLock, threadLockMutex),
     settings(*this, config),
@@ -92,6 +94,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     fav_colors[0].resize(MAX_PLAYERS / 2, false);
     fav_colors[1].resize(MAX_PLAYERS / 2, false);
     Thread::setCallerPriority(config.priority);
+    if (botTestMode)
+        removeQuickSleepDelay();
 }
 
 Server::~Server() throw () { }
@@ -289,7 +293,7 @@ void Server::check_player_change_teams(int pid) throw () {
                 return;
             }
 
-    if (network.get_bot_count() == 0)
+    if (network.get_bot_count() == 0 || world.player[pid].is_bot())
         return;
 
     // Switch teams with a bot.
@@ -355,6 +359,9 @@ void Server::swap_players(int a, int b) throw () {
 
     world.dropFlagIfAny(a, true);
     world.dropFlagIfAny(b, true);
+    world.resetCarrierData(a);
+    world.resetCarrierData(b);
+
     if (!world.player[a].dead)
         world.resetPlayer(a);   // no need to tell clients because it's inferred by team_change message
     if (!world.player[b].dead)
@@ -504,7 +511,7 @@ bool Server::load_rotation_map(int pos) throw () {
         dir = string() + SERVER_MAPS_DIR + directory_separator + "generated";
         file_name = "mapgen_" + itoa(rand());
         maprot[pos].file = file_name;
-        world.generate_map(dir, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].title, "Outgun");
+        world.generate_map(dir, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].respawn_area, maprot[pos].title, "Outgun");
     }
     else {
         dir = SERVER_MAPS_DIR;
@@ -548,7 +555,7 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         world.player[i].stats().finish_stats(get_time());
 
     if (settings.get_save_stats() && !gameover && network.get_human_count() >= settings.get_save_stats())    // !gameover: Don't save stats for the game that didn't start.
-        world.save_stats("server_stats", currmap_title_override.empty() ? current_map().title : currmap_title_override);
+        world.save_stats("server_stats", currmap_title_override.empty() ? current_map().title : currmap_title_override, world.getConfig());
 
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
@@ -562,6 +569,23 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         network.send_team_movements_and_shots(pl.cid); // team stats to player
     }
     network.broadcast_stats_ready();
+
+    if (botTestMode) {
+        static int points[2], wins[2], kills[2];
+        int newKills[2] = { 0, 0 };
+        for (int p = 0; p < maxplayers; ++p)
+            if (world.player[p].used)
+                newKills[world.player[p].team()] += world.player[p].stats().kills();
+        for (int t = 0; t < 2; ++t) {
+            points[t] += world.teams[t].score();
+            if (world.teams[t].score() > world.teams[!t].score())
+                ++wins[t];
+            kills[t] += newKills[t];
+        }
+        std::cout << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": " << world.teams[0].score() << '-' << world.teams[1].score()
+                  << "; total: " << points[0] << '-' << points[1] << "; wins: " << wins[0] << '-' << wins[1] << "; kills: " << newKills[0] << '-' << newKills[1]
+                  << "; total: " << kills[0] << '-' << kills[1] << '\n' << std::flush;
+    }
 
     vector<int> winners;
     int maxVotes = 0;
@@ -669,7 +693,9 @@ void Server::stop_recording() throw () {
     recording_started = false;
     if (record) {
         if (gameover && end_game_human_count >= settings.get_recording() ||
-                !gameover && network.get_human_count() >= settings.get_recording()) {
+            !gameover && network.get_human_count() >= settings.get_recording() ||
+            botTestMode)
+        {
             // write the length of the record
             record.seekp(16);
             {
@@ -841,7 +867,6 @@ void Server::init_bots() throw () {
     }
     if (static_cast<int>(bots.size()) >= needed_bots)
         return;
-    ServerExternalSettings serverCfg;
     ClientExternalSettings clientCfg;
     int policy;
     sched_param param;
@@ -852,7 +877,7 @@ void Server::init_bots() throw () {
     address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        ClientInterface* bot = ClientInterface::newClient(clientCfg, serverCfg, botNoLog, botErrorLog);
+        BotInterface* bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
@@ -1233,7 +1258,7 @@ void Server::chat(int pid, const string& message) throw () {
             }
         }
         else if (command == "forcemap" && access.isAdmin()) {
-            // Make sure that these messages match with the ones in client.cpp.
+            // Make sure that these messages match with the ones in guiclient.cpp.
             if (pid != shell_pid && world.player[pid].mapVote != -1 && world.player[pid].mapVote != currmap) {
                 network.bprintf(msg_server, "%s decided it's time for a map change.", world.player[pid].name.c_str());
                 logAdminAction(pid, "forced a map change");
@@ -1738,7 +1763,11 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) throw () {
             g_timeCounter.refresh();
             if (get_time() >= nextFrameTime)
                 break;
-            platSleep(2); //#opt
+            if (botTestMode && network.get_bot_count() == (int)bots.size() && botReactedFrame == world.frame - 1) { // -1 because of frame++ above after send
+                g_timeCounter.advanceArtificially(nextFrameTime - get_time());
+                break;
+            }
+            quickSleep(); //#opt
         }
         nextFrameTime += .1;
 
@@ -1778,8 +1807,12 @@ void Server::run_bot_thread() throw () {
             platSleep(1000);
             continue;
         }
+        else if (botTestMode)
+            quickSleep();
         else
             platSleep(15);
+        if (quit_bots)
+            break;
         if (check_bots) {
             check_bots = false;
             if (threadLock)
@@ -1792,7 +1825,7 @@ void Server::run_bot_thread() throw () {
         const bool adjust_pings = bot_ping_changed;
         if (adjust_pings)
             bot_ping_changed = false;
-        for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ) {
+        for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ) {
             if (bi->bot_finished()) {
                 bi = bots.erase(bi);
                 check_bots = true; // a needed bot might not have been added because of the now removed one which was already out of the server
@@ -1804,8 +1837,21 @@ void Server::run_bot_thread() throw () {
                 ++bi;
             }
         }
+        if (botTestMode) {
+            sched_yield();
+            nAssert(settings.get_bot_ping() == 0); // this is a user (not code) error, but bot test mode is a dev feature
+            const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
+            bool upToDate = true;
+            for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+                if (bi->bot_reacted_frame() != currentFrame || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
+                    //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
+                    upToDate = false;
+                }
+            if (upToDate)
+                botReactedFrame = currentFrame;
+        }
     }
-    for (PointerVector<ClientInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
+    for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
         bi->stop();
     bots.clear();
 }

@@ -1,7 +1,7 @@
 /*
  *  timer.h
  *
- *  Copyright (C) 2006 - Niko Ritari
+ *  Copyright (C) 2006, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -40,6 +40,8 @@ public:
     void setZero() throw () { base = g_systemTimer->read(); value = 0; }
     void refresh() throw () { value = g_systemTimer->read() - base; }
     double read() const throw () { return value; }
+
+    void advanceArtificially(double seconds) throw () { base -= seconds; refresh(); }
 };
 
 extern TimeCounter g_timeCounter; // defined in globals.cpp
@@ -48,5 +50,8 @@ inline double get_time() throw () { return g_timeCounter.read(); }
 
 // don't use platSleep(0) in order to accomplish anything; sched_yield() works on every platform while platSleep(0) doesn't
 void platSleep(unsigned ms) throw (); // defined in platform*.cpp
+
+void quickSleep() throw (); // sleeps a minimal time that can be globally switched to no time at all
+void removeQuickSleepDelay() throw (); // turns all loops that use quickSleep processor-intensive; only use when not interested in the real time clock and when using all cycles makes sense (i.e. bot test mode)
 
 #endif

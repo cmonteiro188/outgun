@@ -100,6 +100,7 @@ enum ClientCfgSetting {
     CCS_OldFlagPositions,
     CCS_Colours,
     CCS_UseThemeColours,
+    CCS_SaveReplayStats,
     CCS_EndOfCommands
 };
 
@@ -199,6 +200,7 @@ public:
     Checkbox    showFlagMessages;
     Checkbox    showKillMessages;
     Checkbox    saveStats;
+    Checkbox    saveReplayStats;
     Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
     Checkbox    stayDead;
@@ -457,11 +459,11 @@ class Menu_main {
 public:
     StaticText      newVersion;
     Menu_serverList connect;
-    Menu_spectate   spectate;
     Textarea        disconnect;
     Menu_options    options;
     Menu_ownServer  ownServer;
     Menu_replays    replays;
+    Menu_spectate   spectate;
     Menu_help       help;
     Textarea        exitOutgun;
 

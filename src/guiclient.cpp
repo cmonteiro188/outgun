@@ -1,8 +1,8 @@
 /*
- *  client.cpp
+ *  guiclient.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -23,37 +23,20 @@
  *
  */
 
-#include <algorithm>
-#include <fstream>
 #include <iomanip>
-#include <iostream>
-#include <string>
-#include <vector>
 
-#include <cctype>
-#include <cmath>
-
-#include "incalleg.h"
 #include "binaryaccess.h"
-#include "leetnet/client.h"
-#include "commont.h"
-#include "debug.h"
-#include "debugconfig.h" // for LOG_MESSAGE_TRAFFIC
 #include "language.h"
+#include "leetnet/client.h"
 #include "names.h"
-#include "nassert.h"
-#include "network.h"
 #include "platform.h"
 #include "protocol.h"
 #include "timer.h"
-#include "utility.h"
 #include "version.h"
 
-#include "client.h"
+#include "guiclient.h"
 
-using std::deque;
 using std::endl;
-using std::find;
 using std::ifstream;
 using std::ios;
 using std::istream;
@@ -63,19 +46,15 @@ using std::list;
 using std::max;
 using std::min;
 using std::ofstream;
-using std::ostream;
 using std::ostringstream;
 using std::pair;
 using std::right;
 using std::setfill;
 using std::setw;
-using std::sort;
-using std::stable_sort;
 using std::string;
 using std::stringstream;
 using std::vector;
 
-#ifndef DEDICATED_SERVER_ONLY
 //#define ROOM_CHANGE_BENCHMARK
 //#define DEATHBRINGER_SPEED_TEST
 
@@ -84,118 +63,16 @@ const int PASSBUFFER = 32;  //size of password file
 #ifdef ROOM_CHANGE_BENCHMARK
 int benchmarkRuns = 0;
 #endif
-#endif
 
-class ClientPhysicsCallbacks : public PhysicsCallbacksBase {
-    Client& c;
+void GuiClient::processNameAuthorizationRequest() throw () {
+    m_playerPassword.setup(playername, false);
+    showMenu(m_playerPassword);
+}
 
-public:
-    ClientPhysicsCallbacks(Client& c_) throw () : c(c_) { }
+void GuiClient::createGunexploEffect(const WorldCoords& pos, int team, double time) throw () {
+    graphics.create_gunexplo(pos, team, time);
+}
 
-    bool collideToRockets() const throw () { return false; }
-    bool collidesToRockets(int) const throw () { return false; }
-    bool collidesToPlayers(int) const throw () { return true; }
-    bool gatherMovementDistance() const throw () { return false; }
-    bool allowRoomChange() const throw () { return false; }
-    void addMovementDistance(int, double) throw () { }
-    void playerScreenChange(int) throw () { }
-    void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) throw () { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
-    bool rocketHitPlayer(int, int) throw () { return false; }
-    void playerHitWall(int pid) throw () { c.playerHitWallCallback(pid); }
-    PlayerHitResult playerHitPlayer(int pid1, int pid2, double) throw () { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }
-    void rocketOutOfBounds(int rid) throw () { c.rocketOutOfBoundsCallback(rid); }
-    bool shouldApplyPhysicsToPlayer(int pid) throw () { return c.shouldApplyPhysicsToPlayerCallback(pid); }
-};
-
-class TM_DoDisconnect : public ThreadMessage {
-public:
-    void execute(Client* cl) const throw () { cl->disconnect_command(); }
-};
-
-class TM_Text : public ThreadMessage {
-    Message_type type;
-    string text;
-    int team;   // -1 for non-team messages
-
-public:
-    TM_Text(Message_type type_, const string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
-    ~TM_Text() throw () { }
-    void execute(Client* cl) const throw () {
-        #ifndef DEDICATED_SERVER_ONLY
-        cl->print_message(type, text, team);
-        #else
-        (void)cl;
-        #endif
-    }
-};
-
-class TM_Sound : public ThreadMessage {
-    int sample;
-
-public:
-    TM_Sound(int sample_) throw () : sample(sample_) { }
-    void execute(Client* cl) const throw () {
-        #ifndef DEDICATED_SERVER_ONLY
-        cl->play_sound(sample);
-        #else
-        (void)cl;
-        #endif
-    }
-};
-
-class TM_MapChange : public ThreadMessage {
-    string name;
-    uint16_t crc;
-
-public:
-    TM_MapChange(const string& name_, uint16_t crc_) throw () : name(name_), crc(crc_) { }
-    ~TM_MapChange() throw () { }
-    void execute(Client* cl) const throw () { cl->server_map_command(name, crc); }
-};
-
-#ifndef DEDICATED_SERVER_ONLY
-class TM_NameAuthorizationRequest : public ThreadMessage {
-public:
-    void execute(Client* cl) const throw () { cl->m_playerPassword.setup(cl->playername, false); cl->showMenu(cl->m_playerPassword); }
-};
-
-class TM_GunexploEffect : public ThreadMessage {
-    int team;
-    WorldCoords pos;
-    double time;
-
-public:
-    TM_GunexploEffect(int team_, double time_, const WorldCoords& pos_) throw () : team(team_), pos(pos_), time(time_) { }
-    void execute(Client* cl) const throw () { cl->graphics.create_gunexplo(pos, team, time); }
-};
-
-class TM_ServerSettings : public ThreadMessage {
-    uint8_t caplimit, timelimit, extratime, extratime_periods;
-    uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
-    int flag_return_delay;
-
-    void addLine(Client* cl, const string& caption, const string& value) const throw ();
-
-public:
-    TM_ServerSettings(uint8_t caplimit_, uint8_t timelimit_, uint8_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
-                      uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
-        caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), extratime_periods(extratime_periods_), misc1(misc1_),
-        pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
-    void execute(Client* cl) const throw ();
-};
-#endif
-
-class TM_ConnectionUpdate : public ThreadMessage {
-    int code;
-    DataBlock data;
-
-public:
-    TM_ConnectionUpdate(int code_, ConstDataBlockRef data_) throw () : code(code_), data(data_) { }
-    ~TM_ConnectionUpdate() throw () { }
-    void execute(Client* cl) const throw ();
-};
-
-#ifndef DEDICATED_SERVER_ONLY
 void ServerThreadOwner::threadFn(const ServerExternalSettings& config) throw () {
     GameserverInterface gameserver(log, config, *log.accessError(), _("(server)") + ' ');
     if (!gameserver.start(config.server_maxplayers)) {
@@ -436,12 +313,16 @@ void FileDownload::finish() throw () {
     fp = 0;
 }
 
-void TM_ServerSettings::addLine(Client* cl, const string& caption, const string& value) const throw () {
+void TM_ServerSettings::addLine(GuiClient* cl, const string& caption, const string& value) const throw () {
     const int capWidth = 25;
     cl->m_serverInfo.addLine(pad_to_size_left(caption, capWidth), value);
 }
 
-void TM_ServerSettings::execute(Client* cl) const throw () {
+void TM_ServerSettings::execute(ClientBase* pClBase) const throw () {
+    GuiClient* const cl = dynamic_cast<GuiClient*>(pClBase);
+    if (!cl)
+        return;
+
     cl->m_serverInfo.clear();
     cl->m_serverInfo.menu.setCaption(cl->hostname);
 
@@ -452,7 +333,7 @@ void TM_ServerSettings::execute(Client* cl) const throw () {
         if (extratime == 0)
             value = _("none");
         else if (extratime_periods > 1)
-            value = _("$1×$2 min", itoa(extratime_periods), itoa(extratime));
+            value = _("$1ï¿½$2 min", itoa(extratime_periods), itoa(extratime));
         else
             value = _("$1 min", itoa(extratime));
         addLine(cl, _("Extra-time"      ), value);
@@ -490,25 +371,8 @@ void TM_ServerSettings::execute(Client* cl) const throw () {
     if (cl->menu.options.game.showServerInfo() && !cl->replaying)
         cl->showMenu(cl->m_serverInfo);
 }
-#endif
 
-void TM_ConnectionUpdate::execute(Client* cl) const throw () {
-    switch (code) {
-    /*break;*/ case 0: cl->client_connected(data);
-        break; case 1: cl->client_disconnected(data);
-        #ifndef DEDICATED_SERVER_ONLY
-        break; case 2: cl->connect_failed_denied(data);
-        break; case 3: cl->connect_failed_unreachable();
-        break; case 5: cl->connect_failed_socket();
-        break; case 4: cl->connect_failed_denied(_("The server is full."));
-        break; default: nAssert(0);
-        #endif
-    }
-    if (cl->botmode && code != 0)
-        cl->stop();
-}
-
-void Client::ConstDisappearedFlagIterator::findValid() throw () {
+void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
     for (; valid(); next()) {
         const Flag& fl = flag();
         if (!fl.carried())
@@ -521,146 +385,51 @@ void Client::ConstDisappearedFlagIterator::findValid() throw () {
     }
 }
 
-Client::Client(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
-    externalErrorLog(externalErrorLog_),
-    errorLog(clientLog, externalErrorLog, "ERROR: "),
-    //securityLog(clientLog, "SECURITY WARNING: ", wheregamedir + "log" + directory_separator + "client_securitylog.txt", false),
-    log(&clientLog, &errorLog, 0),
-    #ifndef DEDICATED_SERVER_ONLY
+GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+    ClientBase(config, clientLog, externalErrorLog_),
     listenServer(log),
-    #endif
-    frameMutex("Client::frameMutex"),
-    downloadMutex("Client::downloadMutex"),
-    #ifndef DEDICATED_SERVER_ONLY
-    rankingPassword(log, new RedirectToMemFun1<Client, void, string>(this, &Client::CB_rankingToken), config.lowerPriority),
+    downloadMutex("GuiClient::downloadMutex"),
+    rankingPassword(log, new RedirectToMemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
     current_map(-1),
     map_vote(-1),
+    want_change_teams(false),
     player_stats_page(0),
     lastAltEnterTime(0),
     FPS(0),
     framecount(0),
     totalframecount(0),
     frameCountStartTime(0),
-    serverListMutex("Client::serverListMutex"),
-    botmode(false),
-    #endif
-    sharedDataHandle(static_botSharedDataStorage),
-    finished(false),
-    botPrevFire(false),
-    abortThreads(false),
-    #ifndef DEDICATED_SERVER_ONLY
+    serverListMutex("GuiClient::serverListMutex"),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
     graphics(log),
     screenshot(false),
-    replaying(false),
     visible_rooms(1),
-    spectating(false),
-    #endif
-    mapChanged(false),
-    #ifndef DEDICATED_SERVER_ONLY
     client_sounds(log),
     messageLogOpen(false),
-    #endif
-    extConfig(config)
-    #ifndef DEDICATED_SERVER_ONLY
-    , serverExtConfig(serverConfig)
-    #endif
-{
-    //net client
-    client = 0;
+    serverExtConfig(serverConfig)
+{ }
 
-    setMaxPlayers(MAX_PLAYERS);
-    for (int p = 0; p < MAX_PLAYERS; p++)
-        fx.player[p].used = false;
-
-    //wich player I am
-    me = -1;
-
-    //time of last packet received
-    lastpackettime = 0;
-
-    //game showing?
-    gameshow = false;
-
-    #ifndef DEDICATED_SERVER_ONLY
-    //if player wants to changeteams
-    want_change_teams = false;
-    #else
-    (void)serverConfig;
-    #endif
-
-    //connected? (that is, "connection accepted")
-    connected = false;
-
-    Thread::setCallerPriority(config.priority);
-}
-
-Client::~Client() throw () {
-    log("Exiting client: destructor");
-
+GuiClient::~GuiClient() throw () {
     abortThreads = true;
-    if (client) {
-        delete client;
-        client = 0;
-    }
-    #ifndef DEDICATED_SERVER_ONLY
     while (refreshStatus != RS_none && refreshStatus != RS_failed)  // wait for a possible refresh thread to abort itself
         platSleep(50);
-    #endif
-
-    for (deque<ThreadMessage*>::const_iterator mi = messageQueue.begin(); mi != messageQueue.end(); ++mi)
-        delete *mi;
-
-    log("Exiting client: destructor exiting");
 }
 
-bool Client::start() throw () {
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode) {
-        extConfig.statusOutput(_("Outgun client"));
-        initMenus();
-        showMenu(menu);
-    }
+bool GuiClient::start() throw () {
+    extConfig.statusOutput(_("Outgun client"));
+    initMenus();
+    showMenu(menu);
+
     menusel = menu_none;
 
     totalframecount = 0;
     framecount = 0;
-    #endif
 
-    clFrameSent = clFrameWorld = 0;
-    fx.frame = -1;
-    #ifndef DEDICATED_SERVER_ONLY
-    fd.frame = -1;
-    #endif
-    frameReceiveTime = 0;
-
-    frameOffsetDeltaTotal = 0;
-    frameOffsetDeltaNum = 0;
-    averageLag = 0;
-
-    netsendAdjustment = 0;
-
-    // default map
-    map_ready = false;  // NO map change commands from server yet
-    clientReadiesWaiting = 0;
-
-    //not showing gameover plaque
-    gameover_plaque = NEXTMAP_NONE;
-
-    connected = false;
-
-    client = new_client_c(extConfig.networkPriority, botmode ? "_bot" + itoa(botId) : "");
-    client->setCallbackCustomPointer(this);
-    client->setConnectionCallback(cfunc_connection_update);
-    client->setServerDataCallback(cfunc_server_data);
-
-    #ifndef DEDICATED_SERVER_ONLY
-    if (botmode)
-        return true;
+    startBase();
 
     if (language.code() == "fi")
         playername = finnish_name(maxPlayerNameLength);
@@ -753,7 +522,7 @@ bool Client::start() throw () {
                     menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
                     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
-                        log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
+                        log("Previous screen mode not available (%dï¿½%dï¿½%d)", width, height, depth);
                 }
             }
 
@@ -834,24 +603,22 @@ bool Client::start() throw () {
 
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
-    #endif
 
     return true;
 }
 
-#ifndef DEDICATED_SERVER_ONLY
-void Client::language_selection_start(volatile bool* quitFlag) throw () {
+void GuiClient::language_selection_start(volatile bool* quitFlag) throw () {
     log("language_selection_start()");
     extConfig.statusOutput(_("Outgun client"));
 
     if (!graphics.init(640, 480, desktop_color_depth(), true, false))
         return;
 
-    typedef MenuCallback<Client> MCB;
-    m_initialLanguage.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
+    typedef MenuCallback<GuiClient> MCB;
+    m_initialLanguage.initialize(new MCB::A<Menu, &GuiClient::MCF_menuOpener>(this), settings);
 
     const int menu_selection_index = refreshLanguages(m_initialLanguage);
-    m_initialLanguage.addHooks(new MCB::A<Textarea, &Client::MCF_acceptInitialLanguage>(this));
+    m_initialLanguage.addHooks(new MCB::A<Textarea, &GuiClient::MCF_acceptInitialLanguage>(this));
     m_initialLanguage.menu.setSelection(menu_selection_index);
 
     showMenu(m_initialLanguage);
@@ -885,43 +652,9 @@ void Client::language_selection_start(volatile bool* quitFlag) throw () {
         }
     }
 }
-#endif
 
-void Client::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
-    Lock ml(frameMutex);
-    #ifndef DEDICATED_SERVER_ONLY
-    botmode = true;
-    #endif
-    botId = bot_id;
-    serverIP = addr;
-
-    nAssert(start());
-
-    playername = name;
-
-    botReactedFrame = -1;
-
-    set_ping(ping);
-
-    connect_command(false);
-}
-
-void Client::set_ping(int ping) throw () {
-    while (client->decreasePacketDelay()) { }
-    for (int i = 0; i < ping / 10; ++i)
-        client->increasePacketDelay();
-}
-
-//send "client ready" message to server (when map load and/or download completes)
-void Client::send_client_ready() throw () {
-    BinaryBuffer<256> msg;
-    msg.U8(data_client_ready);
-    client->send_message(msg);
-}
-
-#ifndef DEDICATED_SERVER_ONLY
 // incoming chunk of requested file by UDP
-void Client::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () {
+void GuiClient::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () {
     Lock ml(downloadMutex);
     if (downloads.empty() || !downloads.front().isActive()) {
         log.error("Server sent a file we aren't expecting");
@@ -966,7 +699,7 @@ void Client::process_udp_download_chunk(ConstDataBlockRef data, bool last) throw
 /* check_download: if there is a download pending, and nothing is downloading, activate it
  * call with downloadMutex locked
  */
-void Client::check_download() throw () { // call with downloadMutex locked
+void GuiClient::check_download() throw () { // call with downloadMutex locked
     if (downloads.empty())
         return;
     FileDownload& dl = downloads.front();
@@ -985,7 +718,7 @@ void Client::check_download() throw () { // call with downloadMutex locked
     client->send_message(msg);
 }
 
-void Client::download_server_file(const string& type, const string& name) throw () {
+void GuiClient::download_server_file(const string& type, const string& name) throw () {
     nAssert(type == "map");
     if (name.find_first_of("./:\\") != string::npos) {
         log.error("Illegal file download request: map \"" + name + "\"");
@@ -998,69 +731,8 @@ void Client::download_server_file(const string& type, const string& name) throw 
     downloads.push_back(FileDownload(type, name, fileName));
     check_download();
 }
-#endif
 
-// Server tells client of current map / map change.
-// Client checks from the "cmaps" and "maps" directory.
-// If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
-void Client::server_map_command(const string& mapname, uint16_t server_crc) throw () {
-    log("Received map change: '%s'", mapname.c_str());
-
-    servermap = mapname;
-
-    // Try to load the map from "cmaps", "maps" or even from "maps/generated" if necessary.
-    if (load_map(CLIENT_MAPS_DIR, mapname, server_crc) || load_map(SERVER_MAPS_DIR, mapname, server_crc) ||
-          load_map(string() + SERVER_MAPS_DIR + directory_separator + "generated", mapname, server_crc)) {
-        log("Map '%s' loaded successfully.", mapname.c_str());
-        remove_useless_flags();
-        mapChanged = true;
-        map_ready = true;
-        ++clientReadiesWaiting;
-        return;
-    }
-
-    nAssert(!botmode); // ### FIX: Disconnect bot or something.
-
-    #ifndef DEDICATED_SERVER_ONLY
-    // start download
-    const string msg = _("Downloading map \"$1\"...", mapname);
-    print_message(msg_info, msg);
-    log("%s", msg.c_str());
-
-    download_server_file("map", mapname);
-    #endif
-}
-
-bool Client::load_map(const string& directory, const string& mapname, uint16_t server_crc) throw () {
-    LogSet noLogSet(0, 0, 0);   // if there's an error with the map, don't log it
-
-    const bool ok =
-        #ifndef DEDICATED_SERVER_ONLY
-        fd.load_map(noLogSet, directory, mapname) &&
-        #endif
-        fx.load_map(noLogSet, directory, mapname);
-
-    if (!ok)
-        log("Map '%s' not found in '%s'.", mapname.c_str(), directory.c_str());
-    else if (fx.map.crc != server_crc)
-        log("Map '%s' found in '%s' but its CRC %i differs from server map CRC %i.",
-            mapname.c_str(), directory.c_str(), fx.map.crc, server_crc);
-    else
-        return true;
-    return false;
-}
-
-void Client::sendMinimapBandwidthAny(int players) throw () {
-    if (protocolExtensions >= 0) {
-        BinaryBuffer<256> msg;
-        msg.U8(data_set_minimap_player_bandwidth);
-        msg.U8(players);
-        client->send_message(msg);
-    }
-}
-
-#ifndef DEDICATED_SERVER_ONLY
-void Client::sendFavoriteColors() throw () {
+void GuiClient::sendFavoriteColors() throw () {
     if (menu.options.player.favoriteColors.values().empty())
         return;
     BinaryBuffer<256> msg;
@@ -1077,108 +749,12 @@ void Client::sendFavoriteColors() throw () {
     client->send_message(msg);
 }
 
-void Client::sendMinimapBandwidth() throw () {
+void GuiClient::sendMinimapBandwidth() throw () {
     sendMinimapBandwidthAny(menu.options.game.minimapBandwidth() / 20);
 }
-#endif // DEDICATED_SERVER_ONLY
 
-void Client::disconnect_command() throw () { // do not call from a network thread
-    //disconnect the client here if was connected, else does nothing
-    client->connect(false);
-}
-
-void Client::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
-    log("Connection successful");
-
-    connected = true;
-    gameshow = true;
-
-    BinaryDataBlockReader read(data);
-
-    setMaxPlayers(read.U8(0, MAX_PLAYERS));
-
-    #ifndef DEDICATED_SERVER_ONLY
-    hostname = read.str();
-    #else
-    read.str();
-    #endif
-
-    if (read.hasMore()) {
-        const int protoExt = read.U8();
-        log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
-        protocolExtensions = min(protoExt, PROTOCOL_EXTENSIONS_VERSION);
-    }
-    else
-        protocolExtensions = -1;
-
-    while (read.hasMore()) {
-        const uint32_t extensionId = read.U32();
-        BinaryDataBlockReader extData(read.block(read.U8()));
-        switch (extensionId) {
-            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
-             * break; case EXAMPLE_IDENTIFIER:
-             *    exampleLevel = min(extData.U8(), EXAMPLE_VERSION); // or whatever else you sent in servnet.cpp; also remember to flag the extension disabled before this "while (read.hasMore())"
-             */
-        }
-    }
-
-    if (botmode) {
-        // Tell server that I am a bot.
-        BinaryBuffer<256> msg;
-        msg.U8(data_bot);
-        client->send_message(msg);
-
-        sendMinimapBandwidthAny(32);
-    }
-
-    //avoid "dropped" plaque
-    lastpackettime = get_time() + 4.0;
-
-    averageLag = 0;
-
-    clFrameSent = clFrameWorld = 0;
-    frameReceiveTime = 0;
-
-    remove_flags = 0;
-
-    issue_change_name_command();
-
-    map_ready = false;
-    clientReadiesWaiting = 0;
-    servermap.clear();
-
-    gameover_plaque = NEXTMAP_NONE;
-
-    gunDir.from8way(0);
-    gunDirRefreshedTime = get_time();
-    next_respawn_time = 0;
-    flag_return_delay = -1;
-
-    me = -1;    // will be corrected from the first frame
-
-    for (int i = 0; i < 2; i++) {
-        fx.teams[i].clear_stats();
-        fx.teams[i].remove_flags();
-    }
-    for (int i = 0; i < MAX_PLAYERS; i++)
-        fx.player[i].clear(false, i, "", i / TSIZE);
-    fx.reset();
-
-    fx.frame = -1;
-    fx.skipped = true;
-    fx.physics = PhysicalSettings(); // to be filled later by a message
-
-    if (botmode) {
-        bot_send_frame(ClientControls());
-        return;
-    }
-
-    lock_team_flags_in_effect = false;
-    lock_wild_flags_in_effect = false;
-    capture_on_team_flags_in_effect = true;
-    capture_on_wild_flags_in_effect = false;
-
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
+    ClientBase::client_connected(data);
 
     fd.reset();
     fd.frame = -1;
@@ -1188,12 +764,10 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    if (!botmode) {
-        sendFavoriteColors();
-        sendMinimapBandwidth();
+    sendFavoriteColors();
+    sendMinimapBandwidth();
 
-        extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
-    }
+    extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -1245,36 +819,18 @@ void Client::client_connected(ConstDataBlockRef data) throw () {   // call with 
     mouseClicked.clear();
 
     send_frame(true, true);
-    #endif
 }
 
-#ifndef DEDICATED_SERVER_ONLY
-void Client::send_ranking_participation() throw () {
+void GuiClient::send_ranking_participation() throw () {
     BinaryBuffer<8> msg;
     msg.U8(data_ranking_participation);
     msg.U8(menu.options.player.ranking() ? 1 : 0);
     client->send_message(msg);
 }
-#endif
 
-void Client::client_disconnected(ConstDataBlockRef data) throw () {
-    if (!connected)
-        return;
-
-    connected = false;
-    gameshow = false;
-
+void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
     BinaryDataBlockReader read(data);
 
-    if (botmode) {
-        const uint8_t reason = read.U8();
-        numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
-                                       || reason == server_c::disconnect_timeout || reason == disconnect_kick),
-                   data.size(), reason);
-        return;
-    }
-
-    #ifndef DEDICATED_SERVER_ONLY
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -1309,11 +865,9 @@ void Client::client_disconnected(ConstDataBlockRef data) throw () {
         Lock ml(downloadMutex);
         downloads.clear();
     }
-    #endif
 }
 
-#ifndef DEDICATED_SERVER_ONLY
-void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
+void GuiClient::connect_failed_denied(ConstDataBlockRef data) throw () {
     string message;
     bool userHandled = false;
     if (data.size() > 1) {
@@ -1372,19 +926,19 @@ void Client::connect_failed_denied(ConstDataBlockRef data) throw () {
     }
 }
 
-void Client::connect_failed_unreachable() throw () {
+void GuiClient::connect_failed_unreachable() throw () {
     m_connectProgress.wrapLine(_("No response from server."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-void Client::connect_failed_socket() throw () {
+void GuiClient::connect_failed_socket() throw () {
     m_connectProgress.wrapLine(_("Can't open socket."));
     // under normal circumstances, the connect progress menu is showing; even otherwise putting this text there doesn't harm
     log("Connecting failed: no response");
 }
 
-string Client::load_player_password(const string& name, const string& address) const throw () {
+string GuiClient::load_player_password(const string& name, const string& address) const throw () {
     ifstream in(password_file.c_str());
     while (in) {
         string load_name, load_address, load_password;
@@ -1397,7 +951,7 @@ string Client::load_player_password(const string& name, const string& address) c
     return string();
 }
 
-vector<vector<string> > Client::load_all_player_passwords() const throw () {
+vector<vector<string> > GuiClient::load_all_player_passwords() const throw () {
     vector<vector<string> > passwords;
     ifstream in(password_file.c_str());
     while (1) {
@@ -1418,7 +972,7 @@ vector<vector<string> > Client::load_all_player_passwords() const throw () {
     return passwords;
 }
 
-void Client::save_player_password(const string& name, const string& address, const string& password) const throw () {
+void GuiClient::save_player_password(const string& name, const string& address, const string& password) const throw () {
     nAssert(!name.empty() && !address.empty() && !password.empty());    // empty lines cause trouble
     vector<vector<string> > passwd_list = load_all_player_passwords();
     // check if player already has a password
@@ -1448,7 +1002,7 @@ void Client::save_player_password(const string& name, const string& address, con
     }
 }
 
-void Client::remove_player_password(const string& name, const string& address) const throw () {
+void GuiClient::remove_player_password(const string& name, const string& address) const throw () {
     // check if player has a password
     const string test = load_player_password(name, address);
     if (test.empty())
@@ -1465,7 +1019,7 @@ void Client::remove_player_password(const string& name, const string& address) c
                 out << (*item)[i] << '\n';
 }
 
-int Client::remove_player_passwords(const string& name) const throw () {
+int GuiClient::remove_player_passwords(const string& name) const throw () {
     vector<vector<string> > passwd_list = load_all_player_passwords();
     ofstream out(password_file.c_str());
     if (!out)
@@ -1480,104 +1034,29 @@ int Client::remove_player_passwords(const string& name) const throw () {
     log("%s's player passwords removed.", name.c_str());
     return removed;
 }
-#endif
 
-void Client::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
-    const bool alreadyConnected = connected;
-
-    // disconnect
-    client->connect(false);
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::connect_command(bool loadPassword) throw () {   // call with frameMutex locked
     stop_replay();
-    #endif
-
-    if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
-        platSleep(500);
-
-    handlePendingThreadMessages();  // this is needed so that the potential disconnection message doesn't screw up the new connection
-    #ifndef DEDICATED_SERVER_ONLY
+    prepareForConnect();
     openMenus.close(&m_connectProgress.menu);
-    #endif
 
-    // start connecting to specified IP/port
-    // connection results will come through the CFUNC_CONNECTION_UPDATE callback
     const string strAddress = serverIP.toString();
-    client->set_server_address(strAddress.c_str());
 
-    #ifndef DEDICATED_SERVER_ONLY
-    if (loadPassword && !botmode)
+    if (loadPassword)
         m_playerPassword.password.set(load_player_password(playername, strAddress));
 
     log("Connecting to %s... passwords: server %s, player %s", strAddress.c_str(),
         m_serverPassword.password().empty() ? "no" : "yes",
         m_playerPassword.password().empty() ? "no" : "yes");
-    #endif
 
-    //set connect-data (goes in every connect packet): outgun game name and protocol strings
-    BinaryBuffer<256> msg;
-    msg.str(GAME_STRING);
-    msg.str(GAME_PROTOCOL);
-    msg.str(playername);
-    if (botmode) {
-        msg.str(bot_password);
-        msg.str("");
-    }
-    #ifndef DEDICATED_SERVER_ONLY
-    else {
-        msg.str(m_serverPassword.password());    // empty or not, it's needed
-        msg.str(m_playerPassword.password());    // empty or not, it's needed
-    }
-    #endif
-    msg.U8(PROTOCOL_EXTENSIONS_VERSION);
-    /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
-     * msg.U32(EXAMPLE_IDENTIFIER);
-     * msg.U8(1); // the number of bytes of what is added to msg by this extension after this
-     * msg.U8(EXAMPLE_VERSION); // or whatever else you want to send (here's a possible idea: send the value of data_example_first this client wants to use with the extension, to make it changeable if necessary for mixing extensions)
-     */
-    client->set_connect_data(msg);
-    client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
+    connect(strAddress, m_serverPassword.password(), m_playerPassword.password());
 
-    #ifndef DEDICATED_SERVER_ONLY
-    if (!botmode) {
-        m_connectProgress.clear();
-        m_connectProgress.wrapLine(_("Trying to connect..."), true);
-        showMenu(m_connectProgress);
-    }
-    #else
-    (void)loadPassword;
-    #endif
+    m_connectProgress.clear();
+    m_connectProgress.wrapLine(_("Trying to connect..."), true);
+    showMenu(m_connectProgress);
 }
 
-void Client::issue_change_name_command() throw () {
-    if (!connected)
-        return;
-    //regular change name
-    BinaryBuffer<256> msg;
-    msg.U8(data_name_update);
-    nAssert(check_name(playername));
-    msg.str(playername);
-    #ifndef DEDICATED_SERVER_ONLY
-    msg.str(m_playerPassword.password());    // empty or not, it's needed
-    #else
-    msg.str("");
-    #endif
-    client->send_message(msg);
-}
-
-void Client::bot_send_frame(ClientControls controls) throw () {
-    ++clFrameSent;
-    controlHistory[clFrameSent] = sentControls = controls;
-    svFrameHistory[clFrameSent] = fx.frame + (get_time() - frameReceiveTime) * 10.;
-    BinaryBuffer<256> msg;
-    msg.U8(clFrameSent);
-    msg.U8(sentControls.toNetwork(false));
-    if (fx.physics.allowFreeTurning)
-        msg.U16(gunDir.toNetworkLongForm());
-    client->send_frame(msg);
-}
-
-#ifndef DEDICATED_SERVER_ONLY
-void Client::change_name_command() throw () {
+void GuiClient::change_name_command() throw () {
     //set new name, close menu
     menu.options.player.name.set(trim(menu.options.player.name()));
     const string& newName = menu.options.player.name();
@@ -1592,7 +1071,7 @@ void Client::change_name_command() throw () {
     rankingPassword.changeData(playername, menu.options.player.password());
 }
 
-ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
+ClientControls GuiClient::readControls(bool canUseKeypad, bool useCursorKeys) const throw () {
     ClientControls ctrl;
     ctrl.fromKeyboard(canUseKeypad && menu.options.controls.keypadMoving(), useCursorKeys);
     if (menu.options.controls.joystick())
@@ -1602,7 +1081,7 @@ ClientControls Client::readControls(bool canUseKeypad, bool useCursorKeys) const
     return ctrl;
 }
 
-ClientControls Client::readControlsInGame() const throw () {
+ClientControls GuiClient::readControlsInGame() const throw () {
     if (!openMenus.empty()) // don't move at all when a real menu is open
         return ClientControls();
     const bool text_input_in_use = !talkbuffer.empty() && menu.options.controls.arrowKeysInTextInput();
@@ -1613,7 +1092,7 @@ ClientControls Client::readControlsInGame() const throw () {
     return ctrl;
 }
 
-bool Client::firePressed() throw () {
+bool GuiClient::firePressed() throw () {
     static double checkTime = 0;
     if (get_time() > checkTime + 1.)
         mouseClicked.clear();
@@ -1624,7 +1103,7 @@ bool Client::firePressed() throw () {
 }
 
 //send the client's frame to server (keypresses)
-void Client::send_frame(bool newFrame, bool forceSend) throw () {
+void GuiClient::send_frame(bool newFrame, bool forceSend) throw () {
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls = readControlsInGame();
@@ -1678,7 +1157,7 @@ void Client::send_frame(bool newFrame, bool forceSend) throw () {
     client->send_frame(msg);
 }
 
-void Client::refreshGunDir() throw () {
+void GuiClient::refreshGunDir() throw () {
     if (!fx.physics.allowFreeTurning)
         return;
     if (menu.options.controls.aimMode() == Menu_controls::AM_MouseTurn) {
@@ -1708,214 +1187,7 @@ void Client::refreshGunDir() throw () {
     }
 }
 
-#endif // DEDICATED_SERVER_ONLY
-
-void Client::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
-    const uint8_t whox = reader.U8(), whoy = reader.U8();
-    if (pid == me || fx.player[pid].onscreen)
-        return;
-    const double oldx = fx.player[pid].roomx * plw + fx.player[pid].lx;
-    const double oldy = fx.player[pid].roomy * plh + fx.player[pid].ly;
-    const int xmul = 255 / fx.map.w;
-    const int ymul = 255 / fx.map.h;
-    const double xStep = double(plw) / xmul;
-    const double yStep = double(plh) / ymul;
-    fx.player[pid].roomx = whox / xmul;
-    fx.player[pid].roomy = whoy / ymul;
-    fx.player[pid].lx = (whox % xmul + .5) * xStep;
-    fx.player[pid].ly = (whoy % ymul + .5) * yStep;
-    fx.player[pid].posUpdated = fx.frame;
-    double newx = fx.player[pid].roomx * plw + fx.player[pid].lx;
-    double newy = fx.player[pid].roomy * plh + fx.player[pid].ly;
-    if (fabs(newx - oldx) > fx.map.w * plw / 2)
-        newx += fx.map.w * plw * (newx < oldx ? +1 : -1);
-    if (fabs(newy - oldy) > fx.map.h * plh / 2)
-        newy += fx.map.h * plh * (newy < oldy ? +1 : -1);
-    const double dx = newx - oldx, dy = newy - oldy;
-    if (fabs(dx) >= xStep || fabs(dy) >= yStep)
-        fx.player[pid].gundir.fromRad(atan2(dy, dx));
-}
-
-bool Client::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
-    BinaryDataBlockReader read(data);
-
-    const uint32_t svframe = read.U32();    //server's frame
-
-    #ifndef DEDICATED_SERVER_ONLY
-    if (WATCH_CONNECTION && svframe != fx.frame + 1) {
-        ostringstream dstr;
-        if (svframe == fx.frame)
-            dstr << "S>C packet duplicated: " << svframe;
-        else if (svframe < fx.frame)
-            dstr << "S>C packet order: prev " << fx.frame << " this " << svframe;
-        else
-            dstr << "S>C packet lost : prev " << fx.frame << " this " << svframe;
-        addThreadMessage(new TM_Text(msg_warning, dstr.str().c_str()));
-    }
-    #endif
-    if (svframe < fx.frame)
-        return true;
-
-    ClientPhysicsCallbacks cb(*this);
-    fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
-    fx.frame = svframe;
-
-    frameReceiveTime = get_time();
-
-    clFrameWorld = read.U8();
-    /* svframe - .5 is roughly when clFrameWorld was received in server (using '- 1. + offsetDelta' instead of -.5 here would be possible but not necessarily really better)
-     * svFrameHistory[clFrameWorld] is the apparent server frame when clFrameSent was sent
-     */
-    const double currentLag = bound(svframe - .5 - svFrameHistory[clFrameWorld], 0., 50.);    // bound because svFrameHistory has invalid frame# at connect to server
-    averageLag = averageLag * .99 + currentLag * .01;
-
-    const uint8_t frameOffset = read.U8();
-    const double offsetDelta = (frameOffset / 256.) - .5;    // the deviation from aim, in frames
-    frameOffsetDeltaTotal += offsetDelta;
-    if (++frameOffsetDeltaNum == 10) {  // try to fix deviations every 10 frames
-        frameOffsetDeltaTotal /= 10.;
-        netsendAdjustment = -(frameOffsetDeltaTotal * .1); // convert to seconds
-        frameOffsetDeltaTotal = 0;
-        frameOffsetDeltaNum = 0;
-    }
-
-    const uint8_t xtra = read.U8();
-
-    const int extraHealth = (xtra & 1) ? 256 : 0;
-    const int extraEnergy = (xtra & 2) ? 256 : 0;
-    const bool empty_frame_cause_not_ready_yet = (xtra & 4) != 0;
-
-    if (me == -1)   // only read this when just connected to the server; otherwise, changes in "me" should be taken in only with the change teams message
-        me = xtra >> 3;
-
-    if (empty_frame_cause_not_ready_yet) {
-        fx.skipped = true;
-        return true;
-    }
-
-    if (!map_ready) {
-        log.error("Server sent frame data when loading map");
-        return false;
-    }
-    fx.skipped = false;
-
-    fx.player[me].roomx = read.U8(0, fx.map.w - 1);
-    fx.player[me].roomy = read.U8(0, fx.map.h - 1);
-
-    if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
-        for (int j = 0; j < MAX_POWERUPS; j++)
-            fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
-
-        fx.player[me].oldx = fx.player[me].roomx;
-        fx.player[me].oldy = fx.player[me].roomy;
-    }
-
-    const uint32_t players_onscreen = read.U32();
-
-    //decode players_onscreen and update player data
-    for (int i = 0; i < maxplayers; i++) {
-        //decode players_onscreen: sets if "player" record is there to be read
-        if (players_onscreen & (1 << i))
-            fx.player[i].onscreen = true;
-        else {
-            fx.player[i].onscreen = false;
-            continue;
-        }
-
-        ClientPlayer& h = fx.player[i];
-
-        h.roomx = fx.player[me].roomx;  //same screen since it's on the "players on same screen" vector
-        h.roomy = fx.player[me].roomy;
-
-        {
-            const uint8_t xLowBits = read.U8(), yLowBits = read.U8(), highBits = read.U8();
-            h.lx = ((highBits & 0x0F) << 8 | xLowBits) * (plw / double(0xFFF));
-            h.ly = ((highBits & 0xF0) << 4 | yLowBits) * (plh / double(0xFFF));
-        }
-
-        if (protocolExtensions < 0) {
-            typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-            h.sx = SpeedType::toDouble(read.U8());
-            h.sy = SpeedType::toDouble(read.U8());
-        }
-
-        const uint8_t extra = read.U8();
-        h.dead = (extra & 1) != 0;
-        h.item_deathbringer = (extra & 2) != 0;
-        h.deathbringer_affected = (extra & 4) != 0;
-        h.item_shield = (extra & 8) != 0;
-        h.item_turbo = (extra & 16) != 0;
-        h.item_power = (extra & 32) != 0;
-        const bool preciseGundir = (extra & 64) != 0;
-
-        if (protocolExtensions >= 0) {
-            if (h.dead)
-                h.sx = h.sy = 0;
-            else {
-                typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                h.sx = SpeedType::toDouble(read.U8());
-                h.sy = SpeedType::toDouble(read.U8());
-            }
-        }
-
-        const uint8_t ccb = read.U8();
-        h.controls.fromNetwork(ccb, true);
-
-        if (preciseGundir)
-            h.gundir.fromNetworkLongForm(((ccb >> 5) << 8) | read.U8());
-        else
-            h.gundir.fromNetworkShortForm(ccb >> 5);
-
-        if (protocolExtensions < 0 || !h.dead)
-            h.visibility = read.U8();
-        else
-            h.visibility = 255;
-
-        if (i == me) {
-            if (!h.item_turbo)
-                fx.player[me].item_turbo_time = 0;
-            if (!h.item_power)
-                fx.player[me].item_power_time = 0;
-            if (h.visibility == 255)
-                fx.player[me].item_shadow_time = 0;
-        }
-
-        if (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag())
-            h.posUpdated = svframe;
-    }
-
-    // see servnet.cpp for a short documentation of the minimap player position protocol
-    if (protocolExtensions < 0) {
-        uint8_t pid = read.U8();
-        if (pid < MAX_PLAYERS)
-            readMinimapPlayerPosition(read, pid);
-        pid = read.U8();
-        if (pid < MAX_PLAYERS)
-            readMinimapPlayerPosition(read, pid);
-    }
-    else {
-        const uint8_t mmByte = read.U8();
-        const int pos = 4 * (mmByte >> 5);
-        const int extraBytes = ((mmByte & 0x18) >> 3) + 1;
-        uint32_t rotP = mmByte & 0x07;
-        for (int i = 0, rotPpos = 3; i < extraBytes; ++i, rotPpos += 8)
-            rotP |= read.U8() << rotPpos;
-        for (int pid = pos; rotP; pid = (pid + 1) % 32, rotP >>= 1)
-            if (rotP & 1)
-                readMinimapPlayerPosition(read, pid);
-    }
-
-    fx.player[me].health = read.U8() + extraHealth;
-    fx.player[me].energy = read.U8() + extraEnergy;
-
-    if (read.hasMore())
-        fx.player[svframe % maxplayers].ping = max<int16_t>(read.S16(), 0); // Server versions up to 1.0.3 using a multicore processor can send negative pings.
-
-    return true;
-}
-
-#ifndef DEDICATED_SERVER_ONLY
-int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
@@ -1982,1342 +1254,452 @@ int Client::process_replay_frame_data(ConstDataBlockRef data) throw () { // retu
 
     return read.getPosition();
 }
-#endif
 
-// process a message (update fx, and add the non frame-related messages to messageQueue)
-bool Client::process_message(ConstDataBlockRef data) throw () {
-    const double time = fx.frame / 10;
-    BinaryDataBlockReader read(data);
+void GuiClient::netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () {
+    if (on_screen_exact(rpx, rpy, rx, ry))
+        addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
+}
 
-    const uint8_t code = read.U8();
+void GuiClient::netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () {
+    addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
+    if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
+        addThreadMessage(new TM_Sound(SAMPLE_HIT));
+}
 
-    if (LOG_MESSAGE_TRAFFIC)
-        log("Message from server, code = %i, length = %i bytes", code, data.size());
+void GuiClient::netPowerCollision(int target, double time) throw () {
+    fx.player[target].hitfx = time + .3;
+    if (!replaying || player_on_screen(target))
+        addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
+}
 
-    switch (static_cast<Network_data_code>(code)) {
-    /*break;*/ case data_name_update: {
-        const uint8_t pid = read.U8();
-        const string name = read.str();
-        if (check_name(name)) {
-            if (fx.player[pid].name.empty()) {
-                addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
-                addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
-            }
-            else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
-                addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
-            fx.player[pid].name = name;
-        }
-        else
-            log.error("Invalid name for player " + itoa(pid) + '.');
+void GuiClient::net_data_sound(BinaryReader& read) throw () {
+    const uint8_t sample = read.U8();
+    if (replaying && read.hasMore()) {
+        const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
+        if (!on_screen(rx, ry))
+            return;
     }
+    if (sample < NUM_OF_SAMPLES)
+        addThreadMessage(new TM_Sound(sample));
+}
 
-    break; case data_text_message: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const Message_type type = static_cast<Message_type>(read.U8(0, Message_types - 1));
-        string chatmsg = read.str();
-        if (find_nonprintable_char(chatmsg)) {
-            log.error("Server sent non-printable characters in a message.");
-            nAssert(!botmode);
-            addThreadMessage(new TM_DoDisconnect());
-            break;
-        }
-        // This is a kludge because of compatibility.
-        // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
-        if (type == msg_server) {
-            if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
-                chatmsg = _("Your vote has no effect until you vote for a specific map.");
-                want_map_exit_delayed = true;
-            }
-            string::size_type pos = chatmsg.find(" decided it's time for a map change.");
-            if (pos != string::npos) {
-                const string name = chatmsg.substr(0, pos);
-                chatmsg = _("$1 decided it's time for a map change.", name);
-            }
-            pos = chatmsg.find(" decided it's time for a restart.");
-            if (pos != string::npos) {
-                const string name = chatmsg.substr(0, pos);
-                chatmsg = _("$1 decided it's time for a restart.", name);
-            }
-        }
-        int8_t sender_team = -1;
-        if (protocolExtensions >= 0 || replaying) {
-            if (type == msg_team || type == msg_normal)
-                sender_team = read.S8();
-        }
-        else if (type == msg_team)
-            sender_team = team();
-        addThreadMessage(new TM_Text(type, chatmsg, sender_team));
-        if (type == msg_team || type == msg_normal)
-            addThreadMessage(new TM_Sound(SAMPLE_TALK));
-        #endif
-    }
+void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
+    if (read.U8() == 1)  // success
+        rankingPassword.serverAcceptsToken();
+    else
+        rankingPassword.serverRejectsToken();
+}
 
-    break; case data_first_packet: {
-        me = read.U8();
+void GuiClient::net_data_map_list(BinaryReader& read) throw () {
+    MapInfo mapinfo;
+    mapinfo.title = read.str();
+    mapinfo.author = read.str();
+    mapinfo.width = read.U8();
+    mapinfo.height = read.U8();
+    mapinfo.votes = read.U8();
+    mapinfo.random = read.hasMore() ? read.U8() : false;
+    mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+    Lock ml(mapInfoMutex);
+    maps.push_back(mapinfo);
+    mapListChangedAfterSort = true;
+}
 
-        fx.player[me].set_color(read.U8(0, PlayerBase::invalid_color - 1));
+void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
+    const uint8_t pid = read.U8();
+    fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
+    ClientLoginStatus ls;
+    ls.fromNetwork(read.U8());
+    const uint32_t prank = read.U32(0, INT_MAX), pscore = read.U32(0, INT_MAX), nscore = read.U32(0, INT_MAX);
+    max_world_rank = read.U32();
 
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        #else
-        read.U8();
-        #endif
-
-        const bool e = protocolExtensions >= 0;
-
-        uint8_t score = read.U32dyn8orU8(e);
-        fx.teams[0].set_score(score);
-        if (fx.teams[0].captures().size() == 0) // only if just joined the server
-            fx.teams[0].set_base_score(score);
-        score = read.U32dyn8orU8(e);
-        fx.teams[1].set_score(score);
-        if (fx.teams[1].captures().size() == 0) // only if just joined the server
-            fx.teams[1].set_base_score(score);
-
-        // room is probably changed
-        fx.player[me].oldx = -1;
-        fx.player[me].oldy = -1;
-    }
-
-    break; case data_frags_update: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t pid = read.U8();
-        fx.player[pid].stats().set_frags(read.U32());
-        stable_sort(players_sb.begin(), players_sb.end(), compare_players);
-        #endif
-    }
-
-    break; case data_flag_update: {
-        const uint8_t team = read.U8();
-        const int8_t flags = read.S8();
-        bool new_flag = false;
-        for (int i = 0; i < flags; i++) {
-            if (team == 2) {
-                if (i >= static_cast<int>(fx.wild_flags.size())) {
-                    fx.wild_flags.push_back(Flag(WorldCoords()));
-                    new_flag = true;
-                }
-            }
-            else if (i >= static_cast<int>(fx.teams[team].flags().size())) {
-                fx.teams[team].add_flag(WorldCoords());
-                new_flag = true;
-            }
-            const uint8_t carried = read.U8();
-            if (carried == 0) {
-                //not carried: update position
-                const uint8_t px = read.U8(), py = read.U8();
-                const int16_t x = read.S16(), y = read.S16();
-                const WorldCoords pos(px, py, x, y);
-                bool was_carried;
-                if (team == 2) {
-                    was_carried = fx.wild_flags[i].carried();
-                    fx.wild_flags[i].move(pos);
-                    fx.wild_flags[i].drop();
-                }
-                else {
-                    was_carried = fx.teams[team].flag(i).carried();
-                    fx.teams[team].drop_flag(i, pos);
-                }
-                if (!new_flag && was_carried)
-                    if (team == 2)
-                        fx.wild_flags[i].set_return_time(time);
-                    else {
-                        fx.teams[team].set_flag_drop_time(i, time);
-                        fx.teams[team].set_flag_return_time(i, time);
-                    }
-            }
-            else {
-                //carried: get carrier
-                const uint8_t carrier = read.U8();
-                if (!new_flag) {
-                    if (!fx.player[carrier].onscreen && !replaying) {
-                        const WorldCoords& flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
-                        if (!flagPos.unknown()) {
-                            fx.player[carrier].roomx = flagPos.px;
-                            fx.player[carrier].roomy = flagPos.py;
-                            fx.player[carrier].lx = flagPos.x;
-                            fx.player[carrier].ly = flagPos.y;
-                            fx.player[carrier].posUpdated = fx.frame;
-                        }
-                    }
-                    addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
-                }
-                if (team == 2)
-                    fx.wild_flags[i].take(carrier);
-                else
-                    fx.teams[team].steal_flag(i, carrier);
-            }
-        }
-    }
-
-    break; case data_rocket_fire: {
-        if (!map_ready)
-            break;
-
-        const uint8_t rpow = read.U8(1, 9), rdir = read.U8();
-
-        GunDirection dir;
-        if (rdir & 0x80) {
-            if (protocolExtensions < 0)
-                return false;
-            dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
-        }
-        else
-            dir.fromNetworkShortForm(rdir);
-
-        uint8_t rids[16];
-        for (int i = 0; i < rpow; i++)
-            rids[i] = read.U8();
-
-        const uint32_t frameno = read.U32();
-        const uint8_t rteampower = read.U8(); // power (bit 0) and shooter pid/team
-        const bool power = rteampower & 1;
-
-        const uint8_t rpx = read.U8(0, fx.map.w - 1), rpy = read.U8(0, fx.map.h - 1);
-        const int16_t rx = read.S16(), ry = read.S16();
-
-        int team;
-        if (protocolExtensions >= 0) {
-            if (rteampower & 2) { // with player id
-                const int pid = (rteampower & 0x7C) >> 2;
-                if (pid >= maxplayers || !fx.player[pid].used) {
-                    log("Bad pid in data_rocket_fire: %d.", pid);
-                    return false;
-                }
-                team = pid / TSIZE;
-                if (fx.player[pid].posUpdated < frameno) {
-                    fx.player[pid].roomx = rpx;
-                    fx.player[pid].roomy = rpy;
-                    fx.player[pid].lx = rx;
-                    fx.player[pid].ly = ry;
-                    fx.player[pid].gundir = dir;
-                    fx.player[pid].posUpdated = frameno;
-                }
-            }
-            else
-                team = (rteampower & 4) >> 2;
-        }
-        else
-            team = (rteampower & 2) >> 1;
-
-        ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-
-        #ifndef DEDICATED_SERVER_ONLY
-        if (on_screen_exact(rpx, rpy, rx, ry))
-            addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
-        #endif
-    }
-
-    break; case data_old_rocket_visible: {
-        if (!map_ready)
-            break;
-
-        const uint8_t rockid = read.U8(), rdir = read.U8();
-
-        GunDirection dir;
-        if (rdir & 0x80) {
-            if (protocolExtensions < 0)
-                return false;
-            dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
-        }
-        else
-            dir.fromNetworkShortForm(rdir);
-
-        const uint32_t frameno = read.U32();
-        const uint8_t rteampower = read.U8();
-
-        const bool power = rteampower & 1;
-        const int team = (rteampower & 2) >> 1;
-
-        const uint8_t rpx = read.U8(0, fx.map.w - 1), rpy = read.U8(0, fx.map.h - 1);
-        const int16_t rx = read.S16(), ry = read.S16();
-
-        ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, 1, dir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
-        // no sound
-    }
-
-    break; case data_rocket_delete: {
-        if (!map_ready)
-            break;
-
-        const uint8_t rockid = read.U8();
-        fx.rock[rockid].owner = -1;
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t target = read.U8();
-        if (target != 255) {    // hit player
-            if (target != 252) {  // not shield hit -> blink player
-                if (target >= maxplayers)
-                    return false;
-                fx.player[target].hitfx = time + .3;
-            }
-            //hit position
-            const int16_t rokx = read.S16(), roky = read.S16();
-            addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
-            if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
-                addThreadMessage(new TM_Sound(SAMPLE_HIT));
-        }
-        #endif
-    }
-
-    break; case data_power_collision: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t target = read.U8(0, maxplayers - 1);
-        fx.player[target].hitfx = time + .3;
-        if (!replaying || player_on_screen(target))
-            addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
-        #endif
-    }
-
-    break; case data_score_update: {
-        const uint8_t team = read.U8(0, 1);
-        fx.teams[team].set_score(read.U32dyn8orU8(protocolExtensions >= 0));
-    }
-
-    break; case data_sound: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t sample = read.U8();
-        if (replaying && read.hasMore()) {
-            const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
-            if (!on_screen(rx, ry))
-                break;
-        }
-        if (sample < NUM_OF_SAMPLES)
-            addThreadMessage(new TM_Sound(sample));
-        #endif
-    }
-
-    break; case data_pup_visible: {
-        const uint8_t iid = read.U8();
-        fx.item[iid].kind = static_cast<Powerup::Pup_type>(read.U8(0, Powerup::pup_last_real));
-        fx.item[iid].px = read.U8(0, fx.map.w - 1);
-        fx.item[iid].py = read.U8(0, fx.map.h - 1);
-        fx.item[iid].x = read.U16();
-        fx.item[iid].y = read.U16();
-    }
-
-    break; case data_pup_picked:
-        fx.item[read.U8()].kind = Powerup::pup_unused;
-
-    break; case data_pup_timer: {
-        const uint8_t type = read.U8();
-        const double pup_time = time + read.U16();
-        if (type == Powerup::pup_turbo)
-            fx.player[me].item_turbo_time = pup_time;
-        else if (type == Powerup::pup_shadow)
-            fx.player[me].item_shadow_time = pup_time;
-        else if (type == Powerup::pup_power)
-            fx.player[me].item_power_time = pup_time;
-    }
-
-    break; case data_weapon_change:
-        fx.player[me].weapon = read.U8(1, 9);
-
-    break; case data_map_change: {
-        map_ready = false;  // map NOT ready anymore: must load/change
-        #ifndef DEDICATED_SERVER_ONLY
-        want_map_exit = false;      // and player does not want to exit the map anymore
-        want_map_exit_delayed = false;
-        deadAfterHighlighted = true;
-
-        // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
-        if (!replaying) {
-            BinaryBuffer<16> msg;
-            msg.U8(data_map_exit_off);
-            client->send_message(msg);
-        }
-        #endif
-
-        fx.teams[0].remove_flags();
-        fx.teams[1].remove_flags();
-        fx.wild_flags.clear();
-        for (int i = 0; i < MAX_ROCKETS; ++i)
-            fx.rock[i].owner = -1;
-        const uint16_t crc = read.U16();
-        const string mapname = read.str(), maptitle = read.str();
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        if (map_vote == current_map)
-            map_vote = -1;
-        const uint8_t total_maps = read.U8();
-        #else
-        read.U8();
-        read.U8();
-        #endif
-        if (me != -1) {
-            fx.player[me].oldx = -1;
-            fx.player[me].oldy = -1;
-        }
-        if (read.hasMore())
-            remove_flags = read.S8();
-        else
-            remove_flags = 0;
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        #endif
-        if (!replaying) {
-            addThreadMessage(new TM_MapChange(mapname, crc));
-            #ifndef DEDICATED_SERVER_ONLY
-            msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
-            #endif
-        }
-        #ifndef DEDICATED_SERVER_ONLY
-        else { // The map is saved with the message
-            stringstream mapStream;
-            const ConstDataBlockRef mapData = read.block(read.U32());
-            mapStream.write(static_cast<const char*>(mapData.data()), mapData.size());
-            if (!fx.map.parse_file(log, mapStream)) {
-                log("Problem with map data.");
-                return false;
-            }
-            fd.map = fx.map;
-            log("Map loaded from the replay: %s", fx.map.title.c_str());
-            remove_useless_flags();
-            mapChanged = true;
-            map_ready = true;
-            msg = _("This map is $1.", maptitle);
-        }
-        addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
-    }
-
-    break; case data_world_reset:
-        #ifndef DEDICATED_SERVER_ONLY
-        if (replaying && !spectating)
-            break;
-        #endif
-        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-            pi->stats().finish_stats(time);
-        fx.reset();
-        #ifndef DEDICATED_SERVER_ONLY
-        fd.reset();
-        #endif
-
-    break; case data_gameover_show: {
-        #ifndef DEDICATED_SERVER_ONLY
-        extra_time_running = false;
-        if (replaying)
-            map_ready = false;
-        #endif
-        const uint8_t plaque = read.U8();
-        if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
-            gameover_plaque = plaque;
-            #ifndef DEDICATED_SERVER_ONLY
-            const bool e = protocolExtensions >= 0;
-            red_final_score = read.U32dyn8orU8(e);
-            blue_final_score = read.U32dyn8orU8(e);
-            const uint8_t caplimit = read.U8(), timelimit = read.U8();
-
-            string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
-            addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
-            if (!replay) {
-                msg.clear();
-                if (caplimit > 0)
-                    msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
-                if (timelimit > 0) {
-                    if (!msg.empty())
-                        msg += ' ';
-                    msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
-                }
-                if (!msg.empty())
-                    addThreadMessage(new TM_Text(msg_info, msg));
-            }
-            #endif
-            for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-                pi->stats().finish_stats(time);
-        }
-        else {
-            gameover_plaque = NEXTMAP_NONE;
-            #ifndef DEDICATED_SERVER_ONLY
-            if (stats_autoshowing) {
-                menusel = menu_none;
-                stats_autoshowing = false;
-            }
-            #endif
-        }
-    }
-
-    break; case data_start_game:
-        fx.teams[0].clear_stats();
-        fx.teams[1].clear_stats();
-        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-            pi->stats().clear(true);
-        gameover_plaque = NEXTMAP_NONE;
-        #ifndef DEDICATED_SERVER_ONLY
-        if (stats_autoshowing) {
-            menusel = menu_none;
-            stats_autoshowing = false;
-        }
-        deadAfterHighlighted = true;
-        #endif
-
-    break; case data_deathbringer: {
-        const uint8_t team = read.U8();
-        const uint32_t frameno = read.U32();
-        const uint8_t roomx = read.U8(0, fx.map.w - 1), roomy = read.U8(0, fx.map.h - 1);
-        const uint16_t lx = read.U16(), ly = read.U16();
-        fx.addDeathbringerExplosion(DeathbringerExplosion(frameno, WorldCoords(roomx, roomy, lx, ly), team));
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Sound(SAMPLE_USEDEATHBRINGER));
-        #endif
-    }
-
-    break; case data_file_download: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint16_t chunkSize = read.U16();
-        const uint8_t last = read.U8();
-        process_udp_download_chunk(read.block(chunkSize), (last != 0));
-        #endif
-    }
-
-    break; case data_registration_response:
-        #ifndef DEDICATED_SERVER_ONLY
-        if (read.U8() == 1)  // success
-            rankingPassword.serverAcceptsToken();
-        else
-            rankingPassword.serverRejectsToken();
-        #endif
-
-    break; case data_crap_update: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t pid = read.U8();
-        fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
-        ClientLoginStatus ls;
-        ls.fromNetwork(read.U8());
-        const uint32_t prank = read.U32(0, INT_MAX), pscore = read.U32(0, INT_MAX), nscore = read.U32(0, INT_MAX);
-        max_world_rank = read.U32();
-
-        const ClientLoginStatus& os = fx.player[me].reg_status;
-        const bool newMePrintout =
+    const ClientLoginStatus& os = fx.player[me].reg_status;
+    const bool newMePrintout =
             !replaying &&
             pid == me &&
             (ls.token() != os.token() ||
              (ls.token() && (ls.masterAuth() != os.masterAuth() || ls.ranking() != os.ranking())) ||
              ls.localAuth() != os.localAuth() ||
              ls.admin() != os.admin());
-        if (newMePrintout) {
-            ostringstream msg;
-            msg << _("Status") << ": ";
-            if (ls.token()) {
-                if (ls.masterAuth()) {
-                    msg << _("master authorized") << ", ";
-                    if (ls.ranking())
-                        msg << _("recording");
-                    else
-                        msg << _("not recording");
-                }
-                else {
-                    msg << _("master auth pending") << ", ";
-                    if (ls.ranking())
-                        msg << _("will record");
-                    else
-                        msg << _("will not record");
-                }
+    if (newMePrintout) {
+        ostringstream msg;
+        msg << _("Status") << ": ";
+        if (ls.token()) {
+            if (ls.masterAuth()) {
+                msg << _("master authorized") << ", ";
+                if (ls.ranking())
+                    msg << _("recording");
+                else
+                    msg << _("not recording");
             }
-            else
-                msg << _("no ranking login");
-            if (ls.localAuth())
-                msg << "; " << _("locally authorized");
-            if (ls.admin())
-                msg << "; " << _("administrator");
-            addThreadMessage(new TM_Text(msg_info, msg.str()));
-        }
-        fx.player[pid].reg_status = ls;
-        fx.player[pid].rank = prank;
-        fx.player[pid].score = pscore;
-        fx.player[pid].neg_score = nscore;
-        // update new team powers
-        double power[2] = { 0, 0 };
-        for (int i = 0; i < fx.maxplayers; i++)
-            if (fx.player[i].used)
-                power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
-        for (int t = 0; t < 2; t++)
-            fx.teams[t].set_power(power[t]);
-        #endif
-    }
-
-    break; case data_map_time: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint32_t current_time = read.U32(), time_left = read.U32();
-        map_start_time = static_cast<int>(time) - current_time;
-        if (time_left > 0) {
-            map_end_time = static_cast<int>(time) + time_left;
-            map_time_limit = true;
+            else {
+                msg << _("master auth pending") << ", ";
+                if (ls.ranking())
+                    msg << _("will record");
+                else
+                    msg << _("will not record");
+            }
         }
         else
-            map_time_limit = false;
-        if (LOG_MESSAGE_TRAFFIC)
-            log("Map time received. Time left %d seconds.", time_left);
-        #endif
+            msg << _("no ranking login");
+        if (ls.localAuth())
+            msg << "; " << _("locally authorized");
+        if (ls.admin())
+            msg << "; " << _("administrator");
+        addThreadMessage(new TM_Text(msg_info, msg.str()));
+    }
+    fx.player[pid].reg_status = ls;
+    fx.player[pid].rank = prank;
+    fx.player[pid].score = pscore;
+    fx.player[pid].neg_score = nscore;
+    // update new team powers
+    double power[2] = { 0, 0 };
+    for (int i = 0; i < fx.maxplayers; i++)
+        if (fx.player[i].used)
+            power[fx.player[i].team()] += (fx.player[i].score + 1.) / (fx.player[i].neg_score + 1.);
+    for (int t = 0; t < 2; t++)
+        fx.teams[t].set_power(power[t]);
+}
+
+void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
+    (void)read;
+    Lock ml(mapInfoMutex);
+    maps.clear();
+    mapListChangedAfterSort = true;
+    map_vote = -1;
+}
+
+void GuiClient::net_data_map_vote(BinaryReader& read) throw () {
+    map_vote = read.S8();
+}
+
+void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
+    const uint8_t total = read.U8();
+    Lock ml(mapInfoMutex);
+    for (int i = 0; i < total; i++) {
+        const uint8_t map_nr = read.U8(), votes = read.U8();
+        if (map_nr < maps.size()) {
+            maps[map_nr].votes = votes;
+            mapListChangedAfterSort = true;
+        }
+    }
+}
+
+void GuiClient::net_data_text_message(BinaryReader& read) throw () {
+    const Message_type type = static_cast<Message_type>(read.U8(0, Message_types - 1));
+    string chatmsg = read.str();
+    if (find_nonprintable_char(chatmsg)) {
+        log.error("Server sent non-printable characters in a message.");
+        addThreadMessage(new TM_DoDisconnect());
+        return;
+    }
+    // This is a kludge because of compatibility.
+    // Make sure that the messages here match with the ones in server.cpp and servnet.cpp.
+    if (type == msg_server) {
+        if (chatmsg == "Your vote has no effect until you vote for a specific map.") {
+            chatmsg = _("Your vote has no effect until you vote for a specific map.");
+            want_map_exit_delayed = true;
+        }
+        string::size_type pos = chatmsg.find(" decided it's time for a map change.");
+        if (pos != string::npos) {
+            const string name = chatmsg.substr(0, pos);
+            chatmsg = _("$1 decided it's time for a map change.", name);
+        }
+        pos = chatmsg.find(" decided it's time for a restart.");
+        if (pos != string::npos) {
+            const string name = chatmsg.substr(0, pos);
+            chatmsg = _("$1 decided it's time for a restart.", name);
+        }
+    }
+    int8_t sender_team = -1;
+    if (protocolExtensions >= 0 || replaying) {
+        if (type == msg_team || type == msg_normal)
+            sender_team = read.S8();
+    }
+    else if (type == msg_team)
+        sender_team = fx.player[me].team();
+    addThreadMessage(new TM_Text(type, chatmsg, sender_team));
+    if (type == msg_team || type == msg_normal)
+        addThreadMessage(new TM_Sound(SAMPLE_TALK));
+}
+
+void GuiClient::netStatsReady() throw () {
+    if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
+        switch (menu.options.game.showStats()) {
+        /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
+            break; case Menu_game::SS_players: menusel = menu_players;
+            break; default: nAssert(0);
+        }
+        stats_autoshowing = true;
+    }
+    if (players_sb.size() > 1 && (menu.options.game.saveStats() && !replaying || menu.options.game.saveReplayStats() && replaying))
+        fx.save_stats("client_stats", fx.map.title, gameSettings);
+}
+
+void GuiClient::netMapChange(const string& maptitle, const int map_number, const int total_maps) throw () {
+    want_map_exit = false;
+    want_map_exit_delayed = false;
+    deadAfterHighlighted = true;
+
+    // make sure the server knows that want_map_exit = false (in case data_map_exit_on was sent and not yet received when the data_map_change was sent)
+    if (!replaying) {
+        BinaryBuffer<16> msg;
+        msg.U8(data_map_exit_off);
+        client->send_message(msg);
     }
 
-    break; case data_reset_map_list: {
-        #ifndef DEDICATED_SERVER_ONLY
-        Lock ml(mapInfoMutex);
-        maps.clear();
-        mapListChangedAfterSort = true;
+    current_map = map_number;
+    if (map_vote == current_map)
         map_vote = -1;
-        #endif
-    }
 
-    break; case data_current_map:
-        #ifndef DEDICATED_SERVER_ONLY
-        current_map = read.U8();
-        #endif
+    string msg;
+    if (!replaying)
+        msg = _("This map is $1 ($2 of $3).", maptitle, itoa(current_map + 1), itoa(total_maps));
+    else
+        msg = _("This map is $1.", maptitle);
+    addThreadMessage(new TM_Text(msg_info, msg));
+}
 
-    break; case data_map_list: {
-        #ifndef DEDICATED_SERVER_ONLY
-        MapInfo mapinfo;
-        mapinfo.title = read.str();
-        mapinfo.author = read.str();
-        mapinfo.width = read.U8();
-        mapinfo.height = read.U8();
-        mapinfo.votes = read.U8();
-        mapinfo.random = read.hasMore() ? read.U8() : false;
-        mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
-        Lock ml(mapInfoMutex);
-        maps.push_back(mapinfo);
-        mapListChangedAfterSort = true;
-        #endif
-    }
+void GuiClient::netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () {
+    red_final_score = redScore;
+    blue_final_score = blueScore;
 
-    break; case data_map_vote: {
-        #ifndef DEDICATED_SERVER_ONLY
-        map_vote = read.S8();
-        #endif
-    }
-
-    break; case data_map_votes_update: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t total = read.U8();
-        Lock ml(mapInfoMutex);
-        for (int i = 0; i < total; i++) {
-            const uint8_t map_nr = read.U8(), votes = read.U8();
-            if (map_nr < maps.size()) {
-                maps[map_nr].votes = votes;
-                mapListChangedAfterSort = true;
-            }
+    string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
+    addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
+    if (!(replaying && !spectating)) { // avoid text related to the next game at the end of a single game replay
+        msg.clear();
+        if (caplimit > 0)
+            msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
+        if (timelimit > 0) {
+            if (!msg.empty())
+                msg += ' ';
+            msg += _("TIME LIMIT IS $1 MINUTES.", itoa(timelimit));
         }
-        #endif
+        if (!msg.empty())
+            addThreadMessage(new TM_Text(msg_info, msg));
     }
+}
 
-    break; case data_stats_ready: {
-        #ifndef DEDICATED_SERVER_ONLY
-        if (menu.options.game.showStats() != Menu_game::SS_none && menusel == menu_none && openMenus.empty()) {
-            switch (menu.options.game.showStats()) {
-            /*break;*/ case Menu_game::SS_teams:   menusel = menu_teams;
-                break; case Menu_game::SS_players: menusel = menu_players;
-                break; default: nAssert(0);
-            }
-            stats_autoshowing = true;
-        }
-        #endif
-        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
-            pi->stats().finish_stats(time);
-        #ifndef DEDICATED_SERVER_ONLY
-        if (menu.options.game.saveStats())
-            fx.save_stats("client_stats", fx.map.title);
-        #endif
+void GuiClient::netGameoverPeriodEnd() throw () {
+    if (stats_autoshowing) {
+        menusel = menu_none;
+        stats_autoshowing = false;
     }
+}
 
-    break; case data_capture: {
-        uint8_t pid = read.U8();
-        #ifndef DEDICATED_SERVER_ONLY
-        const bool wild_flag = pid & 0x80;
-        #endif
-        pid &= ~0x80;
-        if (pid >= maxplayers)
-            return false;
-        fx.player[pid].stats().add_capture(time);
-        #ifndef DEDICATED_SERVER_ONLY
-        const int team = pid / TSIZE;
-        fx.teams[team].add_score(time - map_start_time, fx.player[pid].name);
-        string msg;
-        if (wild_flag)
-            msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
-        else if (1 - team == 0)
-            msg = _("$1 CAPTURED THE RED FLAG!", fx.player[pid].name);
+void GuiClient::netGameStarted() throw () {
+    if (stats_autoshowing) {
+        menusel = menu_none;
+        stats_autoshowing = false;
+    }
+    deadAfterHighlighted = true;
+}
+
+void GuiClient::netPhysicsChanged() throw () {
+    log("Server friction/drag/acceleration %f/%f/%f",
+        fx.physics.fric, fx.physics.drag, fx.physics.accel);
+    log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
+        fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
+    log("Server ff/dbff/rocketspeed %f/%f/%f",
+        fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
+
+    ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
+    out << hostname << '\n';
+    out << "friction     " << fx.physics.fric << '\n';
+    out << "drag         " << fx.physics.drag << '\n';
+    out << "acceleration " << fx.physics.accel << '\n';
+    out << "brake_acceleration " << fx.physics.brake_mul << '\n';
+    out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
+    out << "run_acceleration   " << fx.physics.run_mul << '\n';
+    out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
+    out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
+    out << "rocket_speed " << fx.physics.rocket_speed << '\n';
+    out.close();
+}
+
+void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
+    if (target == me)
+        deadAfterHighlighted = true;
+
+    const bool attacker_team = attacker / TSIZE;
+    const bool target_team = target / TSIZE;
+    const bool same_team = (attacker_team == target_team);
+    const bool known_attacker = fx.player[attacker].used;
+
+    string msg;
+    if (cause == DT_deathbringer) {
+        if (!known_attacker)
+            msg = _("$1 was choked.", fx.player[target].name);
+        else if (same_team)
+            msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
         else
-            msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
-        addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
-        #endif
+            msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
     }
+    else if (cause == DT_collision) {
+        if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
+            msg = _("$1 received a mortal blow.", fx.player[target].name);
+        else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
+            msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
+        else
+            msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+    }
+    else {
+        nAssert(cause == DT_rocket);
+        if (!known_attacker)    // this should never happen with the current code, but it's here for future
+            msg = _("$1 was nailed.", fx.player[target].name);
+        else if (same_team)
+            msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+        else
+            msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
+        if (player_on_screen_exact(target))
+            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+    }
+    if (menu.options.game.showKillMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
 
-    break; case data_kill: {
-        uint8_t attacker = read.U8(), target = read.U8();
-        const DamageType cause = ((attacker & 0x80) ? DT_deathbringer : (target & 0x20) ? DT_collision : DT_rocket);
-        #ifdef DEFENDING_MESSAGES
-        const bool carrier_defended = attacker & 0x40;
-        const bool flag_defended = attacker & 0x20;
-        #endif
-        const bool flag = target & 0x80;
-        #ifndef DEDICATED_SERVER_ONLY
-        const bool wild_flag = target & 0x40;
-        #endif
-        attacker &= 0x1F;
-        target &= 0x1F;
-        if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
-            return false;
-        const bool attacker_team = attacker / TSIZE;
-        const bool target_team = target / TSIZE;
-        const bool same_team = (attacker_team == target_team);
-        const bool known_attacker = fx.player[attacker].used;
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (cause == DT_deathbringer) {
-            if (!known_attacker)
-                msg = _("$1 was choked.", fx.player[target].name);
-            else if (same_team)
-                msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
-        }
-        else if (cause == DT_collision) {
-            if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
-                msg = _("$1 received a mortal blow.", fx.player[target].name);
-            else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
-                msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        }
-        else {
-            nAssert(cause == DT_rocket);
-            if (!known_attacker)    // this should never happen with the current code, but it's here for future
-                msg = _("$1 was nailed.", fx.player[target].name);
-            else if (same_team)
-                msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
-            else
-                msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (player_on_screen_exact(target))
-                addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        }
+    #ifdef DEFENDING_MESSAGES
+    if (carrier_defended && known_attacker) {
+        if (attacker_team == 0)
+            msg = _("$1 defends the red carrier.", fx.player[attacker].name);
+        else
+            msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+    }
+    if (flag_defended && known_attacker) {
+        if (attacker_team == 0)
+            msg = _("$1 defends the red flag.", fx.player[attacker].name);
+        else
+            msg = _("$1 defends the blue flag.", fx.player[attacker].name);
+        addThreadMessage(new TM_Text(msg_info, msg));
+    }
+    #else
+    (void)(carrier_defended && flag_defended);
+    #endif // DEFENDING_MESSAGES
+    if (spree_ended) {
+        if (!known_attacker)
+            msg = _("$1's killing spree was ended.", fx.player[target].name);
+        else
+            msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
         if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
-        #ifdef DEFENDING_MESSAGES
-        if (carrier_defended && known_attacker) {
-            if (attacker_team == 0)
-                msg = _("$1 defends the red carrier.", fx.player[attacker].name);
-            else
-                msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
-            addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        if (flag_defended && known_attacker) {
-            if (attacker_team == 0)
-                msg = _("$1 defends the red flag.", fx.player[attacker].name);
-            else
-                msg = _("$1 defends the blue flag.", fx.player[attacker].name);
-            addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif // DEFENDING_MESSAGES
-        if (fx.player[target].stats().current_cons_kills() >= 10) {
-            if (!known_attacker)
-                msg = _("$1's killing spree was ended.", fx.player[target].name);
-            else
-                msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
-            if (menu.options.game.showKillMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        if (target == me)
-            deadAfterHighlighted = true;
-        #endif // !DEDICATED_SERVER_ONLY
-        if (!same_team) {
-            if (known_attacker)
-                fx.player[attacker].stats().add_kill(cause == DT_deathbringer);
-            fx.teams[attacker_team].add_kill();
-        }
-        fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
-        fx.player[target].dead = true;
-        fx.teams[target_team].add_death();
-        if (flag) {
-            if (!same_team && known_attacker)
-                fx.player[attacker].stats().add_carrier_kill();
-            fx.player[target].stats().add_flag_drop(time);
-            fx.teams[target_team].add_flag_drop();
-            #ifndef DEDICATED_SERVER_ONLY
-            if (wild_flag)
-                msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
-            else if (1 - target_team == 0)
-                msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
-            else
-                msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
-            if (menu.options.game.showFlagMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-            #endif
-        }
-        #ifndef DEDICATED_SERVER_ONLY
-        if (!same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0) {
-            if (attacker == me)
-                addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-            msg = _("$1 is on a killing spree!", fx.player[attacker].name);
-            if (menu.options.game.showKillMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif
     }
 
-    break; case data_flag_take: {
-        uint8_t pid = read.U8();
-        const bool wild_flag = pid & 0x80;
-        pid &= ~0x80;
-        if (pid >= maxplayers)
-            return false;
-        fx.player[pid].stats().add_flag_take(time, wild_flag);
-        const int team = pid / TSIZE;
-        fx.teams[team].add_flag_take();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
+    if (flag) {
         if (wild_flag)
-            msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
-        else if (1 - team == 0)
-            msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
+            msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
+        else if (1 - target_team == 0)
+            msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
         else
-            msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
-        if (menu.options.game.showFlagMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
-    }
-
-    break; case data_flag_return: {
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        fx.player[pid].stats().add_flag_return();
-        fx.teams[pid / TSIZE].add_flag_return();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (pid / TSIZE == 0)
-            msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
-        else
-            msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
-        if (menu.options.game.showFlagMessages())
-            addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
-        #endif
-    }
-
-    break; case data_flag_drop: {
-        uint8_t pid = read.U8();
-        #ifndef DEDICATED_SERVER_ONLY
-        const bool wild_flag = pid & 0x80;
-        #endif
-        pid &= ~0x80;
-        if (pid >= maxplayers)
-            return false;
-        fx.player[pid].stats().add_flag_drop(time);
-        const int team = pid / TSIZE;
-        fx.teams[team].add_flag_drop();
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (wild_flag)
-            msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
-        else if (1 - team == 0)
-            msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
-        else
-            msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
+            msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
         if (menu.options.game.showFlagMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
         addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-        #endif
     }
-
-    break; case data_suicide: {
-        uint8_t pid = read.U8();
-        const bool flag = pid & 0x80;
-        #ifndef DEDICATED_SERVER_ONLY
-        const bool wild_flag = pid & 0x40;
-        #endif
-        pid &= ~0xC0;
-        if (pid >= maxplayers)
-            return false;
-        const int team = pid / TSIZE;
-        #ifndef DEDICATED_SERVER_ONLY
-        if (fx.player[pid].stats().current_cons_kills() >= 10 && menu.options.game.showKillMessages())
-            addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
-        if (pid == me)
-            deadAfterHighlighted = true;
-        #endif
-        fx.player[pid].stats().add_suicide(static_cast<int>(time));
-        fx.player[pid].dead = true;
-        fx.teams[team].add_suicide();
-        if (flag) {
-            fx.player[pid].stats().add_flag_drop(time);
-            fx.teams[team].add_flag_drop();
-            #ifndef DEDICATED_SERVER_ONLY
-            string msg;
-            if (wild_flag)
-                msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
-            else if (1 - team == 0)
-                msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
-            else
-                msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
-            if (menu.options.game.showFlagMessages())
-                addThreadMessage(new TM_Text(msg_info, msg));
-            addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
-            #endif
-        }
-        #ifndef DEDICATED_SERVER_ONLY
-        if (player_on_screen_exact(pid))
-            addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
-        #endif
-    }
-
-    break; case data_players_present: {       // this is only sent immediately after connecting to the server
-        if (replaying && replay_version >= 1) // Reset players and update scoreboard when parsing replay frame data.
-            return false;                     // This message should be only in a replay of version 0.
-        const uint32_t pp = read.U32();
-        for (int i = 0; i < maxplayers; ++i) {
-            if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
-                continue;
-            if (pp & (1 << i)) {
-                fx.player[i].clear(true, i, " ", i / TSIZE);  // hack... use " " for name to suppress announcement when the name is received
-                #ifndef DEDICATED_SERVER_ONLY
-                players_sb.push_back(&fx.player[i]);
-                #endif
-            }
-        }
-    }
-
-    break; case data_new_player: {
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        nAssert(!fx.player[pid].used || replaying);
-        if (replaying && replay_version >= 1) { // Reset players when parsing replay frame data.
-            fx.player[pid].name = "";           // Clear to show the join message.
-            break;
-        }
-        fx.player[pid].clear(true, pid, "", pid / TSIZE);
-        fx.player[pid].stats().set_start_time(time);
-        #ifndef DEDICATED_SERVER_ONLY
-        players_sb.push_back(&fx.player[pid]);
-        #endif
-    }
-
-    break; case data_player_left: {
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        #ifndef DEDICATED_SERVER_ONLY
-        const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
-        addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
-        const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
-        if (rm == players_sb.end())
-            return false;
-        players_sb.erase(rm);
-        #endif
-        nAssert(fx.player[pid].used);
-        fx.player[pid].used = false;
-    }
-
-    break; case data_team_change: {
-        const uint8_t from = read.U8(0, maxplayers - 1), to = read.U8(0, maxplayers - 1), col1 = read.U8(), col2 = read.U8();
-        const bool swap = (col2 != 255);
-        nAssert(fx.player[from].used && swap == fx.player[to].used);
-
-        #ifndef DEDICATED_SERVER_ONLY
-        string msg;
-        if (swap)
-            msg = _("$1 and $2 swapped teams.", fx.player[from].name, fx.player[to].name);
-        else if (to / TSIZE == 0)
-            msg = _("$1 moved to red team.", fx.player[from].name);
-        else
-            msg = _("$1 moved to blue team.", fx.player[from].name);
-        addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
-        #endif
-
-        if (swap) {
-            std::swap(fx.player[from], fx.player[to]);
-            fx.player[from].id = from;
-            fx.player[to  ].id =   to;
-            fx.player[from].set_team(from / TSIZE);
-            fx.player[to  ].set_team(  to / TSIZE);
-            // both players already exist in players_sb -> no changes except resorting
-            #ifndef DEDICATED_SERVER_ONLY
-            stable_sort(players_sb.begin(), players_sb.end(), compare_players);
-            #endif
-        }
-        else {
-            fx.player[to] = fx.player[from];
-            fx.player[from].used = false;
-            fx.player[to].id = to;
-            fx.player[to].set_team(to / TSIZE);
-            #ifndef DEDICATED_SERVER_ONLY
-            const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
-            if (rm == players_sb.end())
-                return false;
-            players_sb.erase(rm);
-            players_sb.push_back(&fx.player[to]);
-            #endif
-        }
-
-        if (from == me || to == me) {
-            #ifndef DEDICATED_SERVER_ONLY
-            want_change_teams = false;
-            #endif
-            me = (me == from) ? to : from;
-        }
-
-        #ifndef DEDICATED_SERVER_ONLY
-        if (col1 >= PlayerBase::invalid_color)
-            return false;
-        fx.player[to].set_color(col1);
-        #else
-        (void)col1;
-        #endif
-        fx.player[to].stats().kill(static_cast<int>(time), true);
-        fx.player[to].dead = true;  // this was already read from the frame data but overwritten by the team change
-        if (swap) {
-            #ifndef DEDICATED_SERVER_ONLY
-            if (col2 >= PlayerBase::invalid_color)
-                return false;
-            fx.player[from].set_color(col2);
-            #endif
-            fx.player[from].stats().kill(static_cast<int>(time), true);
-            fx.player[from].dead = true;    // this was already read from the frame data but overwritten by the team change
-        }
-        #ifndef DEDICATED_SERVER_ONLY
-        if (from == me || to == me)
-            deadAfterHighlighted = true;
-        #endif
-    }
-
-    break; case data_spawn: {
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        fx.player[pid].stats().spawn(time);
-        if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
-            fx.player[pid].posUpdated = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
-        fx.player[pid].dead = false;
-    }
-
-    break; case data_team_movements_shots: {
-        const bool e = protocolExtensions >= 0;
-        for (int i = 0; i < 2; i++) {
-            fx.teams[i].set_movement(read.U32());
-            fx.teams[i].set_shots(read.U32dyn16orU16(e));
-            fx.teams[i].set_hits(read.U32dyn16orU16(e));
-            fx.teams[i].set_shots_taken(read.U32dyn16orU16(e));
-        }
-    }
-
-    break; case data_team_stats: {
-        const bool e = protocolExtensions >= 0;
-        for (int i = 0; i < 2; i++) {
-            fx.teams[i].set_kills(read.U32dyn8orU8(e));
-            fx.teams[i].set_deaths(read.U32dyn8orU8(e));
-            fx.teams[i].set_suicides(read.U32dyn8orU8(e));
-            fx.teams[i].set_flags_taken(read.U32dyn8orU8(e));
-            fx.teams[i].set_flags_dropped(read.U32dyn8orU8(e));
-            fx.teams[i].set_flags_returned(read.U32dyn8orU8(e));
-        }
-    }
-
-    break; case data_movements_shots: {
-        const bool e = protocolExtensions >= 0;
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        fx.player[pid].stats().set_movement(read.U32());
-        fx.player[pid].stats().save_speed(time);
-        fx.player[pid].stats().set_shots(read.U32dyn16orU16(e));
-        fx.player[pid].stats().set_hits(read.U32dyn16orU16(e));
-        fx.player[pid].stats().set_shots_taken(read.U32dyn16orU16(e));
-    }
-
-    break; case data_stats: {
-        uint8_t pid = read.U8();
-        const bool flag = (pid & 0x80);
-        const bool wild_flag = (pid & 0x40);
-        const bool dead = (pid & 0x20);
-        pid &= 0x1F;
-        if (pid >= maxplayers)
-            return false;
-        Statistics& stats = fx.player[pid].stats();
-        stats.set_flag(flag, wild_flag);
-        fx.player[pid].dead = dead;
-        stats.set_dead               (dead);
-        const bool e = protocolExtensions >= 0;
-        stats.set_kills              (read.U32dyn8orU8(e));
-        stats.set_deaths             (read.U32dyn8orU8(e));
-        stats.set_cons_kills         (read.U32dyn8orU8(e));
-        stats.set_current_cons_kills (read.U32dyn8orU8(e));
-        stats.set_cons_deaths        (read.U32dyn8orU8(e));
-        stats.set_current_cons_deaths(read.U32dyn8orU8(e));
-        stats.set_suicides           (read.U32dyn8orU8(e));
-        stats.set_captures           (read.U32dyn8orU8(e));
-        stats.set_flags_taken        (read.U32dyn8orU8(e));
-        stats.set_flags_dropped      (read.U32dyn8orU8(e));
-        stats.set_flags_returned     (read.U32dyn8orU8(e));
-        stats.set_carriers_killed    (read.U32dyn8orU8(e));
-        stats.set_start_time         (time - read.U32());
-        stats.set_lifetime           (read.U32());
-        stats.set_spawn_time         (time);
-        stats.set_flag_carrying_time (read.U32());
-        stats.set_flag_take_time     (time);
-    }
-
-    break; case data_name_authorization_request:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_NameAuthorizationRequest());
-        #endif
-
-    break; case data_server_settings: {
-        const uint8_t caplimit = read.U8(), timelimit = read.U8(), extratime = read.U8();
-        const uint16_t misc1 = read.U16(), pupMin = read.U16(), pupMax = read.U16(), pupAddTime = read.U16(), pupMaxTime = read.U16();
-        fx.physics.read(read);
-        if (read.hasMore())
-            flag_return_delay = read.U16();
-        else
-            flag_return_delay = -1;
-        uint8_t et_periods;
-        if (read.hasMore())
-            et_periods = read.U8();
-        else
-            et_periods = 1;
-        #ifndef DEDICATED_SERVER_ONLY
-        fd.physics = fx.physics;
-
-        log("Server friction/drag/acceleration %f/%f/%f",
-            fx.physics.fric, fx.physics.drag, fx.physics.accel);
-        log("Server brake/turn/run/turbo/flag-modifier %f/%f/%f/%f/%f",
-            fx.physics.brake_mul, fx.physics.turn_mul, fx.physics.run_mul, fx.physics.turbo_mul, fx.physics.flag_mul);
-        log("Server ff/dbff/rocketspeed %f/%f/%f",
-            fx.physics.friendly_fire, fx.physics.friendly_db, fx.physics.rocket_speed);
-
-        ofstream out((wheregamedir + "log" + directory_separator + "physics.log").c_str());
-        out << hostname << '\n';
-        out << "friction     " << fx.physics.fric << '\n';
-        out << "drag         " << fx.physics.drag << '\n';
-        out << "acceleration " << fx.physics.accel << '\n';
-        out << "brake_acceleration " << fx.physics.brake_mul << '\n';
-        out << "turn_acceleration  " << fx.physics.turn_mul << '\n';
-        out << "run_acceleration   " << fx.physics.run_mul << '\n';
-        out << "turbo_acceleration " << fx.physics.turbo_mul << '\n';
-        out << "flag_acceleration  " << fx.physics.flag_mul << '\n';
-        out << "rocket_speed " << fx.physics.rocket_speed << '\n';
-        out.close();
-
-        addThreadMessage(new TM_ServerSettings(caplimit, timelimit, extratime, et_periods, misc1, pupMin, pupMax, pupAddTime, pupMaxTime, flag_return_delay));
-        #else
-        (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime);
-        #endif
-    }
-
-    break; case data_5_min_left:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_info, _("*** Five minutes remaining")));
-        addThreadMessage(new TM_Sound(SAMPLE_5_MIN_LEFT));
-        #endif
-
-    break; case data_1_min_left:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_info, _("*** One minute remaining")));
-        addThreadMessage(new TM_Sound(SAMPLE_1_MIN_LEFT));
-        #endif
-
-    break; case data_30_s_left:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_info, _("*** 30 seconds remaining")));
-        #endif
-
-    break; case data_time_out:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_info, _("*** Time out - CTF game over")));
-        #endif
-
-    break; case data_extra_time_out:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_info, _("*** Extra-time out - CTF game over")));
-        #endif
-
-    break; case data_normal_time_out: {
-        #ifndef DEDICATED_SERVER_ONLY
-        extra_time_running = true;
-        string msg = _("*** Normal time out - extra-time started");
-        if (read.U8() & 0x01)
-            msg += " " + _("(sudden death)");
-        addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
-    }
-
-    break; case data_map_change_info: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t votes = read.U8(), needed = read.U8();
-        const uint16_t vote_block_time = read.U16();
-        string msg = _("*** $1/$2 votes for mapchange.", itoa(votes), itoa(needed));
-        if (vote_block_time > 0)
-            msg += ' ' + _("(All players needed for $1 more seconds.)", itoa(vote_block_time));
-        addThreadMessage(new TM_Text(msg_info, msg));
-        #endif
-    }
-
-    break; case data_too_much_talk:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("Too much talk. Chill...")));
-        #endif
-
-    break; case data_mute_notification:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("You are muted. You can't send messages.")));
-        #endif
-
-    break; case data_ranking_update_failed:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("Updating your ranking score failed!")));
-        #endif
-
-    break; case data_player_mute: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t pid = read.U8(0, maxplayers - 1), mode = read.U8();
-        string admin = read.str();
-        if (admin.empty())
-            admin = _("The admin");
-        if (pid == me) {
-            string msg;
-            if (mode == 0)
-                msg = _("You have been unmuted (you can send messages again).");
-            else if (mode == 1)
-                msg = _("You have been muted by $1 (you can't send messages).", admin);
-            else
-                nAssert(0);     // The silent mute should not be known by the muted player.
-            addThreadMessage(new TM_Text(msg_warning, msg));
-        }
-        else {
-            string msg;
-            if (mode == 0)
-                msg = _("$1 has unmuted $2.", admin, fx.player[pid].name);
-            else
-                msg = _("$1 has muted $2.", admin, fx.player[pid].name);
+    if (spree_started) {
+        if (attacker == me)
+            addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
+        msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+        if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif
     }
-
-    break; case data_player_kick: {
-        #ifndef DEDICATED_SERVER_ONLY
-        const uint8_t pid = read.U8(0, maxplayers - 1);
-        const uint32_t minutes = read.U32();
-        string admin = read.str();
-        if (admin.empty())
-            admin = _("The admin");
-        if (pid == me) {
-            string msg;
-            if (minutes == 0)
-                msg = _("You are being kicked from this server by $1!", admin);
-            else
-                msg = _("$1 has BANNED you from this server for $2!", admin, approxTime(minutes * 60));
-            addThreadMessage(new TM_Text(msg_warning, msg));
-        }
-        else {
-            string msg;
-            if (minutes == 0)
-                msg = _("$1 has kicked $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
-            else
-                msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
-            addThreadMessage(new TM_Text(msg_info, msg));
-        }
-        #endif
-    }
-
-    break; case data_disconnecting:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("Disconnecting in $1...", itoa(read.U8()))));
-        #endif
-
-    break; case data_idlekick_warning:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("*** Idle kick: move or be kicked in $1 seconds.", itoa(read.U8()))));
-        #endif
-
-    break; case data_broken_map:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("This map is broken. There is an instantly capturable flag. Avoid it.")));
-        #endif
-
-    break; case data_acceleration_modes: {
-        const uint32_t mask = read.U32();
-        for (int i = 0; i < maxplayers; ++i)
-            fx.player[i].accelerationMode = (mask & (1 << i)) ? AM_Gun : AM_World;
-    }
-
-    break; case data_flag_modes: {
-        const uint8_t mask = read.U8();
-        lock_team_flags_in_effect = mask & 8;
-        lock_wild_flags_in_effect = mask & 4;
-        capture_on_team_flags_in_effect = mask & 2;
-        capture_on_wild_flags_in_effect = mask & 1;
-    }
-
-    break; case data_waiting_time: {
-        const uint32_t waiting_time = read.U32dyn8();
-        if (waiting_time >= 10)
-            next_respawn_time = get_time() + waiting_time / 10.;
-    }
-
-    break; case data_extension_advantage:
-        #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_Text(msg_warning, _("Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.")));
-        #endif
-
-    break; default:
-        if (code < data_reserved_range_first || code > data_reserved_range_last) {
-            log("Unknown message code: %d, length %d", code, data.size());
-            return false;
-        }
-        // just ignore commands in reserved range: they're probably some extension we don't have to care about
-    }
-    return true;
 }
 
-void Client::process_incoming_data(ConstDataBlockRef data) throw () {
-    Lock ml(frameMutex);
+void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () {
+    if (pid == me)
+        deadAfterHighlighted = true;
 
-    if (!connected && !replaying) // means that the connection notification is still in the thread message queue
-        return;
-
-    lastpackettime = get_time();
-
-    if (replaying) {
-        #ifndef DEDICATED_SERVER_ONLY
-        if (replay_version >= 1) { // Version 0 has the needed physics data in every frame.
-            ClientPhysicsCallbacks cb(*this);
-            fx.applyPhysics(cb, PLAYER_RADIUS, 1.);
-        }
-        const int frameSize = process_replay_frame_data(data);
-        BinaryDataBlockReader read(data);
-        read.block(frameSize);
-        while (read.hasMore())
-            if (!process_message(read.block(read.U32()))) {
-                log.error(_("Format error in replay file."));
-                stop_replay();
-                return;
-            }
-        #endif
+    const int team = pid / TSIZE;
+    if (spree_ended && menu.options.game.showKillMessages())
+        addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
+    if (flag) {
+        string msg;
+        if (wild_flag)
+            msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
+        else if (1 - team == 0)
+            msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
+        else
+            msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
+        if (menu.options.game.showFlagMessages())
+            addThreadMessage(new TM_Text(msg_info, msg));
+        addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
     }
-    else {
-        if (!process_live_frame_data(data)) {
-            nAssert(!botmode);
-            addThreadMessage(new TM_DoDisconnect());
+    if (player_on_screen_exact(pid))
+        addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
+}
+
+void GuiClient::netFlagTake(int pid, bool wild_flag) throw () {
+    const int team = pid / TSIZE;
+    string msg;
+    if (wild_flag)
+        msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
+    else if (1 - team == 0)
+        msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+}
+
+void GuiClient::netFlagReturn(int pid) throw () {
+    string msg;
+    if (pid / TSIZE == 0)
+        msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
+}
+
+void GuiClient::netFlagDrop(int pid, bool wild_flag) throw () {
+    const int team = pid / TSIZE;
+    string msg;
+    if (wild_flag)
+        msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
+    else if (1 - team == 0)
+        msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
+    else
+        msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
+    if (menu.options.game.showFlagMessages())
+        addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
+}
+
+void GuiClient::netTeamChange(int pl1, int pl2) throw () {
+    if (pl1 == me || pl2 == me) {
+        want_change_teams = false;
+        deadAfterHighlighted = true;
+    }
+
+    string msg;
+    if (pl2 != -1)
+        msg = _("$1 and $2 swapped teams.", fx.player[pl1].name, fx.player[pl2].name);
+    else if (pl1 / TSIZE == 1)
+        msg = _("$1 moved to red team.", fx.player[pl1].name);
+    else
+        msg = _("$1 moved to blue team.", fx.player[pl1].name);
+    addThreadMessage(new TM_Text(msg_info, msg));
+    addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
+}
+
+void GuiClient::process_replay_packet(ConstDataBlockRef data) throw () {
+    const int frameSize = process_replay_frame_data(data);
+    BinaryDataBlockReader read(data);
+    read.block(frameSize);
+    while (read.hasMore())
+        if (!process_message(read.block(read.U32()))) {
+            log.error(_("Format error in replay file."));
+            stop_replay();
             return;
         }
-        for (;;) {
-            const ConstDataBlockRef message = client->receive_message();
-            if (!message.data())
-                break;
-            if (!process_message(message)) {
-                nAssert(!botmode);
-                log.error(_("Format error in data received from the server."));
-                addThreadMessage(new TM_DoDisconnect());
-                return;
-            }
-        }
-    }
 }
 
-#ifndef DEDICATED_SERVER_ONLY
 //send chat message
-void Client::send_chat(const string& text) throw () {
+void GuiClient::send_chat(const string& text) throw () {
     if (text.empty() || text == "." || isFlood(text))
         return;
     BinaryBuffer<256> msg;
@@ -3327,9 +1709,7 @@ void Client::send_chat(const string& text) throw () {
 }
 
 //print message to "console"
-void Client::print_message(Message_type type, const string& msg, int sender_team) throw () {
-    if (botmode)
-        return;
+void GuiClient::print_message(Message_type type, const string& msg, int sender_team) throw () {
     if (menu.options.game.messageLogging() != Menu_game::ML_none) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
@@ -3355,7 +1735,7 @@ void Client::print_message(Message_type type, const string& msg, int sender_team
     }
 }
 
-void Client::save_screenshot() throw () {
+void GuiClient::save_screenshot() throw () {
     string filename;
     for (int i = 0; i < 1000; i++) {
         // filename: screens/outgxxx.ext
@@ -3377,25 +1757,14 @@ void Client::save_screenshot() throw () {
 }
 
 //toggle help screen
-void Client::toggle_help() throw () {
+void GuiClient::toggle_help() throw () {
     if (openMenus.safeTop() == &menu.help.menu)
         openMenus.close();
     else
         showMenu(menu.help);
 }
-#endif
 
-void Client::handlePendingThreadMessages() throw () {    // should only be called by the main thread
-    while (!messageQueue.empty()) {
-        ThreadMessage* msg = messageQueue.front();
-        messageQueue.pop_front();
-        msg->execute(this);
-        delete msg;
-    }
-}
-
-#ifndef DEDICATED_SERVER_ONLY
-string Client::refreshStatusAsString() const throw () {
+string GuiClient::refreshStatusAsString() const throw () {
     switch (refreshStatus) {
     /*break;*/ case RS_none:       return _("Inactive");
         break; case RS_running:    return _("Running");
@@ -3408,7 +1777,7 @@ string Client::refreshStatusAsString() const throw () {
     nAssert(0); return 0;
 }
 
-void Client::getServerListThread() throw () {
+void GuiClient::getServerListThread() throw () {
     nAssert(refreshStatus == RS_running);
 
     // get server list and refresh
@@ -3422,12 +1791,12 @@ void Client::getServerListThread() throw () {
     refreshStatus = ok ? RS_none : RS_failed;
 }
 
-void Client::refreshThread() throw () {
+void GuiClient::refreshThread() throw () {
     nAssert(refreshStatus == RS_running);
     refreshStatus = refresh_all_servers() ? RS_none : RS_failed;
 }
 
-class TempPingData {    // internal to Client::refresh_all_servers
+class TempPingData {    // internal to GuiClient::refresh_all_servers
     double st[4];   // send time
     int rc;         // count of received packets
     double rt;      // sum of pings (for averaging)
@@ -3440,7 +1809,7 @@ public:
     int ping() const throw () { return static_cast<int>(1000 * rt / rc); }
 };
 
-bool Client::refresh_all_servers() throw () {
+bool GuiClient::refresh_all_servers() throw () {
     refreshStatus = RS_contacting;
 
     serverListMutex.lock();
@@ -3557,7 +1926,7 @@ bool Client::refresh_all_servers() throw () {
     return true;
 }
 
-bool Client::getServerList() throw () {
+bool GuiClient::getServerList() throw () {
     if (!g_masterSettings.address().valid())
         return false;
 
@@ -3596,7 +1965,7 @@ bool Client::getServerList() throw () {
     }
 }
 
-bool Client::get_local_servers() throw () {
+bool GuiClient::get_local_servers() throw () {
     refreshStatus = RS_connecting;
 
     try {
@@ -3636,7 +2005,7 @@ bool Client::get_local_servers() throw () {
     }
 }
 
-bool Client::parseServerList(istream& response) throw () {
+bool GuiClient::parseServerList(istream& response) throw () {
     static const istream::traits_type::int_type eof_ch = istream::traits_type::eof();
 
     string line, empty;
@@ -3716,7 +2085,7 @@ bool Client::parseServerList(istream& response) throw () {
     return true;
 }
 
-void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+void GuiClient::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     // handle global keys first
     bool handled = true;
     switch (sc) {   // if the key isn't handled, set handled = false
@@ -3819,7 +2188,7 @@ void Client::handleKeypress(int sc, int ch, bool withControl, bool alt_sequence)
     handleGameKeypress(sc, ch, withControl, alt_sequence);
 }
 
-bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+bool GuiClient::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     (void)(withControl & alt_sequence);
     if (menu.options.controls.arrowKeysInStats() != Menu_controls::AS_useMenu && (sc == KEY_UP || sc == KEY_DOWN || sc == KEY_LEFT || sc == KEY_RIGHT))
         return false;
@@ -3893,7 +2262,7 @@ bool Client::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool alt
     }
 }
 
-void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
+void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_sequence) throw () {  // sc = scancode, ch = character, as returned by readkey
     if (key[KEY_P] && !replaying)         // ping setting
         if (sc == KEY_PLUS_PAD) {
             print_message(msg_info, "Ping +" + itoa(iround(client->increasePacketDelay() * 1000)));
@@ -4031,7 +2400,7 @@ void Client::handleGameKeypress(int sc, int ch, bool withControl, bool alt_seque
     }
 }
 
-void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
+void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     nAssert(quitFlag);
     quitCommand = false;
 
@@ -4182,8 +2551,13 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
             if (!replay_paused)
                 replaySubFrame += (time - replayTime) * 10. * replay_rate;
             replayTime = time;
-            for (; replaySubFrame >= 1.; replaySubFrame -= 1.)
+            for (; replaySubFrame >= 1.; replaySubFrame -= 1.) {
+                if (replay_version >= 1) { // Version 0 has the needed physics data in every frame.
+                    ClientPhysicsCallbacks cb(*this);
+                    fx.applyPhysics(cb, PLAYER_RADIUS, 1.);
+                }
                 continue_replay();
+            }
         }
 
         // the rest is drawing
@@ -4342,7 +2716,7 @@ void Client::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
     //client exit cleanup: done at stop wich needs to be called after loop
 }
 
-void Client::start_replay(const std::string& filename) throw () {
+void GuiClient::start_replay(const std::string& filename) throw () {
     disconnect_command();
     stop_replay();
     openMenus.clear();
@@ -4354,7 +2728,7 @@ void Client::start_replay(const std::string& filename) throw () {
         replay.close();
 }
 
-bool Client::start_replay(istream& replay) throw () {
+bool GuiClient::start_replay(istream& replay) throw () {
     BinaryStreamReader read(replay);
 
     const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
@@ -4436,6 +2810,7 @@ bool Client::start_replay(istream& replay) throw () {
     map_time_limit = false;
     map_start_time = 0;
     map_end_time = 0;
+    extra_time_running = false;
 
     map_ready = false;
     clientReadiesWaiting = 0;
@@ -4448,14 +2823,14 @@ bool Client::start_replay(istream& replay) throw () {
     return true;
 }
 
-void Client::continue_replay() throw () {
+void GuiClient::continue_replay() throw () {
     if (spectating)
         continue_replay(spectate_buffer);
     else
         continue_replay(replay);
 }
 
-void Client::continue_replay(istream& in) throw () {
+void GuiClient::continue_replay(istream& in) throw () {
     const istream::pos_type pos = in.tellg();
     BinaryStreamReader read(in);
     try {
@@ -4470,7 +2845,7 @@ void Client::continue_replay(istream& in) throw () {
     }
 }
 
-void Client::stop_replay() throw () {
+void GuiClient::stop_replay() throw () {
     if (!replaying)
         return;
 
@@ -4489,7 +2864,7 @@ void Client::stop_replay() throw () {
     menusel = menu_none;
 }
 
-void Client::start_spectating(const string& host) throw () {
+void GuiClient::start_spectating(const string& host) throw () {
     Network::Address addr;
     Network::ResolveError err;
     if (!addr.tryResolve(host, &err))
@@ -4500,7 +2875,7 @@ void Client::start_spectating(const string& host) throw () {
         start_spectating(addr);
 }
 
-void Client::start_spectating(const Network::Address& address) throw () {
+void GuiClient::start_spectating(const Network::Address& address) throw () {
     disconnect_command();
     stop_replay();
 
@@ -4531,7 +2906,9 @@ void Client::start_spectating(const Network::Address& address) throw () {
 
     spectating = true;
     replaying = true;
+    replay_stopped = false;
     replay_rate = 1;
+    replay_length = 0;
     spectate_data_received = false;
 
     openMenus.clear();
@@ -4540,7 +2917,7 @@ void Client::start_spectating(const Network::Address& address) throw () {
     showMenu(m_connectProgress);
 }
 
-void Client::continue_spectating() throw () {
+void GuiClient::continue_spectating() throw () {
     if (!spectate_socket.isOpen()) {
         log.error(_("Connection to the server closed."));
         openMenus.close(&m_connectProgress.menu);
@@ -4578,52 +2955,11 @@ void Client::continue_spectating() throw () {
         spectate_buffer.write(buffer, result);
     }
 }
-#endif // !DEDICATED_SERVER_ONLY
 
-void Client::bot_loop() throw () {
-    Lock ml(frameMutex);
-
-    handlePendingThreadMessages();
-
-    if (!connected || fx.frame == botReactedFrame)
-        return;
-
-    botReactedFrame = fx.frame;
-
-    while (clientReadiesWaiting > 0) {
-        send_client_ready();
-        --clientReadiesWaiting;
-    }
-
-    if (mapChanged) {
-        mapChanged = false;
-        BuildMap();
-    }
-
-    fx.cleanOldDeathbringerExplosions();
-
-    ClientControls controls = Robot();
-    controls.clearModifiersIfIdle();
-    bot_send_frame(controls);
-}
-
-void Client::stop() throw () {
+void GuiClient::stop() throw () {
     log("Client exiting: stop() called");
-
-    abortThreads = true;
-
-    //at least disconnect
-    disconnect_command();
-    #ifndef DEDICATED_SERVER_ONLY
     stop_replay();
-    #endif
-
-    if (botmode) {
-        finished = true;
-        return;
-    }
-
-    #ifndef DEDICATED_SERVER_ONLY
+    ClientBase::stop();
     rankingPassword.stop();
 
     //save configuration file
@@ -4700,15 +3036,11 @@ void Client::stop() throw () {
         listenServer.stop();
 
     log("Client stop() completed");
-    #endif
 }
 
-void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
-    fx.rock[rid].owner = -1;   // erase from clientside simulation
-    #ifndef DEDICATED_SERVER_ONLY
-    fd.rock[rid].owner = -1;
-    if (botmode)
-        return;
+void GuiClient::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
+    ClientBase::rocketHitWallCallback(rid, power, x, y, roomx, roomy);
+
     const double time = fx.frame / 10;
     const bool sound = on_screen_exact(roomx, roomy, x, y);
     if (power) {
@@ -4721,33 +3053,18 @@ void Client::rocketHitWallCallback(int rid, bool power, double x, double y, int 
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }
-    #else
-    (void)power; (void)x; (void)y; (void)roomx; (void)roomy;
-    #endif
 }
 
-void Client::rocketOutOfBoundsCallback(int rid) throw () {
-    fx.rock[rid].owner = -1;   // erase from clientside simulation
-    #ifndef DEDICATED_SERVER_ONLY
-    fd.rock[rid].owner = -1;
-    #endif
-}
-
-void Client::playerHitWallCallback(int pid) throw () {
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::playerHitWallCallback(int pid) throw () {
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
     if (currTime > fx.player[pid].wall_sound_time && (!replaying || player_on_screen(pid))) {
         fx.player[pid].wall_sound_time = currTime + 0.2;
         play_sound(SAMPLE_WALLBOUNCE);
     }
-    #else
-    (void)pid;
-    #endif
 }
 
-void Client::playerHitPlayerCallback(int pid1, int pid2) throw () {
-    #ifndef DEDICATED_SERVER_ONLY
+void GuiClient::playerHitPlayerCallback(int pid1, int pid2) throw () {
     // play bounce sample if minimum time elapsed
     const double currTime = fx.frame / 10.;
     if ((currTime > fx.player[pid1].player_sound_time || currTime > fx.player[pid2].player_sound_time) &&
@@ -4755,27 +3072,9 @@ void Client::playerHitPlayerCallback(int pid1, int pid2) throw () {
         fx.player[pid1].player_sound_time = fx.player[pid2].player_sound_time = currTime + 0.2;
         play_sound(SAMPLE_PLAYERBOUNCE);
     }
-    #else
-    (void)pid1; (void)pid2;
-    #endif
 }
 
-bool Client::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
-    return (fx.player[pid].onscreen || replaying) && !fx.player[pid].dead;
-}
-
-void Client::remove_useless_flags() throw () {
-    for (int i = 0; i < 3; i++)
-        if (remove_flags & (0x01 << i)) {
-            fx.remove_team_flags(i);
-            #ifndef DEDICATED_SERVER_ONLY
-            fd.remove_team_flags(i);
-            #endif
-        }
-}
-
-#ifndef DEDICATED_SERVER_ONLY
-void Client::play_sound(int sample) throw () {
+void GuiClient::play_sound(int sample) throw () {
     int freq = 1000;
     if (replaying) {
         if (replay_rate > 10)
@@ -4785,7 +3084,7 @@ void Client::play_sound(int sample) throw () {
     client_sounds.play(sample, freq);
 }
 
-WorldCoords Client::playerPos(int pid) const throw () {
+WorldCoords GuiClient::playerPos(int pid) const throw () {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
     return WorldCoords(world.player[pid].roomx,
                        world.player[pid].roomy,
@@ -4817,7 +3116,7 @@ static pair<int, double> splitCompositeCoord(double comp, int roomSize, int mapS
     return pair<int, double>(positiveModulo(iround(comp - local), mapSize), local * roomSize); // iround because of inaccuracies; it should be very close to integral really
 }
 
-WorldCoords Client::viewTopLeft() const throw () {
+WorldCoords GuiClient::viewTopLeft() const throw () {
     if (!map_ready)
         return WorldCoords(0, 0, 0, 0);
     else if (me < 0)
@@ -4834,13 +3133,13 @@ WorldCoords Client::viewTopLeft() const throw () {
     }
 }
 
-pair<int, int> Client::topLeftRoom() const throw () {
+pair<int, int> GuiClient::topLeftRoom() const throw () {
     const WorldCoords c = viewTopLeft();
     return pair<int, int>(c.px, c.py);
 }
 
 //draw the whole game screen
-void Client::draw_game_frame() throw () {    // call with frameMutex locked
+void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0;
 
@@ -4968,13 +3267,13 @@ void Client::draw_game_frame() throw () {    // call with frameMutex locked
     }
 }
 
-bool Client::on_screen(int x, int y) const throw () {
+bool GuiClient::on_screen(int x, int y) const throw () {
     const WorldCoords topLeft = viewTopLeft();
     return positiveModulo(x - topLeft.px, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
            positiveModulo(y - topLeft.py, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
 }
 
-bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
+bool GuiClient::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
     const int mapw = fx.map.w * plw,
               maph = fx.map.h * plh;
     const double x = rx * plw + lx,
@@ -4987,20 +3286,20 @@ bool Client::on_screen(int rx, int ry, double lx, double ly, double fudge) const
     return relX < graphics.get_visible_rooms_x() * plw + 2 * fudge && relY < graphics.get_visible_rooms_y() * plh + 2 * fudge;
 }
 
-bool Client::on_screen_exact(int x, int y) const throw () {
+bool GuiClient::on_screen_exact(int x, int y) const throw () {
     if (replaying)
         return on_screen(x, y);
     else
         return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
 }
 
-bool Client::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
+bool GuiClient::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
     if (!on_screen(rx, ry, lx, ly, fudge))
         return false;
     return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
 }
 
-bool Client::player_on_screen(int pid) const throw () {
+bool GuiClient::player_on_screen(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (fx.player[pid].posUpdated >= fx.frame - 20 || fx.player[pid].dead && fx.player[pid].posUpdated >= 0)
@@ -5009,7 +3308,7 @@ bool Client::player_on_screen(int pid) const throw () {
         return false;
 }
 
-bool Client::player_on_screen_exact(int pid) const throw () {
+bool GuiClient::player_on_screen_exact(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (replaying)
@@ -5018,7 +3317,7 @@ bool Client::player_on_screen_exact(int pid) const throw () {
         return fx.player[pid].onscreen;
 }
 
-void Client::draw_map(const VisibilityMap& roomVis) throw () {
+void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
     const double time = fd.frame / 10;
 
     // paint fog of war in all invisible rooms
@@ -5065,7 +3364,7 @@ void Client::draw_map(const VisibilityMap& roomVis) throw () {
         }
 }
 
-void Client::draw_playfield() throw () {
+void GuiClient::draw_playfield() throw () {
     const double time = fd.frame / 10;
     const bool live = !replaying || !replay_paused && !replay_stopped;
 
@@ -5234,7 +3533,7 @@ void Client::draw_playfield() throw () {
     graphics.endPlayfieldDraw();
 }
 
-Client::VisibilityMap Client::calculateVisibilities() throw () {
+GuiClient::VisibilityMap GuiClient::calculateVisibilities() throw () {
     const double time = fd.frame / 10;
 
     VisibilityMap roomVis(fx.map.w);
@@ -5268,7 +3567,7 @@ Client::VisibilityMap Client::calculateVisibilities() throw () {
     return roomVis;
 }
 
-int Client::calculatePlayerAlpha(int pid) const throw () {
+int GuiClient::calculatePlayerAlpha(int pid) const throw () {
     static const int min_alpha_friends = 128;
     const int baseAlpha = fd.player[pid].visibility;
     if ((replaying || fx.player[pid].team() == fx.player[me].team()) && baseAlpha < min_alpha_friends)
@@ -5277,7 +3576,7 @@ int Client::calculatePlayerAlpha(int pid) const throw () {
         return baseAlpha;
 }
 
-void Client::draw_player(int pid, double time, bool live) throw () {
+void GuiClient::draw_player(int pid, double time, bool live) throw () {
     ClientPlayer& player = fx.player[pid];
     const bool fullyVisible = player_on_screen_exact(pid);
     const int alpha = fullyVisible ? calculatePlayerAlpha(pid) : fx.player[pid].alpha * 2 / 3;
@@ -5344,7 +3643,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
 }
 
 //draws the game menu
-void Client::draw_game_menu() throw () {
+void GuiClient::draw_game_menu() throw () {
     switch (menusel) {
     /*break;*/ case menu_maps: {
             Lock ml(mapInfoMutex);
@@ -5373,94 +3672,94 @@ void Client::draw_game_menu() throw () {
         openMenus.draw(graphics.drawbuffer(), graphics.colours());
 }
 
-void Client::initMenus() throw () {
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
-                          new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
+void GuiClient::initMenus() throw () {
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.connect.addHooks(new MCB::A<Textarea, &GuiClient::MCF_connect>(this),
+                          new MKC::A<Textarea, &GuiClient::MCF_addRemoveServer>(this));
 
-    menu.initialize(new MCB::A<Menu, &Client::MCF_menuOpener>(this), settings);
+    menu.initialize(new MCB::A<Menu, &GuiClient::MCF_menuOpener>(this), settings);
 
-    menu.menu                       .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareMainMenu        >(this));
+    menu.menu                       .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareMainMenu        >(this));
 
-    menu.disconnect                     .setHook(new MCB::N<Textarea,       &Client::MCF_disconnect             >(this));
-    menu.exitOutgun                     .setHook(new MCB::N<Textarea,       &Client::MCF_exitOutgun             >(this));
+    menu.disconnect                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_disconnect             >(this));
+    menu.exitOutgun                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_exitOutgun             >(this));
 
-    menu.connect.menu               .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareServerMenu      >(this));
-    menu.connect.menu               .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareServerMenu      >(this));   //#fix: inefficient!
-    menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &Client::MCF_prepareServerMenu      >(this));
-    menu.connect.update                 .setHook(new MCB::N<Textarea,       &Client::MCF_updateServers          >(this));
-    menu.connect.refresh                .setHook(new MCB::N<Textarea,       &Client::MCF_refreshServers         >(this));
-    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &Client::MCF_addressEntryKeyHandler >(this));
+    menu.connect.menu               .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareServerMenu      >(this));
+    menu.connect.menu               .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareServerMenu      >(this));   //#fix: inefficient!
+    menu.connect.favorites              .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_prepareServerMenu      >(this));
+    menu.connect.update                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_updateServers          >(this));
+    menu.connect.refresh                .setHook(new MCB::N<Textarea,       &GuiClient::MCF_refreshServers         >(this));
+    menu.connect.manualEntry         .setKeyHook(new MKC::N<IPfield,        &GuiClient::MCF_addressEntryKeyHandler >(this));
 
-    menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareAddServer       >(this));
-    menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &Client::MCF_addServer              >(this));
+    menu.connect.addServer.menu     .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareAddServer       >(this));
+    menu.connect.addServer.menu       .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_addServer              >(this));
 
-    menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &Client::MCF_spectateEntryKeyHandler>(this));
+    menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &GuiClient::MCF_spectateEntryKeyHandler>(this));
 
-    menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_preparePlayerMenu      >(this));
-    menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawPlayerMenu  >(this));
-    menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &Client::MCF_playerMenuClose        >(this));
-    menu.options.player.name            .setHook(new MCB::N<Textfield,      &Client::MCF_nameChange             >(this));
-    menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &Client::MCF_randomName             >(this));
-    menu.options.player.favoriteColors  .setHook(new MCB::N<Colorselect,    &Client::sendFavoriteColors         >(this));
-    menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &Client::MCF_removePasswords        >(this));
+    menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_preparePlayerMenu      >(this));
+    menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareDrawPlayerMenu  >(this));
+    menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_playerMenuClose        >(this));
+    menu.options.player.name            .setHook(new MCB::N<Textfield,      &GuiClient::MCF_nameChange             >(this));
+    menu.options.player.randomName      .setHook(new MCB::N<Textarea,       &GuiClient::MCF_randomName             >(this));
+    menu.options.player.favoriteColors  .setHook(new MCB::N<Colorselect,    &GuiClient::sendFavoriteColors         >(this));
+    menu.options.player.removePasswords .setHook(new MCB::N<Textarea,       &GuiClient::MCF_removePasswords        >(this));
 
-    menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGameMenu        >(this));
-    menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &Client::sendMinimapBandwidth       >(this));
+    menu.options.game.menu          .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareGameMenu        >(this));
+    menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &GuiClient::sendMinimapBandwidth       >(this));
     typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
-    menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &Client::MCF_messageLogging         >(this));
+    menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &GuiClient::MCF_messageLogging         >(this));
 
-    menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareControlsMenu    >(this));
-    menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &Client::MCF_keyboardLayout         >(this));
-    menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &Client::MCF_joystick               >(this));
+    menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareControlsMenu    >(this));
+    menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &GuiClient::MCF_keyboardLayout         >(this));
+    menu.options.controls.joystick      .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_joystick               >(this));
 
-    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareScrModeMenu     >(this));
-    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareDrawScrModeMenu >(this));
-    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_screenModeChange       >(this));
-    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &Client::MCF_screenDepthChange      >(this));
-    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &Client::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu    .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareScrModeMenu     >(this));
+    menu.options.screenMode.menu    .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareDrawScrModeMenu >(this));
+    menu.options.screenMode.menu   .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_screenModeChange       >(this));
+    menu.options.screenMode.menu      .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_screenModeChange       >(this));
+    menu.options.screenMode.colorDepth  .setHook(new MCB::N<Select<int>,    &GuiClient::MCF_screenDepthChange      >(this));
+    menu.options.screenMode.apply       .setHook(new MCB::N<Textarea,       &GuiClient::MCF_screenModeChange       >(this));
 
-    menu.options.theme.menu          .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareGfxThemeMenu     >(this));
-    menu.options.theme.theme             .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.background        .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &Client::MCF_gfxThemeChange          >(this));
-    menu.options.theme.font              .setHook(new MCB::N<Select<string>, &Client::MCF_fontChange              >(this));
+    menu.options.theme.menu          .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareGfxThemeMenu     >(this));
+    menu.options.theme.theme             .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeBackground.setHook(new MCB::N<Checkbox,       &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.background        .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.colours           .setHook(new MCB::N<Select<string>, &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.useThemeColours   .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_gfxThemeChange          >(this));
+    menu.options.theme.font              .setHook(new MCB::N<Select<string>, &GuiClient::MCF_fontChange              >(this));
 
-    menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsPlayChange  >(this));
-    menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &Client::MCF_visibleRoomsReplayChange>(this));
-    menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &Client::MCF_antialiasChange         >(this));
-    menu.options.graphics.minTransp         .setHook(new MCB::N<Checkbox,       &Client::MCF_transpChange            >(this));
-    menu.options.graphics.statsBgAlpha      .setHook(new MCB::N<Slider,         &Client::MCF_statsBgChange           >(this));
+    menu.options.graphics.visibleRoomsPlay  .setHook(new MCB::N<Slider,         &GuiClient::MCF_visibleRoomsPlayChange  >(this));
+    menu.options.graphics.visibleRoomsReplay.setHook(new MCB::N<Slider,         &GuiClient::MCF_visibleRoomsReplayChange>(this));
+    menu.options.graphics.antialiasing      .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_antialiasChange         >(this));
+    menu.options.graphics.minTransp         .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_transpChange            >(this));
+    menu.options.graphics.statsBgAlpha      .setHook(new MCB::N<Slider,         &GuiClient::MCF_statsBgChange           >(this));
 
-    menu.options.sounds.menu        .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareSndMenu         >(this));
-    menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &Client::MCF_sndEnableChange        >(this));
-    menu.options.sounds.volume          .setHook(new MCB::N<Slider,         &Client::MCF_sndVolumeChange        >(this));
-    menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &Client::MCF_sndThemeChange         >(this));
+    menu.options.sounds.menu        .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareSndMenu         >(this));
+    menu.options.sounds.enabled         .setHook(new MCB::N<Checkbox,       &GuiClient::MCF_sndEnableChange        >(this));
+    menu.options.sounds.volume          .setHook(new MCB::N<Slider,         &GuiClient::MCF_sndVolumeChange        >(this));
+    menu.options.sounds.theme           .setHook(new MCB::N<Select<string>, &GuiClient::MCF_sndThemeChange         >(this));
 
-    menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &Client::MCF_refreshLanguages       >(this));
+    menu.options.language.menu      .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_refreshLanguages       >(this));
 
-    menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &Client::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
-    menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &Client::MCF_menuCloser             >(this));
+    menu.options.bugReports.menu   .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_acceptBugReporting     >(this));   // save instantly because it has its own file
+    menu.options.bugReports.menu      .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_menuCloser             >(this));
 
-    menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &Client::MCF_prepareOwnServerMenu   >(this));
-    menu.ownServer.start                .setHook(new MCB::N<Textarea,       &Client::MCF_startServer            >(this));
-    menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &Client::MCF_playServer             >(this));
-    menu.ownServer.stop                 .setHook(new MCB::N<Textarea,       &Client::MCF_stopServer             >(this));
+    menu.ownServer.menu             .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareOwnServerMenu   >(this));
+    menu.ownServer.start                .setHook(new MCB::N<Textarea,       &GuiClient::MCF_startServer            >(this));
+    menu.ownServer.play                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_playServer             >(this));
+    menu.ownServer.stop                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_stopServer             >(this));
 
-    menu.replays.menu               .setOpenHook(new MCB::N<Menu,           &Client::MCF_prepareReplayMenu      >(this));
+    menu.replays.menu               .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_prepareReplayMenu      >(this));
 
-    m_playerPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_playerPasswordAccept   >(this));
-    m_serverPassword.menu             .setOkHook(new MCB::N<Menu,           &Client::MCF_serverPasswordAccept   >(this));
-    m_connectProgress.accept            .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));
-    m_connectProgress.cancel            .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));
-    m_connectProgress.menu         .setCloseHook(new MCB::N<Menu,           &Client::MCF_cancelConnect          >(this));
-    m_dialog.accept                     .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));   // cancel not used
-    m_errors.accept                     .setHook(new MCB::N<Textarea,       &Client::MCF_clearErrors            >(this));   // cancel not used
-    m_serverInfo.accept                 .setHook(new MCB::N<Textarea,       &Client::MCF_menuCloser             >(this));   // cancel not used
+    m_playerPassword.menu             .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_playerPasswordAccept   >(this));
+    m_serverPassword.menu             .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_serverPasswordAccept   >(this));
+    m_connectProgress.accept            .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));
+    m_connectProgress.cancel            .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));
+    m_connectProgress.menu         .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_cancelConnect          >(this));
+    m_dialog.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
+    m_errors.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_clearErrors            >(this));   // cancel not used
+    m_serverInfo.accept                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
 
     m_errors.menu.setCaption(_("Errors"));
 
@@ -5477,59 +3776,59 @@ void Client::initMenus() throw () {
     menu.ownServer.init(serverExtConfig.ipAddress);
 }
 
-void Client::MCF_menuOpener(Menu& menu) throw () {
+void GuiClient::MCF_menuOpener(Menu& menu) throw () {
     openMenus.open(&menu);
 }
 
-void Client::MCF_menuCloser() throw () {
+void GuiClient::MCF_menuCloser() throw () {
     openMenus.close();
 }
 
-void Client::MCF_prepareMainMenu() throw () {
+void GuiClient::MCF_prepareMainMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.disconnect.setEnable(connected || spectating);
 }
 
-void Client::MCF_disconnect() throw () {
+void GuiClient::MCF_disconnect() throw () {
     disconnect_command();
     stop_replay();
 }
 
-void Client::MCF_exitOutgun() throw () {
+void GuiClient::MCF_exitOutgun() throw () {
     quitCommand = true;
 }
 
-void Client::MCF_cancelConnect() throw () {
+void GuiClient::MCF_cancelConnect() throw () {
     if (!connected)
         disconnect_command();   // will cancel the (probably) ongoing connect attempt
 }
 
-void Client::MCF_preparePlayerMenu() throw () {
+void GuiClient::MCF_preparePlayerMenu() throw () {
     menu.options.player.name.set(playername);
     menu.options.player.favoriteColors.setGraphicsCallBack(graphics);
 }
 
-void Client::MCF_prepareDrawPlayerMenu() throw () {
+void GuiClient::MCF_prepareDrawPlayerMenu() throw () {
     menu.options.player.namestatus.set(rankingPassword.statusAsString());
 }
 
-void Client::MCF_playerMenuClose() throw () {
+void GuiClient::MCF_playerMenuClose() throw () {
     change_name_command();
     send_ranking_participation();
 }
 
-void Client::MCF_nameChange() throw () { // only function to clear the password
+void GuiClient::MCF_nameChange() throw () { // only function to clear the password
     menu.options.player.password.set("");
     rankingPassword.changeData(playername, "");
 }
 
-void Client::MCF_randomName() throw () {
+void GuiClient::MCF_randomName() throw () {
     const string name = language.code() == "fi" ? finnish_name(maxPlayerNameLength) : RandomName();
     menu.options.player.name.set(name);
     MCF_nameChange();
 }
 
-void Client::MCF_removePasswords() throw () {
+void GuiClient::MCF_removePasswords() throw () {
     const int removed = remove_player_passwords(menu.options.player.name());
     string dialog;
     if (removed == 1)
@@ -5543,10 +3842,10 @@ void Client::MCF_removePasswords() throw () {
     showMenu(m_dialog);
 }
 
-void Client::MCF_prepareGameMenu() throw () {
+void GuiClient::MCF_prepareGameMenu() throw () {
 }
 
-void Client::MCF_prepareControlsMenu() throw () {
+void GuiClient::MCF_prepareControlsMenu() throw () {
     ClientControls ctrl = readControls(true, true);
     string active;
     if (ctrl.isUp())
@@ -5578,60 +3877,60 @@ void Client::MCF_prepareControlsMenu() throw () {
     menu.options.controls.activeMouse.set(active);
 }
 
-void Client::MCF_keyboardLayout() throw () {
+void GuiClient::MCF_keyboardLayout() throw () {
     const string cfg = string("[system]\nkeyboard=") + menu.options.controls.keyboardLayout() + '\n';
     remove_keyboard();
     override_config_data(cfg.data(), cfg.length());
     install_keyboard();
 }
 
-void Client::MCF_joystick() throw () {
+void GuiClient::MCF_joystick() throw () {
     if (menu.options.controls.joystick())
         install_joystick(JOY_TYPE_AUTODETECT);
     else
         remove_joystick();
 }
 
-void Client::MCF_messageLogging() throw () {
+void GuiClient::MCF_messageLogging() throw () {
     if (menu.options.game.messageLogging() != Menu_game::ML_none)
         openMessageLog();
     else
         closeMessageLog();
 }
 
-void Client::MCF_prepareScrModeMenu() throw () {
+void GuiClient::MCF_prepareScrModeMenu() throw () {
     menu.options.screenMode.update(graphics);
 }
 
-void Client::MCF_prepareDrawScrModeMenu() throw () {
+void GuiClient::MCF_prepareDrawScrModeMenu() throw () {
     menu.options.screenMode.flipping.setEnable(!menu.options.screenMode.windowed());
     menu.options.screenMode.alternativeFlipping.setEnable(!menu.options.screenMode.windowed() && menu.options.screenMode.flipping());
 }
 
-void Client::MCF_prepareGfxThemeMenu() throw () {
+void GuiClient::MCF_prepareGfxThemeMenu() throw () {
     menu.options.theme.update(graphics);
 }
 
-void Client::MCF_gfxThemeChange() throw () {
+void GuiClient::MCF_gfxThemeChange() throw () {
     graphics.select_theme(menu.options.theme.theme(),
                           menu.options.theme.background(), menu.options.theme.useThemeBackground(),
                           menu.options.theme.colours(), menu.options.theme.useThemeColours());
 }
 
-void Client::MCF_fontChange() throw () {
+void GuiClient::MCF_fontChange() throw () {
     graphics.select_font(menu.options.theme.font());
 }
 
-void Client::MCF_screenDepthChange() throw () {
+void GuiClient::MCF_screenDepthChange() throw () {
     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
 }
 
-void Client::MCF_screenModeChange() throw () {   // used to lose the return value
+void GuiClient::MCF_screenModeChange() throw () {   // used to lose the return value
     const bool ret = screenModeChange();
     nAssert(ret); // it should return true unless it's out of memory, because this function is only used when there is a working mode to revert to
 }
 
-bool Client::screenModeChange() throw () {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
+bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphics is usable (even when reverted back to current (workingGfxMode) mode)
     if (!menu.options.screenMode.newMode())
         return true;
 
@@ -5645,7 +3944,7 @@ bool Client::screenModeChange() throw () {   // returns true whenever Graphics i
     for (int nTry = 0;; ++nTry) {
         if (graphics.init(res.width, res.height, depth, win(), flip())) {
             if (nTry != 0)
-                log.error(_("Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.",
+                log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in $4 mode; reverted to $5.",
                             itoa(res.width), itoa(res.height), itoa(depth),
                             owin  ? _("windowed") : (oflip  ? _("flipped fullscreen") : _("backbuffered fullscreen")),
                             win() ? _("windowed") : (flip() ? _("flipped fullscreen") : _("backbuffered fullscreen"))));
@@ -5667,7 +3966,7 @@ bool Client::screenModeChange() throw () {   // returns true whenever Graphics i
             }
             nTry = 3;   // no point in changing flipping when windowed, skip round
         /*no break*/ case 3:
-            log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
+            log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
             if (workingGfxMode.used()) {    // revert to working mode
                 const GFXMode& wm = workingGfxMode;
                 nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
@@ -5691,7 +3990,7 @@ bool Client::screenModeChange() throw () {   // returns true whenever Graphics i
     return true;
 }
 
-void Client::MCF_visibleRoomsPlayChange() throw () {
+void GuiClient::MCF_visibleRoomsPlayChange() throw () {
     if (!replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsPlay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5699,7 +3998,7 @@ void Client::MCF_visibleRoomsPlayChange() throw () {
     }
 }
 
-void Client::MCF_visibleRoomsReplayChange() throw () {
+void GuiClient::MCF_visibleRoomsReplayChange() throw () {
     if (replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsReplay();
         if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
@@ -5707,39 +4006,39 @@ void Client::MCF_visibleRoomsReplayChange() throw () {
     }
 }
 
-void Client::MCF_antialiasChange() throw () {
+void GuiClient::MCF_antialiasChange() throw () {
     graphics.set_antialiasing(menu.options.graphics.antialiasing());
 }
 
-void Client::MCF_transpChange() throw () {
+void GuiClient::MCF_transpChange() throw () {
     graphics.set_min_transp(menu.options.graphics.minTransp());
 }
 
-void Client::MCF_statsBgChange() throw () {
+void GuiClient::MCF_statsBgChange() throw () {
     graphics.set_stats_alpha(menu.options.graphics.statsBgAlpha());
 }
 
-void Client::MCF_prepareSndMenu() throw () {
+void GuiClient::MCF_prepareSndMenu() throw () {
     menu.options.sounds.update(client_sounds);
 }
 
-void Client::MCF_sndEnableChange() throw () {
+void GuiClient::MCF_sndEnableChange() throw () {
     client_sounds.setEnable(menu.options.sounds.enabled());
 }
 
-void Client::MCF_sndVolumeChange() throw () {
+void GuiClient::MCF_sndVolumeChange() throw () {
     client_sounds.setVolume(menu.options.sounds.volume());
     client_sounds.play(SAMPLE_POWER_FIRE, 1000);
 }
 
-void Client::MCF_sndThemeChange() throw () {
+void GuiClient::MCF_sndThemeChange() throw () {
     client_sounds.select_theme(menu.options.sounds.theme());
 }
 
-void Client::MCF_refreshLanguages() throw () {
+void GuiClient::MCF_refreshLanguages() throw () {
     const int menu_selection_index = refreshLanguages(menu.options.language);
-    typedef MenuCallback<Client> MCB;
-    menu.options.language.addHooks(new MCB::A<Textarea, &Client::MCF_acceptLanguage>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    menu.options.language.addHooks(new MCB::A<Textarea, &GuiClient::MCF_acceptLanguage>(this));
     menu.options.language.menu.setSelection(menu_selection_index);
 }
 
@@ -5749,7 +4048,7 @@ bool translationSort(const pair<string, string>& t1, const pair<string, string>&
     return platStricmp(t1.second.c_str(), t2.second.c_str()) < 0;
 }
 
-int Client::refreshLanguages(Menu_language& lang_menu) throw () {
+int GuiClient::refreshLanguages(Menu_language& lang_menu) throw () {
     lang_menu.reset();
 
     // search the languages directory for translations to add
@@ -5790,19 +4089,19 @@ int Client::refreshLanguages(Menu_language& lang_menu) throw () {
     return current_lang_index;
 }
 
-void Client::MCF_acceptLanguage(Textarea& target) throw () {
+void GuiClient::MCF_acceptLanguage(Textarea& target) throw () {
     const string lang_code = menu.options.language.getCode(target);
     MCF_menuCloser();
     acceptLanguage(lang_code, true);
 }
 
-void Client::MCF_acceptInitialLanguage(Textarea& target) throw () {
+void GuiClient::MCF_acceptInitialLanguage(Textarea& target) throw () {
     const string lang_code = m_initialLanguage.getCode(target);
     MCF_menuCloser();
     acceptLanguage(lang_code, false);
 }
 
-void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
+void GuiClient::acceptLanguage(const string& lang, bool restart_message) throw () {
     Language newLang;
     if (!newLang.load(lang, log))
         return; // load already logs an error message
@@ -5820,7 +4119,7 @@ void Client::acceptLanguage(const string& lang, bool restart_message) throw () {
         log.error(_("config/language.txt can't be written."));
 }
 
-void Client::MCF_acceptBugReporting() throw () {
+void GuiClient::MCF_acceptBugReporting() throw () {
     g_autoBugReporting = menu.options.bugReports.policy();
     const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
     ofstream os(main_cfg_file.c_str());
@@ -5837,7 +4136,7 @@ void Client::MCF_acceptBugReporting() throw () {
         log.error(_("Can't open $1 for writing.", main_cfg_file));
 }
 
-void Client::MCF_playerPasswordAccept() throw () {
+void GuiClient::MCF_playerPasswordAccept() throw () {
     if (m_playerPassword.password().empty()) // if no password is needed, we're never asked for one (even if we gave a wrong one)
         return;
     openMenus.close(&m_playerPassword.menu);
@@ -5849,18 +4148,18 @@ void Client::MCF_playerPasswordAccept() throw () {
         connect_command(false);
 }
 
-void Client::MCF_serverPasswordAccept() throw () {
+void GuiClient::MCF_serverPasswordAccept() throw () {
     openMenus.close(&m_serverPassword.menu);
     nAssert(!connected);
     connect_command(false);
 }
 
-void Client::MCF_clearErrors() throw () {
+void GuiClient::MCF_clearErrors() throw () {
     openMenus.close(&m_errors.menu);
     m_errors.clear();
 }
 
-void Client::MCF_prepareServerMenu() throw () {
+void GuiClient::MCF_prepareServerMenu() throw () {
     const int oldSel = menu.connect.menu.selection();
 
     menu.connect.reset();
@@ -5907,10 +4206,10 @@ void Client::MCF_prepareServerMenu() throw () {
             }
     serverListMutex.unlock();
 
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.connect.addHooks(new MCB::A<Textarea, &Client::MCF_connect>(this),
-                          new MKC::A<Textarea, &Client::MCF_addRemoveServer>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.connect.addHooks(new MCB::A<Textarea, &GuiClient::MCF_connect>(this),
+                          new MKC::A<Textarea, &GuiClient::MCF_addRemoveServer>(this));
     const bool refreshActive = (refreshStatus != RS_none && refreshStatus != RS_failed);
     menu.connect.update.setEnable(!menu.connect.favorites() && !refreshActive);
     menu.connect.refresh.setEnable(!refreshActive);
@@ -5919,12 +4218,12 @@ void Client::MCF_prepareServerMenu() throw () {
     menu.connect.menu.setSelection(oldSel);
 }
 
-void Client::MCF_prepareAddServer() throw () {
+void GuiClient::MCF_prepareAddServer() throw () {
     menu.connect.addServer.save.set(menu.connect.favorites());
     menu.connect.addServer.address.set("");
 }
 
-void Client::MCF_addServer() throw () {
+void GuiClient::MCF_addServer() throw () {
     if (!menu.connect.addServer.address().empty()) {
         ServerListEntry spy;
         if (!spy.setAddress(menu.connect.addServer.address())) {
@@ -5941,7 +4240,7 @@ void Client::MCF_addServer() throw () {
     MCF_menuCloser();
 }
 
-bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan != KEY_ENTER && scan != KEY_INSERT)
         return false;
@@ -5968,7 +4267,7 @@ bool Client::MCF_addressEntryKeyHandler(char scan, unsigned char chr) throw () {
     return true;
 }
 
-bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan == KEY_DEL) {
         vector<ServerListEntry>& servers = (menu.connect.favorites() ? gamespy : mgamespy);
@@ -5992,31 +4291,31 @@ bool Client::MCF_addRemoveServer(Textarea& target, char scan, unsigned char chr)
     return false;
 }
 
-void Client::MCF_connect(Textarea& target) throw () {
+void GuiClient::MCF_connect(Textarea& target) throw () {
     serverIP = menu.connect.getAddress(target);
     m_serverPassword.password.set("");
     connect_command(true);
 }
 
-void Client::MCF_updateServers() throw () {
+void GuiClient::MCF_updateServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert("Client::getServerListThread",
-                                           RedirectToMemFun0<Client, void>(this, &Client::getServerListThread),
+        Thread::startDetachedThread_assert("GuiClient::getServerListThread",
+                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::getServerListThread),
                                            extConfig.lowerPriority);
     }
 }
 
-void Client::MCF_refreshServers() throw () {
+void GuiClient::MCF_refreshServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
-        Thread::startDetachedThread_assert("Client::refreshThread",
-                                           RedirectToMemFun0<Client, void>(this, &Client::refreshThread),
+        Thread::startDetachedThread_assert("GuiClient::refreshThread",
+                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::refreshThread),
                                            extConfig.lowerPriority);
     }
 }
 
-bool Client::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () {
+bool GuiClient::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () {
     (void)chr;
     if (scan != KEY_ENTER)
         return false;
@@ -6025,12 +4324,12 @@ bool Client::MCF_spectateEntryKeyHandler(char scan, unsigned char chr) throw () 
     return true; // the key is considered handled even if it has no effect when the field is empty
 }
 
-void Client::MCF_prepareOwnServerMenu() throw () {
+void GuiClient::MCF_prepareOwnServerMenu() throw () {
     menu.ownServer.refreshCaption(listenServer.running());
     menu.ownServer.refreshEnables(listenServer.running(), connected);
 }
 
-void Client::MCF_startServer() throw () {
+void GuiClient::MCF_startServer() throw () {
     if (!listenServer.running()) {
         serverExtConfig.privateserver = menu.ownServer.pub() ? 0 : 1;
         serverExtConfig.port = menu.ownServer.port();
@@ -6041,7 +4340,7 @@ void Client::MCF_startServer() throw () {
     }
 }
 
-void Client::MCF_playServer() throw () {
+void GuiClient::MCF_playServer() throw () {
     if (listenServer.running()) {
         serverIP.fromValidIP("127.0.0.1");
         serverIP.setPort(listenServer.port());
@@ -6051,18 +4350,18 @@ void Client::MCF_playServer() throw () {
     }
 }
 
-void Client::MCF_stopServer() throw () {
+void GuiClient::MCF_stopServer() throw () {
     if (listenServer.running())
         listenServer.stop();
 }
 
-void Client::MCF_replay(Textarea& target) throw () {
+void GuiClient::MCF_replay(Textarea& target) throw () {
     const string& replay_name = menu.replays.getFile(target);
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
 
-void Client::MCF_prepareReplayMenu() throw () {
+void GuiClient::MCF_prepareReplayMenu() throw () {
     menu.replays.reset();
     vector<pair<string, string> > replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
@@ -6102,12 +4401,12 @@ void Client::MCF_prepareReplayMenu() throw () {
     for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second);
 
-    typedef MenuCallback<Client> MCB;
-    typedef MenuKeyCallback<Client> MKC;
-    menu.replays.addHooks(new MCB::A<Textarea, &Client::MCF_replay>(this));
+    typedef MenuCallback<GuiClient> MCB;
+    typedef MenuKeyCallback<GuiClient> MKC;
+    menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
 }
 
-void Client::load_highlight_texts() throw () {
+void GuiClient::load_highlight_texts() throw () {
     highlight_text.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "texts.txt";
     ifstream in(configFile.c_str());
@@ -6116,7 +4415,7 @@ void Client::load_highlight_texts() throw () {
         highlight_text.push_back(toupper(trim(line)));
 }
 
-void Client::load_fav_maps() throw () {
+void GuiClient::load_fav_maps() throw () {
     fav_maps.clear();
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
@@ -6125,13 +4424,13 @@ void Client::load_fav_maps() throw () {
         fav_maps.insert(toupper(trim(line)));
 }
 
-void Client::apply_fav_maps() throw () {
+void GuiClient::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
         mi->highlight = !!fav_maps.count(toupper(mi->title));
     mapListChangedAfterSort = true;
 }
 
-void Client::loadHelp() throw () {
+void GuiClient::loadHelp() throw () {
     menu.help.clear();
     const string configFile = wheregamedir + "languages" + directory_separator + "help." + language.code() + ".txt";
     ifstream in(configFile.c_str());
@@ -6144,13 +4443,13 @@ void Client::loadHelp() throw () {
         menu.help.addLine(line);
 }
 
-void Client::addSplashLine(string line) throw () { // internal to loadSplashScreen
+void GuiClient::addSplashLine(string line) throw () { // internal to loadSplashScreen
     replace_all_in_place(line, "@VERSION@", getVersionString());
     replace_all_in_place(line, "@YEAR@", GAME_COPYRIGHT_YEAR);
     menu.options.bugReports.addLine(line);
 }
 
-void Client::loadSplashScreen() throw () {
+void GuiClient::loadSplashScreen() throw () {
     menu.options.bugReports.clear();
     const string splashFile = wheregamedir + "languages" + directory_separator + "splash." + language.code() + ".txt";
     ifstream in(splashFile.c_str());
@@ -6161,7 +4460,7 @@ void Client::loadSplashScreen() throw () {
     }
     else {
         static const char* msg[] = {
-            "Outgun @VERSION@, copyright © 2002-@YEAR@ multiple authors.",
+            "Outgun @VERSION@, copyright ï¿½ 2002-@YEAR@ multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "
@@ -6186,7 +4485,7 @@ void Client::loadSplashScreen() throw () {
     }
 }
 
-void Client::openMessageLog() throw () {
+void GuiClient::openMessageLog() throw () {
     if (!messageLogOpen) {
         message_log.clear();    // necessary: http://gcc.gnu.org/onlinedocs/libstdc++/faq/index.html#4_4_iostreamclear
         message_log.open((wheregamedir + "log" + directory_separator + "message.log").c_str(), ios::app);
@@ -6194,14 +4493,14 @@ void Client::openMessageLog() throw () {
     }
 }
 
-void Client::closeMessageLog() throw () {
+void GuiClient::closeMessageLog() throw () {
     if (messageLogOpen) {
         message_log.close();
         messageLogOpen = false;
     }
 }
 
-void Client::CB_rankingToken(string token) throw () { // callback called by rankingPassword from another thread
+void GuiClient::CB_rankingToken(string token) throw () { // callback called by rankingPassword from another thread
     if (connected) {
         BinaryBuffer<256> msg;
         msg.U8(data_registration_token);
@@ -6210,22 +4509,7 @@ void Client::CB_rankingToken(string token) throw () { // callback called by rank
         rankingPassword.serverProcessingToken();
     }
 }
-#endif
-
-void Client::cfunc_connection_update(void* customp, int connect_result, ConstDataBlockRef data) throw () {
-    Client* cl = static_cast<Client*>(customp);
-    cl->connection_update(connect_result, data);
-}
-
-void Client::connection_update(int connect_result, ConstDataBlockRef data) throw () {
-    addThreadMessage(new TM_ConnectionUpdate(connect_result, data));
-}
-
-void Client::cfunc_server_data(void* customp, ConstDataBlockRef data) throw () {
-    Client* cl = static_cast<Client*>(customp);
-    cl->process_incoming_data(data);
-}
 
 ClientInterface* ClientInterface::newClient(const ClientExternalSettings& config, const ServerExternalSettings& serverConfig, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Client(config, serverConfig, clientLog, externalErrorLog_);
+    return new GuiClient(config, serverConfig, clientLog, externalErrorLog_);
 }

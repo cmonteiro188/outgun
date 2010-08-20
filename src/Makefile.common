@@ -1,6 +1,6 @@
 #  Makefile
 #
-#  Copyright (C) 2003-2008 - Niko Ritari
+#  Copyright (C) 2003-2010 - Niko Ritari
 #
 #  This file is part of Outgun.
 #
@@ -86,6 +86,7 @@ ifdef LINUX
  BUILDTOOL_LDFLAGS :=
  MON_LDFLAGS := -pthread
  RELAY_LDFLAGS := -pthread
+ WATCHSERVER_LDFLAGS :=
  TEST_LDFLAGS := -pthread
 
 else
@@ -109,6 +110,7 @@ else
  BUILDTOOL_LDFLAGS := -mconsole
  MON_LDFLAGS := -mconsole -mthreads
  RELAY_LDFLAGS := -mconsole -mthreads
+ WATCHSERVER_LDFLAGS := -mconsole
  TEST_LDFLAGS := -mconsole -mthreads
 
  $(OBJDIR)/gui/%.res: %.rc
@@ -134,6 +136,7 @@ endif
 BUILDTOOL_LIBS :=
 MON_LIBS := $(COMMON_LIBS)
 RELAY_LIBS := $(COMMON_LIBS)
+WATCHSERVER_LIBS := $(COMMON_LIBS)
 TEST_LIBS := $(COMMON_LIBS) $(ALLEG_LIBS)
 
 TEXT_CXXFLAGS := $(CXXFLAGS) -DDEDICATED_SERVER_ONLY
@@ -164,8 +167,14 @@ DEPENDENCY_FILES := $(patsubst %,$(DEPDIR)/%.d,$(SRC_FILES))
 
 # -- Object files: --
 
-OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o robot.o client.o timer.o language.o mapgen.o version.o mutex.o binaryaccess.o $(PLATFORM_OBJ_NAMES)
-OUTGUN_CLIENT_OBJ_NAMES := $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o sounds.o menu.o mappic.o
+ifdef BOT_COMPARISON
+ BOT_OBJ_NAMES := robot1.o robot2.o
+else
+ BOT_OBJ_NAMES := robot.o
+endif
+
+OUTGUN_COMMON_OBJ_NAMES += world.o servnet.o server.o server_settings.o commont.o main.o names.o auth.o nassert.o globals.o log.o utility.o network.o thread.o gamemod.o debug.o $(BOT_OBJ_NAMES) bot_support.o clientbase.o timer.o language.o mapgen.o version.o mutex.o binaryaccess.o $(PLATFORM_OBJ_NAMES)
+OUTGUN_CLIENT_OBJ_NAMES := $(OUTGUN_COMMON_OBJ_NAMES) antialias.o graphics.o colour.o client_menus.o guiclient.o sounds.o menu.o mappic.o
 ifdef WITH_PNG
  OUTGUN_CLIENT_OBJ_NAMES += loadpng/loadpng.o loadpng/savepng.o loadpng/regpng.o
 endif
@@ -175,6 +184,7 @@ RELAY_OBJ_NAMES := tools/relay.o binaryaccess.o commont.o debug.o globals.o lang
 MAKEDEP_OBJ_NAMES := tools/makedep.o
 WRITEIFDIFF_OBJ_NAMES := tools/writeifdifferent.o
 MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o version.o debug.o mutex.o binaryaccess.o $(PLATFORM_OBJ_NAMES)
+WATCHSERVER_OBJ_NAMES := tools/watchserver.o binaryaccess.o commont.o globals.o language.o log.o mutex.o nassert_simple.o network.o timer.o utility.o version.o $(PLATFORM_OBJ_NAMES)
 
 LEETNET_OBJS := $(patsubst %,$(OBJDIR)/leetnet/%,$(LEETNET_OBJ_NAMES))
 OUTGUN_CLIENT_OBJS := $(patsubst %,$(OBJDIR)/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
@@ -184,8 +194,9 @@ RELAY_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(RELAY_OBJ_NAMES))
 MAKEDEP_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(MAKEDEP_OBJ_NAMES))
 WRITEIFDIFF_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(WRITEIFDIFF_OBJ_NAMES))
 MON_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(MON_OBJ_NAMES))
+WATCHSERVER_OBJS := $(patsubst %,$(OBJDIR)/text/%,$(WATCHSERVER_OBJ_NAMES))
 
-OBJECTS := $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(WRITEIFDIFF_OBJS) $(MON_OBJS) $(RELAY_OBJS)
+OBJECTS := $(OUTGUN_CLIENT_OBJS) $(OUTGUN_DEDSERV_OBJS) $(MAKEDEP_OBJS) $(WRITEIFDIFF_OBJS) $(MON_OBJS) $(RELAY_OBJS) $(WATCHSERVER_OBJS)
 
 # -- Target files: --
 
@@ -193,6 +204,7 @@ OUTGUN_EXE := $(TARGETBINDIR)/outgun$(EXE_SUFFIX)
 OUTGUN_DED_EXE := $(TARGETBINDIR)/outgun-ded$(EXE_SUFFIX)
 SRVMONIT_EXE := $(TARGETBINDIR)/srvmonit$(EXE_SUFFIX)
 RELAY_EXE := $(TARGETBINDIR)/relay$(EXE_SUFFIX)
+WATCHSERVER_EXE := $(TARGETBINDIR)/watchserver$(EXE_SUFFIX)
 MAKEDEP_EXE := $(BINDIR)/makedep$(EXE_SUFFIX)
 WRITEIFDIFF_EXE := $(BINDIR)/writeifdifferent$(EXE_SUFFIX)
 
@@ -200,7 +212,7 @@ TEST_TARGETS := $(patsubst tests/%.cpp,$(BINDIR)/tests/%$(EXE_SUFFIX),$(filter-o
 TEST_EXEC_TARGETS = $(patsubst $(BINDIR)/tests/%$(EXE_SUFFIX),test_%,$(TEST_TARGETS))
 TEST_PASS_MARKERS := $(patsubst %,$(STATUSDIR)/%,$(TEST_EXEC_TARGETS))
 
-TARGETS := $(OUTGUN_EXE) $(OUTGUN_DED_EXE) $(SRVMONIT_EXE) $(RELAY_EXE) $(MAKEDEP_EXE) $(WRITEIFDIFF_EXE) $(TEST_TARGETS)
+TARGETS := $(OUTGUN_EXE) $(OUTGUN_DED_EXE) $(SRVMONIT_EXE) $(RELAY_EXE) $(WATCHSERVER_EXE) $(MAKEDEP_EXE) $(WRITEIFDIFF_EXE) $(TEST_TARGETS)
 
 ### Above: definitions. ### Below: actions. ###
 
@@ -271,11 +283,23 @@ $(OBJDIR)/gui/%.o: %.cpp | make-directories-dummy
 $(OBJDIR)/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
 
+$(OBJDIR)/gui/robot1.o: robot.cpp | make-directories-dummy
+	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -c -o $@ $<
+
+$(OBJDIR)/gui/robot2.o: robot2.cpp | make-directories-dummy
+	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -DALTERNATE_BOT -c -o $@ $<
+
 $(OBJDIR)/tests/%.o: tests/%.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -c -o $@ $<
 
 $(OBJDIR)/text/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
+
+$(OBJDIR)/text/robot1.o: robot.cpp | make-directories-dummy
+	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -c -o $@ $<
+
+$(OBJDIR)/text/robot2.o: robot2.cpp | make-directories-dummy
+	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -DALTERNATE_BOT -c -o $@ $<
 
 $(OBJDIR)/text/nassert_simple.o: $(OBJDIR)/text/nassert.o | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DDISABLE_ENHANCED_NASSERT -c -o $@ nassert.cpp
@@ -296,6 +320,9 @@ $(SRVMONIT_EXE): $(MON_OBJS)
 
 $(RELAY_EXE): $(RELAY_OBJS)
 	$(CXX) $(RELAY_LDFLAGS) -o $@ $(RELAY_OBJS) $(RELAY_LIBS)
+
+$(WATCHSERVER_EXE): $(WATCHSERVER_OBJS)
+	$(CXX) $(WATCHSERVER_LDFLAGS) -o $@ $(WATCHSERVER_OBJS) $(WATCHSERVER_LIBS)
 
 # -- Helper binaries: --
 
@@ -324,7 +351,7 @@ $(TEST_PASS_MARKERS) : $(STATUSDIR)/test_% : $(BINDIR)/tests/%$(EXE_SUFFIX)
 
 default: outgun tools
 
-tools: srvmonit relay
+tools: srvmonit relay watchserver
 all: outgun outgun-ded tools makedep writeifdiff testsuite
 ALL: all TAGS run_tests
 
@@ -332,6 +359,7 @@ outgun:      $(OUTGUN_EXE)
 outgun-ded:  $(OUTGUN_DED_EXE)
 srvmonit:    $(SRVMONIT_EXE)
 relay:       $(RELAY_EXE)
+watchserver: $(WATCHSERVER_EXE)
 makedep:     $(MAKEDEP_EXE)
 writeifdiff: $(WRITEIFDIFF_EXE)
 
@@ -349,4 +377,4 @@ ifdef LINUX
 	etags $^
 endif
 
-.PHONY: default tools all ALL outgun outgun-ded srvmonit relay makedep writeifdiff testsuite run_tests $(TEST_EXEC_TARGETS) cleanobjs clean
+.PHONY: default tools all ALL outgun outgun-ded srvmonit relay watchserver makedep writeifdiff testsuite run_tests $(TEST_EXEC_TARGETS) cleanobjs clean
