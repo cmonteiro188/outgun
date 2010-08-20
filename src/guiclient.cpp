@@ -1426,7 +1426,7 @@ void GuiClient::netStatsReady() throw () {
         }
         stats_autoshowing = true;
     }
-    if (menu.options.game.saveStats() && players_sb.size() > 1)
+    if (players_sb.size() > 1 && (menu.options.game.saveStats() && !replaying || menu.options.game.saveReplayStats() && replaying))
         fx.save_stats("client_stats", fx.map.title, gameSettings);
 }
 

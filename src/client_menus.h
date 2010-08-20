@@ -100,6 +100,7 @@ enum ClientCfgSetting {
     CCS_OldFlagPositions,
     CCS_Colours,
     CCS_UseThemeColours,
+    CCS_SaveReplayStats,
     CCS_EndOfCommands
 };
 
@@ -199,6 +200,7 @@ public:
     Checkbox    showFlagMessages;
     Checkbox    showKillMessages;
     Checkbox    saveStats;
+    Checkbox    saveReplayStats;
     Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
     Checkbox    stayDead;
