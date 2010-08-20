@@ -1110,8 +1110,10 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     }
 
     break; case data_players_present: {       // this is only sent immediately after connecting to the server
+        #ifndef DEDICATED_SERVER_ONLY
         if (replaying && replay_version >= 1) // Reset players and update scoreboard when parsing replay frame data.
             return false;                     // This message should be only in a replay of version 0.
+        #endif
         const uint32_t pp = read.U32();
         for (int i = 0; i < maxplayers; ++i) {
             if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
@@ -1128,10 +1130,12 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_new_player: {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         nAssert(!fx.player[pid].used || replaying);
+        #ifndef DEDICATED_SERVER_ONLY
         if (replaying && replay_version >= 1) { // Reset players when parsing replay frame data.
             fx.player[pid].name = "";           // Clear to show the join message.
             break;
         }
+        #endif
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
         fx.player[pid].stats().set_start_time(time);
         #ifndef DEDICATED_SERVER_ONLY
