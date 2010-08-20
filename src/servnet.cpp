@@ -473,7 +473,7 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
     BinaryBuffer<64> msg;
     msg.U8(data_capture);
     msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
-    if (player.protocolExtensionsLevel >= 0 && assistant_pid != -1)
+    if (assistant_pid != -1)
         msg.S8(assistant_pid);
     broadcast_message(msg);
     record_message(msg);
