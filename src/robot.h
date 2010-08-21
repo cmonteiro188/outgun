@@ -33,7 +33,7 @@
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : private ClientBase, public BotInterface {
-    enum Routing {
+    enum RouteTargetType {
         Route_None,
         Route_Flag,
         Route_Base,
@@ -51,7 +51,7 @@ class Robot : private ClientBase, public BotInterface {
     AreaMap areaMap;
     typedef AreaMap::Area Area;
 
-    Routing     routing[Table_Max];
+    RouteTargetType routeTargetType[Table_Max];
     const Area* routeTarget[Table_Max];
     const Area* routeTableCenter[Table_Max];
     bool        botPrevFire;
@@ -116,15 +116,15 @@ class Robot : private ClientBase, public BotInterface {
     ClientControls FreeWalk(double mex, double mey) const throw ();
     ClientControls Route(double mex, double mey, RouteTable num) const throw (); // follow route
 
-    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table (labeled) from single points
-    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
+    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table from single points
+    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table from multiple points
     int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
     bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
 
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-    void TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
+    void TargetNearestBase(int& m_distance, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team, RouteTable num) throw ();
+    void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state, RouteTable num) throw ();
     int TargetFog(RouteTable num) throw ();
 
     int TargetRoute(int efb, int efd, int efc,
