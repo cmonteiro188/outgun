@@ -2489,6 +2489,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
         deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
 
     player[pid].record_position = true;
+
     return player[pid].dead;
 }
 
@@ -2618,6 +2619,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     }
 
     player[pid1].record_position = player[pid2].record_position = true;
+
     return PhysicsCallbacksBase::PlayerHitResult(pl1.dead, pl2.dead, toss_a ? 2. : 1., toss_b ? 2. : 1.);
 }
 

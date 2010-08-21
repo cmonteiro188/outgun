@@ -1616,6 +1616,7 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (pl.item_power) byte |= (1 << 5);
             const bool preciseGundir = world.physics.allowFreeTurning;
             if (preciseGundir) byte |= (1 << 6);
+
             const bool record_position = pl.record_position || world.frame % 100 == 0;
             if (record_position) byte |= (1 << 7);
             recordFrame.U8(byte);

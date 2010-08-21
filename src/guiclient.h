@@ -445,12 +445,19 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     void start_replay(const std::string& filename) throw ();
     bool start_replay(std::istream& in) throw ();
-    void continue_replay() throw ();
-    void continue_replay(std::istream& in) throw ();
+    void continue_replay(bool controls = false) throw ();
+    void continue_replay(std::istream& in, bool controls = false) throw ();
+    void process_replay_controls() throw ();
     void stop_replay() throw ();
     void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
+
+    void read_replay_controls(ConstDataBlockRef data) throw ();
+    static void read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw ();
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw ();
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw ();
+    void skip_replay_player_position(BinaryDataBlockReader& read) throw ();
 
     void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
 
