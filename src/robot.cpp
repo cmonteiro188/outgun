@@ -817,6 +817,8 @@ ClientControls Robot::Escape(double mex, double mey) const throw () {
     // looking for friends
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         const TeamCounts tc = Teams(ni->area, false);
+        if (explosionInRoom(ni->area->roomx, ni->area->roomy))
+            continue;
         if (tc.friends + 1 > tc.enemies && tc.friends > 0)
             return MoveToDoor(mex, mey, *ni);
     }
