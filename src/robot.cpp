@@ -375,10 +375,6 @@ double Robot::GetHitTime(double mex, double mey, const GunDirection& dir, int iT
     const double hitTime = sqrt((sqr(parx) + sqr(pary)) / ts2); // |par| / |ts|, combined under one square root op
     const double perpDist = sqrt(sqr(perpx) + sqr(perpy));
 
-    const double rx = mex + hitTime * rsx, ry = mey + hitTime * rsy;
-    const double ex = ttx + hitTime * target.sx, ey = tty + hitTime * target.sy;
-    nAssert(fabs(sqrt(sqr(rx - ex) + sqr(ry - ey)) - perpDist < 1.));
-
     return perpDist < 3 * PLAYER_RADIUS ? hitTime : 1e100;
 }
 
