@@ -111,6 +111,7 @@ class Robot : private ClientBase, public BotInterface {
 
     ClientControls Aim(double mex, double mey, int i) const throw ();
     ClientControls EscapeRocket(double mex, double mey, int mrock) const throw ();
+    ClientControls EscapeExplosion(double mex, double mey) const throw ();
     ClientControls GetFlag(double mex, double mey) const throw ();
     ClientControls FollowFlag(double mex, double mey) const throw ();
     ClientControls GetPowerup(double mex, double mey, bool onImportantMission) const throw ();

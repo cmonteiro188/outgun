@@ -519,6 +519,29 @@ ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const thro
     return ctrl;
 }
 
+ClientControls Robot::EscapeExplosion(double mex, double mey) const throw () {
+    const DeathbringerExplosion* const dbe = explosionInRoom(fx.player[me].roomx, fx.player[me].roomy);
+    if (!dbe)
+        return ClientControls();
+
+    const Area::Neighbor* bestRoom = 0;
+    double shortestDistance = 1e99; // always excape to the nearest room regardless of the explosion location (if that's a bad direction, we probably couldn't escape in any)
+    const Area* const a = myArea();
+    for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
+        if (explosionInRoom(ni->area->roomx, ni->area->roomy))
+            continue;
+        const double dist = distanceFromDoor(ni->direction, mex, mey);
+        if (dist < shortestDistance) {
+            bestRoom = &*ni;
+            shortestDistance = dist;
+        }
+    }
+    if (bestRoom)
+        return MoveToDoor(mex, mey, *bestRoom);
+    else
+        return ClientControls();
+}
+
 ClientControls Robot::Aim(double mex, double mey, int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
@@ -1491,15 +1514,22 @@ ClientControls Robot::getRobotControls() throw () {
         }
     }
 
-    {
-        const ClientControls ctrl = GetFlag(mex, mey);
-        if (!ctrl.idle()) { // if any
-            #ifdef DEBUGSTRATEGY
-            fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-            fprintf(stderr, "Targetting flag.\n");
-            #endif
-            return ctrl;
-        }
+    ClientControls ctrl = EscapeExplosion(mex, mey);
+    if (!ctrl.idle()) {
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Escaping explosion.\n");
+        #endif
+        return ctrl;
+    }
+
+    ctrl = GetFlag(mex, mey);
+    if (!ctrl.idle()) { // if any
+        #ifdef DEBUGSTRATEGY
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Targetting flag.\n");
+        #endif
+        return ctrl;
     }
 
     RouteLogic(Table_Main);
@@ -1525,7 +1555,7 @@ ClientControls Robot::getRobotControls() throw () {
     }
 
     // ok, free tour ;)
-    ClientControls ctrl = GetPowerup(mex, mey, importantMission);
+    ctrl = GetPowerup(mex, mey, importantMission);
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
