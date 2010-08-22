@@ -100,6 +100,15 @@ double Robot::distanceFromDoor(Area::Neighbor::Direction dir, double lx, double 
     }
 }
 
+bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double mex, double mey) const throw () {
+    const DeathbringerExplosion* const dbe = explosionInRoom(neighbor.area->roomx, neighbor.area->roomy);
+    if (!dbe)
+        return false;
+    // see when we can be there at the earliest, don't worry if the explosion has expired then
+    const double minMoveTime = distanceFromDoor(neighbor.direction, mex, mey) / fx.physics.max_run_speed; // ignores that we're faster with turbo
+    return !dbe->expired(fx.frame + averageLag + minMoveTime);
+}
+
 bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw () {
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
     const double dist = sqrt(sqr(dx) + sqr(dy));
@@ -817,10 +826,12 @@ ClientControls Robot::Escape(double mex, double mey) const throw () {
     // looking for friends
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         const TeamCounts tc = Teams(ni->area, false);
-        if (explosionInRoom(ni->area->roomx, ni->area->roomy))
-            continue;
-        if (tc.friends + 1 > tc.enemies && tc.friends > 0)
-            return MoveToDoor(mex, mey, *ni);
+        if (tc.friends + 1 > tc.enemies && tc.friends > 0) {
+            if (dangerousExplosionInNeighbor(*ni, mex, mey))
+                return ClientControls(); // don't check other neighbors, because this is the one we'll tend to go to when the explosion is over (soon)
+            else
+                return MoveToDoor(mex, mey, *ni);
+        }
     }
     return ClientControls();
 }
@@ -965,20 +976,13 @@ ClientControls Robot::Route(double melx, double mely, RouteTable num) const thro
                 if (tc.enemies > tc.friends + 1)
                     continue;
             }
-            const DeathbringerExplosion* const dbe = explosionInRoom(na->roomx, na->roomy);
-            if (dbe) {
-                // see when we can be there at the earliest, don't worry if the explosion has expired then
-                const double minMoveTime = distanceFromDoor(ni->direction, melx, mely) / fx.physics.max_run_speed; // ignores that we're faster with turbo
-                if (!dbe->expired(fx.frame + averageLag + minMoveTime))
-                    continue;
-            }
             target = &*ni;
             break;
         }
     }
 
-    if (!target)
-        return ClientControls(); // no need to go
+    if (!target || dangerousExplosionInNeighbor(*target, melx, mely))
+        return ClientControls(); // no need to go (we'll go when it's safe)
 
     return MoveToDoor(melx, mely, *target);
 }

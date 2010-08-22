@@ -78,7 +78,8 @@ class Robot : private ClientBase, public BotInterface {
     const Area* myArea() const throw () { return area(fx.player[me]); }
 
     const DeathbringerExplosion* explosionInRoom(int roomx, int roomy) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
-    double distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw ();
+    double      distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw ();
+    bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double mex, double mey) const throw ();
 
     bool        IsDefender() throw (); // am i defender? (role)
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
