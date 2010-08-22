@@ -90,6 +90,19 @@ const DeathbringerExplosion* Robot::explosionInRoom(int roomx, int roomy) const 
     return 0;
 }
 
+bool Robot::imminentExplosionHere() const throw () {
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || !pl.onscreen || pl.dead)
+            continue;
+        if (pl.team() == fx.player[me].team() && !fx.physics.friendly_db)
+            continue;
+        if (pl.item_deathbringer && pl.under_deathbringer_effect(get_time()))
+            return true;
+    }
+    return false;
+}
+
 double Robot::distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw () {
     switch (dir) {
     /*break;*/ case Area::Neighbor::Up:    return ly;
@@ -529,8 +542,7 @@ ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const thro
 }
 
 ClientControls Robot::EscapeExplosion(double mex, double mey) const throw () {
-    const DeathbringerExplosion* const dbe = explosionInRoom(fx.player[me].roomx, fx.player[me].roomy);
-    if (!dbe)
+    if (!explosionInRoom(fx.player[me].roomx, fx.player[me].roomy) && !imminentExplosionHere())
         return ClientControls();
 
     const Area::Neighbor* bestRoom = 0;
