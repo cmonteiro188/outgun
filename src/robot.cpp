@@ -65,6 +65,7 @@ BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& cl
 
 #endif
 
+using std::list;
 using std::make_pair;
 using std::max;
 using std::min;
@@ -79,6 +80,25 @@ const int FADEOUT = 50;
 
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
+
+const DeathbringerExplosion* Robot::explosionInRoom(int roomx, int roomy) const throw () {
+    for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
+        const WorldCoords& pos = dbi->position();
+        if (pos.px == roomx && pos.py == roomy && (dbi->team() != fx.player[me].team() || fx.physics.friendly_db))
+            return &*dbi;
+    }
+    return 0;
+}
+
+double Robot::distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw () {
+    switch (dir) {
+    /*break;*/ case Area::Neighbor::Up:    return ly;
+        break; case Area::Neighbor::Down:  return S_H - ly;
+        break; case Area::Neighbor::Left:  return lx;
+        break; case Area::Neighbor::Right: return S_W - lx;
+        break; default: nAssert(0); return 0;
+    }
+}
 
 bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw () {
     const Room& room = fx.map.room[fx.player[me].roomx][fx.player[me].roomy];
@@ -913,10 +933,18 @@ ClientControls Robot::Route(double melx, double mely, RouteTable num) const thro
 
     const Area::Neighbor* target = 0;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
-        if (ni->area->onRoute[num] && ni->area->distance[num] == here->distance[num] + 1) {
+        const Area* const na = ni->area;
+        if (na->onRoute[num] && na->distance[num] == here->distance[num] + 1) {
             if (HaveFlag(me)) {
-                const TeamCounts tc = Teams(ni->area, false);
+                const TeamCounts tc = Teams(na, false);
                 if (tc.enemies > tc.friends + 1)
+                    continue;
+            }
+            const DeathbringerExplosion* const dbe = explosionInRoom(na->roomx, na->roomy);
+            if (dbe) {
+                // see when we can be there at the earliest, don't worry if the explosion has expired then
+                const double minMoveTime = distanceFromDoor(ni->direction, melx, mely) / fx.physics.max_run_speed; // ignores that we're faster with turbo
+                if (!dbe->expired(fx.frame + averageLag + minMoveTime))
                     continue;
             }
             target = &*ni;
