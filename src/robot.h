@@ -33,12 +33,12 @@
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : public ClientBase, public BotInterface {
-    enum RouteTargetType {
-        Route_None,
-        Route_Flag,
-        Route_Base,
-        Route_Team,
-        Route_Fog
+    enum DestinationType {
+        Dest_None,
+        Dest_Flag,
+        Dest_Base,
+        Dest_Team,
+        Dest_Fog
     };
 
     BotSharedDataHandle sharedDataHandle;
@@ -56,7 +56,7 @@ class Robot : public ClientBase, public BotInterface {
     };
 
     DistanceTableDescriptor distanceTable[Table_Max];
-    RouteTargetType destinationType;
+    DestinationType destinationType;
     const Area*     destination;
     mutable const Area::Neighbor* immediateDestination; // one of the neighboring rooms
 
@@ -126,23 +126,23 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape(double mex, double mey) const throw ();
     ClientControls FreeWalk(double mex, double mey) const throw ();
-    ClientControls Route(double mex, double mey) const throw (); // follow route
+    ClientControls MoveToDestination(double mex, double mey) const throw ();
 
     void BuildDistanceTable(Area* startPoint, DistanceTableId num) throw (); // build distance table from single point
     void BuildDistanceTable(const std::vector<Area*>& startPoints, DistanceTableId num) throw (); // build distance table from multiple points
     void setDestination(Area* target) throw ();
-    void RouteLogic() throw ();
+    void ChooseDestination() throw ();
 
     void TargetNearestBase(int& m_distance, Area*& nearestArea, int team) throw ();
     void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team) throw ();
     void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state) throw ();
     void TargetFog() throw ();
 
-    void TargetRoute(int efb, int efd, int efc,
-                     int mfb, int mfd, int mfc,
-                     int wfb, int wfd, int wfce, int wfcf,
-                     int en,  int fr,
-                     int eb,  int fb, int wb) throw ();
+    void TargetNearest(int efb, int efd, int efc,
+                       int mfb, int mfd, int mfc,
+                       int wfb, int wfd, int wfce, int wfcf,
+                       int en,  int fr,
+                       int eb,  int fb, int wb) throw ();
 
     ClientControls getRobotControls() throw ();
 

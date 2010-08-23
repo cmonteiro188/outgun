@@ -894,7 +894,7 @@ void Robot::BuildMap() throw () {
     for (int i = 0; i < Table_Max; i++)
         distanceTable[i].center = 0;
 
-    destinationType = Route_None;
+    destinationType = Dest_None;
     destination = 0;
 }
 
@@ -942,8 +942,8 @@ void Robot::setDestination(Area* const target) throw () {
     BuildDistanceTable(target, Table_Destination);
 }
 
-ClientControls Robot::Route(double melx, double mely) const throw () {
-    if (destinationType == Route_None)
+ClientControls Robot::MoveToDestination(double melx, double mely) const throw () {
+    if (destinationType == Dest_None)
         return ClientControls();
 
     const Area* const here = myArea();
@@ -1084,9 +1084,9 @@ bool Robot::IsDefender() throw () {
     return false;
 }
 
-void Robot::RouteLogic() throw () { // NEED rewrite
+void Robot::ChooseDestination() throw () { // NEED rewrite
     const int flag = HaveFlag(me);
-    destinationType = Route_None;
+    destinationType = Dest_None;
 
     if (!flag) {
         const bool at_bases = IsFlagsAtBases(fx.player[me].team()); // are own flags safe?
@@ -1099,32 +1099,32 @@ void Robot::RouteLogic() throw () { // NEED rewrite
         bool mfb = sef && IsDefender(); // try to defend own flags at bases? (!sef means the enemy won't try our flags either, so nothing to defend)
 
         if (at_bases && !efc && !wfc && !mfb) { // all flags are safe and nothing to support
-            TargetRoute(sef, sef,   0,
-                          0,   0,   0,
-                        swf, swf,   0,   0,
-                          0,   0,
-                          0,   0,   0);
-            if (destinationType == Route_None) { // we are in control of all flags -> always defend
+            TargetNearest(sef, sef,   0,
+                            0,   0,   0,
+                          swf, swf,   0,   0,
+                            0,   0,
+                            0,   0,   0);
+            if (destinationType == Dest_None) { // we are in control of all flags -> always defend
                 efc = wfc = 1;
                 mfb = sef; // still no point in defending the base if the flag can't be taken - resources better spent defending carriers
             }
         }
-        if (destinationType == Route_None) {
-            TargetRoute(sef, sef, efc,
-                        mfb,   1,   1,
-                        swf, swf,   1, wfc,
-                          0,   0,
-                          0,   0,   0);
+        if (destinationType == Dest_None) {
+            TargetNearest(sef, sef, efc,
+                          mfb,   1,   1,
+                          swf, swf,   1, wfc,
+                            0,   0,
+                            0,   0,   0);
         }
-        if (destinationType == Route_None) {
-            TargetRoute(  0,   0,   0,
-                          0,   0,   0,
-                          0,   0,   0,   0,
-                          1,   0,
-                        sef,   0,   0);  // ..., or enemy, or enemy base
+        if (destinationType == Dest_None) {
+            TargetNearest(  0,   0,   0,
+                            0,   0,   0,
+                            0,   0,   0,   0,
+                            1,   0,
+                          sef,   0,   0);  // ..., or enemy, or enemy base
         }
-        if (destinationType == Route_None || destinationType == Route_Base) {
-            if (destinationType == Route_Base) {
+        if (destinationType == Dest_None || destinationType == Dest_Base) {
+            if (destinationType == Dest_Base) {
                 const TeamCounts tc = Teams(destination, false);
                 if (tc.friends) { // if we are going to base where is already our forces, forget it
                     if (destination != myArea() || AmILast())
@@ -1140,37 +1140,34 @@ void Robot::RouteLogic() throw () { // NEED rewrite
         const bool cwf = capture_on_wild_flags_in_effect;
 
         if (GetPlayers(fx.player[me].team()) > 1) {
-            TargetRoute(  0,   0,   0,
-                        ctf,   0,   0,
-                        cwf,   0,   0,   0,
-                          0,   0,
-                          0,   0,   0); // available capture point
+            TargetNearest(  0,   0,   0,
+                          ctf,   0,   0,
+                          cwf,   0,   0,   0,
+                            0,   0,
+                            0,   0,   0); // available capture point
         }
         else {
-            TargetRoute(  0,   0,   0,
-                        ctf,   1,   0,
-                        cwf,   0,   0,   0,
-                          0,   0,
-                          0,   0,   0); // available capture point, or dropped own team flag
+            TargetNearest(  0,   0,   0,
+                          ctf,   1,   0,
+                          cwf,   0,   0,   0,
+                            0,   0,
+                            0,   0,   0); // available capture point, or dropped own team flag
         }
-        if (destinationType == Route_None) {
-            TargetRoute(  0,   0,   0,
-                          0,   0,   0,
-                          0,   0,   0,   0,
-                          0,   0,
-                          0, ctf,   0);  // ok, to capture point, even if unavailable
+        if (destinationType == Dest_None) {
+            TargetNearest(  0,   0,   0,
+                            0,   0,   0,
+                            0,   0,   0,   0,
+                            0,   0,
+                            0, ctf,   0);  // ok, to capture point, even if unavailable
         }
-        if (destinationType == Route_None) {
-            TargetRoute(  0,   0,   0,
-                          0,   0,   0,
-                          0,   0,   0,   0,
-                          0,   0,
-                          0,   0, cwf);  // only go wait in an empty wild flag base as a last resort
+        if (destinationType == Dest_None) {
+            TargetNearest(  0,   0,   0,
+                            0,   0,   0,
+                            0,   0,   0,   0,
+                            0,   0,
+                            0,   0, cwf);  // only go wait in an empty wild flag base as a last resort
         }
     }
-    #ifdef BOTDEBUG
-    //fprintf(stderr,"RouteLogic: %d\n", i);
-    #endif
 }
 
 bool Robot::IsMassive() const throw () {
@@ -1233,7 +1230,7 @@ void Robot::TargetNearestBase(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Route_Base;
+            destinationType = Dest_Base;
         }
     }
 }
@@ -1266,7 +1263,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Route_Team;
+            destinationType = Dest_Team;
         }
     }
 }
@@ -1357,7 +1354,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Route_Flag;
+            destinationType = Dest_Flag;
         }
     }
 }
@@ -1380,15 +1377,15 @@ void Robot::TargetFog() throw () {
     if (!target)
         return;
 
-    destinationType = Route_Fog;
+    destinationType = Dest_Fog;
     setDestination(target);
 }
 
-/* TargetRoute(enemy flag {at base, dropped off base, carried},
- *                my flag {at base, dropped off base, carried},
- *              wild flag {at base, dropped off base, carried by enemy, carried by friend},
- *       {enemy, my} team,
- * {enemy, my, wild} base)
+/* TargetNearest(enemy flag {at base, dropped off base, carried},
+ *                  my flag {at base, dropped off base, carried},
+ *                wild flag {at base, dropped off base, carried by enemy, carried by friend},
+ *         {enemy, my} team,
+ *   {enemy, my, wild} base)
  *
  * targets first one of the enabled options that yields the minimal distance among enabled options.
  *
@@ -1396,11 +1393,11 @@ void Robot::TargetFog() throw () {
  * team: a living non-me player with probably known location
  * base: a base, regardless of where its flag is
  */
-void Robot::TargetRoute(int efb, int efd, int efc,
-                        int mfb, int mfd, int mfc,
-                        int wfb, int wfd, int wfce, int wfcf,
-                        int en,  int fr,
-                        int eb,  int fb, int wb) throw () {
+void Robot::TargetNearest(int efb, int efd, int efc,
+                          int mfb, int mfd, int mfc,
+                          int wfb, int wfd, int wfce, int wfcf,
+                          int en,  int fr,
+                          int eb,  int fb, int wb) throw () {
     int m_distance = -1;
     Area* targetArea = 0;
     const int t = fx.player[me].team();
@@ -1408,7 +1405,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
 
     BuildDistanceTable(myArea(), Table_Main);
 
-    destinationType = Route_None;
+    destinationType = Dest_None;
 
     if (efb)
         TargetNearestFlag(m_distance, targetArea, et, 0);
@@ -1455,7 +1452,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
 
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    fprintf(stderr, "TargetRoute(%d, %d, %d,   %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %d\n",
+    fprintf(stderr, "TargetNearest(%d, %d, %d,   %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %d\n",
             efb, efd, efc,
             mfb, mfd, mfc,
             wfb, wfd, wfce, wfcf,
@@ -1464,7 +1461,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
             destinationType);
     #endif
 
-    if (destinationType == Route_None) // nothing todo
+    if (destinationType == Dest_None) // nothing todo
         return;
 
     nAssert(targetArea);
@@ -1477,7 +1474,7 @@ bool Robot::IsMission() const throw () {
     // if we are looking for flag or going to our base for something
     if (destination == myArea())
         return false;
-    return HaveFlag(me) || destinationType == Route_Flag || to_home || !to_home && destinationType == Route_Base;
+    return HaveFlag(me) || destinationType == Dest_Flag || to_home || !to_home && destinationType == Dest_Base;
 }
 
 ClientControls Robot::getRobotControls() throw () {
@@ -1523,7 +1520,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    RouteLogic();
+    ChooseDestination();
 
     if (IsMission()) // get only dangerous enemy
         last_seen = GetDangerousEnemy(mex, mey);
@@ -1564,7 +1561,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = Route(mex, mey);
+    ctrl = MoveToDestination(mex, mey);
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1587,7 +1584,7 @@ ClientControls Robot::getRobotControls() throw () {
         ctrl.clearRun();
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    if (destinationType == Route_None)
+    if (destinationType == Dest_None)
         fprintf(stderr, "Nothing to do.\n");
     else
         fprintf(stderr, "Nothing to do, already at target [type %d].\n", destinationType);
