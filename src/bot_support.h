@@ -30,9 +30,10 @@
 #include "world.h"
 
 enum RouteTable {
-    Table_Main = 0,
-    Table_Def = 1,
-    Table_Max = 2
+    Table_Main, // always built around me
+    Table_Def,  // used for calculating defense needs
+    Table_Destination, // always built around chosen destination
+    Table_Max
 };
 
 class AreaMap {
@@ -52,7 +53,6 @@ public:
         int roomx, roomy;
 
         int distance[Table_Max];
-        bool onRoute[Table_Max];
 
         struct Neighbor {
             enum Direction { Up, Down, Left, Right };
@@ -88,7 +88,6 @@ public:
     const Area* identifyArea(int roomx, int roomy, double lx, double ly) const throw ();
 
     void clearRoutingTable(RouteTable num) throw ();
-    void clearRoute(RouteTable num) throw ();
 
 private:
     class RoomAreaMap : private NoCopying {

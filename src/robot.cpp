@@ -930,42 +930,16 @@ void Robot::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) th
     }
 }
 
-void Robot::BuildRoute(Area* const target) throw () {
-    #ifdef BOTDEBUG
-    static const Area* oldTarget = 0;
-    if (target != oldTarget) {
-        fprintf(stderr, "%d: Build route to %d %d\n", me, target->roomx, target->roomy);
-        oldTarget = target;
-    }
-    #endif
+void Robot::setDestination(Area* const target) throw () {
     nAssert(target);
-    nAssert(me >= 0 && me < maxplayers);
-
-    const Area* const here = myArea();
-
-    if (here->onRoute[Table_Main] && target == destination)
+    if (target == destination)
         return;
-
-    areaMap.clearRoute(Table_Main);
-
-    nAssert(target->distance[Table_Main] != -1 && here->distance[Table_Main] != -1 && here->distance[Table_Main] <= target->distance[Table_Main]);
-    nAssert(route[Table_Main].center == here);
-
-    target->onRoute[Table_Main] = true;
     destination = target;
+    #ifdef BOTDEBUG
+    fprintf(stderr, "%d: Set destination: %d %d\n", me, target->roomx, target->roomy);
+    #endif
 
-    Area* at = target;
-    while (at != here) {
-        vector<Area*> choices;
-
-        for (vector<Area*>::const_iterator rni = at->reverseNeighbors().begin(); rni != at->reverseNeighbors().end(); ++rni)
-            if ((*rni)->distance[Table_Main] == at->distance[Table_Main] - 1)
-                choices.push_back(*rni);
-
-        nAssert(!choices.empty());
-        at = choices[rand() % choices.size()];
-        at->onRoute[Table_Main] = true;
-    }
+    BuildRouteTable(target, Table_Destination);
 }
 
 ClientControls Robot::Route(double melx, double mely) const throw () {
@@ -974,27 +948,38 @@ ClientControls Robot::Route(double melx, double mely) const throw () {
 
     const Area* const here = myArea();
 
-    if (here->distance[Table_Main] == -1 || destination == here)
+    if (here->distance[Table_Destination] == -1 || destination == here)
         return ClientControls();
 
-    const Area::Neighbor* target = 0;
+    vector<const Area::Neighbor*> goodNeighbors;
+    bool oldDestinationFound = false;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
         const Area* const na = ni->area;
-        if (na->onRoute[Table_Main] && na->distance[Table_Main] == here->distance[Table_Main] + 1) {
+        if (na->distance[Table_Destination] < here->distance[Table_Destination]) {
             if (HaveFlag(me)) {
                 const TeamCounts tc = Teams(na, false);
                 if (tc.enemies > tc.friends + 1)
                     continue;
             }
-            target = &*ni;
-            break;
+            if (&*ni == immediateDestination) {
+                oldDestinationFound = true;
+                break;
+            }
+            if (!dangerousExplosionInNeighbor(*ni, melx, mely))
+                goodNeighbors.push_back(&*ni);
         }
     }
 
-    if (!target || dangerousExplosionInNeighbor(*target, melx, mely))
-        return ClientControls(); // no need to go (we'll go when it's safe)
+    if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination, melx, mely)) // we keep the same destination and wait for the explosion to settle because it won't take long
+        return ClientControls();
 
-    return MoveToDoor(melx, mely, *target);
+    if (!oldDestinationFound)
+        immediateDestination = goodNeighbors.empty() ? 0 : goodNeighbors[rand() % goodNeighbors.size()];
+
+    if (immediateDestination)
+        return MoveToDoor(melx, mely, *immediateDestination);
+    else
+        return ClientControls();
 }
 
 ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
@@ -1396,7 +1381,7 @@ void Robot::TargetFog() throw () {
         return;
 
     destinationType = Route_Fog;
-    BuildRoute(target);
+    setDestination(target);
 }
 
 /* TargetRoute(enemy flag {at base, dropped off base, carried},
@@ -1484,7 +1469,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
 
     nAssert(targetArea);
 
-    BuildRoute(targetArea);
+    setDestination(targetArea);
 }
 
 bool Robot::IsMission() const throw () {

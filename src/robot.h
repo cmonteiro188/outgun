@@ -58,6 +58,7 @@ class Robot : private ClientBase, public BotInterface {
     RouteTableDescriptor route[Table_Max];
     RouteTargetType destinationType;
     const Area*     destination;
+    mutable const Area::Neighbor* immediateDestination; // one of the neighboring rooms
 
     bool        botPrevFire;
     int         last_seen;
@@ -129,7 +130,7 @@ class Robot : private ClientBase, public BotInterface {
 
     void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table from single points
     void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table from multiple points
-    void BuildRoute(Area* target) throw ();
+    void setDestination(Area* target) throw ();
     void RouteLogic() throw ();
 
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
