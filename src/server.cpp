@@ -85,7 +85,8 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     settings(*this, config),
     authorizations(log),
     recording_started(false),
-    end_game_human_count(0)
+    end_game_human_count(0),
+    recorded_players_present(0)
 {
     hostLogs("See serverlog.txt for server's log messages");
     setMaxPlayers(MAX_PLAYERS);
@@ -1517,6 +1518,7 @@ bool Server::changeRegistration(int id, const string& token) throw () {
 
 void Server::simulate_and_broadcast_frame() throw () {
     //check end of gameover plaque
+    bool recordFrameNumber = false;
     if (gameover)
         if (gameover_time < get_time()) {
             gameover = false;
@@ -1524,6 +1526,7 @@ void Server::simulate_and_broadcast_frame() throw () {
             start_recording();
             world.start_game();
             network.sendStartGame();
+            recordFrameNumber = true;
         }
     if (!gameover)
         world.simulateFrame();
@@ -1592,37 +1595,131 @@ void Server::simulate_and_broadcast_frame() throw () {
     }
 
     network.broadcast_frame(!gameover);
+
     if (recording_active()) {
+        /* Replay frame structure, version 1
+         *     4 B  frame size (not counting the size bytes)
+         *
+         *     1 B  byte containing the following bits
+         *            0  frame number flag
+         *            1  players present flag
+         *            2  player ping flag
+         *            3  precise gun direction flag (free turning)
+         *     4 B  frame number (optional)
+         *     4 B  players present (optional)
+         *   1-4 B  ping of player at index [frame % maxplayers] (dynamic size, optional)
+         * 
+         *   Data for each available player (indicated by players present bit field)
+         *     1 B  byte containing the following bits
+         *            0  powerup data flag
+         *            1  visibility data flag
+         *            2  position data flag
+         *            3  control data flag
+         *            4  gun direction data flag
+         *          if precise gun dir flag is off and gun direction data flag is on
+         *           5-7 gun direction data
+         *          if precise gun dir flag is off and gun direction data flag is off
+         *            5  dead flag
+         *     1 B  powerup data containing the following bits (optional)
+         *            0  dead flag
+         *            1  deathbringer
+         *            2  under deathbringer effect
+         *            3  shield
+         *            4  turbo
+         *            5  power
+         *     1 B  visibility level (optional)
+         *    34 B  position data containing the following bytes (optional)
+         *            1 B  room x
+         *            1 B  room y
+         *            8 B  inner-room x coordinate
+         *            8 B  inner-room y coordinate
+         *            8 B  speed x coordinate
+         *            8 B  speed y coordinate
+         *    if precise gun dir flag is off
+         *     1 B  gun direction byte (optional)
+         *    else if gun dir is recorded
+         *     2 B  combined control and gun direction data (optional)
+         *    else
+         *     1 B  control data (optional)
+         *
+         *     x B  server messages
+         */
         ExpandingBinaryBuffer recordFrame;
         recordFrame.U32(0); // leave space for frame length
-        recordFrame.U32(world.frame);
+
         uint32_t players_present = 0;
         for (int i = 0; i < maxplayers; i++)
             if (world.player[i].used)
                 players_present |= (1 << i);
-        recordFrame.U32(players_present);
+
+        const bool recordPlayersPresent = players_present != recorded_players_present || recordFrameNumber;
+        const bool recordPing = world.player[world.frame % maxplayers].used;
+        const bool preciseGundir = world.physics.allowFreeTurning;
+
+        recorded_players_present = players_present;
+
+        uint8_t byte = 0;
+        if (recordFrameNumber   ) byte |= (1 << 0);
+        if (recordPlayersPresent) byte |= (1 << 1);
+        if (recordPing          ) byte |= (1 << 2);
+        if (preciseGundir       ) byte |= (1 << 3);
+        recordFrame.U8(byte);
+
+        if (recordFrameNumber)
+            recordFrame.U32(world.frame);
+        if (recordPlayersPresent)
+            recordFrame.U32(players_present);
+        if (recordPing)
+            recordFrame.U32dyn8(world.player[world.frame % maxplayers].ping);
+
         for (int i = 0; i < maxplayers; i++) {
-            const ServerPlayer& pl = world.player[i];
+            ServerPlayer& pl = world.player[i];
             if (!pl.used)
                 continue;
 
-            // Dead and powerup flags
-            uint8_t byte = 0;
-            if (pl.dead) byte |= (1 << 0);
-            if (pl.item_deathbringer) byte |= (1 << 1);
-            if (pl.deathbringer_end > get_time()) byte |= (1 << 2);
-            if (pl.item_shield) byte |= (1 << 3);
-            if (pl.item_turbo) byte |= (1 << 4);
-            if (pl.item_power) byte |= (1 << 5);
-            const bool preciseGundir = world.physics.allowFreeTurning;
-            if (preciseGundir) byte |= (1 << 6);
+            const bool recordPosition = pl.record_position || world.frame % 100 == 0 && !pl.dead;
+            const bool recordPowerups = pl.record_powerups;
+            const bool recordVisibility = pl.record_visibility;
+            const bool recordControls = pl.record_controls;
+            const bool recordGundir = pl.record_gundir;
 
-            const bool record_position = pl.record_position || world.frame % 100 == 0;
-            if (record_position) byte |= (1 << 7);
+            // Various flags
+            uint8_t byte = 0;
+            if (recordPowerups  ) byte |= (1 << 0);
+            if (recordVisibility) byte |= (1 << 1);
+            if (recordPosition  ) byte |= (1 << 2);
+            if (recordControls  ) byte |= (1 << 3);
+            if (recordGundir    ) byte |= (1 << 4);
+            if (!preciseGundir) {
+                if (recordGundir) {
+                    pl.record_gundir = false;
+                    byte |= (pl.gundir.toNetworkShortForm() << 5);
+                }
+                else
+                    byte |= (pl.dead << 5);
+            }
             recordFrame.U8(byte);
 
-            if (record_position) {
-                world.player[i].record_position = false;
+            // Dead and powerup flags
+            if (recordPowerups) {
+                pl.record_powerups = false;
+                uint8_t byte = 0;
+                if (pl.dead             ) byte |= (1 << 0);
+                if (pl.item_deathbringer) byte |= (1 << 1);
+                if (pl.under_deathbringer_effect(get_time())) byte |= (1 << 2);
+                if (pl.item_shield      ) byte |= (1 << 3);
+                if (pl.item_turbo       ) byte |= (1 << 4);
+                if (pl.item_power       ) byte |= (1 << 5);
+                recordFrame.U8(byte);
+            }
+
+            if (recordVisibility) {
+                pl.record_visibility = false;
+                recordFrame.U8(pl.visibility);
+            }
+
+            if (recordPosition) {
+                pl.record_position = false;
                 // Position
                 recordFrame.U8(pl.roomx);
                 recordFrame.U8(pl.roomy);
@@ -1633,23 +1730,21 @@ void Server::simulate_and_broadcast_frame() throw () {
                 recordFrame.dbl(pl.sy);
             }
 
-            // Controls
-            if (!pl.dead) // if dead player, don't send keys
-                byte = pl.controls.toNetwork(true);
-            else
-                byte = ClientControls().toNetwork(true);
+            const uint8_t controlByte = pl.controls.toNetwork(true);
 
-            if (preciseGundir) {
+            if (preciseGundir && (recordControls || recordGundir)) {
                 const uint16_t gundir = pl.gundir.toNetworkLongForm();
-                recordFrame.U8(byte | (gundir >> 8) << 5);
-                recordFrame.U8(gundir & 0xFF);
+                if (recordGundir) {
+                    // Record also controls as they do not take any extra space.
+                    recordFrame.U8(controlByte | (gundir >> 8) << 5);
+                    recordFrame.U8(gundir & 0xFF);
+                }
+                else
+                    recordFrame.U8(controlByte);
             }
-            else
-                recordFrame.U8(byte | pl.gundir.toNetworkShortForm() << 5);
-
-            recordFrame.U8(pl.visibility);
+            else if (recordControls)
+                recordFrame.U8(controlByte);
         }
-        recordFrame.U16(world.player[world.frame % maxplayers].ping);
 
         recordFrame.block(record_messages);
 

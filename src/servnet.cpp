@@ -1730,8 +1730,16 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         }
         pl.lastClientFrame = clFrame;
 
-        pl.controls.fromNetwork(frame.U8(), false);
-        pl.controls.clearModifiersIfIdle();
+        const uint8_t controlByte = frame.U8();
+        ClientControls controls;
+        controls.fromNetwork(controlByte, false);
+        controls.clearModifiersIfIdle();
+        if (pl.controls != controls) {
+            pl.controls.fromNetwork(controlByte, false);
+            pl.controls.clearModifiersIfIdle();
+            if (!pl.dead)
+                pl.record_controls = true;
+        }
 
         GunDirection newDir;
         bool newDirReceived = false;
@@ -1744,11 +1752,15 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         else
             pl.accelerationMode = AM_World;
         if (!pl.dead) {
-            if (world.physics.allowFreeTurning && newDirReceived)
+            if (world.physics.allowFreeTurning && newDirReceived) {
                 pl.gundir = newDir;
+                pl.record_gundir = true;
+            }
             else
-                if (!pl.controls.isStrafe())
+                if (!pl.controls.isStrafe()) {
                     pl.gundir.updateFromControls(pl.controls);
+                    pl.record_gundir = true;
+                }
         }
     }
 

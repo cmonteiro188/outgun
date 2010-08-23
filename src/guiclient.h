@@ -239,6 +239,7 @@ class GuiClient : private ClientBase, public ClientInterface {
     bool replay_first_frame_loaded;
     unsigned replay_start_frame;
     unsigned replay_length;
+    uint32_t replay_players_present;
     std::pair<int, int> replayTopLeftRoom;
     double visible_rooms;
 
@@ -387,6 +388,7 @@ class GuiClient : private ClientBase, public ClientInterface {
 
     void process_replay_packet(ConstDataBlockRef data) throw ();
     int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
+    int process_replay_frame_data_version_0(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
 
     std::string refreshStatusAsString() const throw ();
     void getServerListThread() throw ();

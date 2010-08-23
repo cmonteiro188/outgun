@@ -1188,15 +1188,97 @@ void GuiClient::refreshGunDir() throw () {
 }
 
 int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+    if (replay_version == 0)
+        return process_replay_frame_data_version_0(data);
+
+    BinaryDataBlockReader read(data);
+
+    const uint8_t byte = read.U8();
+    const bool frameNumberFlag    = (byte & (1 << 0)) != 0;
+    const bool playersPresentFlag = (byte & (1 << 1)) != 0;
+    const bool pingFlag           = (byte & (1 << 2)) != 0;
+    const bool preciseGundir      = (byte & (1 << 3)) != 0;
+
+    if (frameNumberFlag) {
+        const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
+        nAssert(svframe == fx.frame + 1 || fx.frame == -1);
+        fx.frame = svframe;
+        if (!replay_first_frame_loaded) {
+            replay_start_frame = svframe;
+            replay_first_frame_loaded = true;
+        }
+    }
+    else
+        fx.frame++;
+
+    frameReceiveTime = get_time();
+
+    fx.skipped = false;
+    if (playersPresentFlag)
+        replay_players_present = read.U32();
+    if (pingFlag)
+        fx.player[int(fx.frame) % maxplayers].ping = read.U32dyn8();
+
+    for (int i = 0; i < maxplayers; i++) {
+        ClientPlayer& pl = fx.player[i];
+        if (!(replay_players_present & (1 << i)))
+            continue;
+        else if (!fx.player[i].used) { // New player
+            fx.player[i].clear(true, i, " ", i / TSIZE);
+            players_sb.push_back(&fx.player[i]);
+        }
+
+        const uint8_t byte = read.U8();
+        const bool powerupFlag    = (byte & (1 << 0));
+        const bool visibilityFlag = (byte & (1 << 1));
+        const bool positionFlag   = (byte & (1 << 2));
+        const bool controlFlag    = (byte & (1 << 3));
+        const bool gundirFlag     = (byte & (1 << 4));
+
+        if (!preciseGundir) {
+            if (gundirFlag)
+                pl.gundir.fromNetworkShortForm(byte >> 5);
+            else
+                pl.dead = (byte & (1 << 5)) != 0;
+        }
+
+        if (powerupFlag) {
+            const uint8_t byte = read.U8();
+            pl.dead                  = (byte & (1 << 0));
+            pl.item_deathbringer     = (byte & (1 << 1));
+            pl.deathbringer_affected = (byte & (1 << 2));
+            pl.item_shield           = (byte & (1 << 3));
+            pl.item_turbo            = (byte & (1 << 4));
+            pl.item_power            = (byte & (1 << 5));
+        }
+
+        if (visibilityFlag)
+            pl.visibility = read.U8();
+
+        if (positionFlag)
+            read_replay_player_position(read, pl);
+
+        if (controlFlag || preciseGundir && gundirFlag) {
+            const uint8_t controlByte = read.U8();
+            pl.controls.fromNetwork(controlByte, true);
+            if (preciseGundir && gundirFlag)
+                pl.gundir.fromNetworkLongForm(((controlByte >> 5) << 8) | read.U8());
+        }
+
+        pl.posUpdated = fx.frame;
+    }
+
+    return read.getPosition();
+}
+
+int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
     nAssert(svframe == fx.frame + 1 || fx.frame == -1);
 
-    if (replay_version == 0) {
-        ClientPhysicsCallbacks cb(*this);
-        fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
-    }
+    ClientPhysicsCallbacks cb(*this);
+    fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
     fx.frame = svframe;
 
     frameReceiveTime = get_time();
@@ -1212,10 +1294,6 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
         ClientPlayer& pl = fx.player[i];
         if (!(players_present & (1 << i)))
             continue;
-        else if (!fx.player[i].used && replay_version >= 1) { // New player
-            fx.player[i].clear(true, i, " ", i / TSIZE);
-            players_sb.push_back(&fx.player[i]);
-        }
 
         // Dead and powerup flags
         const uint8_t byte = read.U8();
@@ -1245,24 +1323,73 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
 void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
     BinaryDataBlockReader read(data);
 
-    read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
+    if (replay_version == 0) {
+        read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
 
-    const uint32_t players_present = read.U32();
-    for (int i = 0; i < maxplayers; i++) {
-        ClientPlayer& pl = fx.player[i];
-        if (!(players_present & (1 << i)))
-            continue;
+        const uint32_t players_present = read.U32();
+        for (int i = 0; i < maxplayers; i++) {
+            ClientPlayer& pl = fx.player[i];
+            if (!(players_present & (1 << i)))
+                continue;
 
-        // Flags and position data
+            // Flags and position data
+            const uint8_t byte = read.U8();
+            const bool preciseGundir = (byte & (1 << 6)) != 0;
+            const bool position_data = (byte & (1 << 7)) != 0;
+            if (position_data)
+                skip_replay_player_position(read);
+
+            read_replay_player_controls(read, pl, preciseGundir);
+
+            read.U8(); // visibility
+        }
+    }
+    else {
         const uint8_t byte = read.U8();
-        const bool preciseGundir = (byte & (1 << 6)) != 0;
-        const bool position_data = (byte & (1 << 7)) != 0;
-        if (position_data)
-            skip_replay_player_position(read);
+        const bool frameNumberFlag    = (byte & (1 << 0));
+        const bool playersPresentFlag = (byte & (1 << 1));
+        const bool pingFlag           = (byte & (1 << 2));
+        const bool preciseGundir      = (byte & (1 << 3));
 
-        read_replay_player_controls(read, pl, preciseGundir);
+        if (frameNumberFlag)
+            read.U32();
+        uint32_t playersPresent;
+        if (playersPresentFlag)
+            playersPresent = read.U32();
+        else
+            playersPresent = replay_players_present;
+        if (pingFlag)
+            read.U32dyn8();
 
-        read.U8(); // visibility
+        for (int i = 0; i < maxplayers; i++) {
+            ClientPlayer& pl = fx.player[i];
+            if (!(playersPresent & (1 << i)))
+                continue;
+
+            const uint8_t byte = read.U8();
+            const bool powerupFlag    = (byte & (1 << 0));
+            const bool visibilityFlag = (byte & (1 << 1));
+            const bool positionFlag   = (byte & (1 << 2));
+            const bool controlFlag    = (byte & (1 << 3));
+            const bool gundirFlag     = (byte & (1 << 4));
+
+            if (!preciseGundir && gundirFlag)
+                pl.gundir.fromNetworkShortForm(byte >> 5);
+
+            if (powerupFlag)
+                read.U8();
+            if (visibilityFlag)
+                read.U8();
+            if (positionFlag)
+                skip_replay_player_position(read);
+
+            if (controlFlag || preciseGundir && gundirFlag) {
+                const uint8_t controlByte = read.U8();
+                pl.controls.fromNetwork(controlByte, true);
+                if (preciseGundir && gundirFlag)
+                    pl.gundir.fromNetworkLongForm(((controlByte >> 5) << 8) | read.U8());
+            }
+        }
     }
 }
 
