@@ -33,7 +33,7 @@
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : private ClientBase, public BotInterface {
-    enum Routing {
+    enum RouteTargetType {
         Route_None,
         Route_Flag,
         Route_Base,
@@ -51,9 +51,14 @@ class Robot : private ClientBase, public BotInterface {
     AreaMap areaMap;
     typedef AreaMap::Area Area;
 
-    Routing     routing[Table_Max];
-    const Area* routeTarget[Table_Max];
-    const Area* routeTableCenter[Table_Max];
+    struct RouteTableDescriptor { // the actual table is distributed in all Areas
+        const Area* center; // the Area that has distance=0, or 0 if there are multiple centers
+    };
+
+    RouteTableDescriptor route[Table_Max];
+    RouteTargetType destinationType;
+    const Area*     destination;
+
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
@@ -73,6 +78,11 @@ class Robot : private ClientBase, public BotInterface {
           Area* myArea()       throw () { return area(fx.player[me]); }
     const Area* myArea() const throw () { return area(fx.player[me]); }
 
+    const DeathbringerExplosion* explosionInRoom(int roomx, int roomy) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
+    bool        imminentExplosionHere() const throw ();
+    double      distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw ();
+    bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double mex, double mey) const throw ();
+
     bool        IsDefender() throw (); // am i defender? (role)
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
@@ -81,7 +91,7 @@ class Robot : private ClientBase, public BotInterface {
     bool        IsHome(const Area* a) const throw (); //is it base
 
     bool        AmILast() const throw ();
-    bool        IsMission(RouteTable num) const throw (); // have i mission? (No agression mode)
+    bool        IsMission() const throw (); // have i mission? (No agression mode)
     int         GetEasyEnemy(double mex, double mey) const throw (); // get easy enemy to kill
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
     int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
@@ -104,6 +114,7 @@ class Robot : private ClientBase, public BotInterface {
 
     ClientControls Aim(double mex, double mey, int i) const throw ();
     ClientControls EscapeRocket(double mex, double mey, int mrock) const throw ();
+    ClientControls EscapeExplosion(double mex, double mey) const throw ();
     ClientControls GetFlag(double mex, double mey) const throw ();
     ClientControls FollowFlag(double mex, double mey) const throw ();
     ClientControls GetPowerup(double mex, double mey, bool onImportantMission) const throw ();
@@ -114,25 +125,24 @@ class Robot : private ClientBase, public BotInterface {
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape(double mex, double mey) const throw ();
     ClientControls FreeWalk(double mex, double mey) const throw ();
-    ClientControls Route(double mex, double mey, RouteTable num) const throw (); // follow route
+    ClientControls Route(double mex, double mey) const throw (); // follow route
 
-    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table (labeled) from single points
-    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table (labeled) from multiple points
-    int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
-    bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
+    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table from single points
+    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table from multiple points
+    void BuildRoute(Area* target) throw ();
+    void RouteLogic() throw ();
 
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
-    void TargetNearestBase(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestTeam(int& m_label, Area*& nearestArea, int team, RouteTable num) throw ();
-    void TargetNearestFlag(int& m_label, Area*& nearestArea, int team, int state, RouteTable num) throw ();
-    int TargetFog(RouteTable num) throw ();
+    void TargetNearestBase(int& m_distance, Area*& nearestArea, int team) throw ();
+    void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team) throw ();
+    void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state) throw ();
+    void TargetFog() throw ();
 
-    int TargetRoute(int efb, int efd, int efc,
-                    int mfb, int mfd, int mfc,
-                    int wfb, int wfd, int wfce, int wfcf,
-                    int en,  int fr,
-                    int eb,  int fb, int wb,
-                    RouteTable num) throw ();
+    void TargetRoute(int efb, int efd, int efc,
+                     int mfb, int mfd, int mfc,
+                     int wfb, int wfd, int wfce, int wfcf,
+                     int en,  int fr,
+                     int eb,  int fb, int wb) throw ();
 
     ClientControls getRobotControls() throw ();
 

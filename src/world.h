@@ -133,12 +133,6 @@ private:
     double anglecos;
 };
 
-enum RouteTable {
-    Table_Main = 0,
-    Table_Def = 1,
-    Table_Max = 2
-};
-
 class Room {
 public:
     double visited_frame; // for bots

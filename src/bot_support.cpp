@@ -178,8 +178,8 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
 
 AreaMap::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
     for (int i = 0; i < Table_Max; i++) {
-        route[i] = false;
-        label[i] = -1;
+        onRoute[i] = false;
+        distance[i] = -1;
     }
 }
 
@@ -441,12 +441,12 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
 
 void AreaMap::clearRoutingTable(RouteTable num) throw () {
     for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
-        ai->label[num] = -1;
-        ai->route[num] = false;
+        ai->distance[num] = -1;
+        ai->onRoute[num] = false;
     }
 }
 
 void AreaMap::clearRoute(RouteTable num) throw () {
     for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai)
-        ai->route[num] = false;
+        ai->onRoute[num] = false;
 }

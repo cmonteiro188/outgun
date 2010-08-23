@@ -29,6 +29,12 @@
 #include "utility.h"
 #include "world.h"
 
+enum RouteTable {
+    Table_Main = 0,
+    Table_Def = 1,
+    Table_Max = 2
+};
+
 class AreaMap {
     class RoomAreaMap;
     ControlledPtr<RoomAreaMap> splitRoom(const Map& map, int roomx, int roomy) throw ();
@@ -45,8 +51,8 @@ public:
     public:
         int roomx, roomy;
 
-        int label[Table_Max];
-        bool route[Table_Max];
+        int distance[Table_Max];
+        bool onRoute[Table_Max];
 
         struct Neighbor {
             enum Direction { Up, Down, Left, Right };
