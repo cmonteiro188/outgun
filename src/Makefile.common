@@ -283,7 +283,7 @@ $(OBJDIR)/gui/%.o: %.cpp | make-directories-dummy
 $(OBJDIR)/gui/loadpng/%.o: loadpng/%.c | make-directories-dummy
 	$(CC) $(CPPFLAGS) $(GUI_CFLAGS) -c -o $@ $<
 
-$(OBJDIR)/gui/robot1.o: robot.cpp | make-directories-dummy
+$(OBJDIR)/gui/robot1.o: robot.cpp $(OBJDIR)/gui/robot.o | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(GUI_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -c -o $@ $<
 
 $(OBJDIR)/gui/robot2.o: robot2.cpp | make-directories-dummy
@@ -295,7 +295,7 @@ $(OBJDIR)/tests/%.o: tests/%.cpp | make-directories-dummy
 $(OBJDIR)/text/%.o: %.cpp | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -c -o $@ $<
 
-$(OBJDIR)/text/robot1.o: robot.cpp | make-directories-dummy
+$(OBJDIR)/text/robot1.o: robot.cpp $(OBJDIR)/text/robot.o | make-directories-dummy
 	$(CXX) $(CPPFLAGS) $(TEXT_CXXFLAGS) -DBOT_TEST_COMPARE_TWO -c -o $@ $<
 
 $(OBJDIR)/text/robot2.o: robot2.cpp | make-directories-dummy
