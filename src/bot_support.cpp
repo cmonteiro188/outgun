@@ -437,7 +437,7 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
     #endif
 }
 
-void AreaMap::clearRoutingTable(RouteTable num) throw () {
+void AreaMap::clearDistanceTable(DistanceTableId num) throw () {
     for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai)
         ai->distance[num] = -1;
 }

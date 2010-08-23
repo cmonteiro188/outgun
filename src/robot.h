@@ -51,11 +51,11 @@ class Robot : public ClientBase, public BotInterface {
     AreaMap areaMap;
     typedef AreaMap::Area Area;
 
-    struct RouteTableDescriptor { // the actual table is distributed in all Areas
+    struct DistanceTableDescriptor { // the actual table is distributed in all Areas
         const Area* center; // the Area that has distance=0, or 0 if there are multiple centers
     };
 
-    RouteTableDescriptor route[Table_Max];
+    DistanceTableDescriptor distanceTable[Table_Max];
     RouteTargetType destinationType;
     const Area*     destination;
     mutable const Area::Neighbor* immediateDestination; // one of the neighboring rooms
@@ -128,12 +128,11 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls FreeWalk(double mex, double mey) const throw ();
     ClientControls Route(double mex, double mey) const throw (); // follow route
 
-    void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table from single points
-    void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table from multiple points
+    void BuildDistanceTable(Area* startPoint, DistanceTableId num) throw (); // build distance table from single point
+    void BuildDistanceTable(const std::vector<Area*>& startPoints, DistanceTableId num) throw (); // build distance table from multiple points
     void setDestination(Area* target) throw ();
     void RouteLogic() throw ();
 
-    // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     void TargetNearestBase(int& m_distance, Area*& nearestArea, int team) throw ();
     void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team) throw ();
     void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state) throw ();

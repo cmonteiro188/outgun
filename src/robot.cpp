@@ -892,26 +892,26 @@ void Robot::BuildMap() throw () {
             fx.map.room[x][y].visited_frame = 0;
 
     for (int i = 0; i < Table_Max; i++)
-        route[i].center = 0;
+        distanceTable[i].center = 0;
 
     destinationType = Route_None;
     destination = 0;
 }
 
-void Robot::BuildRouteTable(Area* startPoint, RouteTable num) throw () {
-    return BuildRouteTable(vector<Area*>(1, startPoint), num);
+void Robot::BuildDistanceTable(Area* startPoint, DistanceTableId num) throw () {
+    return BuildDistanceTable(vector<Area*>(1, startPoint), num);
 }
 
-void Robot::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) throw () {
+void Robot::BuildDistanceTable(const vector<Area*>& startPoints, DistanceTableId num) throw () {
     if (startPoints.size() == 1) {
-        if (route[num].center == startPoints[0])
+        if (distanceTable[num].center == startPoints[0])
             return;
-        route[num].center = startPoints[0];
+        distanceTable[num].center = startPoints[0];
     }
     else
-        route[num].center = 0;
+        distanceTable[num].center = 0;
 
-    areaMap.clearRoutingTable(num);
+    areaMap.clearDistanceTable(num);
 
     queue<const Area*> workQueue;
     for (vector<Area*>::const_iterator ai = startPoints.begin(); ai != startPoints.end(); ++ai) {
@@ -939,7 +939,7 @@ void Robot::setDestination(Area* const target) throw () {
     fprintf(stderr, "%d: Set destination: %d %d\n", me, target->roomx, target->roomy);
     #endif
 
-    BuildRouteTable(target, Table_Destination);
+    BuildDistanceTable(target, Table_Destination);
 }
 
 ClientControls Robot::Route(double melx, double mely) const throw () {
@@ -1066,7 +1066,7 @@ bool Robot::IsDefender() throw () {
 
     // for all bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        BuildRouteTable(area(*pi), Table_Def); //#opt: reserve enough routing tables to avoid building them here every frame in case of multiple flags
+        BuildDistanceTable(area(*pi), Table_Def); //#opt: reserve enough distance tables to avoid building them here every frame in case of multiple flags
         const int m_distance = here->distance[Table_Def];
         int nearNum = 0;
         for (int i = 0; i < maxplayers; ++i) {
@@ -1283,7 +1283,7 @@ bool Robot::IsCarriersDef(int team) throw () {
     if (carrierAreas.empty()) // nothing to defend
         return true;
 
-    BuildRouteTable(carrierAreas, Table_Def);
+    BuildDistanceTable(carrierAreas, Table_Def);
 
     int teammates = 0, nearer = 0;
     const int myDist = myArea()->distance[Table_Def];
@@ -1406,7 +1406,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
     const int t = fx.player[me].team();
     const int et = 1 - t;
 
-    BuildRouteTable(myArea(), Table_Main);
+    BuildDistanceTable(myArea(), Table_Main);
 
     destinationType = Route_None;
 

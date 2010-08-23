@@ -29,7 +29,7 @@
 #include "utility.h"
 #include "world.h"
 
-enum RouteTable {
+enum DistanceTableId {
     Table_Main, // always built around me
     Table_Def,  // used for calculating defense needs
     Table_Destination, // always built around chosen destination
@@ -87,7 +87,7 @@ public:
           Area* identifyArea(int roomx, int roomy, double lx, double ly)       throw ();
     const Area* identifyArea(int roomx, int roomy, double lx, double ly) const throw ();
 
-    void clearRoutingTable(RouteTable num) throw ();
+    void clearDistanceTable(DistanceTableId num) throw ();
 
 private:
     class RoomAreaMap : private NoCopying {
