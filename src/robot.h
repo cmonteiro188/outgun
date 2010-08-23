@@ -128,21 +128,21 @@ class Robot : private ClientBase, public BotInterface {
 
     void BuildRouteTable(Area* startPoint, RouteTable num) throw (); // build route table from single points
     void BuildRouteTable(const std::vector<Area*>& startPoints, RouteTable num) throw (); // build route table from multiple points
-    int  BuildRoute(Area* target, RouteTable num) throw (); // build route, return 0 if not needed, -1 if no path
-    bool RouteLogic(RouteTable num) throw (); // build route on route table using AI, -1 if not builded
+    void BuildRoute(Area* target, RouteTable num) throw ();
+    void RouteLogic(RouteTable num) throw ();
 
     // Build Route to nearest enemy flag, enemy flag carry, me flag, .... enemy, friend
     void TargetNearestBase(int& m_distance, Area*& nearestArea, int team, RouteTable num) throw ();
     void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team, RouteTable num) throw ();
     void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state, RouteTable num) throw ();
-    int TargetFog(RouteTable num) throw ();
+    void TargetFog(RouteTable num) throw ();
 
-    int TargetRoute(int efb, int efd, int efc,
-                    int mfb, int mfd, int mfc,
-                    int wfb, int wfd, int wfce, int wfcf,
-                    int en,  int fr,
-                    int eb,  int fb, int wb,
-                    RouteTable num) throw ();
+    void TargetRoute(int efb, int efd, int efc,
+                     int mfb, int mfd, int mfc,
+                     int wfb, int wfd, int wfce, int wfcf,
+                     int en,  int fr,
+                     int eb,  int fb, int wb,
+                     RouteTable num) throw ();
 
     ClientControls getRobotControls() throw ();
 

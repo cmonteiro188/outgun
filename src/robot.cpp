@@ -930,7 +930,7 @@ void Robot::BuildRouteTable(const vector<Area*>& startPoints, RouteTable num) th
     }
 }
 
-int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
+void Robot::BuildRoute(Area* const target, RouteTable num) throw () {
     #ifdef BOTDEBUG
     static const Area* oldTarget = 0;
     if (target != oldTarget) {
@@ -944,7 +944,7 @@ int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
     const Area* const here = myArea();
 
     if (here->onRoute[num] && target == route[num].target)
-        return target->distance[num];
+        return;
 
     areaMap.clearRoute(num);
 
@@ -955,8 +955,7 @@ int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
     route[num].target = target;
 
     Area* at = target;
-    int steps = 0;
-    for (; at != here; ++steps) {
+    while (at != here) {
         vector<Area*> choices;
 
         for (vector<Area*>::const_iterator rni = at->reverseNeighbors().begin(); rni != at->reverseNeighbors().end(); ++rni)
@@ -967,7 +966,6 @@ int Robot::BuildRoute(Area* const target, RouteTable num) throw () {
         at = choices[rand() % choices.size()];
         at->onRoute[num] = true;
     }
-    return steps;
 }
 
 ClientControls Robot::Route(double melx, double mely, RouteTable num) const throw () {
@@ -1101,7 +1099,7 @@ bool Robot::IsDefender() throw () {
     return false;
 }
 
-bool Robot::RouteLogic(RouteTable num) throw () { // NEED rewrite
+void Robot::RouteLogic(RouteTable num) throw () { // NEED rewrite
     const int flag = HaveFlag(me);
     route[num].type = Route_None;
 
@@ -1195,7 +1193,6 @@ bool Robot::RouteLogic(RouteTable num) throw () { // NEED rewrite
     #ifdef BOTDEBUG
     //fprintf(stderr,"RouteLogic: %d\n", i);
     #endif
-    return route[num].type != Route_None;
 }
 
 bool Robot::IsMassive() const throw () {
@@ -1387,7 +1384,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
     }
 }
 
-int Robot::TargetFog(RouteTable num) throw () {
+void Robot::TargetFog(RouteTable num) throw () {
     const Area* const here = myArea();
     double max_delta = 0;
     Area* target = 0;
@@ -1403,10 +1400,10 @@ int Robot::TargetFog(RouteTable num) throw () {
         }
     }
     if (!target)
-        return 0;
+        return;
 
     route[num].type = Route_Fog;
-    return BuildRoute(target, num);
+    BuildRoute(target, num);
 }
 
 /* TargetRoute(enemy flag {at base, dropped off base, carried},
@@ -1422,7 +1419,7 @@ int Robot::TargetFog(RouteTable num) throw () {
  * team: a living non-me player with probably known location
  * base: a base, regardless of where its flag is
  */
-int Robot::TargetRoute(int efb, int efd, int efc,
+void Robot::TargetRoute(int efb, int efd, int efc,
                         int mfb, int mfd, int mfc,
                         int wfb, int wfd, int wfce, int wfcf,
                         int en,  int fr,
@@ -1492,11 +1489,11 @@ int Robot::TargetRoute(int efb, int efd, int efc,
     #endif
 
     if (route[num].type == Route_None) // nothing todo
-        return 0;
+        return;
 
     nAssert(targetArea);
 
-    return BuildRoute(targetArea, num);
+    BuildRoute(targetArea, num);
 }
 
 bool Robot::IsMission(RouteTable num) const throw () {
