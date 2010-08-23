@@ -152,7 +152,7 @@ private:
     void setToken(const std::string& newToken) throw ();
 };
 
-class GuiClient : private ClientBase, public ClientInterface {
+class GuiClient : public ClientBase, public ClientInterface {
     friend class TM_ServerSettings;
 
     static const int disappearedFlagAlpha = 150;

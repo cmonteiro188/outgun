@@ -32,7 +32,7 @@
 
 extern BotSharedDataStorage g_botSharedDataStorage;
 
-class Robot : private ClientBase, public BotInterface {
+class Robot : public ClientBase, public BotInterface {
     enum RouteTargetType {
         Route_None,
         Route_Flag,
