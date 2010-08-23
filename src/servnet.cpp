@@ -1735,8 +1735,7 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         controls.fromNetwork(controlByte, false);
         controls.clearModifiersIfIdle();
         if (pl.controls != controls) {
-            pl.controls.fromNetwork(controlByte, false);
-            pl.controls.clearModifiersIfIdle();
+            pl.controls = controls;
             if (!pl.dead)
                 pl.record_controls = true;
         }
@@ -1760,9 +1759,10 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
             }
             else
                 if (!pl.controls.isStrafe()) {
+                    newDir = pl.gundir;
                     newDir.updateFromControls(pl.controls);
                     if (newDir != pl.gundir) {
-                        pl.gundir.updateFromControls(pl.controls);
+                        pl.gundir = newDir;
                         pl.record_gundir = true;
                     }
                 }
