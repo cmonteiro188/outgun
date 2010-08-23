@@ -185,7 +185,7 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
 void ServerNetworking::record_message(ConstDataBlockRef data) const throw () {
     if (host->recording_active()) {
         BinaryWriter& writer = host->recordMessageWriter();
-        writer.U32(data.size());
+        writer.U32dyn8(data.size());
         writer.block(data);
     }
 }
@@ -907,7 +907,7 @@ void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRe
 
     if (host->recording_active()) {
         BinaryWriter& writer = host->recordMessageWriter();
-        writer.U32(msg.size() + 2);
+        writer.U32dyn8(msg.size() + 2);
         writer.block(msg);
         writer.U8(px);
         writer.U8(py);
