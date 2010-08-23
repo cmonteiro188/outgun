@@ -1688,7 +1688,6 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (recordControls  ) byte |= (1 << 3);
             if (recordGundir    ) byte |= (1 << 4);
             if (recordGundir) {
-                pl.record_gundir = false;
                 if (preciseGundir)
                     byte |= ((pl.gundir.toNetworkLongForm() >> 8) << 5); // high bits
                 else
@@ -1700,7 +1699,6 @@ void Server::simulate_and_broadcast_frame() throw () {
 
             // Dead and powerup flags
             if (recordPowerups) {
-                pl.record_powerups = false;
                 uint8_t byte = 0;
                 if (pl.dead && recordGundir) byte |= (1 << 0);
                 if (pl.item_deathbringer   ) byte |= (1 << 1);
@@ -1711,13 +1709,10 @@ void Server::simulate_and_broadcast_frame() throw () {
                 recordFrame.U8(byte);
             }
 
-            if (recordVisibility) {
-                pl.record_visibility = false;
+            if (recordVisibility)
                 recordFrame.U8(pl.visibility);
-            }
 
             if (recordPosition) {
-                pl.record_position = false;
                 // Position
                 recordFrame.U8(pl.roomx);
                 recordFrame.U8(pl.roomy);
@@ -1728,13 +1723,13 @@ void Server::simulate_and_broadcast_frame() throw () {
                 recordFrame.dbl(pl.sy);
             }
 
-            if (recordControls) {
-                pl.record_controls = false;
+            if (recordControls)
                 recordFrame.U8(pl.controls.toNetwork(true));
-            }
 
             if (preciseGundir && recordGundir)
                 recordFrame.U8(pl.gundir.toNetworkLongForm() & 0xFF); // low bits
+
+            pl.clear_record_flags();
         }
 
         recordFrame.block(record_messages);

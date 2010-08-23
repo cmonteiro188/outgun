@@ -524,6 +524,10 @@ public:
         }
     }
 
+    void clear_record_flags() {
+        record_position = record_powerups = record_visibility = record_controls = record_gundir = false;
+    }
+
 private:
     std::vector<char> fav_col;
     bool bot;
