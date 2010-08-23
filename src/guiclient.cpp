@@ -1194,10 +1194,10 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
     BinaryDataBlockReader read(data);
 
     const uint8_t byte = read.U8();
-    const bool frameNumberFlag    = (byte & (1 << 0)) != 0;
-    const bool playersPresentFlag = (byte & (1 << 1)) != 0;
-    const bool pingFlag           = (byte & (1 << 2)) != 0;
-    const bool preciseGundir      = (byte & (1 << 3)) != 0;
+    const bool frameNumberFlag    = (byte & (1 << 0));
+    const bool playersPresentFlag = (byte & (1 << 1));
+    const bool pingFlag           = (byte & (1 << 2));
+    const bool preciseGundir      = (byte & (1 << 3));
 
     if (frameNumberFlag) {
         const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
@@ -1235,16 +1235,20 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
         const bool controlFlag    = (byte & (1 << 3));
         const bool gundirFlag     = (byte & (1 << 4));
 
-        if (!preciseGundir) {
-            if (gundirFlag)
-                pl.gundir.fromNetworkShortForm(byte >> 5);
+        uint16_t preciseGundirData;
+        if (gundirFlag) {
+            if (preciseGundir)
+                preciseGundirData = ((byte >> 5) << 8); // high bits
             else
-                pl.dead = (byte & (1 << 5)) != 0;
+                pl.gundir.fromNetworkShortForm(byte >> 5);
         }
+        else
+            pl.dead = (byte & (1 << 5)) != 0;
 
         if (powerupFlag) {
             const uint8_t byte = read.U8();
-            pl.dead                  = (byte & (1 << 0));
+            if (gundirFlag)
+                pl.dead              = (byte & (1 << 0));
             pl.item_deathbringer     = (byte & (1 << 1));
             pl.deathbringer_affected = (byte & (1 << 2));
             pl.item_shield           = (byte & (1 << 3));
@@ -1258,11 +1262,12 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
         if (positionFlag)
             read_replay_player_position(read, pl);
 
-        if (controlFlag || preciseGundir && gundirFlag) {
-            const uint8_t controlByte = read.U8();
-            pl.controls.fromNetwork(controlByte, true);
-            if (preciseGundir && gundirFlag)
-                pl.gundir.fromNetworkLongForm(((controlByte >> 5) << 8) | read.U8());
+        if (controlFlag)
+            pl.controls.fromNetwork(read.U8(), true);
+
+        if (preciseGundir && gundirFlag) {
+            preciseGundirData |= read.U8(); // add low bits
+            pl.gundir.fromNetworkLongForm(preciseGundirData);
         }
 
         pl.posUpdated = fx.frame;
@@ -1353,11 +1358,9 @@ void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
 
         if (frameNumberFlag)
             read.U32();
-        uint32_t playersPresent;
-        if (playersPresentFlag)
-            playersPresent = read.U32();
-        else
-            playersPresent = replay_players_present;
+
+        const uint32_t playersPresent = playersPresentFlag ? read.U32() : replay_players_present;
+
         if (pingFlag)
             read.U32dyn8();
 
@@ -1373,22 +1376,16 @@ void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
             const bool controlFlag    = (byte & (1 << 3));
             const bool gundirFlag     = (byte & (1 << 4));
 
-            if (!preciseGundir && gundirFlag)
-                pl.gundir.fromNetworkShortForm(byte >> 5);
-
             if (powerupFlag)
                 read.U8();
             if (visibilityFlag)
                 read.U8();
             if (positionFlag)
                 skip_replay_player_position(read);
-
-            if (controlFlag || preciseGundir && gundirFlag) {
-                const uint8_t controlByte = read.U8();
-                pl.controls.fromNetwork(controlByte, true);
-                if (preciseGundir && gundirFlag)
-                    pl.gundir.fromNetworkLongForm(((controlByte >> 5) << 8) | read.U8());
-            }
+            if (controlFlag)
+                pl.controls.fromNetwork(read.U8(), true);
+            if (preciseGundir && gundirFlag)
+                read.U8();
         }
     }
 }

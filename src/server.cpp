@@ -1616,12 +1616,12 @@ void Server::simulate_and_broadcast_frame() throw () {
          *            2  position data flag
          *            3  control data flag
          *            4  gun direction data flag
-         *          if precise gun dir flag is off and gun direction data flag is on
-         *           5-7 gun direction data
-         *          if precise gun dir flag is off and gun direction data flag is off
+         *          if gun direction data flag is on
+         *           5-7 gun direction data (only high bits if precise gun dir is on)
+         *          else
          *            5  dead flag
          *     1 B  powerup data containing the following bits (optional)
-         *            0  dead flag
+         *            0  dead flag if gun direction data flag is on
          *            1  deathbringer
          *            2  under deathbringer effect
          *            3  shield
@@ -1635,12 +1635,9 @@ void Server::simulate_and_broadcast_frame() throw () {
          *            8 B  inner-room y coordinate
          *            8 B  speed x coordinate
          *            8 B  speed y coordinate
-         *    if precise gun dir flag is off
-         *     1 B  gun direction byte (optional)
-         *    else if gun dir is recorded
-         *     2 B  combined control and gun direction data (optional)
-         *    else
          *     1 B  control data (optional)
+         *    if precise gun dir flag is on
+         *     1 B  gun direction data low bits (optional)
          *
          *     x B  server messages
          */
@@ -1690,26 +1687,27 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (recordPosition  ) byte |= (1 << 2);
             if (recordControls  ) byte |= (1 << 3);
             if (recordGundir    ) byte |= (1 << 4);
-            if (!preciseGundir) {
-                if (recordGundir) {
-                    pl.record_gundir = false;
-                    byte |= (pl.gundir.toNetworkShortForm() << 5);
-                }
+            if (recordGundir) {
+                pl.record_gundir = false;
+                if (preciseGundir)
+                    byte |= ((pl.gundir.toNetworkLongForm() >> 8) << 5); // high bits
                 else
-                    byte |= (pl.dead << 5);
+                    byte |= (pl.gundir.toNetworkShortForm() << 5);
             }
+            else
+                byte |= (pl.dead << 5);
             recordFrame.U8(byte);
 
             // Dead and powerup flags
             if (recordPowerups) {
                 pl.record_powerups = false;
                 uint8_t byte = 0;
-                if (pl.dead             ) byte |= (1 << 0);
-                if (pl.item_deathbringer) byte |= (1 << 1);
+                if (pl.dead && recordGundir) byte |= (1 << 0);
+                if (pl.item_deathbringer   ) byte |= (1 << 1);
                 if (pl.under_deathbringer_effect(get_time())) byte |= (1 << 2);
-                if (pl.item_shield      ) byte |= (1 << 3);
-                if (pl.item_turbo       ) byte |= (1 << 4);
-                if (pl.item_power       ) byte |= (1 << 5);
+                if (pl.item_shield         ) byte |= (1 << 3);
+                if (pl.item_turbo          ) byte |= (1 << 4);
+                if (pl.item_power          ) byte |= (1 << 5);
                 recordFrame.U8(byte);
             }
 
@@ -1730,20 +1728,13 @@ void Server::simulate_and_broadcast_frame() throw () {
                 recordFrame.dbl(pl.sy);
             }
 
-            const uint8_t controlByte = pl.controls.toNetwork(true);
-
-            if (preciseGundir && (recordControls || recordGundir)) {
-                const uint16_t gundir = pl.gundir.toNetworkLongForm();
-                if (recordGundir) {
-                    // Record also controls as they do not take any extra space.
-                    recordFrame.U8(controlByte | (gundir >> 8) << 5);
-                    recordFrame.U8(gundir & 0xFF);
-                }
-                else
-                    recordFrame.U8(controlByte);
+            if (recordControls) {
+                pl.record_controls = false;
+                recordFrame.U8(pl.controls.toNetwork(true));
             }
-            else if (recordControls)
-                recordFrame.U8(controlByte);
+
+            if (preciseGundir && recordGundir)
+                recordFrame.U8(pl.gundir.toNetworkLongForm() & 0xFF); // low bits
         }
 
         recordFrame.block(record_messages);
