@@ -891,11 +891,11 @@ void Robot::BuildMap() throw () {
         for (int y = 0; y < fx.map.h; ++y)
             fx.map.room[x][y].visited_frame = 0;
 
-    for (int i = 0; i < Table_Max; i++) {
-        route[i].type = Route_None;
-        route[i].target = 0;
+    for (int i = 0; i < Table_Max; i++)
         route[i].center = 0;
-    }
+
+    destinationType = Route_None;
+    destination = 0;
 }
 
 void Robot::BuildRouteTable(Area* startPoint, RouteTable num) throw () {
@@ -943,7 +943,7 @@ void Robot::BuildRoute(Area* const target) throw () {
 
     const Area* const here = myArea();
 
-    if (here->onRoute[Table_Main] && target == route[Table_Main].target)
+    if (here->onRoute[Table_Main] && target == destination)
         return;
 
     areaMap.clearRoute(Table_Main);
@@ -952,7 +952,7 @@ void Robot::BuildRoute(Area* const target) throw () {
     nAssert(route[Table_Main].center == here);
 
     target->onRoute[Table_Main] = true;
-    route[Table_Main].target = target;
+    destination = target;
 
     Area* at = target;
     while (at != here) {
@@ -969,12 +969,12 @@ void Robot::BuildRoute(Area* const target) throw () {
 }
 
 ClientControls Robot::Route(double melx, double mely) const throw () {
-    if (route[Table_Main].type == Route_None)
+    if (destinationType == Route_None)
         return ClientControls();
 
     const Area* const here = myArea();
 
-    if (here->distance[Table_Main] == -1 || route[Table_Main].target == here)
+    if (here->distance[Table_Main] == -1 || destination == here)
         return ClientControls();
 
     const Area::Neighbor* target = 0;
@@ -1101,7 +1101,7 @@ bool Robot::IsDefender() throw () {
 
 void Robot::RouteLogic() throw () { // NEED rewrite
     const int flag = HaveFlag(me);
-    route[Table_Main].type = Route_None;
+    destinationType = Route_None;
 
     if (!flag) {
         const bool at_bases = IsFlagsAtBases(fx.player[me].team()); // are own flags safe?
@@ -1119,30 +1119,30 @@ void Robot::RouteLogic() throw () { // NEED rewrite
                         swf, swf,   0,   0,
                           0,   0,
                           0,   0,   0);
-            if (route[Table_Main].type == Route_None) { // we are in control of all flags -> always defend
+            if (destinationType == Route_None) { // we are in control of all flags -> always defend
                 efc = wfc = 1;
                 mfb = sef; // still no point in defending the base if the flag can't be taken - resources better spent defending carriers
             }
         }
-        if (route[Table_Main].type == Route_None) {
+        if (destinationType == Route_None) {
             TargetRoute(sef, sef, efc,
                         mfb,   1,   1,
                         swf, swf,   1, wfc,
                           0,   0,
                           0,   0,   0);
         }
-        if (route[Table_Main].type == Route_None) {
+        if (destinationType == Route_None) {
             TargetRoute(  0,   0,   0,
                           0,   0,   0,
                           0,   0,   0,   0,
                           1,   0,
                         sef,   0,   0);  // ..., or enemy, or enemy base
         }
-        if (route[Table_Main].type == Route_None || route[Table_Main].type == Route_Base) {
-            if (route[Table_Main].type == Route_Base) {
-                const TeamCounts tc = Teams(route[Table_Main].target, false);
+        if (destinationType == Route_None || destinationType == Route_Base) {
+            if (destinationType == Route_Base) {
+                const TeamCounts tc = Teams(destination, false);
                 if (tc.friends) { // if we are going to base where is already our forces, forget it
-                    if (route[Table_Main].target != myArea() || AmILast())
+                    if (destination != myArea() || AmILast())
                         TargetFog();
                 }
             }
@@ -1168,14 +1168,14 @@ void Robot::RouteLogic() throw () { // NEED rewrite
                           0,   0,
                           0,   0,   0); // available capture point, or dropped own team flag
         }
-        if (route[Table_Main].type == Route_None) {
+        if (destinationType == Route_None) {
             TargetRoute(  0,   0,   0,
                           0,   0,   0,
                           0,   0,   0,   0,
                           0,   0,
                           0, ctf,   0);  // ok, to capture point, even if unavailable
         }
-        if (route[Table_Main].type == Route_None) {
+        if (destinationType == Route_None) {
             TargetRoute(  0,   0,   0,
                           0,   0,   0,
                           0,   0,   0,   0,
@@ -1248,7 +1248,7 @@ void Robot::TargetNearestBase(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            route[Table_Main].type = Route_Base;
+            destinationType = Route_Base;
         }
     }
 }
@@ -1281,7 +1281,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            route[Table_Main].type = Route_Team;
+            destinationType = Route_Team;
         }
     }
 }
@@ -1372,7 +1372,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
             targetArea = a;
-            route[Table_Main].type = Route_Flag;
+            destinationType = Route_Flag;
         }
     }
 }
@@ -1395,7 +1395,7 @@ void Robot::TargetFog() throw () {
     if (!target)
         return;
 
-    route[Table_Main].type = Route_Fog;
+    destinationType = Route_Fog;
     BuildRoute(target);
 }
 
@@ -1423,7 +1423,7 @@ void Robot::TargetRoute(int efb, int efd, int efc,
 
     BuildRouteTable(myArea(), Table_Main);
 
-    route[Table_Main].type = Route_None;
+    destinationType = Route_None;
 
     if (efb)
         TargetNearestFlag(m_distance, targetArea, et, 0);
@@ -1476,10 +1476,10 @@ void Robot::TargetRoute(int efb, int efd, int efc,
             wfb, wfd, wfce, wfcf,
             en,  fr,
             eb,  fb, wb,
-            route[Table_Main].type);
+            destinationType);
     #endif
 
-    if (route[Table_Main].type == Route_None) // nothing todo
+    if (destinationType == Route_None) // nothing todo
         return;
 
     nAssert(targetArea);
@@ -1488,11 +1488,11 @@ void Robot::TargetRoute(int efb, int efd, int efc,
 }
 
 bool Robot::IsMission() const throw () {
-    const int to_home = IsHome(route[Table_Main].target);
+    const int to_home = IsHome(destination);
     // if we are looking for flag or going to our base for something
-    if (route[Table_Main].target == myArea())
+    if (destination == myArea())
         return false;
-    return HaveFlag(me) || route[Table_Main].type == Route_Flag || to_home || !to_home && route[Table_Main].type == Route_Base;
+    return HaveFlag(me) || destinationType == Route_Flag || to_home || !to_home && destinationType == Route_Base;
 }
 
 ClientControls Robot::getRobotControls() throw () {
@@ -1583,7 +1583,7 @@ ClientControls Robot::getRobotControls() throw () {
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-        fprintf(stderr, "Going to %d,%d (target type %d).\n", route[Table_Main].target->roomx, route[Table_Main].target->roomy, route[Table_Main].type);
+        fprintf(stderr, "Going to %d,%d (target type %d).\n", destination->roomx, destination->roomy, destinationType);
         #endif
         return ctrl;
     }
@@ -1602,10 +1602,10 @@ ClientControls Robot::getRobotControls() throw () {
         ctrl.clearRun();
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    if (route[Table_Main].type == Route_None)
+    if (destinationType == Route_None)
         fprintf(stderr, "Nothing to do.\n");
     else
-        fprintf(stderr, "Nothing to do, already at target [type %d].\n", route[Table_Main].type);
+        fprintf(stderr, "Nothing to do, already at target [type %d].\n", destinationType);
     #endif
     return ctrl;
 }

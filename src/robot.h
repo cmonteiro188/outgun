@@ -52,12 +52,13 @@ class Robot : private ClientBase, public BotInterface {
     typedef AreaMap::Area Area;
 
     struct RouteTableDescriptor { // the actual table is distributed in all Areas
-        RouteTargetType type;
-        const Area* target;
         const Area* center; // the Area that has distance=0, or 0 if there are multiple centers
     };
 
     RouteTableDescriptor route[Table_Max];
+    RouteTargetType destinationType;
+    const Area*     destination;
+
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
