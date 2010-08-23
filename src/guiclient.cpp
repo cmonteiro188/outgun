@@ -1237,23 +1237,22 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
 
         uint16_t preciseGundirData;
         if (gundirFlag) {
+            pl.dead = false;
             if (preciseGundir)
                 preciseGundirData = ((byte >> 5) << 8); // high bits
             else
                 pl.gundir.fromNetworkShortForm(byte >> 5);
         }
         else
-            pl.dead = (byte & (1 << 5)) != 0;
+            pl.dead = (byte & (1 << 5));
 
         if (powerupFlag) {
             const uint8_t byte = read.U8();
-            if (gundirFlag)
-                pl.dead              = (byte & (1 << 0));
+            pl.deathbringer_affected = (byte & (1 << 0));
             pl.item_deathbringer     = (byte & (1 << 1));
-            pl.deathbringer_affected = (byte & (1 << 2));
-            pl.item_shield           = (byte & (1 << 3));
-            pl.item_turbo            = (byte & (1 << 4));
-            pl.item_power            = (byte & (1 << 5));
+            pl.item_shield           = (byte & (1 << 2));
+            pl.item_turbo            = (byte & (1 << 3));
+            pl.item_power            = (byte & (1 << 4));
         }
 
         if (visibilityFlag)
