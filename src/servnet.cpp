@@ -1753,13 +1753,18 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
             pl.accelerationMode = AM_World;
         if (!pl.dead) {
             if (world.physics.allowFreeTurning && newDirReceived) {
-                pl.gundir = newDir;
-                pl.record_gundir = true;
+                if (newDir != pl.gundir) {
+                    pl.gundir = newDir;
+                    pl.record_gundir = true;
+                }
             }
             else
                 if (!pl.controls.isStrafe()) {
-                    pl.gundir.updateFromControls(pl.controls);
-                    pl.record_gundir = true;
+                    newDir.updateFromControls(pl.controls);
+                    if (newDir != pl.gundir) {
+                        pl.gundir.updateFromControls(pl.controls);
+                        pl.record_gundir = true;
+                    }
                 }
         }
     }

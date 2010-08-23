@@ -382,6 +382,9 @@ public:
     double toRad() const throw () { nAssert(data >= 0 && data <= 8); return data * N_PI_4; }
 
     bool operator!() const throw () { return data < 0; }
+
+    bool operator==(const GunDirection& op) const throw () { return data == op.data; }
+    bool operator!=(const GunDirection& op) const throw () { return !(*this == op); }
 };
 
 class PlayerBase {
