@@ -49,9 +49,9 @@ const char* codes[] = {
     "data_file_request",
     "data_file_download",
     "data_file_ack",
-    "data_registration_token",
+    "data_old_registration_token",
     "data_registration_response",
-    "data_tournament_participation",
+    "data_old_tournament_participation",
     "data_crap_update",
     "data_map_time",
     "data_fire_on",
@@ -94,22 +94,45 @@ const char* codes[] = {
     "data_normal_time_out",
     "data_too_much_talk",
     "data_mute_notification",
-    "data_tournament_update_failed",
+    "data_ranking_update_failed",
     "data_player_mute",
     "data_player_kick",
     "data_disconnecting",
     "data_idlekick_warning",
     "data_map_change_info",
     "data_broken_map",
-    "data_current_map",
+    "data_current_map", // = data_reserved_range_first
     "data_bot",
-    "data_set_extension_level",
-    "data_negotiate_third_party_extensions"
-    // todo: support gaps in the list, and therefore the negotiated extension messages
+    "data_negotiate_third_party_extensions", // this message is reserved for unofficial extensions; it's guaranteed to be ignored by official versions, but to gain compatibility across different 3rd party extensions, the extension to be negotiated should be identified, and unrecognized messages ignored
+    "data_ranking_participation", // the newer ranking system
+    "data_registration_token", // the newer ranking system
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, // data_reserved_range_first + 10
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0, // data_reserved_range_first + 20 = data_reserved_range_last
+    // available from negotiated extensions level 0:
+    "data_acceleration_modes", // = data_negotiated_extensions_first
+    "data_set_minimap_player_bandwidth",
+    "data_extension_advantage",
+    "data_waiting_time",
+    "data_flag_modes",
+    // todo: support gaps in the list, for better handling of negotiated extensions
 };
 
 string getMessageName(byte type) {
-    if (type >= sizeof(codes)/sizeof(codes[0])) {
+    if (type >= sizeof(codes)/sizeof(codes[0]) || !codes[type]) {
         ostringstream output;
         output << '(' << int(type) << ')';
         return output.str();
