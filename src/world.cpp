@@ -2,7 +2,7 @@
  *  world.cpp
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -879,9 +879,27 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     next_smoke_effect_time = 0;
     hitfx = 0;
     oldx = oldy = 0;
-    posUpdated = -1e10;
+    prevMapUpdateRoomx = prevMapUpdateRoomy = 0;
+    posUpdated = prevMapPosUpdateFrame = -1e10;
+    fromMinimapUpdate = false;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
+}
+
+void ClientPlayer::setPosition(const WorldCoords& pos, double frame, bool minimapUpdate, bool clearlyVisible) throw () {
+    nAssert(!(minimapUpdate && !clearlyVisible));
+    if (fromMinimapUpdate) {
+        prevMapPosUpdateFrame = posUpdated;
+        prevMapUpdateRoomx = roomx;
+        prevMapUpdateRoomy = roomy;
+    }
+    roomx = pos.px;
+    roomy = pos.py;
+    lx = pos.x;
+    ly = pos.y;
+    fromMinimapUpdate = minimapUpdate;
+    if (clearlyVisible)
+        posUpdated = frame;
 }
 
 /* bounceFromPoint():

@@ -375,29 +375,30 @@ void ClientBase::issue_change_name_command() throw () {
 }
 
 void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
+    ClientPlayer& pl = fx.player[pid];
     const uint8_t whox = reader.U8(), whoy = reader.U8();
-    if (pid == me || fx.player[pid].onscreen)
+    if (pid == me || pl.onscreen)
         return;
-    const double oldx = fx.player[pid].roomx * plw + fx.player[pid].lx;
-    const double oldy = fx.player[pid].roomy * plh + fx.player[pid].ly;
+    const double oldx = pl.roomx * plw + pl.lx;
+    const double oldy = pl.roomy * plh + pl.ly;
     const int xmul = 255 / fx.map.w;
     const int ymul = 255 / fx.map.h;
     const double xStep = double(plw) / xmul;
     const double yStep = double(plh) / ymul;
-    fx.player[pid].roomx = whox / xmul;
-    fx.player[pid].roomy = whoy / ymul;
-    fx.player[pid].lx = (whox % xmul + .5) * xStep;
-    fx.player[pid].ly = (whoy % ymul + .5) * yStep;
-    fx.player[pid].posUpdated = fx.frame;
-    double newx = fx.player[pid].roomx * plw + fx.player[pid].lx;
-    double newy = fx.player[pid].roomy * plh + fx.player[pid].ly;
+    pl.setPosition(WorldCoords(whox / xmul,
+                               whoy / ymul,
+                               (whox % xmul + .5) * xStep,
+                               (whoy % ymul + .5) * yStep),
+                   fx.frame, true);
+    double newx = pl.roomx * plw + pl.lx;
+    double newy = pl.roomy * plh + pl.ly;
     if (fabs(newx - oldx) > fx.map.w * plw / 2)
         newx += fx.map.w * plw * (newx < oldx ? +1 : -1);
     if (fabs(newy - oldy) > fx.map.h * plh / 2)
         newy += fx.map.h * plh * (newy < oldy ? +1 : -1);
     const double dx = newx - oldx, dy = newy - oldy;
     if (fabs(dx) >= xStep || fabs(dy) >= yStep)
-        fx.player[pid].gundir.fromRad(atan2(dy, dx));
+        pl.gundir.fromRad(atan2(dy, dx));
 }
 
 bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
@@ -488,13 +489,11 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
 
         ClientPlayer& h = fx.player[i];
 
-        h.roomx = fx.player[me].roomx;  //same screen since it's on the "players on same screen" vector
-        h.roomy = fx.player[me].roomy;
-
+        double lx, ly;
         {
             const uint8_t xLowBits = read.U8(), yLowBits = read.U8(), highBits = read.U8();
-            h.lx = ((highBits & 0x0F) << 8 | xLowBits) * (plw / double(0xFFF));
-            h.ly = ((highBits & 0xF0) << 4 | yLowBits) * (plh / double(0xFFF));
+            lx = ((highBits & 0x0F) << 8 | xLowBits) * (plw / double(0xFFF));
+            ly = ((highBits & 0xF0) << 4 | yLowBits) * (plh / double(0xFFF));
         }
 
         if (protocolExtensions < 0) {
@@ -544,8 +543,8 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
                 fx.player[me].item_shadow_time = 0;
         }
 
-        if (i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag())
-            h.posUpdated = svframe;
+        const bool clearlyVisible = i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag();
+        h.setPosition(WorldCoords(fx.player[me].roomx, fx.player[me].roomy, lx, ly), svframe, false, clearlyVisible);
     }
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
@@ -683,13 +682,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 if (!new_flag) {
                     if (!fx.player[carrier].onscreen && !replaying) {
                         const WorldCoords& flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
-                        if (!flagPos.unknown()) {
-                            fx.player[carrier].roomx = flagPos.px;
-                            fx.player[carrier].roomy = flagPos.py;
-                            fx.player[carrier].lx = flagPos.x;
-                            fx.player[carrier].ly = flagPos.y;
-                            fx.player[carrier].posUpdated = fx.frame;
-                        }
+                        if (!flagPos.unknown())
+                            fx.player[carrier].setPosition(flagPos, fx.frame);
                     }
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
                 }
@@ -737,12 +731,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 }
                 team = pid / TSIZE;
                 if (fx.player[pid].posUpdated < frameno) {
-                    fx.player[pid].roomx = rpx;
-                    fx.player[pid].roomy = rpy;
-                    fx.player[pid].lx = rx;
-                    fx.player[pid].ly = ry;
+                    fx.player[pid].setPosition(WorldCoords(rpx, rpy, rx, ry), frameno);
                     fx.player[pid].gundir = dir;
-                    fx.player[pid].posUpdated = frameno;
                 }
             }
             else
@@ -1207,7 +1197,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         fx.player[pid].stats().spawn(time);
         if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
-            fx.player[pid].posUpdated = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
+            fx.player[pid].posUpdated = fx.player[pid].prevMapPosUpdateFrame = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
         fx.player[pid].dead = false;
     }
 

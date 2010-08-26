@@ -803,7 +803,7 @@ Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw ()
         if (pl.team() != fx.player[me].team()) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
-            if (c.friends && fx.frame - pl.posUpdated > 5 || fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
+            if (fx.map.room[pl.roomx][pl.roomy].enemies_seen_frame > pl.posUpdated)
                 continue;
             c.enemies++;
         }
@@ -889,7 +889,7 @@ void Robot::BuildMap() throw () {
 
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y)
-            fx.map.room[x][y].visited_frame = 0;
+            fx.map.room[x][y].enemies_seen_frame = 0;
 
     for (int i = 0; i < Table_Max; i++)
         distanceTable[i].center = 0;
@@ -1246,13 +1246,9 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
 
         if (enemy) {
             if (fx.frame - pl.posUpdated > FADEOUT)
-                continue; // old data
-            if (!pl.onscreen) {
-                if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
-                    continue; // already here
-                if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
-                    continue; // was here
-            }
+                continue;
+            if (fx.map.room[pl.roomx][pl.roomy].enemies_seen_frame > pl.posUpdated)
+                continue;
         }
 
         Area* const a = area(pl);
@@ -1333,9 +1329,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             if (state == 3 && !pl.onscreen) { // check if the position is current enough
                 if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
                     continue;
-                if (pl.roomx == fx.player[me].roomx && pl.roomy == fx.player[me].roomy)
-                    continue;
-                if (fx.map.room[pl.roomx][pl.roomy].visited_frame > pl.posUpdated)
+                if (fx.map.room[pl.roomx][pl.roomy].enemies_seen_frame > pl.posUpdated)
                     continue;
             }
             pos = pl.position();
@@ -1368,7 +1362,7 @@ void Robot::TargetFog() throw () {
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
             continue;
-        const double delta = fabs(fx.frame - fx.map.room[na->roomx][na->roomy].visited_frame);
+        const double delta = fabs(fx.frame - fx.map.room[na->roomx][na->roomy].enemies_seen_frame);
         if (delta >= max_delta) {
             max_delta = delta;
             target = na;
@@ -1481,7 +1475,24 @@ ClientControls Robot::getRobotControls() throw () {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
 
-    fx.map.room[fx.player[me].roomx][fx.player[me].roomy].visited_frame = fx.frame;
+    if (fx.player[me].item_shadow()) {
+        for (int x = 0; x < fx.map.w; ++x)
+            for (int y = 0; y < fx.map.h; ++y)
+                fx.map.room[x][y].enemies_seen_frame = fx.frame;
+    }
+    else {
+        fx.map.room[fx.player[me].roomx][fx.player[me].roomy].enemies_seen_frame = fx.frame;
+
+        for (int pi = 0; pi < maxplayers; ++pi) {
+            const ClientPlayer& p = fx.player[pi];
+            if (!p.used || p.dead || p.team() != fx.player[me].team())
+                continue;
+            if (p.posUpdated == fx.frame && p.fromMinimapUpdate && p.prevMapPosUpdateFrame >= p.posUpdated - 20 && p.prevMapUpdateRoomx == p.roomx && p.prevMapUpdateRoomy == p.roomy) {
+                double& esf = fx.map.room[p.roomx][p.roomy].enemies_seen_frame;
+                esf = max(esf, p.prevMapPosUpdateFrame); // we'd expect to have received information of any enemies in the room between the two updates of the friend
+            }
+        }
+    }
 
     if (last_seen != -1) {
         const ClientPlayer& lsp = fx.player[last_seen];

@@ -2,7 +2,7 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -135,7 +135,7 @@ private:
 
 class Room {
 public:
-    double visited_frame; // for bots
+    double enemies_seen_frame; // for bots
 
     Room() throw () { }
     Room(const Room& room) throw ();
@@ -523,8 +523,11 @@ public:
     double player_sound_time;
     bool onscreen;
     double hitfx;
-    int oldx, oldy; // detect room changes
+    int oldx, oldy; // detect room changes, self only
     double posUpdated; // on which frame the player's position has been last received (including the low-res info for minimap purposes)
+    bool fromMinimapUpdate;
+    double prevMapPosUpdateFrame; // if fromMinimapUpdate, the last update before posUpdated
+    int prevMapUpdateRoomx, prevMapUpdateRoomy;
     int alpha;
 
     // get rid of these since they are only known for the local player
@@ -538,6 +541,8 @@ public:
     bool under_deathbringer_effect(double curr_time) const throw () { (void)curr_time; return deathbringer_affected; }
 
     void clear(bool enable, int _pid, const std::string& _name, int team_id) throw ();
+
+    void setPosition(const WorldCoords& pos, double frame, bool minimapUpdate = false, bool clearlyVisible = true) throw ();
 };
 
 // a rocket-shot
