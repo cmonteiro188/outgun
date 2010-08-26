@@ -1475,22 +1475,23 @@ ClientControls Robot::getRobotControls() throw () {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
 
+    fx.map.room[fx.player[me].roomx][fx.player[me].roomy].enemies_seen_frame = fx.frame;
+
     if (fx.player[me].item_shadow()) {
         for (int x = 0; x < fx.map.w; ++x)
-            for (int y = 0; y < fx.map.h; ++y)
-                fx.map.room[x][y].enemies_seen_frame = fx.frame;
-    }
-    else {
-        fx.map.room[fx.player[me].roomx][fx.player[me].roomy].enemies_seen_frame = fx.frame;
-
-        for (int pi = 0; pi < maxplayers; ++pi) {
-            const ClientPlayer& p = fx.player[pi];
-            if (!p.used || p.dead || p.team() != fx.player[me].team())
-                continue;
-            if (p.posUpdated == fx.frame && p.fromMinimapUpdate && p.prevMapPosUpdateFrame >= p.posUpdated - 20 && p.prevMapUpdateRoomx == p.roomx && p.prevMapUpdateRoomy == p.roomy) {
-                double& esf = fx.map.room[p.roomx][p.roomy].enemies_seen_frame;
-                esf = max(esf, p.prevMapPosUpdateFrame); // we'd expect to have received information of any enemies in the room between the two updates of the friend
+            for (int y = 0; y < fx.map.h; ++y) {
+                double& esf = fx.map.room[x][y].enemies_seen_frame;
+                esf = max(esf, fx.frame - 10); // estimate at most 10 frames to send everyone's position (assumes that we already had shadow 10 frames ago)
             }
+    }
+
+    for (int pi = 0; pi < maxplayers; ++pi) {
+        const ClientPlayer& p = fx.player[pi];
+        if (!p.used || p.dead || p.team() != fx.player[me].team())
+            continue;
+        if (p.posUpdated == fx.frame && p.fromMinimapUpdate && p.prevMapPosUpdateFrame >= p.posUpdated - 20 && p.prevMapUpdateRoomx == p.roomx && p.prevMapUpdateRoomy == p.roomy) {
+            double& esf = fx.map.room[p.roomx][p.roomy].enemies_seen_frame;
+            esf = max(esf, p.prevMapPosUpdateFrame); // we'd expect to have received information of any enemies in the room between the two updates of the friend
         }
     }
 
