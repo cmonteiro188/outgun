@@ -1477,7 +1477,7 @@ ClientControls Robot::getRobotControls() throw () {
 
     fx.map.room[fx.player[me].roomx][fx.player[me].roomy].enemies_seen_frame = fx.frame;
 
-    if (fx.player[me].item_shadow()) {
+    if (fx.player[me].item_shadow_time > fx.frame / 10.) {
         for (int x = 0; x < fx.map.w; ++x)
             for (int y = 0; y < fx.map.h; ++y) {
                 double& esf = fx.map.room[x][y].enemies_seen_frame;
