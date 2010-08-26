@@ -239,6 +239,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     bool replay_first_frame_loaded;
     unsigned replay_start_frame;
     unsigned replay_length;
+    uint32_t replay_players_present;
     std::pair<int, int> replayTopLeftRoom;
     double visible_rooms;
 
@@ -387,6 +388,7 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void process_replay_packet(ConstDataBlockRef data) throw ();
     int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
+    int process_replay_frame_data_version_0(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
 
     std::string refreshStatusAsString() const throw ();
     void getServerListThread() throw ();
@@ -445,12 +447,19 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void start_replay(const std::string& filename) throw ();
     bool start_replay(std::istream& in) throw ();
-    void continue_replay() throw ();
-    void continue_replay(std::istream& in) throw ();
+    void continue_replay(bool controls = false) throw ();
+    void continue_replay(std::istream& in, bool controls = false) throw ();
+    void process_replay_controls() throw ();
     void stop_replay() throw ();
     void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
+
+    void read_replay_controls(ConstDataBlockRef data) throw ();
+    static void read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw ();
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw ();
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw ();
+    void skip_replay_player_position(BinaryDataBlockReader& read) throw ();
 
     void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
 

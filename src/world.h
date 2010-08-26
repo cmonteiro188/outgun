@@ -382,6 +382,9 @@ public:
     double toRad() const throw () { nAssert(data >= 0 && data <= 8); return data * N_PI_4; }
 
     bool operator!() const throw () { return data < 0; }
+
+    bool operator==(const GunDirection& op) const throw () { return data == op.data; }
+    bool operator!=(const GunDirection& op) const throw () { return !(*this == op); }
 };
 
 class PlayerBase {
@@ -491,6 +494,10 @@ public:
     double talk_hotness;
 
     bool record_position;
+    bool record_powerups; // turbo, power, shield, deathbringer and under deathbringer effect
+    bool record_visibility;
+    bool record_controls;
+    bool record_gundir;
 
     unsigned uniqueId;
 
@@ -506,6 +513,13 @@ public:
 
     void set_bot() throw () { bot = true; }
     bool is_bot() const throw () { return bot; }
+
+    void set_visibility(int val) {
+        if (val != visibility) {
+            visibility = val;
+            record_visibility = true;
+        }
+    }
 
 private:
     std::vector<char> fav_col;

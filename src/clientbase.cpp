@@ -1099,7 +1099,11 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         netSuicide(pid, flag, wild_flag, spree_ended);
     }
 
-    break; case data_players_present: {    // this is only sent immediately after connecting to the server
+    break; case data_players_present: {       // this is only sent immediately after connecting to the server
+        #ifndef DEDICATED_SERVER_ONLY
+        if (replaying && replay_version >= 1)
+            return false;                     // Invalid replay file. This message should be only in version 0.
+        #endif
         const uint32_t pp = read.U32();
         for (int i = 0; i < maxplayers; ++i) {
             if (fx.player[i].used)  // this shouldn't happen except for i == me; either way, the player is already initialized
@@ -1116,6 +1120,12 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_new_player: {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         nAssert(!fx.player[pid].used || replaying);
+        #ifndef DEDICATED_SERVER_ONLY
+        if (replaying && replay_version >= 1) { // Reset players when parsing replay frame data, not here.
+            fx.player[pid].name = "";           // Clear to show the join message.
+            break;
+        }
+        #endif
         fx.player[pid].clear(true, pid, "", pid / TSIZE);
         fx.player[pid].stats().set_start_time(time);
         #ifndef DEDICATED_SERVER_ONLY

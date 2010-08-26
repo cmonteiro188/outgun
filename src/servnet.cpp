@@ -185,7 +185,7 @@ string ServerNetworking::get_download_file(const string& ftype, const string& fn
 void ServerNetworking::record_message(ConstDataBlockRef data) const throw () {
     if (host->recording_active()) {
         BinaryWriter& writer = host->recordMessageWriter();
-        writer.U32(data.size());
+        writer.U32dyn8(data.size());
         writer.block(data);
     }
 }
@@ -577,17 +577,6 @@ void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw
     server->send_message(player.cid, msg);
 }
 
-void ServerNetworking::record_players_present() const throw () {
-    uint32_t players_present = 0;
-    for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used)
-            players_present |= (1 << i);
-    BinaryBuffer<32> msg;
-    msg.U8(data_players_present);
-    msg.U32(players_present);
-    record_message(msg);
-}
-
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_new_player);
@@ -918,7 +907,7 @@ void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRe
 
     if (host->recording_active()) {
         BinaryWriter& writer = host->recordMessageWriter();
-        writer.U32(msg.size() + 2);
+        writer.U32dyn8(msg.size() + 2);
         writer.block(msg);
         writer.U8(px);
         writer.U8(py);
@@ -1741,8 +1730,15 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         }
         pl.lastClientFrame = clFrame;
 
-        pl.controls.fromNetwork(frame.U8(), false);
-        pl.controls.clearModifiersIfIdle();
+        const uint8_t controlByte = frame.U8();
+        ClientControls controls;
+        controls.fromNetwork(controlByte, false);
+        controls.clearModifiersIfIdle();
+        if (pl.controls != controls) {
+            pl.controls = controls;
+            if (!pl.dead)
+                pl.record_controls = true;
+        }
 
         GunDirection newDir;
         bool newDirReceived = false;
@@ -1755,11 +1751,21 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         else
             pl.accelerationMode = AM_World;
         if (!pl.dead) {
-            if (world.physics.allowFreeTurning && newDirReceived)
-                pl.gundir = newDir;
+            if (world.physics.allowFreeTurning && newDirReceived) {
+                if (newDir != pl.gundir) {
+                    pl.gundir = newDir;
+                    pl.record_gundir = true;
+                }
+            }
             else
-                if (!pl.controls.isStrafe())
-                    pl.gundir.updateFromControls(pl.controls);
+                if (!pl.controls.isStrafe()) {
+                    newDir = pl.gundir;
+                    newDir.updateFromControls(pl.controls);
+                    if (newDir != pl.gundir) {
+                        pl.gundir = newDir;
+                        pl.record_gundir = true;
+                    }
+                }
         }
     }
 

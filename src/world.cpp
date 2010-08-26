@@ -855,6 +855,10 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
 
     bot = false;
     record_position = true;
+    record_powerups = true;
+    record_visibility = true;
+    record_controls = true;
+    record_gundir = true;
 
     current_map_list_item = 0;
     nextMinimapPlayer = 0;
@@ -1864,10 +1868,12 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
     player[pid].item_power_time = get_time() + pupConfig.start_power;
     player[pid].item_turbo = pupConfig.start_turbo;
     player[pid].item_turbo_time = get_time() + pupConfig.start_turbo;
-    player[pid].visibility = pupConfig.start_shadow ? config.getShadowMinimum() : 255;
+    player[pid].set_visibility(pupConfig.start_shadow ? config.getShadowMinimum() : 255);
     player[pid].item_shadow_time = get_time() + pupConfig.start_shadow;
     player[pid].item_deathbringer = pupConfig.start_deathbringer;
     player[pid].deathbringer_end = 0;
+
+    player[pid].record_powerups = true;
 
     player[pid].respawn_to_base = false;
 
@@ -2052,6 +2058,9 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
 
     switch (it.kind) {
     /*break;*/ case Powerup::pup_shield: {
+            if (!pl.item_shield)
+                pl.record_powerups = true;
+
             pl.item_shield = pupConfig.pup_shield_hits ? pupConfig.pup_shield_hits : 1;
 
             //increase health to minimum of 100
@@ -2069,8 +2078,10 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
         }
         break; case Powerup::pup_turbo: {
             double itemTime = pl.item_turbo_time - get_time();
-            if (!pl.item_turbo || itemTime < 0)
+            if (!pl.item_turbo || itemTime < 0) {
                 itemTime = 0;
+                pl.record_powerups = true;
+            }
             itemTime = pupConfig.addTime(itemTime);
 
             pl.item_turbo = true;
@@ -2085,7 +2096,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
                 itemTime = 0;
             itemTime = pupConfig.addTime(itemTime);
 
-            pl.visibility = config.getShadowMinimum();
+            pl.set_visibility(config.getShadowMinimum());
             pl.item_shadow_time = get_time() + itemTime;
 
             net->sendPupTime(pl.id, it.kind, itemTime);
@@ -2093,8 +2104,10 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
         }
         break; case Powerup::pup_power: {
             double itemTime = pl.item_power_time - get_time();
-            if (!pl.item_power || itemTime < 0)
+            if (!pl.item_power || itemTime < 0) {
                 itemTime = 0;
+                pl.record_powerups = true;
+            }
             itemTime = pupConfig.addTime(itemTime);
 
             pl.item_power = true;
@@ -2120,10 +2133,14 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_MEGAHEALTH);
         }
         break; case Powerup::pup_deathbringer: {
-            if (pupConfig.getDeathbringerSwitch())
+            if (pupConfig.getDeathbringerSwitch()) {
                 pl.item_deathbringer = !pl.item_deathbringer;
-            else
+                pl.record_powerups = true;
+            }
+            else if (!pl.item_deathbringer) {
                 pl.item_deathbringer = true;
+                pl.record_powerups = true;
+            }
 
             net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
         }
@@ -2144,10 +2161,14 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) throw () {
             mintime = pl.item_turbo_time;
         if (pl.item_shadow() && pl.item_shadow_time < mintime)
             mintime = pl.item_shadow_time;
-        if (pl.item_power && pl.item_power_time < mintime)
+        if (pl.item_power && pl.item_power_time < mintime) {
             pl.item_power_time = 0;
-        else if (pl.item_turbo && pl.item_turbo_time == mintime)
+            pl.record_powerups = true;
+        }
+        else if (pl.item_turbo && pl.item_turbo_time == mintime) {
             pl.item_turbo_time = 0;
+            pl.record_powerups = true;
+        }
         else {
             nAssert(pl.item_shadow() && pl.item_shadow_time == mintime);
             pl.item_shadow_time = 0;
@@ -2157,10 +2178,12 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) throw () {
 
     if (pl.item_deathbringer) {
         pl.item_deathbringer = false;
+        pl.record_powerups = true;
         net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
     }
     else if (pl.item_shield) {
         pl.item_shield = 0;
+        pl.record_powerups = true;
         net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_LOST);
     }
     else {
@@ -2188,7 +2211,7 @@ void ServerWorld::game_player_screen_change(int p) throw () {
 void ServerWorld::resetPlayer(int target, double time_penalty) throw () {    // take the player out of the game; the clients must be informed and this function doesn't do that
     player[target].health = player[target].energy = 0;
 
-    player[target].visibility = 255;
+    player[target].set_visibility(255);
     player[target].item_power = false;
     player[target].item_turbo = false;
     // deathbringer is not removed until respawn because the flag is needed
@@ -2239,19 +2262,23 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
 
     // shadow powerup: show player
     if (player[target].item_shadow())
-        player[target].visibility = maximum_shadow_visibility;
+        player[target].set_visibility(maximum_shadow_visibility);
 
     if (player[target].item_shield) {
         if (pupConfig.pup_shield_hits) {
             player[target].item_shield--;
-            if (!player[target].item_shield && type != DT_deathbringer)
-                net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+            if (!player[target].item_shield) {
+                player[target].record_powerups = true;
+                if (type != DT_deathbringer)
+                    net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
+            }
         }
         else {
             player[target].energy -= damage;
             if (player[target].energy <= 0) {
                 player[target].energy = 0;
                 player[target].item_shield = 0;
+                player[target].record_powerups = true;
                 if (type != DT_deathbringer)
                     net->broadcast_screen_sample(target, SAMPLE_SHIELD_LOST);
             }
@@ -2505,6 +2532,9 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
         deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, 252);     //do not blink
     else
         deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
+
+    player[pid].record_position = true;
+
     return player[pid].dead;
 }
 
@@ -2527,10 +2557,10 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     const double shadowTransferTime = 3.0;
     if (pl1.item_shadow()) {
         if (pl1.team() != pl2.team())
-            pl1.visibility = maximum_shadow_visibility;
+            pl1.set_visibility(maximum_shadow_visibility);
         else if (!pl2.item_shadow() && pl1.item_shadow_time > get_time() + shadowTransferTime) {
             // share free shadow if has enough shadow time left (greater than the bonus time)
-            pl2.visibility = config.getShadowMinimum();
+            pl2.set_visibility(config.getShadowMinimum());
             pl2.item_shadow_time = get_time() + shadowTransferTime;
             net->sendPupTime(pid2, Powerup::pup_shadow, shadowTransferTime);
             net->broadcast_screen_sample(pid2, SAMPLE_SHADOW_ON);
@@ -2538,9 +2568,9 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
     }
     if (pl2.item_shadow()) {
         if (pl1.team() != pl2.team())
-            pl2.visibility = maximum_shadow_visibility;
+            pl2.set_visibility(maximum_shadow_visibility);
         else if (!pl1.item_shadow() && pl2.item_shadow_time > get_time() + shadowTransferTime) {
-            pl1.visibility = config.getShadowMinimum();
+            pl1.set_visibility(config.getShadowMinimum());
             pl1.item_shadow_time = get_time() + shadowTransferTime;
             net->sendPupTime(pid1, Powerup::pup_shadow, shadowTransferTime);
             net->broadcast_screen_sample(pid1, SAMPLE_SHADOW_ON);
@@ -2561,6 +2591,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
             pl2.deathbringer_end = get_time() + deathbringerEffectTime;
             pl2.next_shoot_frame = frame + iround(deathbringerEffectTime * 10.);
             pl2.deathbringer_attacker = pid1;
+            pl2.record_powerups = true;
             // amplify the collision result to help on casting both players apart
             toss_a = true;
             toss_b = true;
@@ -2571,6 +2602,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
             pl1.deathbringer_end = get_time() + deathbringerEffectTime;
             pl1.next_shoot_frame = frame + iround(deathbringerEffectTime * 10.);
             pl1.deathbringer_attacker = pid2;
+            pl1.record_powerups = true;
             toss_a = true;
             toss_b = true;
             net->broadcast_screen_sample(pid1, SAMPLE_HITDEATHBRINGER);
@@ -2592,6 +2624,7 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
                 net->broadcast_screen_sample(pid1, SAMPLE_SHIELD_LOST); // applies to both players
                 pl1.energy = pl2.energy = 0;
                 pl1.item_shield = pl2.item_shield = 0;
+                pl1.record_powerups = pl2.record_powerups = true;
             }
             else
                 damagePlayer(pid1, pid2, shieldColdam, DT_collision);   // damage to the shield
@@ -2632,6 +2665,8 @@ PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int p
             net->broadcast_screen_power_collision(pid1);
         }
     }
+
+    player[pid1].record_position = player[pid2].record_position = true;
 
     return PhysicsCallbacksBase::PlayerHitResult(pl1.dead, pl2.dead, toss_a ? 2. : 1., toss_b ? 2. : 1.);
 }
@@ -3108,24 +3143,27 @@ void ServerWorld::simulateFrame() throw () {
         if (player[i].item_turbo)
             if (get_time() > player[i].item_turbo_time) {
                 player[i].item_turbo = false;
+                player[i].record_powerups = true;
                 net->broadcast_screen_sample(i, SAMPLE_TURBO_OFF);
             }
         if (player[i].item_power)
             if (get_time() > player[i].item_power_time) {
                 player[i].item_power = false;
+                player[i].record_powerups = true;
                 net->broadcast_screen_sample(i, SAMPLE_POWER_OFF);
             }
         if (player[i].item_shadow())
             if (get_time() > player[i].item_shadow_time) {
-                player[i].visibility = 255;
+                player[i].set_visibility(255);
                 net->broadcast_screen_sample(i, SAMPLE_SHADOW_OFF);
             }
 
         // shadow alpha down
         if (player[i].item_shadow()) {
-            player[i].visibility -= 10;     //slowly fades....
-            if (player[i].visibility < config.getShadowMinimum())   // minimum
-                player[i].visibility = config.getShadowMinimum();
+            int visibility = player[i].visibility - 10;   // slowly fades....
+            if (visibility < config.getShadowMinimum())
+                visibility = config.getShadowMinimum();
+            player[i].set_visibility(visibility);
         }
 
         // check deathbringer effect
@@ -3139,6 +3177,8 @@ void ServerWorld::simulateFrame() throw () {
                     damagePlayer(i, player[i].deathbringer_attacker, 3, DT_deathbringer); // 30 / s, 150 / 5 s
             }
         }
+        else if (get_time() - player[i].deathbringer_end < 0.2) // deathbringer effect has just ended
+            player[i].record_powerups = true;
     }
 
     cleanOldDeathbringerExplosions();
@@ -3179,12 +3219,14 @@ void ServerWorld::simulateFrame() throw () {
             const double time = pupConfig.pup_deathbringer_time * (sameTeam ? physics.friendly_db : 1.) * (9000 + rand() % 2000) / 10000.;
             target.deathbringer_end = get_time() + time;
             target.next_shoot_frame = frame + iround(time * 10.);
+            target.record_powerups = true;
 
             // push player away from db center
             if (dist != 0) {
                 const double mul = 40. / dist; // set speed to 40
                 target.sx = dx * mul;
                 target.sy = dy * mul;
+                target.record_position = true;
             }
         }
         db.playersOutsideMask = newOutsideMask;
@@ -3253,7 +3295,7 @@ void ServerWorld::simulateFrame() throw () {
 
             //show shadow
             if (player[i].item_shadow())
-                player[i].visibility = maximum_shadow_visibility;
+                player[i].set_visibility(maximum_shadow_visibility);
 
             shootRockets(i, numshots);
         }
@@ -3484,7 +3526,7 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
     net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
     if (player[pid].item_shadow())
-        player[pid].visibility = maximum_shadow_visibility;
+        player[pid].set_visibility(maximum_shadow_visibility);
 }
 
 void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {

@@ -333,6 +333,7 @@ class Server : private NoCopying {
     uint32_t record_start_frame;
     std::string record_map;
     int end_game_human_count;  // used for deciding whether to keep the record file
+    uint32_t recorded_players_present;
 
     bool loadAuthorizations() throw ();
     void saveAuthorizations() const throw ();

@@ -134,6 +134,7 @@ protected:
     #ifndef DEDICATED_SERVER_ONLY
     bool replaying;
     bool spectating;
+    unsigned replay_version;
     #else
     static const bool replaying = false; // To avoid lots of ifdefs.
     #endif
