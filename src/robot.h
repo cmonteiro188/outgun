@@ -89,6 +89,8 @@ class Robot : public ClientBase, public BotInterface {
     double      distanceFromDoor(const Area::Neighbor& n, double lx, double ly) const throw ();
     bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double mex, double mey) const throw ();
 
+    void        updateUnknownPosition(ClientPlayer& pl) throw ();
+
     bool        IsDefender() throw (); // am i defender? (role)
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?

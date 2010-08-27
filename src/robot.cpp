@@ -1486,6 +1486,59 @@ bool Robot::IsMission() const throw () {
     return HaveFlag(me) || destinationType == Dest_Flag || to_home || !to_home && destinationType == Dest_Base;
 }
 
+void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
+    if (pl.posUpdated < fx.frame - FADEOUT) // we don't care about them anymore
+        return;
+    if (pl.posUpdated >= fx.map.room[pl.roomx][pl.roomy].enemies_seen_frame) // they could still be there
+        return;
+
+    // see where they could have gone
+    const Area* a = area(pl);
+    WorldCoords posGuess;
+    double timeGuess;
+    bool haveGuess = false;
+    for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
+        Coords doorPos;
+        try {
+            doorPos = nearestDoor(*ni, pl.lx, pl.ly);
+        } catch (AlreadyInRoom) {
+            nAssert(0);
+        }
+        const double doorDist = sqrt(sqr(doorPos.first - pl.lx) + sqr(doorPos.second - pl.ly));
+        const double earliestTimeThere = pl.posUpdated + ceil(doorDist / fx.physics.max_run_speed);
+        if (earliestTimeThere > fx.frame)
+            continue;
+
+        const Area* n = ni->area;
+        const double nSeen = fx.map.room[n->roomx][n->roomy].enemies_seen_frame;
+        if (nSeen >= fx.frame - 10)
+            continue; // actually, they could have went in and out before nSeen if there was a period of the room not being seen, but such is hard to keep track of
+
+        if (haveGuess) // many possible neighbors, don't try to guess
+            return; //#improve: ideally, save the info about rooms that were found impossible, to work better when some current choices are proven impossible
+
+        const double lx = doorPos.first  - xDelta(ni->direction) * S_W,
+                     ly = doorPos.second - yDelta(ni->direction) * S_H; // move from this-room-coords to relative to the neighbor
+        posGuess = WorldCoords(n->roomx, n->roomy, lx, ly);
+        timeGuess = max(nSeen + 10, earliestTimeThere);
+        haveGuess = true;
+    }
+    if (haveGuess) {
+        #ifdef BOTDEBUG
+        fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
+        fprintf(stderr, "Guessing %s moved to %d,%d (%d,%d) %.1f s ago - last seen at %d,%d/%d,%d %.1f s ago, verified away %.1f s ago\n", pl.name.c_str(),
+                posGuess.px, posGuess.py, (int)posGuess.x, (int)posGuess.y,
+                (fx.frame - timeGuess) / 10.,
+                pl.roomx, pl.roomy, (int)pl.lx, (int)pl.ly,
+                (fx.frame - pl.posUpdated) / 10.,
+                (fx.frame - fx.map.room[pl.roomx][pl.roomy].enemies_seen_frame) / 10.);
+        #endif
+        pl.setPosition(posGuess, timeGuess); // leaves no mark about the position being a guess, but that isn't terrible
+    }
+    else
+        pl.posUpdated = fx.frame - FADEOUT; // "forget" the position
+}
+
 ClientControls Robot::getRobotControls() throw () {
     const double mex = fx.player[me].lx + averageLag * fx.player[me].sx;
     const double mey = fx.player[me].ly + averageLag * fx.player[me].sy;
@@ -1508,6 +1561,12 @@ ClientControls Robot::getRobotControls() throw () {
             double& esf = fx.map.room[p.roomx][p.roomy].enemies_seen_frame;
             esf = max(esf, p.prevMapPosUpdateFrame); // we'd expect to have received information of any enemies in the room between the two updates of the friend
         }
+    }
+
+    for (int pi = 0; pi < maxplayers; ++pi) {
+        ClientPlayer& p = fx.player[pi];
+        if (p.used && !p.dead && p.team() != fx.player[me].team())
+            updateUnknownPosition(p);
     }
 
     if (last_seen != -1) {
