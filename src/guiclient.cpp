@@ -1891,7 +1891,7 @@ void GuiClient::send_chat(const string& text) throw () {
 
 //print message to "console"
 void GuiClient::print_message(Message_type type, const string& msg, int sender_team) throw () {
-    if (menu.options.game.messageLogging() != Menu_game::ML_none) {
+    if (menu.options.game.messageLogging() != Menu_game::ML_none && !replaying) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
             message_log << date_and_time() << "  " << msg << endl;
     }
