@@ -571,7 +571,7 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
     }
     network.broadcast_stats_ready();
 
-    if (botTestMode) {
+    if (botTestMode && world.frame > 100) { // there's a special restart on frame 100
         static int points[2], wins[2], kills[2];
         int newKills[2] = { 0, 0 };
         for (int p = 0; p < maxplayers; ++p)
@@ -1812,6 +1812,9 @@ void Server::loop(volatile bool *quitFlag, bool quitOnEsc) throw () {
     double nextFrameTime = get_time() + .1;
 
     while (!*quitFlag && !abortFlag) {
+        if (botTestMode && world.frame == 100) // when the teams have settled, if comparing different bots, restart game to start recording
+            server_next_map(NEXTMAP_NONE); // ignore return value
+
         // generate and send frame
         simulate_and_broadcast_frame();
 
