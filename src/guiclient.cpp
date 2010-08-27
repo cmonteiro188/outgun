@@ -2734,7 +2734,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
             replayTime = time;
             for (; replaySubFrame >= 1.; replaySubFrame -= 1.) {
                 process_replay_controls();
-                if (replay_version >= 1) { // Version 0 has the needed physics data in every frame.
+                if (replay_version >= 1 && !replay_buffer_end_reached) { // Version 0 has the needed physics data in every frame.
                     ClientPhysicsCallbacks cb(*this);
                     fx.applyPhysics(cb, PLAYER_RADIUS, 1.);
                 }
@@ -2749,7 +2749,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 
             ClientPhysicsCallbacks cb(*this);
             if (replaying)
-                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replaySubFrame);
+                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replay_buffer_end_reached ? 0.1 : replaySubFrame); // Some extrapolation is needed even if replay buffer is at the end so that player properties and such are copied from fx to fd.
             else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
@@ -2945,6 +2945,7 @@ bool GuiClient::start_replay(istream& replay) throw () {
     replay_rate = 1;
     replay_paused = false;
     replay_stopped = false;
+    replay_buffer_end_reached = false;
     replayTime = get_time();
     replaySubFrame = 0;
     replayTopLeftRoom = pair<int, int>();
@@ -3026,7 +3027,9 @@ void GuiClient::continue_replay(istream& in, bool controls) throw () {
         }
         else
             process_incoming_data(read.block(read.U32()));
+        replay_buffer_end_reached = false;
     } catch (BinaryReader::ReadOutside) {
+        replay_buffer_end_reached = true;
         in.clear();
         in.seekg(pos);
         if (replay_length > 0)
@@ -3098,6 +3101,7 @@ void GuiClient::start_spectating(const Network::Address& address) throw () {
     spectating = true;
     replaying = true;
     replay_stopped = false;
+    replay_buffer_end_reached = false;
     replay_rate = 1;
     replay_length = 0;
     spectate_data_received = false;

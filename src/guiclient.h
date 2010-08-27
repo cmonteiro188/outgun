@@ -236,6 +236,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     double replay_rate, replayTime, replaySubFrame;
     bool replay_paused;
     bool replay_stopped;
+    bool replay_buffer_end_reached;
     bool replay_first_frame_loaded;
     unsigned replay_start_frame;
     unsigned replay_length;
