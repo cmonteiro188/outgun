@@ -103,13 +103,12 @@ bool Robot::imminentExplosionHere() const throw () {
     return false;
 }
 
-double Robot::distanceFromDoor(Area::Neighbor::Direction dir, double lx, double ly) const throw () {
-    switch (dir) {
-    /*break;*/ case Area::Neighbor::Up:    return ly;
-        break; case Area::Neighbor::Down:  return S_H - ly;
-        break; case Area::Neighbor::Left:  return lx;
-        break; case Area::Neighbor::Right: return S_W - lx;
-        break; default: nAssert(0); return 0;
+double Robot::distanceFromDoor(const Area::Neighbor& n, double lx, double ly) const throw () {
+    try {
+        const Coords door = nearestDoor(n, lx, ly);
+        return sqrt(sqr(door.first - lx) + sqr(door.second - ly));
+    } catch (AlreadyInRoom) {
+        return 0;
     }
 }
 
@@ -118,7 +117,7 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double 
     if (!dbe)
         return false;
     // see when we can be there at the earliest, don't worry if the explosion has expired then
-    const double minMoveTime = distanceFromDoor(neighbor.direction, mex, mey) / fx.physics.max_run_speed; // ignores that we're faster with turbo
+    const double minMoveTime = distanceFromDoor(neighbor, mex, mey) / fx.physics.max_run_speed; // ignores that we're faster with turbo
     return !dbe->expired(fx.frame + averageLag + minMoveTime);
 }
 
@@ -551,7 +550,7 @@ ClientControls Robot::EscapeExplosion(double mex, double mey) const throw () {
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         if (explosionInRoom(ni->area->roomx, ni->area->roomy))
             continue;
-        const double dist = distanceFromDoor(ni->direction, mex, mey);
+        const double dist = distanceFromDoor(*ni, mex, mey);
         if (dist < shortestDistance) {
             bestRoom = &*ni;
             shortestDistance = dist;
@@ -982,40 +981,38 @@ ClientControls Robot::MoveToDestination(double melx, double mely) const throw ()
         return ClientControls();
 }
 
-ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
+Coords Robot::nearestDoor(const Area::Neighbor& neighbor, double lx, double ly) const throw (AlreadyInRoom) {
     int fixedBorder, fixedTarget;
     bool xFixed;
-    ClientControls ctrl;
-    ctrl.setRun();
     switch (neighbor.direction) {
     /*break;*/ case Area::Neighbor::Up:
             fixedBorder = 0;
             fixedTarget = -PLAYER_RADIUS;
             xFixed = false;
-            if (mey < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
-                return ctrl.setUp();
+            if (ly < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
+                throw AlreadyInRoom();
         break; case Area::Neighbor::Down:
             fixedBorder = S_H;
             fixedTarget = S_H + PLAYER_RADIUS;
             xFixed = false;
-            if (mey > S_H)
-                return ctrl.setDown();
+            if (ly > S_H)
+                throw AlreadyInRoom();
         break; case Area::Neighbor::Left:
             fixedBorder = 0;
             fixedTarget = -PLAYER_RADIUS;
             xFixed = true;
-            if (mex < 0)
-                return ctrl.setLeft();
+            if (lx < 0)
+                throw AlreadyInRoom();
         break; case Area::Neighbor::Right:
             fixedBorder = S_W;
             fixedTarget = S_W + PLAYER_RADIUS;
             xFixed = true;
-            if (mex > S_W)
-                return ctrl.setRight();
+            if (lx > S_W)
+                throw AlreadyInRoom();
         break; default:
             nAssert(0);
     }
-    const double myFreeCoord = xFixed ? mey : mex;
+    const double myFreeCoord = xFixed ? ly : lx;
     vector< pair<double, double> >::const_iterator nearestDoor = neighbor.doors.end();
     double minDist = 1e10;
     for (vector< pair<double, double> >::const_iterator di = neighbor.doors.begin(); di != neighbor.doors.end(); ++di) { // find the nearest door
@@ -1035,9 +1032,27 @@ ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& n
     const double niceHigh = max(doorMiddle, nearestDoor->second - 4 * PLAYER_RADIUS);
     const double freeTarget = bound(myFreeCoord, niceLow, niceHigh);
     if (xFixed)
-        return MoveToNoAggregate(mex, mey, fixedTarget - mex, freeTarget - mey, 0);
+        return Coords(fixedTarget, freeTarget);
     else
-        return MoveToNoAggregate(mex, mey, freeTarget - mex, fixedTarget - mey, 0);
+        return Coords(freeTarget, fixedTarget);
+}
+
+ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
+    try {
+        const Coords door = nearestDoor(neighbor, mex, mey);
+        return MoveToNoAggregate(mex, mey, door.first - mex, door.second - mey, 0);
+    } catch (AlreadyInRoom) {
+        ClientControls ctrl;
+        ctrl.setRun();
+        switch (neighbor.direction) {
+        /*break;*/ case Area::Neighbor::Up:    return ctrl.setUp();
+            break; case Area::Neighbor::Down:  return ctrl.setDown();
+            break; case Area::Neighbor::Left:  return ctrl.setLeft();
+            break; case Area::Neighbor::Right: return ctrl.setRight();
+        }
+        nAssert(0);
+        return ctrl;
+    }
 }
 
 int Robot::GetPlayers(int team) const throw () {
