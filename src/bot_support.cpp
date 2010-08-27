@@ -60,7 +60,7 @@ void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
 ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
     const Room& room = map.room[roomx][roomy];
 
-    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw ï¿½ 3 / 4)
+    static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
     static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
     static const double pointDistance = double(plw) / (xPoints - 1);
     nAssert(plh * (xPoints - 1) == plw * (yPoints - 1)); // to ensure that points on the bottom fall at the room edge, as well as the points on the right (equal to plh / (yPoints - 1) == pointDistance but workable in integer arithmetic)
@@ -68,7 +68,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
     /* To deem a point wall-free, we want there to be a player-sized path between it and
      * all non-diagonal wall-free neighbors. Generally, a clear path of width w across the
      * distance d between points A and B, is ensured if around both A and B, a radius of
-     * sqrt((ï¿½w)ï¿½ + (ï¿½d)ï¿½) is clear.
+     * sqrt((½w)² + (½d)²) is clear.
      * Here, d = pointDistance and w = PLAYER_RADIUS * 2. Some extra breathing room is
      * gained by adding to PLAYER_RADIUS.
      */

@@ -333,7 +333,7 @@ void TM_ServerSettings::execute(ClientBase* pClBase) const throw () {
         if (extratime == 0)
             value = _("none");
         else if (extratime_periods > 1)
-            value = _("$1ï¿½$2 min", itoa(extratime_periods), itoa(extratime));
+            value = _("$1×$2 min", itoa(extratime_periods), itoa(extratime));
         else
             value = _("$1 min", itoa(extratime));
         addLine(cl, _("Extra-time"      ), value);
@@ -522,7 +522,7 @@ bool GuiClient::start() throw () {
                     menu.options.screenMode.colorDepth.set(depth);    // may fail if the previous depth isn't available
                     menu.options.screenMode.update(graphics);  // fetch resolutions according to the new depth
                     if (!menu.options.screenMode.resolution.set(ScreenMode(width, height)))
-                        log("Previous screen mode not available (%dï¿½%dï¿½%d)", width, height, depth);
+                        log("Previous screen mode not available (%d×%d×%d)", width, height, depth);
                 }
             }
 
@@ -4139,7 +4139,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
     for (int nTry = 0;; ++nTry) {
         if (graphics.init(res.width, res.height, depth, win(), flip())) {
             if (nTry != 0)
-                log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in $4 mode; reverted to $5.",
+                log.error(_("Couldn't initialize resolution $1×$2×$3 in $4 mode; reverted to $5.",
                             itoa(res.width), itoa(res.height), itoa(depth),
                             owin  ? _("windowed") : (oflip  ? _("flipped fullscreen") : _("backbuffered fullscreen")),
                             win() ? _("windowed") : (flip() ? _("flipped fullscreen") : _("backbuffered fullscreen"))));
@@ -4161,7 +4161,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
             }
             nTry = 3;   // no point in changing flipping when windowed, skip round
         /*no break*/ case 3:
-            log.error(_("Couldn't initialize resolution $1ï¿½$2ï¿½$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
+            log.error(_("Couldn't initialize resolution $1×$2×$3 in any mode.", itoa(res.width), itoa(res.height), itoa(depth)));
             if (workingGfxMode.used()) {    // revert to working mode
                 const GFXMode& wm = workingGfxMode;
                 nAssert(menu.options.screenMode.colorDepth.set(wm.depth));
@@ -4655,7 +4655,7 @@ void GuiClient::loadSplashScreen() throw () {
     }
     else {
         static const char* msg[] = {
-            "Outgun @VERSION@, copyright ï¿½ 2002-@YEAR@ multiple authors.",
+            "Outgun @VERSION@, copyright © 2002-@YEAR@ multiple authors.",
             "",
             "Outgun is free software under the GNU GPL, and you are welcome to "
             "redistribute it under certain conditions. Outgun comes with ABSOLUTELY "

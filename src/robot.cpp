@@ -289,7 +289,7 @@ int Robot::GetDangerousEnemy(double mex, double mey) const throw () {
 
         bool aimed;
         if (fx.physics.allowFreeTurning) {
-            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90ï¿½ range are considered dangerous
+            static const double tolerance = N_PI_4; // this in both directions -> angles within a 90° range are considered dangerous
             const double diff = positiveFmod(enemy.gundir.toRad() - aimTowardsMe.toRad(), 2 * N_PI);
             aimed = diff < tolerance || diff > 2 * N_PI - tolerance;
         }
@@ -403,7 +403,7 @@ double Robot::GetHitTime(double mex, double mey, const GunDirection& dir, int iT
 
     // divide D=(dx,dy) to components parallel with, and perpendicular to T=(tsx,tsy)
 
-    // D_par = T / |T| * (T dot D) / |T| = T * (T dot D) / |T|Â²
+    // D_par = T / |T| * (T dot D) / |T| = T * (T dot D) / |T|²
     // D_perp = D - D_par
 
     const double ts2 = sqr(tsx) + sqr(tsy);
@@ -1709,7 +1709,7 @@ ClientControls Robot::RobotMain() throw () {
         // adjust gunDir
         static const double turnCeilingPerFrame = N_PI_2;
         static const double displacementMul = .7;
-        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22ï¿½ of target
+        static const double shootTreshold = N_PI / 8.; // shoot if aim is within 22° of target
         const double targetDiff = positiveFmod(shootDir.second.toRad() - gunDir.toRad() + N_PI, 2 * N_PI) - N_PI;
         double actualDiff = targetDiff;
         if (fabs(actualDiff) > turnCeilingPerFrame)
