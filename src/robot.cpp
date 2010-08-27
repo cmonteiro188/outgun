@@ -869,15 +869,12 @@ ClientControls Robot::FollowFlag(double mex, double mey) const throw () {
     }
     if (!num || (!sx && !sy) || IsHome(myArea()))
         return ClientControls();
-    dx = dx / num - mex;
-    dy = dy / num - mey;
-    sx = sx / num;
-    sy = sy / num;
-    double dist = (S_H + S_W) / 4;
-    const double tm = dist / fx.physics.max_run_speed;
-    dx += sx * tm;
-    dy += sy * tm;
-    dist = sqrt(dx * dx + dy * dy);
+    dx = (dx + averageLag * sx) / num - mex;
+    dy = (dy + averageLag * sy) / num - mey;
+    const double speedMul = 4 * PLAYER_RADIUS / sqrt(sx * sx + sy * sy); // take only the direction, try to lead the carrier by a constant distance
+    dx += sx * speedMul;
+    dy += sy * speedMul;
+    const double dist = sqrt(dx * dx + dy * dy);
     if (dist < 3 * PLAYER_RADIUS)
         return ClientControls();
     return MoveToNoAggregate(mex, mey, dx, dy, PLAYER_RADIUS);
