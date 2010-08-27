@@ -81,6 +81,9 @@ const int FADEOUT = 50;
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
 
+int Robot::xDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Right) ? +1 : (dir == Area::Neighbor::Left) ? -1 : 0; }
+int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Down ) ? +1 : (dir == Area::Neighbor::Up  ) ? -1 : 0; }
+
 const DeathbringerExplosion* Robot::explosionInRoom(int roomx, int roomy) const throw () {
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
         const WorldCoords& pos = dbi->position();
@@ -982,30 +985,26 @@ ClientControls Robot::MoveToDestination(double melx, double mely) const throw ()
 }
 
 Coords Robot::nearestDoor(const Area::Neighbor& neighbor, double lx, double ly) const throw (AlreadyInRoom) {
-    int fixedBorder, fixedTarget;
+    int fixedTarget;
     bool xFixed;
     switch (neighbor.direction) {
     /*break;*/ case Area::Neighbor::Up:
-            fixedBorder = 0;
-            fixedTarget = -PLAYER_RADIUS;
+            fixedTarget = 0;
             xFixed = false;
             if (ly < 0) // if predicted correctly, we're already in the target room (by the time our controls reach the server)
                 throw AlreadyInRoom();
         break; case Area::Neighbor::Down:
-            fixedBorder = S_H;
-            fixedTarget = S_H + PLAYER_RADIUS;
+            fixedTarget = S_H;
             xFixed = false;
             if (ly > S_H)
                 throw AlreadyInRoom();
         break; case Area::Neighbor::Left:
-            fixedBorder = 0;
-            fixedTarget = -PLAYER_RADIUS;
+            fixedTarget = 0;
             xFixed = true;
             if (lx < 0)
                 throw AlreadyInRoom();
         break; case Area::Neighbor::Right:
-            fixedBorder = S_W;
-            fixedTarget = S_W + PLAYER_RADIUS;
+            fixedTarget = S_W;
             xFixed = true;
             if (lx > S_W)
                 throw AlreadyInRoom();
@@ -1038,13 +1037,14 @@ Coords Robot::nearestDoor(const Area::Neighbor& neighbor, double lx, double ly) 
 }
 
 ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& neighbor) const throw () {
+    const Area::Neighbor::Direction dir = neighbor.direction;
     try {
         const Coords door = nearestDoor(neighbor, mex, mey);
-        return MoveToNoAggregate(mex, mey, door.first - mex, door.second - mey, 0);
+        return MoveToNoAggregate(mex, mey, door.first + PLAYER_RADIUS * xDelta(dir) - mex, door.second + PLAYER_RADIUS * yDelta(dir) - mey, 0);
     } catch (AlreadyInRoom) {
         ClientControls ctrl;
         ctrl.setRun();
-        switch (neighbor.direction) {
+        switch (dir) {
         /*break;*/ case Area::Neighbor::Up:    return ctrl.setUp();
             break; case Area::Neighbor::Down:  return ctrl.setDown();
             break; case Area::Neighbor::Left:  return ctrl.setLeft();
