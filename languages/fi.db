@@ -64,6 +64,7 @@ $1's killing spree was ended by $2.##$1 - tappoputken päätti $2.
 $1's killing spree was ended.##$1 - tappoputki päättyi.
 $1-bit##$1-bittinen
 $1/$2p $3k/s v$4 port:$5##$1/$2p $3k/s v$4 portti:$5
+$1×$2 min##$1×$2 min
 '$1', given in master.txt is not a valid IP address.##"$1" master.txt:ssä ei ole kelvollinen IP-osoite.
 (All players needed for $1 more seconds.)##(Kaikkien äänet tarvitaan vaihtoon vielä $1 sekunnin ajan.)
 (server)##(palvelin)
@@ -237,6 +238,8 @@ FPS:$1##FPS:$1
 Failed##Epäonnistui
 Favorite colors##Suosikkivärit
 Favorites##Suosikit
+File '$1' contains invalid name for bot: $2##Tiedostossa '$1' viallinen bottinimi: $2
+File '$1' contains no bot names.##Tiedostossa '$1' ei ole bottinimiä.
 File download: Can't open '$1' for writing.##Tiedoston lataus: Tiedosto "$1" ei aukea kirjoittamista varten.
 Finland##Suomi
 Flag return delay##Lipunpalautusviive
@@ -384,6 +387,7 @@ Redefined map width.##Kartan leveys toiseen kertaan.
 Refresh servers##Päivitä palvelimet
 Refresh status##Päivityksen vaihe
 Registration status##Kirjautumisen tila
+Relay host##Välipalvelin
 Remove server-specific player passwords##Poista palvelinkohtaiset pelaajasalasanat
 Replay $1 is a newer version ($2).##Uusinta $1 on uudempaa versiota ($2).
 Replay on $1##Uusinta - $1
@@ -399,6 +403,7 @@ SORVETE!##
 Save game messages##Tallenna viestit
 Save game statistics##Tallenna tilastot
 Save password##Tallenna salasana
+Save replay statistics##Tallenna tilastot uusinnasta
 Saved screenshot to $1.##Kuvankaappaus tallentui tiedostoon $1.
 Say##Sano
 Say team##Sano joukkueelle
@@ -415,6 +420,7 @@ Server password##Palvelimen salasana
 Server port##Palvelimen portti
 Server was shut down.##Palvelin sammutettiin.
 Shadow##Varjo
+Shadowed see each other##Varjo näkee muut varjot
 Shoot ##Ampuminen   
 Shots##Laukaukset
 Shots   |  Taken  Movement     Speed##Lauk.   | Saadut   Matka      Nopeus
@@ -442,6 +448,7 @@ Sort order (space to cycle): $1##Järjestys (välilyönti vaihtaa): $1
 Sound options##Äänet
 Sounds enabled##Äänet päällä
 Spain##Espanja
+Spectate##Katso peliä
 Spectating on $1##Katselu - $1
 Start server##Käynnistä palvelin
 Stats screen alpha##Tilastoruudun läpinäkymättömyys
@@ -577,6 +584,8 @@ minimal##minimaalinen
 minute##minuutti
 minutes##minuuttia
 mouse##hiirellä
+mouse (targeting)##hiirellä (tähtäin)
+mouse (turning)##hiirellä (kääntäen)
 move player##liikuttavat pelaajaa
 multi-roomed##monen huoneen näkymässä
 never##ei koskaan

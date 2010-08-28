@@ -157,6 +157,7 @@ Save game messages
 Show flag messages
 Show killing messages
 Save game statistics
+Save replay statistics
 Show stats after the round
 Show server info when connected
 Stay dead when in a menu at round start
@@ -252,6 +253,9 @@ Stop server
 Replays
 Date - Server - Map
 
+Spectate
+Relay host
+
 ; Used in player options menu as registration status.
 No password set
 Initializing...
@@ -279,6 +283,7 @@ Friendly fire
 Balance teams
 Drop power-ups
 Invisible shadow
+Shadowed see each other
 Switch deathbringer
 One hit shield
 Maximum weapon level
@@ -292,6 +297,10 @@ Powerup max time
 ; Used in server settings dialog (F5) as the value of powerups, minimum
 ; powerups or maximum powerups, when they are set as a percentage of map size.
 $1% of rooms
+
+; Used in server settings dialog (F5) as the value of extra-time, when there
+; are multiple extra-times.
+$1×$2 min
 
 ; Used in the connection progress dialog. No limit; over 76 chars gets wrapped.
 Trying to connect...
@@ -361,7 +370,8 @@ move player
 ; Used as values for 'preferrably aim with' in the controls menu.
 keyboard (8-directional)
 keyboard (smooth turning)
-mouse
+mouse (turning)
+mouse (targeting)
 
 ; Used as values for 'with mouse aim move relative to' in the controls menu.
 room (up = up)
@@ -825,6 +835,8 @@ $1 is not an Outgun replay.
 Admin shell: unprintable characters, message ignored.
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.
 Class command without class name in auth.txt.
+File '$1' contains invalid name for bot: $2
+File '$1' contains no bot names.
 Format error in replay file.
 Invalid authorization class entry in auth.txt: "$1"
 Invalid ban command (IP address) in auth.txt: "$1"
