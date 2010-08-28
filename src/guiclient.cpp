@@ -2749,7 +2749,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 
             ClientPhysicsCallbacks cb(*this);
             if (replaying)
-                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replay_buffer_end_reached ? 0.1 : replaySubFrame); // Some extrapolation is needed even if replay buffer is at the end so that player properties and such are copied from fx to fd.
+                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replay_buffer_end_reached ? 0.0 : replaySubFrame); // Some extrapolation is needed even if replay buffer is at the end so that player properties and such are copied from fx to fd.
             else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
