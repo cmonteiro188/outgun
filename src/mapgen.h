@@ -1,7 +1,7 @@
 /*
  *  mapgen.h
  *
- *  Copyright (C) 2008 - Jani Rivinoja
+ *  Copyright (C) 2008, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

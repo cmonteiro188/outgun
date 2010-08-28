@@ -1,6 +1,6 @@
 ; This is an Outgun translation file.
-; Original copyright © 2004-2009 Jani Rivinoja, Niko Ritari
-; Translation copyright © 2009 <no one>
+; Original copyright © 2004-2010 Jani Rivinoja, Niko Ritari
+; Translation copyright © 2010 <no one>
 
 
 ; Language of the translation, in the target language.
