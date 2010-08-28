@@ -196,7 +196,7 @@ Network::Address Menu_serverList::getAddress(const Textarea& target) throw () {
 }
 
 Menu_spectate::Menu_spectate() throw () :
-    manualEntry     (_("Enter host"), "", 50),
+    manualEntry     (_("Relay host"), "", 50),
 
     menu            (_("Spectate"), true)
 { }
