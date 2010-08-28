@@ -322,8 +322,8 @@ Menu_controls::Menu_controls() throw () :
     arrowKeysInStats.addOption(_("move player"), AS_movePlayer);
     aimMode.addOption(_("keyboard (8-directional)"), AM_8way);
     aimMode.addOption(_("keyboard (smooth turning)"), AM_Turn);
-    aimMode.addOption(_("mouse (smooth turning)"), AM_MouseTurn);
-    aimMode.addOption(_("mouse (directional)"), AM_MousePos);
+    aimMode.addOption(_("mouse (turning)"), AM_MouseTurn);
+    aimMode.addOption(_("mouse (targeting)"), AM_MousePos);
     moveRelativity.addOption(_("room (up = up)"), AM_World);
     moveRelativity.addOption(_("aim (up = forward)"), AM_Gun);
 
