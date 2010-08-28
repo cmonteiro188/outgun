@@ -118,7 +118,7 @@ void ClientControls::fromJoystick(int moving_stick, int run_button, int strafe_b
 ClientControls& ClientControls::fromDirection(int direction) throw () {
     *this = ClientControls();
     switch (direction) {
-        break; case 0: setRight();
+    /*break;*/ case 0: setRight();
         break; case 1: setRight(); setDown();
         break; case 2: setDown();
         break; case 3: setDown(); setLeft();

@@ -25,6 +25,7 @@
 
 #include <iomanip>
 
+#include "incalleg.h"
 #include "binaryaccess.h"
 #include "language.h"
 #include "leetnet/client.h"
@@ -1235,7 +1236,7 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
         const bool controlFlag    = (byte & (1 << 3));
         const bool gundirFlag     = (byte & (1 << 4));
 
-        uint16_t preciseGundirData;
+        uint16_t preciseGundirData = 0; // initialized to please GCC
         if (gundirFlag) {
             pl.dead = false;
             if (preciseGundir)
@@ -3654,7 +3655,7 @@ void GuiClient::draw_playfield() throw () {
                 if (menu.options.controls.aimMode() == Menu_controls::AM_MousePos) {
                     const int mx = mouse_x - SCREEN_W / 2;
                     const int my = mouse_y - SCREEN_H / 2;
-                    aimDist = sqrt(mx * mx + my * my);
+                    aimDist = static_cast<int>(sqrt(mx * mx + my * my));
                 }
                 else
                     aimDist = -1;

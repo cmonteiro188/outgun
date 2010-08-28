@@ -1492,7 +1492,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
     // see where they could have gone
     const Area* a = area(pl);
     WorldCoords posGuess;
-    double timeGuess;
+    double timeGuess = 0; // initialized to please GCC
     bool haveGuess = false;
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         Coords doorPos;

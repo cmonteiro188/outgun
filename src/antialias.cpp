@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include "incalleg.h"
 #include "world.h"
 
 #include "antialias_internal.h"
