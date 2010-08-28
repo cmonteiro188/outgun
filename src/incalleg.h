@@ -28,6 +28,10 @@
 #ifndef INCALLEG_H_INC
 #define INCALLEG_H_INC
 
+#ifdef INCPTHREAD_H_INC
+#error incalleg.h included after incpthread.h; this breaks windows compilation; include incalleg.h first
+#endif
+
 #include <string>
 
 #include <allegro.h>
