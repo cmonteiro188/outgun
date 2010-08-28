@@ -1,7 +1,7 @@
 /*
  *  incalleg.h
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -36,6 +36,17 @@
 #undef min
 #undef max
 #endif
+
+class FixedWrapper {
+    fixed data;
+
+public:
+    FixedWrapper() throw () { }
+    FixedWrapper(const fixed& f) throw () : data(f) { }
+
+    operator       fixed&()       throw () { return data; }
+    operator const fixed&() const throw () { return data; }
+};
 
 inline int text_length(const FONT* f, const std::string& str) throw () {
     return text_length(f, str.c_str());

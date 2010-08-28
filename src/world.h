@@ -26,8 +26,6 @@
 #ifndef WORLD_H_INC
 #define WORLD_H_INC
 
-#include "incalleg.h"
-
 #include <vector>
 #include <list>
 #include <string>
@@ -352,6 +350,8 @@ private:
     double flag_taking_time;
 };
 
+class FixedWrapper; // defined in incalleg.h
+
 class GunDirection {
     double data;
 
@@ -377,7 +377,7 @@ public:
 
     int to8way() const throw () { nAssert(data >= 0 && data <= 8); return iround(data) % 8; }
     #ifndef DEDICATED_SERVER_ONLY
-    fixed toFixed() const throw () { nAssert(data >= 0 && data <= 8); return ftofix(data * 32.); }
+    FixedWrapper toFixed() const throw (); // defined in graphics.cpp
     #endif
     double toRad() const throw () { nAssert(data >= 0 && data <= 8); return data * N_PI_4; }
 

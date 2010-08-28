@@ -3644,3 +3644,8 @@ void Graphics::BackgroundManager::CachedRoomGfx::drawFogged(BITMAP* target, int 
         foggedArea.blitTo(target, tx0, ty0);
     }
 }
+
+FixedWrapper GunDirection::toFixed() const throw () {
+    nAssert(data >= 0 && data <= 8);
+    return ftofix(data * 32.);
+}
