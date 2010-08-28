@@ -1608,7 +1608,7 @@ void Server::simulate_and_broadcast_frame() throw () {
          *     4 B  frame number (optional)
          *     4 B  players present (optional)
          *   1-4 B  ping of player at index [frame % maxplayers] (dynamic size, optional)
-         * 
+         *
          *   Data for each available player (indicated by players present bit field)
          *     1 B  byte containing the following bits
          *            0  powerup data flag
