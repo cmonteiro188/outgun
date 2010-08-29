@@ -52,6 +52,27 @@ template<class T> struct BasicCoords {
 
 typedef BasicCoords<double> Coords; // within a room
 
+struct WorldCoords {
+    WorldCoords(int px_, int py_, double x_, double y_) throw () : px(px_), py(py_), x(x_), y(y_) { }
+    WorldCoords() throw () : px(-1), py(-1) { }
+
+    bool unknown() const throw () { return px == -1 && py == -1; }
+
+    bool operator==(const WorldCoords& op) const throw () { return px == op.px && py == op.py && x == op.x && y == op.y; }
+    bool operator!=(const WorldCoords& op) const throw () { return !(*this == op); }
+
+    int px, py; // room
+    double x, y; // coords within the room
+};
+
+struct WorldRect {
+    WorldRect(int px_, int py_, double x1_, double y1_, double x2_, double y2_) throw () : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
+    WorldRect() throw () { }
+
+    int px, py; // room
+    double x1, y1, x2, y2;
+};
+
 typedef std::pair<double, Coords> BounceData;
 
 class WallBase {    // base class
@@ -154,28 +175,6 @@ public:
 
 private:
     std::vector<WallBase*> walls, ground;   // ground: optional list of textures for ground
-};
-
-//entity locale
-struct WorldCoords {
-    WorldCoords(int px_, int py_, double x_, double y_) throw () : px(px_), py(py_), x(x_), y(y_) { }
-    WorldCoords() throw () : px(-1), py(-1) { }
-
-    bool unknown() const throw () { return px == -1 && py == -1; }
-
-    bool operator==(const WorldCoords& op) const throw () { return px == op.px && py == op.py && x == op.x && y == op.y; }
-    bool operator!=(const WorldCoords& op) const throw () { return !(*this == op); }
-
-    int px, py; // room
-    double x, y; // coords within the room
-};
-
-struct WorldRect {
-    WorldRect(int px_, int py_, double x1_, double y1_, double x2_, double y2_) throw () : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
-    WorldRect() throw () { }
-
-    int px, py; // room
-    double x1, y1, x2, y2;
 };
 
 //team info
@@ -767,22 +766,6 @@ public:
     int player() const throw () { nAssert(ownerPid != -1); return ownerPid; } // can only be used if initialized with the player
 
     uint32_t playersOutsideMask; // bit set for every player that was on the previous frame in the same room but outside the db ring, kind of waiting to be hit (only those can be hit on this frame); additionally, every player when the deathbringer is new (even if they happen to be in another room, it doesn't matter in the calculations)
-};
-
-template<class Type> class PointerAsReference {   // doesn't delete the objects!
-    Type* ptr;
-
-public:
-    PointerAsReference() throw () : ptr(0) { }
-    PointerAsReference(Type* p) throw () : ptr(p) { }
-
-    void setPtr(Type* p) throw () { ptr = p; }
-
-          Type* getPtr()       throw () { return ptr; }
-    const Type* getPtr() const throw () { return ptr; }
-
-    operator       Type&()       throw () { nAssert(ptr); return *ptr; }
-    operator const Type&() const throw () { nAssert(ptr); return *ptr; }
 };
 
 class PhysicalSettings {

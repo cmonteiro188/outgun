@@ -199,6 +199,22 @@ DEFINE_EXPLICIT_REFERENCE_TYPE(ExclusiveLifetimeAccessRef, for_lifetime)
  */
 DEFINE_EXPLICIT_POINTER_TYPE(ControlledPtr, give_control)
 
+template<class Type> class PointerAsReference {   // doesn't delete the objects!
+    Type* ptr;
+
+public:
+    PointerAsReference() throw () : ptr(0) { }
+    PointerAsReference(Type* p) throw () : ptr(p) { }
+
+    void setPtr(Type* p) throw () { ptr = p; }
+
+          Type* getPtr()       throw () { return ptr; }
+    const Type* getPtr() const throw () { return ptr; }
+
+    operator       Type&()       throw () { nAssert(ptr); return *ptr; }
+    operator const Type&() const throw () { nAssert(ptr); return *ptr; }
+};
+
 template<class T> class BlockRef {
     T* pData;
     unsigned sz;
