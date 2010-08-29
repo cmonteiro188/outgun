@@ -50,26 +50,29 @@ template<class T> struct BasicCoords {
     bool operator!=(const BasicCoords& o) const throw () { return x != o.x || y != o.y; }
 };
 
+typedef BasicCoords<int> RoomCoords;
 typedef BasicCoords<double> Coords; // within a room
 
 struct WorldCoords {
-    WorldCoords(int px_, int py_, double x_, double y_) throw () : px(px_), py(py_), x(x_), y(y_) { }
-    WorldCoords() throw () : px(-1), py(-1) { }
+    WorldCoords(const RoomCoords& room_, double x_, double y_) throw () : room(room_), x(x_), y(y_) { }
+    WorldCoords(int rx, int ry, double x_, double y_) throw () : room(rx, ry), x(x_), y(y_) { }
+    WorldCoords() throw () : room(-1, -1) { }
 
-    bool unknown() const throw () { return px == -1 && py == -1; }
+    bool unknown() const throw () { return room.x == -1 && room.y == -1; }
 
-    bool operator==(const WorldCoords& op) const throw () { return px == op.px && py == op.py && x == op.x && y == op.y; }
+    bool operator==(const WorldCoords& op) const throw () { return room == op.room && x == op.x && y == op.y; }
     bool operator!=(const WorldCoords& op) const throw () { return !(*this == op); }
 
-    int px, py; // room
+    RoomCoords room;
     double x, y; // coords within the room
 };
 
 struct WorldRect {
-    WorldRect(int px_, int py_, double x1_, double y1_, double x2_, double y2_) throw () : px(px_), py(py_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
+    WorldRect(const RoomCoords& room_, double x1_, double y1_, double x2_, double y2_) throw () : room(room_), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
+    WorldRect(int rx, int ry, double x1_, double y1_, double x2_, double y2_) throw () : room(rx, ry), x1(x1_), y1(y1_), x2(x2_), y2(y2_) { }
     WorldRect() throw () { }
 
-    int px, py; // room
+    RoomCoords room;
     double x1, y1, x2, y2;
 };
 
@@ -213,6 +216,8 @@ public:
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x, y, r);
     }
+    bool fall_on_wall(const WorldRect& rect) const throw () { return fall_on_wall(rect.room.x, rect.room.y, rect.x1, rect.y1, rect.x2, rect.y2); }
+    bool fall_on_wall(const WorldCoords& center, double r) const throw () { return fall_on_wall(center.room.x, center.room.y, center.x, center.y, r); }
     bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) throw ();
     bool load_file(LogSet& log, const std::string& fileName, std::string* buffer = 0) throw ();
     bool parse_file(LogSet& log, std::istream& in) throw ();

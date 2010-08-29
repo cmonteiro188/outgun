@@ -441,22 +441,18 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
     bool wallError = false;
     for (int t = 0; t < 3; t++) {
         const vector<WorldCoords>& flags = (t == 2 ? wild_flags : tinfo[t].flags);
-        for (int i = 0; i < static_cast<int>(flags.size()); ++i) {
-            const WorldCoords& point = flags[i];
-            if (fall_on_wall(point.px, point.py, point.x, point.y, FLAG_RADIUS)) {
+        for (int i = 0; i < static_cast<int>(flags.size()); ++i)
+            if (fall_on_wall(flags[i], FLAG_RADIUS)) {
                 log.error(_("Team $1, flag $2 on the wall.", itoa(t), itoa(i)));
                 wallError = true;
             }
-        }
         if (t == 2) // wild flags only; no spawn points to check
             continue;
-        for (int i = 0; i < static_cast<int>(tinfo[t].spawn.size()); i++) {
-            const WorldCoords& point = tinfo[t].spawn[i];
-            if (fall_on_wall(point.px, point.py, point.x, point.y, PLAYER_RADIUS)) {
+        for (int i = 0; i < static_cast<int>(tinfo[t].spawn.size()); i++)
+            if (fall_on_wall(tinfo[t].spawn[i], PLAYER_RADIUS)) {
                 log.error(_("Team $1, spawn point $2 on the wall.", itoa(t), itoa(i)));
                 wallError = true;
             }
-        }
         for (unsigned i = 0; i < tinfo[t].respawn.size(); ++i) {
             const WorldRect& area = tinfo[t].respawn[i];
             const int xStepSize = PLAYER_RADIUS, yStepSize = PLAYER_RADIUS;
@@ -467,7 +463,7 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
             bool ok = false;
             for (double y = area.y1; y <= area.y2 && !ok; y += yStepSize)
                 for (double x = area.x1; x <= area.x2 && !ok; x += xStepSize)
-                    if (!fall_on_wall(area.px, area.py, x, y, PLAYER_RADIUS * 5 / 4))
+                    if (!fall_on_wall(WorldCoords(area.room, x, y), PLAYER_RADIUS * 5 / 4))
                         if (++freeSpace >= minFreeSpace)
                             ok = true;
             if (!ok) {
@@ -897,8 +893,8 @@ void ClientPlayer::setPosition(const WorldCoords& pos, double frame, bool minima
         prevMapUpdateRoomx = roomx;
         prevMapUpdateRoomy = roomy;
     }
-    roomx = pos.px;
-    roomy = pos.py;
+    roomx = pos.room.x;
+    roomy = pos.room.y;
     lx = pos.x;
     ly = pos.y;
     fromMinimapUpdate = minimapUpdate;
@@ -1803,12 +1799,11 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
     else if (!map.tinfo[team].respawn.empty()) {
         // choose a team respawn point
         const WorldRect& area = map.tinfo[team].respawn[rand() % map.tinfo[team].respawn.size()];
-        pos.px = area.px;
-        pos.py = area.py;
+        pos.room = area.room;
         do { // since the areas are checked not to contain too much wall, we are sure to find a space soon enough
             pos.x = area.x1 + rand() % (static_cast<int>(area.x2 - area.x1) + 1);
             pos.y = area.y1 + rand() % (static_cast<int>(area.y2 - area.y1) + 1);
-        } while (map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS));
+        } while (map.fall_on_wall(pos, PLAYER_RADIUS));
     }
     else {
         // generate a random spot for respawn:
@@ -1828,15 +1823,14 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
             do {
                 ridx = rand() % (map.w * map.h);
             } while (runaway-- > 200 && roompop[ridx]); //keep trying until unnocupied (==false)
-            pos.px = ridx % map.w;
-            pos.py = ridx / map.w;
+            pos.room = RoomCoords(ridx % map.w, ridx / map.w);
 
             //find suitable coordinates
             pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
             pos.y = PLAYER_RADIUS + rand() % (plh - 2 * PLAYER_RADIUS);
 
             //do a check for walls, maybe retrying another screen if hits a wall
-            if (!map.fall_on_wall(pos.px, pos.py, pos.x, pos.y, PLAYER_RADIUS))
+            if (!map.fall_on_wall(pos, PLAYER_RADIUS))
                 break;  //success!
 
             //fall on wall true, keep trying...
@@ -1845,8 +1839,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
     }
 
     //put player there
-    player[pid].roomx = pos.px; //screen
-    player[pid].roomy = pos.py;
+    player[pid].roomx = pos.room.x; //screen
+    player[pid].roomy = pos.room.y;
     player[pid].lx = pos.x; //screen position
     player[pid].ly = pos.y;
 
@@ -1903,7 +1897,7 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 //flag touched by player?
 bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw () {
     //carried and in different screen can't be touched
-    if (flag.carried() || flag.position().px != px || flag.position().py != py)
+    if (flag.carried() || flag.position().room != RoomCoords(px, py))
         return false;
 
     const double dx = flag.position().x - x;
@@ -2319,7 +2313,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
             // Check if an own or enemy flag is lying on the ground in the target's screen.
             if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
                 for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
-                    if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                    if (!fi->carried() && fi->position().room == RoomCoords(player[target].roomx, player[target].roomy)) {
                         flag_defended = true;
                         if (!carrier_defended)
                             host->score_frag(attacker, 1);
@@ -2327,7 +2321,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                     }
                 if (!carrier_defended && !flag_defended)
                     for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-                        if (!fi->carried() && fi->position().px == player[target].roomx && fi->position().py == player[target].roomy) {
+                        if (!fi->carried() && fi->position().room == RoomCoords(player[target].roomx, player[target].roomy)) {
                             host->score_frag(attacker, 1);
                             break;  // only one frag even for attacking multiple flags
                         }
@@ -3192,7 +3186,7 @@ void ServerWorld::simulateFrame() throw () {
         uint32_t newOutsideMask = 0;
         for (int ti = 0; ti < maxplayers; ++ti) {
             ServerPlayer& target = player[ti];
-            if (!target.used || target.dead || target.roomx != pos.px || target.roomy != pos.py)
+            if (!target.used || target.dead || RoomCoords(target.roomx, target.roomy) != pos.room)
                 continue;
             const bool sameTeam = target.team() == db.team();
             if (sameTeam && !physics.friendly_db)

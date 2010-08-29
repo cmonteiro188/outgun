@@ -405,8 +405,8 @@ private:
         int pf_scale(double value) const throw ();
         double pf_scaled(double value) const throw ();
 
-        std::vector<int> scale_x(const WorldCoords& pos) const throw () { return scale_x(pos.px, pos.x); }
-        std::vector<int> scale_y(const WorldCoords& pos) const throw () { return scale_y(pos.py, pos.y); }
+        std::vector<int> scale_x(const WorldCoords& pos) const throw () { return scale_x(pos.room.x, pos.x); }
+        std::vector<int> scale_y(const WorldCoords& pos) const throw () { return scale_y(pos.room.y, pos.y); }
         std::vector<int> scale_x(int roomx, double lx) const throw ();
         std::vector<int> scale_y(int roomy, double ly) const throw ();
 

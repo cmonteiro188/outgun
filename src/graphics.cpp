@@ -526,7 +526,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         if (mapInfoMode) {
             for (int team = 0; team < 2; ++team) {
                 for (vector<WorldRect>::const_iterator ri = map.tinfo[team].respawn.begin(); ri != map.tinfo[team].respawn.end(); ++ri)
-                    if (ri->px == roomx && ri->py == roomy)
+                    if (ri->room == RoomCoords(roomx, roomy))
                         scene.addRectangle(ri->x1 - PLAYER_RADIUS, ri->y1 - PLAYER_RADIUS,
                                            ri->x2 + PLAYER_RADIUS, ri->y2 + PLAYER_RADIUS, textures.size(), true);
                 td.setSolid(teamcol[team], 120);
@@ -539,7 +539,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         for (int team = 0; team < 3; ++team) {
             const vector<WorldCoords>& tflags = (team == 2 ? map.wild_flags : map.tinfo[team].flags);
             for (vector<WorldCoords>::const_iterator fi = tflags.begin(); fi != tflags.end(); ++fi) {
-                if (fi->px != roomx || fi->py != roomy)
+                if (fi->room != RoomCoords(roomx, roomy))
                     continue;
                 scene.addRectangle(fi->x - fr, fi->y - fr, fi->x + fr, fi->y + fr, textures.size(), true);
                 td.setFlagmarker(teamcol[team],
@@ -604,7 +604,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
             set_trans_mode(120);
             for (int team = 0; team < 2; ++team)
                 for (vector<WorldRect>::const_iterator ri = map.tinfo[team].respawn.begin(); ri != map.tinfo[team].respawn.end(); ++ri)
-                    if (ri->px == roomx && ri->py == roomy) {
+                    if (ri->room == RoomCoords(roomx, roomy)) {
                         rectfill(roombg,
                                  pf_scale(ri->x1 - PLAYER_RADIUS),
                                  pf_scale(ri->y1 - PLAYER_RADIUS),
@@ -617,7 +617,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         for (int team = 0; team < 3; ++team) {
             const vector<WorldCoords>& tflags = (team == 2 ? map.wild_flags : map.tinfo[team].flags);
             for (vector<WorldCoords>::const_iterator fi = tflags.begin(); fi != tflags.end(); ++fi)
-                if (fi->px == roomx && fi->py == roomy)
+                if (fi->room == RoomCoords(roomx, roomy))
                     draw_flagpos_mark(roombg, team, pf_scale(fi->x), pf_scale(fi->y));
         }
 
@@ -632,7 +632,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
     if (mapInfoMode) {
         for (int team = 0; team < 2; ++team)
             for (vector<WorldCoords>::const_iterator si = map.tinfo[team].spawn.begin(); si != map.tinfo[team].spawn.end(); ++si)
-                if (si->px == roomx && si->py == roomy)
+                if (si->room == RoomCoords(roomx, roomy))
                     circlefill(roombg, pf_scale(si->x), pf_scale(si->y), pf_scale(PLAYER_RADIUS), teamcol[team]);
         for (int y = 1; y < 12; ++y)
             hline(roombg, 0, pf_scale(plh * y / 12.), roombg->w - 1, y == 6 ? colour[Colour::map_info_grid_main] : colour[Colour::map_info_grid]);
@@ -864,8 +864,8 @@ void Graphics::draw_flag(int team, const WorldCoords& pos, bool flash, int alpha
 void Graphics::draw_mini_flag(int team, const Flag& flag, const Map& map, bool flash, bool old) throw () {
     if (!show_minimap)
         return;
-    const double px = (flag.position().px * plw + flag.position().x) / (plw * map.w);
-    const double py = (flag.position().py * plh + flag.position().y) / (plh * map.h);
+    const double px = (flag.position().room.x * plw + flag.position().x) / (plw * map.w);
+    const double py = (flag.position().room.y * plh + flag.position().y) / (plh * map.h);
     const int pix = minimap_x + static_cast<int>(px * minimap_w);
     const int piy = minimap_y + static_cast<int>(py * minimap_h);
     const int scl = minimap_place_w;
@@ -937,8 +937,8 @@ void Graphics::highlight_minimap_rooms() throw () {
     const int x0 = minimap_x, y0 = minimap_y;
     const int xm = x0 + minimap_w - 1, ym = y0 + minimap_h - 1;
 
-    double xPos = positiveFmod(topLeft.px + topLeft.x / plw, map_w);
-    double yPos = positiveFmod(topLeft.py + topLeft.y / plh, map_h);
+    double xPos = positiveFmod(topLeft.room.x + topLeft.x / plw, map_w);
+    double yPos = positiveFmod(topLeft.room.y + topLeft.y / plh, map_h);
     const int x1 = size_x > map_w ? x0 : x0 + static_cast<int>(xPos / map_w * minimap_w);
     const int y1 = size_y > map_h ? y0 : y0 + static_cast<int>(yPos / map_h * minimap_h);
     xPos = positiveFmod(xPos + size_x, map_w);
@@ -1029,8 +1029,8 @@ void MinimapHelper::paintByFlags(int rx, int ry, const vector<const WorldCoords*
 
 pair<int, int> MinimapHelper::flagCoords(const WorldCoords& coords) const throw () {
     // the coords are not rounded because the max coord is already (minimap_w - small safety)
-    const int x = static_cast<int>(x0 + (coords.px * plw + coords.x) * scale);
-    const int y = static_cast<int>(y0 + (coords.py * plh + coords.y) * scale);
+    const int x = static_cast<int>(x0 + (coords.room.x * plw + coords.x) * scale);
+    const int y = static_cast<int>(y0 + (coords.room.y * plh + coords.y) * scale);
     return pair<int, int>(x, y);
 }
 
@@ -1116,7 +1116,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
             for (int t = 0; t < 2; ++t)
                 for (vector<WorldCoords>::const_iterator fi = map.tinfo[t].flags.begin(); fi != map.tinfo[t].flags.end(); ++fi) {
                     const WorldCoords& flag = *fi;
-                    if (flag.px == rx && flag.py == ry) {
+                    if (flag.room == RoomCoords(rx, ry)) {
                         teamFlags[t].push_back(&flag);
                         const pair<int, int> coords = helper.flagCoords(flag);
                         if (getpixel(buffer, coords.first, coords.second) != colour[Colour::map_ground])
@@ -1193,8 +1193,8 @@ void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team,
 
     nAssert(flag || !old);
 
-    const double xDelta = roomLayout.distanceFromScreenX(pos.px, pos.x),
-                 yDelta = roomLayout.distanceFromScreenY(pos.py, pos.y);
+    const double xDelta = roomLayout.distanceFromScreenX(pos.room.x, pos.x),
+                 yDelta = roomLayout.distanceFromScreenY(pos.room.y, pos.y);
 
     vector<int> x, y;
     double dist;
@@ -1323,7 +1323,7 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
     if (maxDist < minDist)
         return;
 
-    RoomPosSet r(pos.px, pos.py, this);
+    RoomPosSet r(pos.room.x, pos.room.y, this);
     while (r.next()) {
         const int sx1 = r.x(), sy1 = r.y();
         TemporaryClipRect clipRestorer(drawbuf, sx1, sy1, sx1 + pf_scale(plw) - 1, sy1 + pf_scale(plh) - 1, true);
@@ -1469,7 +1469,7 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
 void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) throw () {
     const int radius = pf_scale(db.radius(frame));
     const WorldCoords& pos = db.position();
-    RoomPosSet r(pos.px, pos.py, this);
+    RoomPosSet r(pos.room.x, pos.room.y, this);
     while (r.next()) {
         const int sx1 = r.x(), sy1 = r.y();
         TemporaryClipRect clipRestorer(drawbuf, sx1, sy1, sx1 + pf_scale(plw) - 1, sy1 + pf_scale(plh) - 1, true);
@@ -2644,7 +2644,7 @@ void Graphics::create_gunexplo(const WorldCoords& pos, int team, double time) th
 
 void Graphics::draw_effects(double time) throw () {
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
-        if (!roomLayout.on_screen(fx->pos.px, fx->pos.py)) {
+        if (!roomLayout.on_screen(fx->pos.room.x, fx->pos.room.y)) {
             ++fx;
             continue;
         }
@@ -2703,7 +2703,7 @@ void Graphics::draw_turbofx(double time) throw () {
     if (min_transp)
         return;
     for (list<GraphicsEffect>::iterator fx = cfx.begin(); fx != cfx.end(); ) {
-        if (!roomLayout.on_screen(fx->pos.px, fx->pos.py) || fx->type != FX_TURBO) {
+        if (!roomLayout.on_screen(fx->pos.room.x, fx->pos.room.y) || fx->type != FX_TURBO) {
             ++fx;
             continue;
         }
@@ -3296,28 +3296,28 @@ static double calculateDistanceFromScreen(double coord, double viewStart, double
 }
 
 double Graphics::RoomLayoutManager::distanceFromScreenX(int rx, double lx) const throw () {
-    return calculateDistanceFromScreen(rx + lx / plw, topLeft.px + topLeft.x / plw, visible_rooms_x, map_w);
+    return calculateDistanceFromScreen(rx + lx / plw, topLeft.room.x + topLeft.x / plw, visible_rooms_x, map_w);
 }
 
 double Graphics::RoomLayoutManager::distanceFromScreenY(int ry, double ly) const throw () {
-    return calculateDistanceFromScreen(ry + ly / plh, topLeft.py + topLeft.y / plh, visible_rooms_y, map_h);
+    return calculateDistanceFromScreen(ry + ly / plh, topLeft.room.y + topLeft.y / plh, visible_rooms_y, map_h);
 }
 
 bool Graphics::RoomLayoutManager::on_screen(int rx, int ry) const throw () {
-    return positiveModulo(rx - topLeft.px, map_w) <= visible_rooms_x &&
-           positiveModulo(ry - topLeft.py, map_h) <= visible_rooms_y; // <= instead of <, because the first room may be visible only in part
+    return positiveModulo(rx - topLeft.room.x, map_w) <= visible_rooms_x &&
+           positiveModulo(ry - topLeft.room.y, map_h) <= visible_rooms_y; // <= instead of <, because the first room may be visible only in part
 }
 
 vector<int> Graphics::RoomLayoutManager::room_offset_x(int rx) const throw () {
     vector<int> pos;
-    for (int x = ((rx - topLeft.px + map_w) % map_w) * room_w - pf_scale(topLeft.x); x < visible_rooms_x * room_w; x += map_w * room_w)
+    for (int x = ((rx - topLeft.room.x + map_w) % map_w) * room_w - pf_scale(topLeft.x); x < visible_rooms_x * room_w; x += map_w * room_w)
         pos.push_back(plx + x);
     return pos;
 }
 
 vector<int> Graphics::RoomLayoutManager::room_offset_y(int ry) const throw () {
     vector<int> pos;
-    for (int y = ((ry - topLeft.py + map_h) % map_h) * room_h - pf_scale(topLeft.y); y < visible_rooms_y * room_h; y += map_h * room_h)
+    for (int y = ((ry - topLeft.room.y + map_h) % map_h) * room_h - pf_scale(topLeft.y); y < visible_rooms_y * room_h; y += map_h * room_h)
         pos.push_back(ply + y);
     return pos;
 }
@@ -3538,16 +3538,16 @@ void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, con
         for (int x = 0; x < map.w; ++x)
             roomCacheIndex[x].resize(map.h);
     }
-    else if (topLeft.px != previousRoom0x || topLeft.py != previousRoom0y || xRooms != previousXrooms || yRooms != previousYrooms) {
+    else if (topLeft.room != RoomCoords(previousRoom0x, previousRoom0y) || xRooms != previousXrooms || yRooms != previousYrooms) {
         // update room locks, so that cached but now unused rooms can be reclaimed, while those in use won't
         for (int x = 0; x < map.w; ++x) {
-            const bool xIn = (x - topLeft.px + map.w) % map.w < xRooms;
+            const bool xIn = (x - topLeft.room.x + map.w) % map.w < xRooms;
             for (int y = 0; y < map.h; ++y) {
                 CachedRoomGfx* roomp = roomCacheIndex[x][y];
                 if (!roomp)
                     continue;
                 CachedRoomGfx& room = *roomp;
-                const bool in = xIn && (y - topLeft.py + map.h) % map.h < yRooms;
+                const bool in = xIn && (y - topLeft.room.y + map.h) % map.h < yRooms;
                 if (room.locked != in) {
                     room.locked = in;
                     if (!in)
@@ -3557,16 +3557,16 @@ void Graphics::BackgroundManager::draw_playfield_background(BITMAP* drawbuf, con
         }
         ++cacheTimestamp;
     }
-    previousRoom0x = topLeft.px; previousRoom0y = topLeft.py; previousXrooms = xRooms; previousYrooms = yRooms;
+    previousRoom0x = topLeft.room.x; previousRoom0y = topLeft.room.y; previousXrooms = xRooms; previousYrooms = yRooms;
 
     const int pfx0 = g.roomLayout.x0(), pfy0 = g.roomLayout.y0(), pfxm = g.roomLayout.xMax(), pfym = g.roomLayout.yMax();
 
     TemporaryClipRect clipRestorer(drawbuf, pfx0, pfy0, pfxm, pfym, false);
     for (int dx = 0; dx < xRooms; ++dx) {
-        const int roomx = (topLeft.px + dx) % map.w;
+        const int roomx = (topLeft.room.x + dx) % map.w;
         const int rx0 = pfx0 - g.pf_scale(topLeft.x) + dx * room_w;
         for (int dy = 0; dy < yRooms; ++dy) {
-            const int roomy = (topLeft.py + dy) % map.h;
+            const int roomy = (topLeft.room.y + dy) % map.h;
             const int ry0 = pfy0 - g.pf_scale(topLeft.y) + dy * room_h;
             drawRoom(map, roomx, roomy, continuousTextures, mapInfoMode, roomVis[roomx][roomy] < 255, drawbuf, rx0, ry0);
         }

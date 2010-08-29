@@ -380,8 +380,8 @@ void GuiClient::ConstDisappearedFlagIterator::findValid() throw () {
             continue;
         const ClientPlayer& pl = c.fx.player[fl.carrier()];
         const WorldCoords& pos = fl.position();
-        nAssert(pos.px >= 0 && pos.py >= 0);
-        if (pl.used && pos.px < c.fx.map.w && pos.py < c.fx.map.h && !pl.onscreen && pl.posUpdated > c.fx.frame - 300.)
+        nAssert(pos.room.x >= 0 && pos.room.y >= 0);
+        if (pl.used && pos.room.x < c.fx.map.w && pos.room.y < c.fx.map.h && !pl.onscreen && pl.posUpdated > c.fx.frame - 300.)
             return;
     }
 }
@@ -2805,11 +2805,13 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                     replayTopLeftRoom = pair<int, int>();
                     if (!fx.map.tinfo[team].flags.empty()) {
                         const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - static_cast<int>(visible_rooms)), max(0, pos.py + 1 - static_cast<int>(visible_rooms)));
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
+                                                           max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
                     }
                     else if (!fx.map.wild_flags.empty()) {
                         const WorldCoords& pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.px + 1 - static_cast<int>(visible_rooms)), max(0, pos.py + 1 - static_cast<int>(visible_rooms)));
+                        replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
+                                                           max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
                     }
                 }
 
@@ -2851,8 +2853,8 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                         continue;
                     const ClientPlayer& pl = fx.player[fi->carrier()];
                     const WorldCoords pos = playerPos(fi->carrier());
-                    nAssert(pos.px >= 0 && pos.py >= 0);
-                    if (!pl.used || pos.px >= fx.map.w || pos.py >= fx.map.h)
+                    nAssert(pos.room.x >= 0 && pos.room.y >= 0);
+                    if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h)
                         continue;
                     if (t < 2)
                         fx.teams[t].move_flag(f, pos);
@@ -3331,7 +3333,7 @@ WorldCoords GuiClient::viewTopLeft() const throw () {
 
 pair<int, int> GuiClient::topLeftRoom() const throw () {
     const WorldCoords c = viewTopLeft();
-    return pair<int, int>(c.px, c.py);
+    return pair<int, int>(c.room.x, c.room.y);
 }
 
 //draw the whole game screen
@@ -3465,8 +3467,8 @@ void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
 
 bool GuiClient::on_screen(int x, int y) const throw () {
     const WorldCoords topLeft = viewTopLeft();
-    return positiveModulo(x - topLeft.px, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
-           positiveModulo(y - topLeft.py, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
+    return positiveModulo(x - topLeft.room.x, fx.map.w) < graphics.get_visible_rooms_x() + topLeft.x / plw &&
+           positiveModulo(y - topLeft.room.y, fx.map.h) < graphics.get_visible_rooms_y() + topLeft.y / plh;
 }
 
 bool GuiClient::on_screen(int rx, int ry, double lx, double ly, double fudge) const throw () {
@@ -3475,8 +3477,8 @@ bool GuiClient::on_screen(int rx, int ry, double lx, double ly, double fudge) co
     const double x = rx * plw + lx,
                  y = ry * plh + ly;
     const WorldCoords topLeft = viewTopLeft();
-    const double tlx = topLeft.px * plw + topLeft.x - fudge,
-                 tly = topLeft.py * plh + topLeft.y - fudge;
+    const double tlx = topLeft.room.x * plw + topLeft.x - fudge,
+                 tly = topLeft.room.y * plh + topLeft.y - fudge;
     const double relX = positiveFmod(x - tlx, mapw),
                  relY = positiveFmod(y - tly, maph);
     return relX < graphics.get_visible_rooms_x() * plw + 2 * fudge && relY < graphics.get_visible_rooms_y() * plh + 2 * fudge;
@@ -3537,7 +3539,7 @@ void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
         for (int i = 0; i < maxplayers; i++) {
             const ClientPlayer& pl = fx.player[i];
             const WorldCoords pos = playerPos(i);
-            if (!pl.used || pos.px >= fx.map.w || pos.py >= fx.map.h || pl.alpha <= 0)
+            if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h || pl.alpha <= 0)
                 continue;
             set_trans_mode(pl.alpha);
             for (ConstFlagIterator fi(fx); fi; ++fi)
@@ -3580,7 +3582,7 @@ void GuiClient::draw_playfield() throw () {
     if (!replaying && menu.options.graphics.oldFlagPositions())
         for (ConstDisappearedFlagIterator fi(this); fi; ++fi) {
             const WorldCoords& pos = fi->position();
-            if (on_screen(pos.px, pos.py, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2))
+            if (on_screen(pos.room.x, pos.room.y, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2))
                 graphics.draw_flag(fi.team(), pos, false, 100, false, (fx.frame - fx.player[fi->carrier()].posUpdated) * .1);
         }
 
@@ -3597,7 +3599,7 @@ void GuiClient::draw_playfield() throw () {
         if (fi->carried())
             continue;
         const WorldCoords& pos = fi->position();
-        if (on_screen(pos.px, pos.py, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2)) {
+        if (on_screen(pos.room.x, pos.room.y, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2)) {
             const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                time < fi->return_time() + 2 && static_cast<int>(fmod(time * 15, 3)) == 0;
             const double return_delay = fi.team() != 2 ? fi->drop_time() + flag_return_delay / 10 - time : 0;

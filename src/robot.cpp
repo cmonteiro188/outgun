@@ -87,7 +87,7 @@ int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area:
 const DeathbringerExplosion* Robot::explosionInRoom(int roomx, int roomy) const throw () {
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
         const WorldCoords& pos = dbi->position();
-        if (pos.px == roomx && pos.py == roomy && (dbi->team() != fx.player[me].team() || fx.physics.friendly_db))
+        if (pos.room == RoomCoords(roomx, roomy) && (dbi->team() != fx.player[me].team() || fx.physics.friendly_db))
             return &*dbi;
     }
     return 0;
@@ -1225,7 +1225,7 @@ int Robot::HaveFlag(int n) const throw () {
 bool Robot::IsFlagAtBase(const Flag& f, int team) const throw () {
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
-        if (bi->px == f.position().px && bi->py == f.position().py && fabs(bi->x - f.position().x) <= 5. && fabs(bi->y - f.position().y) <= 5.)
+        if (bi->room == f.position().room && fabs(bi->x - f.position().x) <= 5. && fabs(bi->y - f.position().y) <= 5.)
             return true;
     return false;
 }

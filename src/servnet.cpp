@@ -393,8 +393,8 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) const throw () {
         else {
             msg.U8(0); // not carried
             //new flag position
-            msg.U8(fi->position().px);
-            msg.U8(fi->position().py);
+            msg.U8(fi->position().room.x);
+            msg.U8(fi->position().room.y);
             msg.S16(static_cast<int>(fi->position().x));
             msg.S16(static_cast<int>(fi->position().y));
         }
