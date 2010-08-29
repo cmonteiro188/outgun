@@ -1089,8 +1089,8 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
     nAssert(ar[1] >= ar[0]);
     nAssert(ar[0] >= 0.);
 
-    const double yeo = cy - ro * va2.second;    // - belongs to va2.second
-    const double yei = cy - ri * va2.second;    // - belongs to va2.second
+    const double yeo = cy - ro * va2.y;    // - belongs to va2.y
+    const double yei = cy - ri * va2.y;    // - belongs to va2.y
     double ang = ar[0];
     const int pi_i = static_cast<int>(ang / N_PI) + 1;
     bool rightSide = (pi_i & 1) != 0;
@@ -1133,18 +1133,18 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
         rightSide = !rightSide;
     }
 
-    double x1 = cx + va1.first * ri, y1 = cy - va1.second * ri; // - belongs to va1.second
-    double x2 = cx + va1.first * ro, y2 = cy - va1.second * ro; // - belongs to va1.second
-    if (va1.second > 0) {   // this is reversed, too
+    double x1 = cx + va1.x * ri, y1 = cy - va1.y * ri; // - belongs to va1.y
+    double x2 = cx + va1.x * ro, y2 = cy - va1.y * ro; // - belongs to va1.y
+    if (va1.y > 0) {   // this is reversed, too
         swap(x1, x2);
         swap(y1, y2);
     }
     bfns.push_back(new LineFunction(x1, y1, x2, y2));
     borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
 
-    x1 = cx + va2.first * ri; y1 = cy - va2.second * ri;    // - belongs to va2.second
-    x2 = cx + va2.first * ro; y2 = cy - va2.second * ro;    // - belongs to va2.second
-    if (va2.second > 0) {   // this is reversed, too
+    x1 = cx + va2.x * ri; y1 = cy - va2.y * ri;    // - belongs to va2.y
+    x2 = cx + va2.x * ro; y2 = cy - va2.y * ro;    // - belongs to va2.y
+    if (va2.y > 0) {   // this is reversed, too
         swap(x1, x2);
         swap(y1, y2);
     }

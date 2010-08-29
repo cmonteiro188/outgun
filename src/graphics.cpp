@@ -732,8 +732,8 @@ void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, d
     if (ri > 0)                     // ring
         circlefill(cbuff, iround(scale * ro), iround(scale * ro), iround(scale * ri - 1), transparent);
     if (angle[0] != angle[1]) {     // sector
-        const double vx[] = { wall.angle_vector_1().first, wall.angle_vector_2().first };
-        const double vy[] = { wall.angle_vector_1().second, wall.angle_vector_2().second };
+        const double vx[] = { wall.angle_vector_1().x, wall.angle_vector_2().x };
+        const double vy[] = { wall.angle_vector_1().y, wall.angle_vector_2().y };
         // remove unnecessary   2 1
         // quarters             3 4
         double ang1 = angle[0];

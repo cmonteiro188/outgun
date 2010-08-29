@@ -356,13 +356,13 @@ BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, do
 
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
         // fast and crude bounding-box style check first
-        if (!(*wi)->intersects_rect(bbox0.first, bbox0.second, bbox1.first, bbox1.second))
+        if (!(*wi)->intersects_rect(bbox0.x, bbox0.y, bbox1.x, bbox1.y))
             continue;
         // check more carefully
         (*wi)->tryBounce(&bd, x, y, mx, my, radius);
         #ifdef EXTRA_DEBUG
         if (bd.first < 1e10) {
-            const double dx = bd.second.first, dy = bd.second.second, r = radius;
+            const double dx = bd.second.x, dy = bd.second.y, r = radius;
             nAssert(fabs(dx * dx + dy * dy - r * r) < 1e-8);
         }
         #endif
@@ -1020,7 +1020,7 @@ BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coord
             // make sure the point is within the given angle from av
             // [ (t(mx,my) - (dx,dy)) dot av ] / [ |t(mx,my) - (dx,dy)| * |av| ] >= ahwcos
             const double xd = t * mx - dx, yd = t * my - dy;
-            const double dot = xd * av.first - yd * av.second;  //NOTE: - because av.second is in reversed coordinates
+            const double dot = xd * av.x - yd * av.y;  //NOTE: - because av.second is in reversed coordinates
             if (dot >= ahwcos * bounceRad) {    // |(dx,dy) - t(mx,my)| = bounceRad, |av| = 1
                 // calc the vector from t(mx,my) to collision point:
                 // length = cr
@@ -1103,8 +1103,8 @@ void CircWall::tryBounce(BounceData* bd, double stx, double sty, double mx, doub
     }
     if (angle[0] == angle[1])   // no sectoring
         return;
-    double p1x = x + ro * va1.first - stx, p1y = y - ro * va1.second - sty; //NOTE: - ...*va1.second because va1.second is in reversed coordinates
-    double p2x = x + ri * va1.first - stx, p2y = y - ri * va1.second - sty; //NOTE: - ...*va1.second because va1.second is in reversed coordinates
+    double p1x = x + ro * va1.x - stx, p1y = y - ro * va1.y - sty; //NOTE: - ...*va1.y because va1.y is in reversed coordinates
+    double p2x = x + ri * va1.x - stx, p2y = y - ri * va1.y - sty; //NOTE: - ...*va1.y because va1.y is in reversed coordinates
     // side wall at angle va1
     rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
     add_rv();
@@ -1114,8 +1114,8 @@ void CircWall::tryBounce(BounceData* bd, double stx, double sty, double mx, doub
     rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
     add_rv();
     // side wall at angle va2
-    p1x = x + ro * va2.first - stx, p1y = y - ro * va2.second - sty;    //NOTE: - ...*va2.second because va2.second is in reversed coordinates
-    p2x = x + ri * va2.first - stx, p2y = y - ri * va2.second - sty;    //NOTE: - ...*va2.second because va2.second is in reversed coordinates
+    p1x = x + ro * va2.x - stx, p1y = y - ro * va2.y - sty;    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
+    p2x = x + ri * va2.x - stx, p2y = y - ri * va2.y - sty;    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
     rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
     add_rv();
     // corners at angle va2
@@ -2683,9 +2683,9 @@ void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double p
     // bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
     // : S -= 2* ( (S dot b) * b / |b|^2 )  ; |b| is always plyRadius
     // to add a specific speed loss only in the bounce direction, reduce from the 2.
-    const double mul = 2. * (ply.sx * bounceVec.first + ply.sy * bounceVec.second) / (plyRadius * plyRadius);
-    ply.sx -= mul * bounceVec.first;
-    ply.sy -= mul * bounceVec.second;
+    const double mul = 2. * (ply.sx * bounceVec.x + ply.sy * bounceVec.y) / (plyRadius * plyRadius);
+    ply.sx -= mul * bounceVec.x;
+    ply.sy -= mul * bounceVec.y;
     // lose some speed too
     ply.sx *= .95;
     ply.sy *= .95;
@@ -2695,16 +2695,16 @@ void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double p
 pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const throw () {
     // the formulas come simplified from a more complex bounce physics system, so the comments here aren't very descriptive
     const Coords ds(pl2.lx - pl1.lx, pl2.ly - pl1.ly);
-    const double r = sqrt(ds.first * ds.first + ds.second * ds.second);
+    const double r = sqrt(ds.x * ds.x + ds.y * ds.y);
 
     // player 1
-    double tVar = (pl1.sy * ds.second + pl1.sx * ds.first) / (r * r);   // (vx1·rx + vy1·ry)/r = k1
+    double tVar = (pl1.sy * ds.y + pl1.sx * ds.x) / (r * r);   // (vx1·rx + vy1·ry)/r = k1
     const double k1 = r * tVar;
-    const Coords v1(pl1.sx - ds.first * tVar, pl1.sy - ds.second * tVar);
+    const Coords v1(pl1.sx - ds.x * tVar, pl1.sy - ds.y * tVar);
     // player 2
-    tVar = (-pl2.sy * ds.second - pl2.sx * ds.first) / (r * r);
+    tVar = (-pl2.sy * ds.y - pl2.sx * ds.x) / (r * r);
     const double k2 = r * tVar;
-    const Coords v2(pl2.sx + ds.first * tVar, pl2.sy + ds.second * tVar);
+    const Coords v2(pl2.sx + ds.x * tVar, pl2.sy + ds.y * tVar);
 
     const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.id, pl2.id, fabs(k2 - k1));
 
@@ -2714,11 +2714,11 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
     static const double baseSpeedMul = .9;
 
     // new speed components
-    pl1.sx = baseSpeedMul * (v1.first  + newk1 * ds.first  / r);    // vx=sx+kx, kx/k = rx/r
-    pl1.sy = baseSpeedMul * (v1.second + newk1 * ds.second / r);
+    pl1.sx = baseSpeedMul * (v1.x + newk1 * ds.x / r);    // vx=sx+kx, kx/k = rx/r
+    pl1.sy = baseSpeedMul * (v1.y + newk1 * ds.y / r);
 
-    pl2.sx = baseSpeedMul * (v2.first  - newk2 * ds.first  / r);
-    pl2.sy = baseSpeedMul * (v2.second - newk2 * ds.second / r);
+    pl2.sx = baseSpeedMul * (v2.x - newk2 * ds.x / r);
+    pl2.sy = baseSpeedMul * (v2.y - newk2 * ds.y / r);
 
     limitPlayerSpeed(pl1);  // required because baseSpeedMul and bounceStrengths can be set to physically incorrect values
     limitPlayerSpeed(pl2);

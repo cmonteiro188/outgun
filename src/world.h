@@ -40,9 +40,6 @@ class BinaryWriter;
 
 static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
-typedef std::pair<double, double> Coords;
-typedef std::pair<double, Coords> BounceData;
-
 template<class T> struct BasicCoords {
     T x, y;
 
@@ -52,6 +49,10 @@ template<class T> struct BasicCoords {
     bool operator==(const BasicCoords& o) const throw () { return x == o.x && y == o.y; }
     bool operator!=(const BasicCoords& o) const throw () { return x != o.x || y != o.y; }
 };
+
+typedef BasicCoords<double> Coords; // within a room
+
+typedef std::pair<double, Coords> BounceData;
 
 class WallBase {    // base class
 public:

@@ -109,7 +109,7 @@ bool Robot::imminentExplosionHere() const throw () {
 double Robot::distanceFromDoor(const Area::Neighbor& n, double lx, double ly) const throw () {
     try {
         const Coords door = nearestDoor(n, lx, ly);
-        return sqrt(sqr(door.first - lx) + sqr(door.second - ly));
+        return sqrt(sqr(door.x - lx) + sqr(door.y - ly));
     } catch (AlreadyInRoom) {
         return 0;
     }
@@ -1037,7 +1037,7 @@ ClientControls Robot::MoveToDoor(double mex, double mey, const Area::Neighbor& n
     const Area::Neighbor::Direction dir = neighbor.direction;
     try {
         const Coords door = nearestDoor(neighbor, mex, mey);
-        return MoveToNoAggregate(mex, mey, door.first + PLAYER_RADIUS * xDelta(dir) - mex, door.second + PLAYER_RADIUS * yDelta(dir) - mey, 0);
+        return MoveToNoAggregate(mex, mey, door.x + PLAYER_RADIUS * xDelta(dir) - mex, door.y + PLAYER_RADIUS * yDelta(dir) - mey, 0);
     } catch (AlreadyInRoom) {
         ClientControls ctrl;
         ctrl.setRun();
@@ -1501,7 +1501,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
         } catch (AlreadyInRoom) {
             nAssert(0);
         }
-        const double doorDist = sqrt(sqr(doorPos.first - pl.lx) + sqr(doorPos.second - pl.ly));
+        const double doorDist = sqrt(sqr(doorPos.x - pl.lx) + sqr(doorPos.y - pl.ly));
         const double earliestTimeThere = pl.posUpdated + ceil(doorDist / fx.physics.max_run_speed);
         if (earliestTimeThere > fx.frame)
             continue;
@@ -1514,8 +1514,8 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
         if (haveGuess) // many possible neighbors, don't try to guess
             return; //#improve: ideally, save the info about rooms that were found impossible, to work better when some current choices are proven impossible
 
-        const double lx = doorPos.first  - xDelta(ni->direction) * S_W,
-                     ly = doorPos.second - yDelta(ni->direction) * S_H; // move from this-room-coords to relative to the neighbor
+        const double lx = doorPos.x - xDelta(ni->direction) * S_W,
+                     ly = doorPos.y - yDelta(ni->direction) * S_H; // move from this-room-coords to relative to the neighbor
         posGuess = WorldCoords(n->roomx, n->roomy, lx, ly);
         timeGuess = max(nSeen + 10, earliestTimeThere);
         haveGuess = true;
