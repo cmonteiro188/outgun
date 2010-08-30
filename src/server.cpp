@@ -1521,8 +1521,8 @@ void Server::simulate_and_broadcast_frame() throw () {
     bool recordFrameNumber = false;
     if (gameover)
         if (gameover_time < get_time()) {
-            gameover = false;
             stop_recording();
+            gameover = false;
             start_recording();
             world.start_game();
             network.sendStartGame();
