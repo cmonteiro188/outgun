@@ -818,7 +818,7 @@ public:
     virtual bool allowRoomChange() const throw () = 0;
     virtual void addMovementDistance(int pid, double dist) throw () = 0; // player pid has moved the distance dist
     virtual void playerScreenChange(int pid) throw () = 0; // player pid has moved to a new room (called max. once per frame per player)
-    virtual void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) throw () = 0; // caller doesn't remove the rocket
+    virtual void rocketHitWall(int rid, bool power, const WorldCoords& pos) throw () = 0; // caller doesn't remove the rocket
     virtual bool rocketHitPlayer(int rid, int pid) throw () = 0; // returns true if player dies (to be removed from further simulation)
     virtual void playerHitWall(int pid) throw () = 0;
     virtual PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) throw () = 0;

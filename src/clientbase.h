@@ -155,7 +155,7 @@ protected:
     }
 
     // world    //#fix: should these be moved to ClientWorld?
-    virtual void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
+    virtual void rocketHitWallCallback(int rid, bool power, const WorldCoords& pos) throw ();
     void rocketOutOfBoundsCallback(int rid) throw ();
     virtual void playerHitWallCallback(int pid) throw () { (void)pid; }
     virtual void playerHitPlayerCallback(int pid1, int pid2) throw () { (void)(pid1 && pid2); }
@@ -249,7 +249,7 @@ public:
     bool allowRoomChange() const throw () { return false; }
     void addMovementDistance(int, double) throw () { }
     void playerScreenChange(int) throw () { }
-    void rocketHitWall(int rid, bool power, double x, double y, int roomx, int roomy) throw () { c.rocketHitWallCallback(rid, power, x, y, roomx, roomy); }
+    void rocketHitWall(int rid, bool power, const WorldCoords& pos) throw () { c.rocketHitWallCallback(rid, power, pos); }
     bool rocketHitPlayer(int, int) throw () { return false; }
     void playerHitWall(int pid) throw () { c.playerHitWallCallback(pid); }
     PlayerHitResult playerHitPlayer(int pid1, int pid2, double) throw () { c.playerHitPlayerCallback(pid1, pid2); return PlayerHitResult(false, false, 1., 1.); }

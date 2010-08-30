@@ -1520,8 +1520,8 @@ void ClientBase::stop() throw () {
     disconnect_command();
 }
 
-void ClientBase::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
-    (void)(power && x && y && roomx && roomy);
+void ClientBase::rocketHitWallCallback(int rid, bool power, const WorldCoords& pos) throw () {
+    (void)power; (void)pos;
     fx.rock[rid].owner = -1;   // erase from clientside simulation
     #ifndef DEDICATED_SERVER_ONLY
     fd.rock[rid].owner = -1;

@@ -491,7 +491,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void netSetHostname(const std::string& name) throw () { hostname = name; }
     void netSetCurrentMap(int idx) throw () { current_map = idx; }
 
-    void rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw ();
+    void rocketHitWallCallback(int rid, bool power, const WorldCoords& pos) throw ();
     void playerHitWallCallback(int pid) throw ();
     void playerHitPlayerCallback(int pid1, int pid2) throw ();
 

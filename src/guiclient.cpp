@@ -3232,18 +3232,18 @@ void GuiClient::stop() throw () {
     log("Client stop() completed");
 }
 
-void GuiClient::rocketHitWallCallback(int rid, bool power, double x, double y, int roomx, int roomy) throw () {
-    ClientBase::rocketHitWallCallback(rid, power, x, y, roomx, roomy);
+void GuiClient::rocketHitWallCallback(int rid, bool power, const WorldCoords& pos) throw () {
+    ClientBase::rocketHitWallCallback(rid, power, pos);
 
     const double time = fx.frame / 10;
-    const bool sound = on_screen_exact(roomx, roomy, x, y);
+    const bool sound = on_screen_exact(pos.room.x, pos.room.y, pos.x, pos.y);
     if (power) {
-        graphics.create_powerwallexplo(WorldCoords(roomx, roomy, x, y), fx.rock[rid].team, time);
+        graphics.create_powerwallexplo(pos, fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_POWERWALLHIT);
     }
     else {
-        graphics.create_wallexplo(WorldCoords(roomx, roomy, x, y), fx.rock[rid].team, time);
+        graphics.create_wallexplo(pos, fx.rock[rid].team, time);
         if (sound)
             play_sound(SAMPLE_WALLHIT);
     }

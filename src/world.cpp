@@ -1313,7 +1313,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
         const double wallTime = getTimeTillWall(map.room[px][py], r, 1.01);
         r.move(1);
         if (wallTime < 1.) {
-            cb.rocketHitWall(i, r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
+            cb.rocketHitWall(i, r.power, r.pos);
             return;
         }
     }
@@ -1324,7 +1324,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     const double wallTime = getTimeTillWall(map.room[px][py], r, advance * 1.01);
     if (wallTime <= advance) {
         r.move(wallTime);
-        cb.rocketHitWall(i, r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
+        cb.rocketHitWall(i, r.power, r.pos);
         return;
     }
     r.move(advance);
@@ -1591,7 +1591,7 @@ public:
     bool allowRoomChange() const throw () { return true; }
     void addMovementDistance(int pid, double dist) throw () { w.addMovementDistanceCallback(pid, dist); }
     void playerScreenChange(int pid) throw () { w.playerScreenChangeCallback(pid); }
-    void rocketHitWall(int rid, bool, double, double, int, int) throw () { w.rocketHitWallCallback(rid); }
+    void rocketHitWall(int rid, bool, const WorldCoords&) throw () { w.rocketHitWallCallback(rid); }
     bool rocketHitPlayer(int rid, int pid) throw () { return w.rocketHitPlayerCallback(rid, pid); }
     void playerHitWall(int) throw () { }
     PlayerHitResult playerHitPlayer(int pid1, int pid2, double speed) throw () { return w.playerHitPlayerCallback(pid1, pid2, speed); }
@@ -2917,7 +2917,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             Rocket& r = rock[rrock[ri]];
             if (mt > rockMoveMax[ri]) {
                 r.move(rockMoveMax[ri] - subFrame);
-                callback.rocketHitWall(rrock[ri], r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
+                callback.rocketHitWall(rrock[ri], r.power, r.pos);
                 rrock.erase(rrock.begin() + ri);
                 rockMoveMax.erase(rockMoveMax.begin() + ri);
                 if (cRockI >= ri) { if (cRockI == ri) cRockI = -1; else --cRockI; }
@@ -2995,7 +2995,7 @@ void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) t
             const double wallTime = getTimeTillWall(map.room[rock[i].room().x][rock[i].room().y], rock[i], frames);
             if (wallTime < frames) {
                 rock[i].move(wallTime);
-                callback.rocketHitWall(i, rock[i].power, rock[i].pos.x, rock[i].pos.y, rock[i].room().x, rock[i].room().y);
+                callback.rocketHitWall(i, rock[i].power, rock[i].pos);
             }
             else {
                 rock[i].move(frames);
