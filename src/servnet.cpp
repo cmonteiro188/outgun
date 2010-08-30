@@ -3033,10 +3033,10 @@ void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rock
         msg.U8(rocket.direction.toNetworkShortForm());
     msg.U32(world.frame);
     msg.U8(shotType);
-    msg.U8(rocket.px);
-    msg.U8(rocket.py);
-    msg.S16(static_cast<int>(rocket.x));
-    msg.S16(static_cast<int>(rocket.y));
+    msg.U8(rocket.room().x);
+    msg.U8(rocket.room().y);
+    msg.S16(static_cast<int>(rocket.pos.x));
+    msg.S16(static_cast<int>(rocket.pos.y));
 
     server->send_message(world.player[pid].cid, msg);
 }

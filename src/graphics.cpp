@@ -1606,7 +1606,7 @@ void Graphics::draw_player_name(const string& name, const WorldCoords& pos, int 
 
 void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) throw () {
     BITMAP* const sprite = (rocket.power ? power_rocket_sprite[rocket.team] : rocket_sprite[rocket.team]);
-    ScaledCoordSet sc(rocket.px, rocket.py, rocket.x, rocket.y, this);
+    ScaledCoordSet sc(rocket.pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
         if (sprite)

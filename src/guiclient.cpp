@@ -1437,8 +1437,8 @@ void GuiClient::netRocketFired(int rpx, int rpy, int rx, int ry, bool power) thr
 }
 
 void GuiClient::netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () {
-    addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky)));
-    if (on_screen_exact(fx.rock[rockid].px, fx.rock[rockid].py, rokx, roky))
+    addThreadMessage(new TM_GunexploEffect(fx.rock[rockid].team, time, WorldCoords(fx.rock[rockid].room(), rokx, roky)));
+    if (on_screen_exact(fx.rock[rockid].room().x, fx.rock[rockid].room().y, rokx, roky))
         addThreadMessage(new TM_Sound(SAMPLE_HIT));
 }
 
@@ -3601,14 +3601,15 @@ void GuiClient::draw_playfield() throw () {
     }
 
     // draw rockets
-    for (int i = 0; i < MAX_ROCKETS; i++)
-        if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].px, fx.rock[i].py, fd.rock[i].x, fd.rock[i].y, Graphics::extended_rocket_max_size_in_world / 2)) {
-            fd.rock[i].team = fx.rock[i].team;
-            fd.rock[i].power = fx.rock[i].power;
-            const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-            const bool shadow = fd.rock[i].y + radius + 8 < plh && !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(Coords(fd.rock[i].x, fd.rock[i].y + radius + 8), radius / 2);
-            graphics.draw_rocket(fd.rock[i], shadow, time);
+    for (int i = 0; i < MAX_ROCKETS; i++) {
+        const Rocket& r = fd.rock[i];
+        if (fx.rock[i].owner != -1 && on_screen(fx.rock[i].room().x, fx.rock[i].room().y, r.pos.x, r.pos.y, Graphics::extended_rocket_max_size_in_world / 2)) {
+            const int radius = r.power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
+            const WorldCoords shadowPos(r.room(), r.pos.x, r.pos.y + radius + 8);
+            const bool shadow = shadowPos.y < plh && !fd.map.fall_on_wall(shadowPos, radius / 2);
+            graphics.draw_rocket(r, shadow, time);
         }
+    }
 
     // draw players
     for (int k = 0; k < maxplayers; k++) {

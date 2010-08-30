@@ -1121,15 +1121,15 @@ BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, 
 }
 
 double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction) throw () {
-    return room.genGetTimeTillWall(Coords(rock.x, rock.y), Vec(rock.sx, rock.sy), ROCKET_RADIUS, maxFraction).first;
+    return room.genGetTimeTillWall(rock.pos.local(), rock.vel, ROCKET_RADIUS, maxFraction).first;
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) throw () {
-    const Vec d = Coords(rock.x, rock.y) - pl.pos.local();
+    const Vec d = rock.pos.local() - pl.pos.local();
     const double r2 = collRadius * collRadius;
     if (d.mag2() < r2)
         return 0;
-    const Vec m = pl.vel - Vec(rock.sx, rock.sy);
+    const Vec m = pl.vel - rock.vel;
 
     const double m2 = m.mag2();
     const double mdotd = dot(m, d);
@@ -1303,37 +1303,32 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     r.owner = playernum;
     r.team = team;
     r.power = power;
-    r.px = px;
-    r.py = py;
-    r.x = x;
-    r.y = y;
+    r.pos = WorldCoords(px, py, x, y);
     r.direction = dir;
 
     const double deg = dir.toRad();
 
     if (xdelta) {
-        r.sx = xdelta * shot_deltax * cos(deg + N_PI_2);
-        r.sy = xdelta * shot_deltax * sin(deg + N_PI_2);
+        r.vel = xdelta * shot_deltax * Vec(cos(deg + N_PI_2), sin(deg + N_PI_2));
         const double wallTime = getTimeTillWall(map.room[px][py], r, 1.01);
         r.move(1);
         if (wallTime < 1.) {
-            cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);
+            cb.rocketHitWall(i, r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
             return;
         }
     }
 
-    r.sx = cos(deg) * physics.rocket_speed;
-    r.sy = sin(deg) * physics.rocket_speed;
+    r.vel = physics.rocket_speed * Vec(cos(deg), sin(deg));
     // advance 15 pixels before really shooting -> don't hit very close by players
     const double advance = 15. / physics.rocket_speed + double(frameAdvance);
     const double wallTime = getTimeTillWall(map.room[px][py], r, advance * 1.01);
     if (wallTime <= advance) {
         r.move(wallTime);
-        cb.rocketHitWall(i, r.power, r.x, r.y, r.px, r.py);
+        cb.rocketHitWall(i, r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
         return;
     }
     r.move(advance);
-    if (r.x < 0 || r.x > plw || r.y < 0 || r.y > plh)
+    if (r.pos.local().isOutOfBounds())
         cb.rocketOutOfBounds(i);
 }
 
@@ -2167,7 +2162,7 @@ void ServerWorld::game_player_screen_change(int p) throw () {
     }
     // check for rockets visible to the new room
     for (int i = 0; i < MAX_ROCKETS; ++i)
-        if (rock[i].owner != -1 && !(rock[i].vislist & (1u << p)) && doesPlayerSeeRocket(player[p], rock[i].px, rock[i].py)) {
+        if (rock[i].owner != -1 && !(rock[i].vislist & (1u << p)) && doesPlayerSeeRocket(player[p], rock[i].room().x, rock[i].room().y)) {
             rock[i].vislist |= (1u << p);
             net->sendOldRocketVisible(p, i, rock[i]);
         }
@@ -2487,13 +2482,13 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
     //if player not dead, push him
     if (!player[pid].dead) {
         const double mul = 15. / physics.rocket_speed * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.); // divide by rocket_speed to remove its effect in rock.sx,sy
-        player[pid].vel += Vec(rock[rid].sx, rock[rid].sy) * mul;
+        player[pid].vel += rock[rid].vel * mul;
     }
 
     if (had_shield)
-        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, 252);     //do not blink
+        deleteRocket(rid, (int16_t)rock[rid].pos.x, (int16_t)rock[rid].pos.y, 252);     //do not blink
     else
-        deleteRocket(rid, (int16_t)rock[rid].x, (int16_t)rock[rid].y, pid);     //blink
+        deleteRocket(rid, (int16_t)rock[rid].pos.x, (int16_t)rock[rid].pos.y, pid);     //blink
 
     player[pid].record_position = true;
 
@@ -2718,8 +2713,8 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
     for (int i = 0; i < MAX_ROCKETS; i++) {
         if (rock[i].owner == -1)
             continue;
-        nAssert(rock[i].px >= 0 && rock[i].py >= 0 && rock[i].px < map.w && rock[i].py < map.h);
-        roomRock[rock[i].px][rock[i].py].push_back(i);
+        nAssert(rock[i].room().x >= 0 && rock[i].room().y >= 0 && rock[i].room().x < map.w && rock[i].room().y < map.h);
+        roomRock[rock[i].room().x][rock[i].room().y].push_back(i);
     }
 
     // apply physics to each room separately
@@ -2928,7 +2923,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             Rocket& r = rock[rrock[ri]];
             if (mt > rockMoveMax[ri]) {
                 r.move(rockMoveMax[ri] - subFrame);
-                callback.rocketHitWall(rrock[ri], r.power, r.x, r.y, r.px, r.py);
+                callback.rocketHitWall(rrock[ri], r.power, r.pos.x, r.pos.y, r.room().x, r.room().y);
                 rrock.erase(rrock.begin() + ri);
                 rockMoveMax.erase(rockMoveMax.begin() + ri);
                 if (cRockI >= ri) { if (cRockI == ri) cRockI = -1; else --cRockI; }
@@ -2995,24 +2990,22 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             }
         }
     }
-    for (vector<int>::const_iterator ri = rrock.begin(); ri != rrock.end(); ++ri) {
-        const Rocket& r = rock[*ri];
-        if (r.x < 0 || r.x > plw || r.y < 0 || r.y > plh)
+    for (vector<int>::const_iterator ri = rrock.begin(); ri != rrock.end(); ++ri)
+        if (rock[*ri].pos.local().isOutOfBounds())
             callback.rocketOutOfBounds(*ri);    // don't bother with removing it from rrock since the simulation is over
-    }
 }
 
 void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) throw () {
     for (int i = 0; i < MAX_ROCKETS; ++i)
         if (rock[i].owner != -1) {
-            const double wallTime = getTimeTillWall(map.room[rock[i].px][rock[i].py], rock[i], frames);
+            const double wallTime = getTimeTillWall(map.room[rock[i].room().x][rock[i].room().y], rock[i], frames);
             if (wallTime < frames) {
                 rock[i].move(wallTime);
-                callback.rocketHitWall(i, rock[i].power, rock[i].x, rock[i].y, rock[i].px, rock[i].py);
+                callback.rocketHitWall(i, rock[i].power, rock[i].pos.x, rock[i].pos.y, rock[i].room().x, rock[i].room().y);
             }
             else {
                 rock[i].move(frames);
-                if (rock[i].x < 0 || rock[i].x > plw || rock[i].y < 0 || rock[i].y > plh)
+                if (rock[i].pos.local().isOutOfBounds())
                     callback.rocketOutOfBounds(i);
             }
         }

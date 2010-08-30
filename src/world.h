@@ -58,6 +58,8 @@ struct Coords : public BasicCoords<double> { // coordinates within a room
     explicit Coords(const Vec& v) throw () : BasicCoords<double>(v.x, v.y) { }
 
     operator Vec() const throw () { return Vec(x, y); }
+
+    bool isOutOfBounds() const throw () { return x < 0 || x > plw || y < 0 || y > plh; }
 };
 
 struct WorldCoords {
@@ -582,14 +584,14 @@ public:
     bool power;
 
     uint32_t vislist;    //notification list (bitfield, bit0=player0, bit1=player1... etc.)
-    int px, py;         //screen coords
-    double x, y;        //start position or current position
-    double sx, sy;      //speed
+    WorldCoords pos;
+    Vec vel;
     GunDirection direction;
-    uint32_t time;       //time of shot or current time
 
     Rocket() throw () { owner = -1; }
-    void move(double fraction) throw () { x += sx*fraction; y += sy*fraction; }
+    void move(double fraction) throw () { pos.local(Coords(pos.local() + fraction * vel)); }
+
+    const RoomCoords& room() const throw () { return pos.room; }
 };
 
 class Flag {

@@ -198,7 +198,7 @@ int Robot::GetDangerousRocket() const throw () {
     for (int i = 0; i < MAX_ROCKETS; ++i) {
         const Rocket& rocket = fx.rock[i];
 
-        if (rocket.owner == -1 || rocket.team == player.team() && !fx.physics.friendly_fire || RoomCoords(rocket.px, rocket.py) != player.room())
+        if (rocket.owner == -1 || rocket.team == player.team() && !fx.physics.friendly_fire || rocket.room() != player.room())
             continue;
 
         const double collisionTime = fx.getTimeTillCollision(player, rocket, (PLAYER_RADIUS + ROCKET_RADIUS) * safetyRoomMul);
@@ -467,8 +467,7 @@ pair<bool, int> Robot::NeedShootTradTurning(double mex, double mey) throw () {
 
 ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
-    const double sdx = rocket.x + averageLag * rocket.sx - mex;
-    const double sdy = rocket.y + averageLag * rocket.sy - mey;
+    const Vec sd = rocket.pos.local() + averageLag * rocket.vel - Vec(mex, mey);
 
     ClientControls ctrl;
     ctrl.setStrafe();
@@ -477,21 +476,21 @@ ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const thro
     switch (rocket.direction.to8way()) {
         case 0: // r -> d or up
         case 4: // l -> u or d
-            if (sdy > 0)
+            if (sd.y > 0)
                 ctrl.setUp();
             else
                 ctrl.setDown();
             break;
         case 2: // d - > l or r
         case 6: // u -> l or r
-            if (sdx > 0)
+            if (sd.x > 0)
                 ctrl.setLeft();
             else
                 ctrl.setRight();
             break;
         case 1: // rd -> ru | ld  "\"
         case 5: // lu -> ru | ld
-            if (sdy > sdx) {
+            if (sd.y > sd.x) {
                 ctrl.setUp();
                 ctrl.setRight();
             }
@@ -502,7 +501,7 @@ ClientControls Robot::EscapeRocket(double mex, double mey, int mrock) const thro
             break;
         case 3: // ld -> rd | lu "/"
         case 7: // ur -> lu | rd
-            if (sdy > -sdx) {
+            if (sd.y > -sd.x) {
                 ctrl.setUp();
                 ctrl.setLeft();
             }
