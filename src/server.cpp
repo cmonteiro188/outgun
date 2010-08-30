@@ -1717,13 +1717,13 @@ void Server::simulate_and_broadcast_frame() throw () {
             if (recordPosition) {
                 pl.record_position = false;
                 // Position
-                recordFrame.U8(pl.roomx);
-                recordFrame.U8(pl.roomy);
-                recordFrame.dbl(pl.lx);
-                recordFrame.dbl(pl.ly);
+                recordFrame.U8(pl.room().x);
+                recordFrame.U8(pl.room().y);
+                recordFrame.dbl(pl.pos.x);
+                recordFrame.dbl(pl.pos.y);
                 // Speed
-                recordFrame.dbl(pl.sx);
-                recordFrame.dbl(pl.sy);
+                recordFrame.dbl(pl.vel.x);
+                recordFrame.dbl(pl.vel.y);
             }
 
             if (recordControls) {

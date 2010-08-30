@@ -71,6 +71,11 @@ struct WorldCoords {
     bool operator!=(const WorldCoords& op) const throw () { return !(*this == op); }
 
     Coords local() const throw () { return Coords(x, y); }
+    void local(const Coords& c) throw () { x = c.x; y = c.y; }
+
+    double xTotal() const throw () { return room.x * plw + x; }
+    double yTotal() const throw () { return room.y * plh + y; }
+    Vec total() const throw () { return Vec(xTotal(), yTotal()); }
 
     RoomCoords room;
     double x, y; // coords within the room
@@ -413,8 +418,8 @@ public:
     bool item_turbo;
     int visibility;     // alpha
 
-    int roomx, roomy;
-    double lx, ly, sx, sy;  // position within room and speed
+    WorldCoords pos;
+    Vec vel;
     ClientControls controls;
     AccelerationMode accelerationMode;
 
@@ -432,7 +437,7 @@ public:
     int neg_score;
 
     virtual ~PlayerBase() throw () { }
-    void move(double fraction) throw () { lx += sx * fraction; ly += sy * fraction; }
+    void move(double fraction) throw () { pos.local(Coords(pos.local() + vel * fraction)); }
     void clear(bool enable, int _pid, const std::string& _name, int team_id) throw ();
 
     void set_team(int t) throw () { team_nr = t; }
@@ -446,7 +451,8 @@ public:
     int color() const throw () { return personal_color; }
     virtual bool under_deathbringer_effect(double curr_time) const throw () = 0;
 
-    WorldCoords position() const throw () { return WorldCoords(roomx, roomy, lx, ly); }
+    const WorldCoords& position() const throw () { return pos; }
+    const RoomCoords& room() const throw () { return pos.room; }
 };
 
 bool compare_players(const PlayerBase* a, const PlayerBase* b) throw ();
@@ -546,11 +552,11 @@ public:
     double player_sound_time;
     bool onscreen;
     double hitfx;
-    int oldx, oldy; // detect room changes, self only
+    RoomCoords oldRoom; // detect room changes, self only
     double posUpdated; // on which frame the player's position has been last received (including the low-res info for minimap purposes)
     bool fromMinimapUpdate;
     double prevMapPosUpdateFrame; // if fromMinimapUpdate, the last update before posUpdated
-    int prevMapUpdateRoomx, prevMapUpdateRoomy;
+    RoomCoords prevMapUpdateRoom;
     int alpha;
 
     // get rid of these since they are only known for the local player
@@ -762,7 +768,7 @@ class DeathbringerExplosion {
 
 public:
     DeathbringerExplosion(double explosionFrame, const PlayerBase& owner) throw ()
-            : frame0(explosionFrame), pos(owner.roomx, owner.roomy, owner.lx, owner.ly), ownerPid(owner.id), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
+            : frame0(explosionFrame), pos(owner.pos), ownerPid(owner.id), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
     DeathbringerExplosion(double explosionFrame, const WorldCoords& position, int team) throw ()
             : frame0(explosionFrame), pos(position), ownerPid(-1), ownerTeam(team), playersOutsideMask(~0u) { }
 

@@ -798,8 +798,8 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     item_deathbringer = item_power = item_turbo = false;
     item_shield = 0;
     visibility = 255;
-    roomx = roomy = 0;
-    lx = ly = sx = sy = 0;
+    pos = WorldCoords(0, 0, 0, 0);
+    vel = Vec(0, 0);
     gundir.from8way(0);
     controls = ClientControls();
     dead = false;
@@ -878,25 +878,20 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     deathbringer_affected = false;
     next_smoke_effect_time = 0;
     hitfx = 0;
-    oldx = oldy = 0;
-    prevMapUpdateRoomx = prevMapUpdateRoomy = 0;
+    oldRoom = prevMapUpdateRoom = RoomCoords(0, 0);
     posUpdated = prevMapPosUpdateFrame = -1e10;
     fromMinimapUpdate = false;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
-void ClientPlayer::setPosition(const WorldCoords& pos, double frame, bool minimapUpdate, bool clearlyVisible) throw () {
+void ClientPlayer::setPosition(const WorldCoords& pos_, double frame, bool minimapUpdate, bool clearlyVisible) throw () {
     nAssert(!(minimapUpdate && !clearlyVisible));
     if (fromMinimapUpdate) {
         prevMapPosUpdateFrame = posUpdated;
-        prevMapUpdateRoomx = roomx;
-        prevMapUpdateRoomy = roomy;
+        prevMapUpdateRoom = pos.room;
     }
-    roomx = pos.room.x;
-    roomy = pos.room.y;
-    lx = pos.x;
-    ly = pos.y;
+    pos = pos_;
     fromMinimapUpdate = minimapUpdate;
     if (clearlyVisible)
         posUpdated = frame;
@@ -1122,7 +1117,7 @@ void CircWall::tryBounce(BounceData* bd, const Vec& st, const Vec& m, double ply
 }
 
 BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction) throw () {
-    return room.genGetTimeTillWall(Coords(pl.lx, pl.ly), Vec(pl.sx, pl.sy), plyRadius, maxFraction);
+    return room.genGetTimeTillWall(pl.pos.local(), pl.vel, plyRadius, maxFraction);
 }
 
 double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction) throw () {
@@ -1130,14 +1125,15 @@ double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, double m
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) throw () {
-    const double dx = rock.x - pl.lx, dy = rock.y - pl.ly, r2 = collRadius * collRadius;
-    if (dx * dx + dy * dy < r2)
+    const Vec d = Coords(rock.x, rock.y) - pl.pos.local();
+    const double r2 = collRadius * collRadius;
+    if (d.mag2() < r2)
         return 0;
-    const double mx = pl.sx - rock.sx, my = pl.sy - rock.sy;
+    const Vec m = pl.vel - Vec(rock.sx, rock.sy);
 
-    const double m2 = mx * mx + my * my;
-    const double mdotd = mx * dx + my * dy;
-    const double d2 = dx * dx + dy * dy;
+    const double m2 = m.mag2();
+    const double mdotd = dot(m, d);
+    const double d2 = d.mag2();
     const double disc = mdotd * mdotd - m2 * (d2 - r2);
     if (disc >= 0) {    // there are real solutions
         const double t = (mdotd - sqrt(disc)) / m2;   // the collision with smaller t (the larger t is when going away)
@@ -1148,14 +1144,15 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock,
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius) throw () {
-    const double dx = pl2.lx - pl1.lx, dy = pl2.ly - pl1.ly, r2 = collRadius * collRadius;
-    if (dx * dx + dy * dy < r2)
+    const Vec d = pl2.pos.local() - pl1.pos.local();
+    const double r2 = collRadius * collRadius;
+    if (d.mag2() < r2)
         return 1e99;
-    const double mx = pl1.sx - pl2.sx, my = pl1.sy - pl2.sy;
+    const Vec m = pl1.vel - pl2.vel;
 
-    const double m2 = mx * mx + my * my;
-    const double mdotd = mx * dx + my * dy;
-    const double d2 = dx * dx + dy * dy;
+    const double m2 = m.mag2();
+    const double mdotd = dot(m, d);
+    const double d2 = d.mag2();
     const double disc = mdotd * mdotd - m2 * (d2 - r2);
     if (disc >= 0) {    // there are real solutions
         const double t = (mdotd - sqrt(disc)) / m2; // the collision with smaller t (the larger t is when going away)
@@ -1192,20 +1189,14 @@ void WorldBase::applyPlayerAcceleration(int pid) throw () {
             player_accel *= physics.flag_mul;
     }
 
-    // apply drag: v -= v * drag
-    h->sx -= h->sx * physics.drag;
-    h->sy -= h->sy * physics.drag;
+    h->vel *= 1. - physics.drag;
 
-    // apply friction: v -= fric
-    const double spd = sqrt(h->sx * h->sx + h->sy * h->sy);
+    // apply friction (constant speed decrease)
+    const double spd = h->vel.mag();
     if (spd <= physics.fric || spd < .001)  // the test on .001 is because fric <= 0 is allowed but spd == 0 doesn't work in the formula below
-        h->sx = h->sy = 0;
-    else {
-        // v = v - fric
-        const double mul = 1 - physics.fric / spd;
-        h->sx *= mul;
-        h->sy *= mul;
-    }
+        h->vel = Vec(0, 0);
+    else
+        h->vel *= 1. - physics.fric / spd;
 
     if (h->under_deathbringer_effect(get_time()))
         return;
@@ -1220,31 +1211,25 @@ void WorldBase::applyPlayerAcceleration(int pid) throw () {
         forwAcc /= sqrt(2.);
     }
 
-    double xAcc, yAcc;
-    if (h->accelerationMode == AM_World || !physics.allowFreeTurning) {
-        xAcc = sideAcc;
-        yAcc = -forwAcc;
-    }
+    Vec acc;
+    if (h->accelerationMode == AM_World || !physics.allowFreeTurning)
+        acc = Vec(sideAcc, -forwAcc);
     else {
         const double dirX = cos(h->gundir.toRad()), dirY = sin(h->gundir.toRad());
-        xAcc = dirX * forwAcc - dirY * sideAcc;
-        yAcc = dirY * forwAcc + dirX * sideAcc;
+        acc = Vec(dirX * forwAcc - dirY * sideAcc,
+                  dirY * forwAcc + dirX * sideAcc);
     }
-    if (fabs(h->sx) > .001 || fabs(h->sy) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
+    if (fabs(h->vel.x) > .001 || fabs(h->vel.y) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
         // handle different directions : scale braking component by brake_mul and turning component by turn_mul
         // acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
-        const double par_mul = (xAcc * h->sx + yAcc * h->sy) / (h->sx * h->sx + h->sy * h->sy);
-        double par_x = par_mul * h->sx, par_y = par_mul * h->sy;
-        const double perp_x = xAcc - par_x, perp_y = yAcc - par_y;
-        if (par_mul < 0) {  // par is opposite to v == braking
-            par_x *= physics.brake_mul;
-            par_y *= physics.brake_mul;
-        }
-        xAcc = perp_x * physics.turn_mul + par_x;
-        yAcc = perp_y * physics.turn_mul + par_y;
+        const double par_mul = dot(acc, h->vel) / h->vel.mag2();
+        Vec par = h->vel * par_mul;
+        const Vec perp = acc - par;
+        if (par_mul < 0)  // par is opposite to v == braking
+            par *= physics.brake_mul;
+        acc = perp * physics.turn_mul + par;
     }
-    h->sx += xAcc * player_accel;
-    h->sy += yAcc * player_accel;
+    h->vel += acc * player_accel;
 }
 
 void WorldBase::returnAllFlags() throw () {
@@ -1753,7 +1738,7 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
     nAssert(flag != -1);
     player[pid].stats().add_flag_drop(get_time());  // before dropFlag in hopes to alleviate the assertion above
     teams[pid / TSIZE].add_flag_drop();
-    dropFlag(team, flag, player[pid].roomx, player[pid].roomy, player[pid].lx, player[pid].ly);
+    dropFlag(team, flag, player[pid].room().x, player[pid].room().y, player[pid].pos.x, player[pid].pos.y);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
         net->broadcast_flag_drop(player[pid], team);
         host->score_frag(pid, -1);  // undo the bonus from taking the flag
@@ -1811,8 +1796,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
         //calculate room touch matrix
         vector<bool> roompop(map.w * map.h, false);
         for (int i = 0; i < maxplayers; i++)
-            if (player[i].used && player[i].roomx >= 0 && player[i].roomy >= 0 && player[i].roomx < map.w && player[i].roomy < map.h)
-                roompop[player[i].roomy * map.w + player[i].roomx] = true;
+            if (player[i].used && player[i].room().x >= 0 && player[i].room().y >= 0 && player[i].room().x < map.w && player[i].room().y < map.h)
+                roompop[player[i].room().y * map.w + player[i].room().x] = true;
 
         int runaway = 400;
         do {
@@ -1836,17 +1821,9 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
         } while (runaway-- > 0);
     }
 
-    //put player there
-    player[pid].roomx = pos.room.x; //screen
-    player[pid].roomy = pos.room.y;
-    player[pid].lx = pos.x; //screen position
-    player[pid].ly = pos.y;
+    player[pid].pos = pos;
+    player[pid].vel = Vec(0, 0);
 
-    //reset speeds / z
-    player[pid].sx = 0;
-    player[pid].sy = 0;
-
-    //reset player attributes
     player[pid].health = config.start_health;
     player[pid].energy = config.start_energy;
     player[pid].megabonus = 0;
@@ -1925,13 +1902,13 @@ void ServerWorld::drop_powerup(const ServerPlayer& player) throw () {
     for (int p = 0; p < MAX_POWERUPS; p++)
         if (item[p].kind == Powerup::pup_unused) {
             item[p].kind = player_items[rand() % player_items.size()];
-            item[p].px = player.roomx;
-            item[p].py = player.roomy;
-            item[p].x = static_cast<int>(player.lx);
-            item[p].y = static_cast<int>(player.ly);
+            item[p].px = player.room().x;
+            item[p].py = player.room().y;
+            item[p].x = static_cast<int>(player.pos.x);
+            item[p].y = static_cast<int>(player.pos.y);
             // inform players
             for (int i = 0; i < maxplayers; i++)
-                if (this->player[i].used && this->player[i].roomx == item[p].px && this->player[i].roomy == item[p].py)
+                if (this->player[i].used && this->player[i].room().x == item[p].px && this->player[i].room().y == item[p].py)
                     net->sendPowerupVisible(i, p, item[p]);
             if (host->recording_active())
                 net->sendPowerupVisible(pid_record, p, item[p]);
@@ -1943,18 +1920,17 @@ void ServerWorld::respawn_powerup(int p) throw () {
     item[p].kind = Powerup::pup_unused;
 
     //find a screen with no players and no other powerups
-    int px, py, itemx, itemy;
+    WorldCoords pos;
     for (int runaway = 300; ; --runaway) {
         bool hit = false;
-        px = rand() % map.w;
-        py = rand() % map.h;
+        pos.room = RoomCoords(rand() % map.w, rand() % map.h);
 
         //check for players if not tried a 100 times yet
 
         //check players
         if (runaway > 200)
             for (int i = 0; i < maxplayers; i++)
-                if (player[i].used && player[i].roomx == px && player[i].roomy == py) {
+                if (player[i].used && player[i].room() == pos.room) {
                     hit = true;
                     break;
                 }
@@ -1966,33 +1942,30 @@ void ServerWorld::respawn_powerup(int p) throw () {
         //check items if no players found
         if (runaway > 100)
             for (int i = 0; i < MAX_POWERUPS; i++)
-                if (item[i].kind != Powerup::pup_unused && item[i].px == px && item[i].py == py) {
+                if (item[i].kind != Powerup::pup_unused && RoomCoords(item[i].px, item[i].py) == pos.room) {
                     hit = true;
                     break;
                 }
         if (hit)
             continue;
 
-        //find a suitable coordinate -- middle square
-        //itemx = plw / 8 + rand() % (3 * plw / 4);
-        //itemy = plh / 8 + rand() % (3 * plh / 4);
-        itemx = POWERUP_RADIUS + rand() % (plw - 2 * POWERUP_RADIUS);
-        itemy = POWERUP_RADIUS + rand() % (plh - 2 * POWERUP_RADIUS);
+        pos.x = POWERUP_RADIUS + rand() % (plw - 2 * POWERUP_RADIUS);
+        pos.y = POWERUP_RADIUS + rand() % (plh - 2 * POWERUP_RADIUS);
 
         //do a check for walls, maybe retrying another screen if hits a wall
-        hit = map.fall_on_wall(px, py, itemx, itemy, POWERUP_RADIUS);
+        hit = map.fall_on_wall(pos, POWERUP_RADIUS);
         if (!hit)
             break;
         if (--runaway < 0)
             return;
     }
     item[p].kind = pupConfig.choose_powerup_kind();
-    item[p].px = px;
-    item[p].py = py;
-    item[p].x = itemx;
-    item[p].y = itemy;
+    item[p].px = pos.room.x;
+    item[p].py = pos.room.y;
+    item[p].x = pos.x;
+    item[p].y = pos.y;
     for (int i = 0; i < maxplayers; i++)
-        if (player[i].used && player[i].roomx == px && player[i].roomy == py)
+        if (player[i].used && player[i].room() == pos.room)
             net->sendPowerupVisible(i, p, item[p]);
 
     if (host->recording_active())
@@ -2189,7 +2162,7 @@ void ServerWorld::game_player_screen_change(int p) throw () {
     //check for new powerups visible
     for (int i = 0; i < MAX_POWERUPS; i++) {
         const Powerup& it = item[i];
-        if (it.real() && it.px == player[p].roomx && it.py == player[p].roomy)
+        if (it.real() && RoomCoords(it.px, it.py) == player[p].room())
             net->sendPowerupVisible(p, i, it);
     }
     // check for rockets visible to the new room
@@ -2208,9 +2181,7 @@ void ServerWorld::resetPlayer(int target, double time_penalty) throw () {    // 
     player[target].item_turbo = false;
     // deathbringer is not removed until respawn because the flag is needed
 
-    //stop all speed
-    player[target].sx = 0;
-    player[target].sy = 0;
+    player[target].vel = Vec(0, 0);
 
     dropFlagIfAny(target);
 
@@ -2303,7 +2274,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
         if (!same_team) {
             // Check if an enemy flag or a wild flag is carried in the target's screen by a teammate.
             for (int i = atteam * TSIZE; i < (atteam + 1) * TSIZE; i++)
-                if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].roomx == player[target].roomx && player[i].roomy == player[target].roomy) {
+                if (player[i].used && player[i].stats().has_flag() && i != attacker && player[i].room() == player[target].room()) {
                     carrier_defended = true;
                     host->score_frag(attacker, 1);
                     break;  // only one frag even for defending multiple carriers
@@ -2311,7 +2282,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
             // Check if an own or enemy flag is lying on the ground in the target's screen.
             if (!lock_team_flags_in_effect()) {   // Not much defending or attacking if the flag couldn't be moved anyway.
                 for (vector<Flag>::const_iterator fi = teams[atteam].flags().begin(); fi != teams[atteam].flags().end(); ++fi)
-                    if (!fi->carried() && fi->position().room == RoomCoords(player[target].roomx, player[target].roomy)) {
+                    if (!fi->carried() && fi->position().room == player[target].room()) {
                         flag_defended = true;
                         if (!carrier_defended)
                             host->score_frag(attacker, 1);
@@ -2319,7 +2290,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                     }
                 if (!carrier_defended && !flag_defended)
                     for (vector<Flag>::const_iterator fi = teams[tateam].flags().begin(); fi != teams[tateam].flags().end(); ++fi)
-                        if (!fi->carried() && fi->position().room == RoomCoords(player[target].roomx, player[target].roomy)) {
+                        if (!fi->carried() && fi->position().room == player[target].room()) {
                             host->score_frag(attacker, 1);
                             break;  // only one frag even for attacking multiple flags
                         }
@@ -2400,9 +2371,9 @@ uint8_t ServerWorld::getFreeRocket() throw () {
 
 bool ServerWorld::doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const throw () {
     if (pl.protocolExtensionsLevel < 0) // older clients can't show other rooms anyway, and will play some sounds for all rockets
-        return pl.roomx == roomx && pl.roomy == roomy;
-    int dx = positiveModulo(pl.roomx - roomx, map.w),
-        dy = positiveModulo(pl.roomy - roomy, map.h);
+        return pl.room() == RoomCoords(roomx, roomy);
+    int dx = positiveModulo(pl.room().x - roomx, map.w),
+        dy = positiveModulo(pl.room().y - roomy, map.h);
     if (dx > map.w / 2)
         dx = map.w - dx;
     if (dy > map.h / 2)
@@ -2411,7 +2382,7 @@ bool ServerWorld::doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) co
 }
 
 void ServerWorld::shootRockets(int pid, int shots) throw () {
-    const int px = player[pid].roomx, py = player[pid].roomy, x = static_cast<int>(player[pid].lx), y = static_cast<int>(player[pid].ly); // cast to be in sync: the coords need to be the same as client receives
+    const WorldCoords pos(player[pid].room(), static_cast<int>(player[pid].pos.x), static_cast<int>(player[pid].pos.y)); // cast to be in sync: the coords need to be the same as client receives
 
     player[pid].stats().add_shot();
     teams[pid / TSIZE].add_shot();
@@ -2421,20 +2392,20 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
         sid[i] = getFreeRocket();
 
     ServerPhysicsCallbacks cb(*this);
-    WorldBase::shootRockets(cb, pid, shots, player[pid].attackGunDir, sid, 0, pid/TSIZE, player[pid].item_power, px, py, x, y);
+    WorldBase::shootRockets(cb, pid, shots, player[pid].attackGunDir, sid, 0, pid/TSIZE, player[pid].item_power, pos.room.x, pos.room.y, pos.x, pos.y);
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
     uint32_t vislist = 0;
     for (int p = 0; p < maxplayers; p++)
-        if (player[p].used && doesPlayerSeeRocket(player[p], px, py))
+        if (player[p].used && doesPlayerSeeRocket(player[p], pos.room.x, pos.room.y))
             vislist |= (1u << p);
 
     //mark all created rockets with the vislist
     for (int k = 0; k < shots; k++)
         rock[sid[k]].vislist = vislist;
 
-    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, px, py, x, y, vislist);
+    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, pos.room.x, pos.room.y, pos.x, pos.y, vislist);
 }
 
 void ServerWorld::deleteRocket(int rid, int16_t hitx, int16_t hity, int targ) throw () {
@@ -2516,8 +2487,7 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
     //if player not dead, push him
     if (!player[pid].dead) {
         const double mul = 15. / physics.rocket_speed * (rock[rid].team == pid / TSIZE ? physics.friendly_fire : 1.); // divide by rocket_speed to remove its effect in rock.sx,sy
-        player[pid].sx += rock[rid].sx * mul;
-        player[pid].sy += rock[rid].sy * mul;
+        player[pid].vel += Vec(rock[rid].sx, rock[rid].sy) * mul;
     }
 
     if (had_shield)
@@ -2675,28 +2645,25 @@ void WorldBase::executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyR
     // bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
     // : S -= 2* ( (S dot b) * b / |b|^2 )  ; |b| is always plyRadius
     // to add a specific speed loss only in the bounce direction, reduce from the 2.
-    const double mul = 2. * (ply.sx * bounceVec.x + ply.sy * bounceVec.y) / (plyRadius * plyRadius);
-    ply.sx -= mul * bounceVec.x;
-    ply.sy -= mul * bounceVec.y;
-    // lose some speed too
-    ply.sx *= .95;
-    ply.sy *= .95;
+    const double mul = 2. * dot(ply.vel, bounceVec) / (plyRadius * plyRadius);
+    ply.vel -= mul * bounceVec;
+    ply.vel *= .95;
 }
 
 // Bounce two players from each other.
 pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const throw () {
     // the formulas come simplified from a more complex bounce physics system, so the comments here aren't very descriptive
-    const Coords ds(pl2.lx - pl1.lx, pl2.ly - pl1.ly);
-    const double r = sqrt(ds.x * ds.x + ds.y * ds.y);
+    const Vec ds = pl2.pos.local() - pl1.pos.local();
+    const double r = ds.mag();
 
     // player 1
-    double tVar = (pl1.sy * ds.y + pl1.sx * ds.x) / (r * r);   // (vx1·rx + vy1·ry)/r = k1
+    double tVar = dot(pl1.vel, ds) / (r * r);   // (vx1·rx + vy1·ry)/r = k1
     const double k1 = r * tVar;
-    const Coords v1(pl1.sx - ds.x * tVar, pl1.sy - ds.y * tVar);
+    const Vec v1 = pl1.vel - ds * tVar;
     // player 2
-    tVar = (-pl2.sy * ds.y - pl2.sx * ds.x) / (r * r);
+    tVar = -dot(pl2.vel, ds) / (r * r);
     const double k2 = r * tVar;
-    const Coords v2(pl2.sx + ds.x * tVar, pl2.sy + ds.y * tVar);
+    const Vec v2 = pl2.vel + ds * tVar;
 
     const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.id, pl2.id, fabs(k2 - k1));
 
@@ -2706,11 +2673,8 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
     static const double baseSpeedMul = .9;
 
     // new speed components
-    pl1.sx = baseSpeedMul * (v1.x + newk1 * ds.x / r);    // vx=sx+kx, kx/k = rx/r
-    pl1.sy = baseSpeedMul * (v1.y + newk1 * ds.y / r);
-
-    pl2.sx = baseSpeedMul * (v2.x - newk2 * ds.x / r);
-    pl2.sy = baseSpeedMul * (v2.y - newk2 * ds.y / r);
+    pl1.vel = baseSpeedMul * (v1 + ds * (newk1 / r));    // vx=sx+kx, kx/k = rx/r
+    pl2.vel = baseSpeedMul * (v2 - ds * (newk2 / r));
 
     limitPlayerSpeed(pl1);  // required because baseSpeedMul and bounceStrengths can be set to physically incorrect values
     limitPlayerSpeed(pl2);
@@ -2720,12 +2684,8 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
 
 void WorldBase::limitPlayerSpeed(PlayerBase& pl) const throw () {
     const double playerSpeedHardLimit = physics.max_run_speed * physics.turbo_mul * 4.;
-    if (fabs(pl.sx) > playerSpeedHardLimit || fabs(pl.sy) > playerSpeedHardLimit) { // no need to be exact here; per-axis view is adequate
-        const double spd = sqrt(sqr(pl.sx) + sqr(pl.sy));
-        const double mul = playerSpeedHardLimit / spd;
-        pl.sx *= mul;
-        pl.sy *= mul;
-    }
+    if (fabs(pl.vel.x) > playerSpeedHardLimit || fabs(pl.vel.y) > playerSpeedHardLimit) // no need to be exact here; per-axis view is adequate
+        pl.vel *= playerSpeedHardLimit / pl.vel.mag();
 }
 
 void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction) throw () {
@@ -2749,10 +2709,10 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
         if (!pl.used)
             continue;
         if (callback.shouldApplyPhysicsToPlayer(i)) {
-            if (pl.roomx < 0 || pl.roomy < 0 || pl.roomx >= map.w || pl.roomy >= map.h)
+            if (pl.room().x < 0 || pl.room().y < 0 || pl.room().x >= map.w || pl.room().y >= map.h)
                 continue;   //#fix: remove this and track why these are given sometimes
             applyPlayerAcceleration(i);
-            roomPly[pl.roomx][pl.roomy].push_back(i);
+            roomPly[pl.room().x][pl.room().y].push_back(i);
         }
     }
     for (int i = 0; i < MAX_ROCKETS; i++) {
@@ -2773,7 +2733,7 @@ void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius
 
     double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
     for (;;) {
-        const BounceData bounce = getTimeTillBounce(map.room[pl.roomx][pl.roomy], pl, plyRadius, fraction);
+        const BounceData bounce = getTimeTillBounce(map.room[pl.room().x][pl.room().y], pl, plyRadius, fraction);
         const double bounceTime = bounce.first + subFrame;
         const double mt = min(fraction, max(bounceTime, subFrame + .01)); // mt is where subFrame will be advanced to for the next round
         const double plTime = min(bounceTime - .001, mt);
@@ -2781,26 +2741,26 @@ void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius
             pl.move(plTime - subFrame);
             int rdx = 0, rdy = 0; // room change in either direction (-1 or +1 if changed)
             double tbx = -1, tby = -1; // time to take back; used if room changed in the respective direction
-            if      (pl.lx <   0) { rdx = -1; nAssert(pl.sx < 0); tbx =  pl.lx        / pl.sx; }
-            else if (pl.lx > plw) { rdx = +1; nAssert(pl.sx > 0); tbx = (pl.lx - plw) / pl.sx; }
-            if      (pl.ly <   0) { rdy = -1; nAssert(pl.sy < 0); tby =  pl.ly        / pl.sy; }
-            else if (pl.ly > plh) { rdy = +1; nAssert(pl.sy > 0); tby = (pl.ly - plh) / pl.sy; }
+            if      (pl.pos.x <   0) { rdx = -1; nAssert(pl.vel.x < 0); tbx =  pl.pos.x        / pl.vel.x; }
+            else if (pl.pos.x > plw) { rdx = +1; nAssert(pl.vel.x > 0); tbx = (pl.pos.x - plw) / pl.vel.x; }
+            if      (pl.pos.y <   0) { rdy = -1; nAssert(pl.vel.y < 0); tby =  pl.pos.y        / pl.vel.y; }
+            else if (pl.pos.y > plh) { rdy = +1; nAssert(pl.vel.y > 0); tby = (pl.pos.y - plh) / pl.vel.y; }
             if (rdx || rdy) {
                 double tb;
                 if (tbx > tby) {
                     tb = tbx;
-                    pl.roomx = positiveModulo(pl.roomx + rdx, map.w);
-                    pl.lx -= rdx * plw;
+                    pl.pos.room.x = positiveModulo(pl.room().x + rdx, map.w);
+                    pl.pos.x -= rdx * plw;
                 }
                 else {
                     tb = tby;
-                    pl.roomy = positiveModulo(pl.roomy + rdy, map.h);
-                    pl.ly -= rdy * plh;
+                    pl.pos.room.y = positiveModulo(pl.room().y + rdy, map.h);
+                    pl.pos.y -= rdy * plh;
                 }
                 // take back the time by which the player went over the edge and reapply in the new room
                 pl.move(-tb);
                 #ifdef EXTRA_DEBUG
-                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                nAssert(fabs(fmod(pl.pos.x + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.pos.y + plh / 2, plh) - plh / 2) < .001);
                 #endif
                 subFrame = max(plTime - tb, subFrame + .01); // ensure progress
                 continue;
@@ -2922,31 +2882,31 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
             PlayerBase& pl = player[rply[pi]];
             pl.move(plTime - subFrame);
             if (callback.gatherMovementDistance())
-                callback.addMovementDistance(rply[pi], (plTime - subFrame) * sqrt( pl.sx*pl.sx + pl.sy*pl.sy ));
+                callback.addMovementDistance(rply[pi], (plTime - subFrame) * pl.vel.mag());
             int rdx = 0, rdy = 0; // room change in either direction (-1 or +1 if changed)
             double tbx = -1, tby = -1; // time to take back; used if room changed in the respective direction
             if (callback.allowRoomChange()) {
-                if      (pl.lx <   0) { rdx = -1; nAssert(pl.sx < 0); tbx =  pl.lx        / pl.sx; }
-                else if (pl.lx > plw) { rdx = +1; nAssert(pl.sx > 0); tbx = (pl.lx - plw) / pl.sx; }
-                if      (pl.ly <   0) { rdy = -1; nAssert(pl.sy < 0); tby =  pl.ly        / pl.sy; }
-                else if (pl.ly > plh) { rdy = +1; nAssert(pl.sy > 0); tby = (pl.ly - plh) / pl.sy; }
+                if      (pl.pos.x <   0) { rdx = -1; nAssert(pl.vel.x < 0); tbx =  pl.pos.x        / pl.vel.x; }
+                else if (pl.pos.x > plw) { rdx = +1; nAssert(pl.vel.x > 0); tbx = (pl.pos.x - plw) / pl.vel.x; }
+                if      (pl.pos.y <   0) { rdy = -1; nAssert(pl.vel.y < 0); tby =  pl.pos.y        / pl.vel.y; }
+                else if (pl.pos.y > plh) { rdy = +1; nAssert(pl.vel.y > 0); tby = (pl.pos.y - plh) / pl.vel.y; }
             }
             if (rdx || rdy) {
                 double tb;
                 if (tbx > tby) {
                     tb = tbx;
-                    pl.roomx = positiveModulo(pl.roomx + rdx, map.w);
-                    pl.lx -= rdx * plw;
+                    pl.pos.room.x = positiveModulo(pl.room().x + rdx, map.w);
+                    pl.pos.x -= rdx * plw;
                 }
                 else {
                     tb = tby;
-                    pl.roomy = positiveModulo(pl.roomy + rdy, map.h);
-                    pl.ly -= rdy * plh;
+                    pl.pos.room.y = positiveModulo(pl.room().y + rdy, map.h);
+                    pl.pos.y -= rdy * plh;
                 }
                 // take back the time by which the player went over the edge and reapply in the new room
                 pl.move(-tb);
                 #ifdef EXTRA_DEBUG
-                nAssert(fabs(fmod(pl.lx + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.ly + plh / 2, plh) - plh / 2) < .001);
+                nAssert(fabs(fmod(pl.pos.x + plw / 2, plw) - plw / 2) < .001 || fabs(fmod(pl.pos.y + plh / 2, plh) - plh / 2) < .001);
                 #endif
                 applyPhysicsToPlayerInIsolation(pl, plyRadius, tb);
 
@@ -3184,16 +3144,14 @@ void ServerWorld::simulateFrame() throw () {
         uint32_t newOutsideMask = 0;
         for (int ti = 0; ti < maxplayers; ++ti) {
             ServerPlayer& target = player[ti];
-            if (!target.used || target.dead || RoomCoords(target.roomx, target.roomy) != pos.room)
+            if (!target.used || target.dead || target.room() != pos.room)
                 continue;
             const bool sameTeam = target.team() == db.team();
             if (sameTeam && !physics.friendly_db)
                 continue;
 
-            const double dx = target.lx - pos.x;
-            const double dy = target.ly - pos.y;
-
-            const double dist = sqrt(sqr(dx) + sqr(dy));
+            const Vec d = target.pos.local() - pos.local();
+            const double dist = d.mag();
             if (dist > radius + 60) {
                 newOutsideMask |= 1u << ti; // player is now in the same room but outside the db
                 continue;
@@ -3216,8 +3174,7 @@ void ServerWorld::simulateFrame() throw () {
             // push player away from db center
             if (dist != 0) {
                 const double mul = 40. / dist; // set speed to 40
-                target.sx = dx * mul;
-                target.sy = dy * mul;
+                target.vel = d * mul;
                 target.record_position = true;
             }
         }
@@ -3331,12 +3288,8 @@ void ServerWorld::simulateFrame() throw () {
         // Players under deathbringer effect can not take powerups.
         if (!pl.under_deathbringer_effect(get_time()))
             for (int k = 0; k < MAX_POWERUPS; k++)
-                if (item[k].kind <= Powerup::pup_last_real && item[k].px == pl.roomx && item[k].py == pl.roomy) {
-                    const double dx = item[k].x - pl.lx;
-                    const double dy = item[k].y - pl.ly;
-                    if (dx * dx + dy * dy < touchRadius * touchRadius)
-                        game_touch_powerup(i, k);
-                }
+                if (item[k].kind <= Powerup::pup_last_real && RoomCoords(item[k].px, item[k].py) == pl.room() && (Coords(item[k].x, item[k].y) - pl.pos.local()).mag2() < sqr(touchRadius))
+                    game_touch_powerup(i, k);
 
         // limit health and energy (after powerups because they might have an effect)
         nAssert(pl.health > 0);
@@ -3374,7 +3327,7 @@ void ServerWorld::simulateFrame() throw () {
             }
             int f = 0;
             for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-                if (!fi->carried() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
+                if (!fi->carried() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
                     touches_flag = true;
                     // Has player just dropped the flag or not?
                     if (!pl.dropped_flag && !pl.drop_key) {
@@ -3389,7 +3342,7 @@ void ServerWorld::simulateFrame() throw () {
         // Flag return - wild flags can't be returned
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.roomx, pl.roomy, pl.lx, pl.ly) &&
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
                              frame / 10. >= fi->drop_time() + config.flag_return_delay) {
                 //FLAG RETURNED!
                 host->score_frag(i, 1); // just add some frags
@@ -3416,7 +3369,7 @@ void ServerWorld::simulateFrame() throw () {
                     const int flagTeam = t == 0 ? enemyteam : 2;
                     int f = 0;
                     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
-                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.roomx, pl.roomy, pl.lx, pl.ly)) {
+                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
                             const int ass_pid = fi->prev_carrier();
                             player_captures_flag(i, flagTeam, f, ass_pid);
                             if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&

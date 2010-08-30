@@ -1418,12 +1418,8 @@ void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientP
     }
 
     if (player) {
-        player->roomx = roomx;
-        player->roomy = roomy;
-        player->lx = lx;
-        player->ly = ly;
-        player->sx = sx;
-        player->sy = sy;
+        player->pos = WorldCoords(roomx, roomy, lx, ly);
+        player->vel = Vec(sx, sy);
     }
 }
 
@@ -2852,7 +2848,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                     if (!fi->carried())
                         continue;
                     const ClientPlayer& pl = fx.player[fi->carrier()];
-                    const WorldCoords pos = playerPos(fi->carrier());
+                    const WorldCoords& pos = playerPos(fi->carrier());
                     nAssert(pos.room.x >= 0 && pos.room.y >= 0);
                     if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h)
                         continue;
@@ -3282,12 +3278,9 @@ void GuiClient::play_sound(int sample) throw () {
     client_sounds.play(sample, freq);
 }
 
-WorldCoords GuiClient::playerPos(int pid) const throw () {
+const WorldCoords& GuiClient::playerPos(int pid) const throw () {
     const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
-    return WorldCoords(world.player[pid].roomx,
-                       world.player[pid].roomy,
-                       world.player[pid].lx,
-                       world.player[pid].ly);
+    return world.player[pid].pos;
 }
 
 static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) throw () {
@@ -3324,8 +3317,8 @@ WorldCoords GuiClient::viewTopLeft() const throw () {
         const bool scroll = menu.options.graphics.scroll();
         const bool repeat = menu.options.graphics.repeatMap();
         const double xVis = graphics.get_visible_rooms_x(), yVis = graphics.get_visible_rooms_y();
-        const double x = getViewStartCoord(fd.player[me].roomx, fd.player[me].lx, plw, fx.map.w, mapWrapsX, repeat ? xVis : min<double>(fx.map.w, xVis), view, scroll);
-        const double y = getViewStartCoord(fd.player[me].roomy, fd.player[me].ly, plh, fx.map.h, mapWrapsY, repeat ? yVis : min<double>(fx.map.h, yVis), view, scroll);
+        const double x = getViewStartCoord(fd.player[me].room().x, fd.player[me].pos.x, plw, fx.map.w, mapWrapsX, repeat ? xVis : min<double>(fx.map.w, xVis), view, scroll);
+        const double y = getViewStartCoord(fd.player[me].room().y, fd.player[me].pos.y, plh, fx.map.h, mapWrapsY, repeat ? yVis : min<double>(fx.map.h, yVis), view, scroll);
         const pair<int, double> xp = splitCompositeCoord(x, plw, fx.map.w), yp = splitCompositeCoord(y, plh, fx.map.h);
         return WorldCoords(xp.first, yp.first, xp.second, yp.second);
     }
@@ -3488,20 +3481,20 @@ bool GuiClient::on_screen_exact(int x, int y) const throw () {
     if (replaying)
         return on_screen(x, y);
     else
-        return me >= 0 && x == fx.player[me].roomx && y == fx.player[me].roomy;
+        return me >= 0 && RoomCoords(x, y) == fx.player[me].room();
 }
 
 bool GuiClient::on_screen_exact(int rx, int ry, double lx, double ly, double fudge) const throw () {
     if (!on_screen(rx, ry, lx, ly, fudge))
         return false;
-    return replaying || me >= 0 && rx == fx.player[me].roomx && ry == fx.player[me].roomy;
+    return replaying || me >= 0 && RoomCoords(rx, ry) == fx.player[me].room();
 }
 
 bool GuiClient::player_on_screen(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (fx.player[pid].posUpdated >= fx.frame - 20 || fx.player[pid].dead && fx.player[pid].posUpdated >= 0)
-        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, Graphics::extended_player_max_size_in_world / 2);
+        return on_screen(fx.player[pid].room().x, fx.player[pid].room().y, fx.player[pid].pos.x, fx.player[pid].pos.y, Graphics::extended_player_max_size_in_world / 2);
     else
         return false;
 }
@@ -3510,7 +3503,7 @@ bool GuiClient::player_on_screen_exact(int pid) const throw () {
     if (!fx.player[pid].used)
         return false;
     else if (replaying)
-        return on_screen(fx.player[pid].roomx, fx.player[pid].roomy, fx.player[pid].lx, fx.player[pid].ly, PLAYER_RADIUS);
+        return on_screen(fx.player[pid].room().x, fx.player[pid].room().y, fx.player[pid].pos.x, fx.player[pid].pos.y, PLAYER_RADIUS);
     else
         return fx.player[pid].onscreen;
 }
@@ -3538,7 +3531,7 @@ void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
     if ((me >= 0 || replaying) && fx.frame >= 0)
         for (int i = 0; i < maxplayers; i++) {
             const ClientPlayer& pl = fx.player[i];
-            const WorldCoords pos = playerPos(i);
+            const WorldCoords& pos = playerPos(i);
             if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h || pl.alpha <= 0)
                 continue;
             set_trans_mode(pl.alpha);
@@ -3623,7 +3616,7 @@ void GuiClient::draw_playfield() throw () {
 
         if (!player_on_screen(i))
             continue;
-        if (!replaying && !fx.player[i].onscreen && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy)
+        if (!replaying && !fx.player[i].onscreen && fx.player[i].room() == fx.player[me].room())
             continue; // don't draw players whose last known location is in this room but who aren't really here
 
         //HACK REMENDEX: predict item_shadow
@@ -3661,7 +3654,7 @@ void GuiClient::draw_playfield() throw () {
                 }
                 else
                     aimDist = -1;
-                graphics.draw_aim(fx.map.room[fx.player[me].roomx][fx.player[me].roomy], playerPos(me), gunDir, aimDist, me / TSIZE);
+                graphics.draw_aim(fx.map.room[fx.player[me].room().x][fx.player[me].room().y], playerPos(me), gunDir, aimDist, me / TSIZE);
             }
         }
     }
@@ -3715,7 +3708,7 @@ void GuiClient::draw_playfield() throw () {
         for (int i = 0; i < maxplayers; i++) {
             if (fx.player[i].dead || !player_on_screen(i))
                 continue;
-            if (!replaying && !fx.player[i].onscreen && fx.player[i].roomx == fx.player[me].roomx && fx.player[i].roomy == fx.player[me].roomy)
+            if (!replaying && !fx.player[i].onscreen && fx.player[i].room() == fx.player[me].room())
                 continue; // don't draw players whose last known location is in this room but who aren't really here
             bool visible;
             if (replaying)
@@ -3751,13 +3744,13 @@ GuiClient::VisibilityMap GuiClient::calculateVisibilities() throw () {
     }
     for (int i = 0; i < maxplayers; i++) {
         ClientPlayer& pl = fx.player[i];
-        if (pl.used && (!pl.dead && pl.posUpdated > fx.frame - max_time || i == me) && pl.roomx < fx.map.w && pl.roomy < fx.map.h) {
+        if (pl.used && (!pl.dead && pl.posUpdated > fx.frame - max_time || i == me) && pl.room().x < fx.map.w && pl.room().y < fx.map.h) {
             if (fx.frame > pl.posUpdated + start_fadeout && i != me)
                 pl.alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
             else
                 pl.alpha = 255;
-            if (roomVis[pl.roomx][pl.roomy] < pl.alpha)
-                roomVis[pl.roomx][pl.roomy] = pl.alpha;
+            if (roomVis[pl.room().x][pl.room().y] < pl.alpha)
+                roomVis[pl.room().x][pl.room().y] = pl.alpha;
         }
         else
             pl.alpha = 0;
@@ -3779,7 +3772,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     const bool fullyVisible = player_on_screen_exact(pid);
     const int alpha = fullyVisible ? calculatePlayerAlpha(pid) : fx.player[pid].alpha * 2 / 3;
     const int flagAlpha = fullyVisible ? 255 : alpha;
-    const WorldCoords pos = playerPos(pid);
+    const WorldCoords& pos = playerPos(pid);
     // draw flag if player is carrier of a flag
     for (ConstFlagIterator fi(fx); fi; ++fi)
         if (fi->carrier() == pid) {
@@ -3792,8 +3785,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     }
 
     // turbo effect
-    if (player.item_turbo && player.sx * player.sx + player.sy * player.sy > fx.physics.max_run_speed * fx.physics.max_run_speed &&
-        time > player.next_turbo_effect_time) {
+    if (player.item_turbo && player.vel.mag2() > sqr(fx.physics.max_run_speed) && time > player.next_turbo_effect_time) {
         player.next_turbo_effect_time = time + 0.05;
         graphics.create_turbofx(pos, player.team(), player.color(), player.gundir, alpha, time);
     }

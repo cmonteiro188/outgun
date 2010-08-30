@@ -405,7 +405,7 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void processNameAuthorizationRequest() throw ();
 
-    WorldCoords playerPos(int pid) const throw ();
+    const WorldCoords& playerPos(int pid) const throw ();
     WorldCoords viewTopLeft() const throw ();
     std::pair<int, int> topLeftRoom() const throw ();
 

@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -356,14 +356,14 @@ void ServerNetworking::broadcast_screen_sample(int p, int code) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_sound);
     msg.U8(code);
-    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, msg);
+    broadcast_screen_message(world.player[p].room().x, world.player[p].room().y, msg);
 }
 
 void ServerNetworking::broadcast_screen_power_collision(int p) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_power_collision);
     msg.U8(p);
-    broadcast_screen_message(world.player[p].roomx, world.player[p].roomy, msg);
+    broadcast_screen_message(world.player[p].room().x, world.player[p].room().y, msg);
 }
 
 //send current flag status (cid == pid_all : broadcast)
@@ -902,7 +902,7 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
 //broadcast message to all players in one screen
 void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw () {
     for (int i = 0; i < maxplayers; i++)
-        if (world.player[i].used && world.player[i].roomx == px && world.player[i].roomy == py)
+        if (world.player[i].used && world.player[i].room() == RoomCoords(px, py))
             server->send_message(world.player[i].cid, msg);
 
     if (host->recording_active()) {
@@ -1803,11 +1803,12 @@ void ServerNetworking::sendStartGame() const throw () {
 }
 
 void ServerNetworking::writeMinimapPlayerPosition(BinaryWriter& writer, int pid) const throw () {
-    nAssert(world.player[pid].used);
+    const ServerPlayer& pl = world.player[pid];
+    nAssert(pl.used);
     const int xmul = 255 / world.map.w;
     const int ymul = 255 / world.map.h;
-    writer.U8(world.player[pid].roomx * xmul + static_cast<uint8_t>(xmul * (world.player[pid].lx - 1e-5) / plw));
-    writer.U8(world.player[pid].roomy * ymul + static_cast<uint8_t>(ymul * (world.player[pid].ly - 1e-5) / plh));
+    writer.U8(pl.room().x * xmul + static_cast<uint8_t>(xmul * (pl.pos.x - 1e-5) / plw));
+    writer.U8(pl.room().y * ymul + static_cast<uint8_t>(ymul * (pl.pos.y - 1e-5) / plh));
 }
 
 //simulate and broadcast frame
@@ -1870,10 +1871,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 const int oppTeamStart = (1 - i / TSIZE) * TSIZE;
                 for (int j = oppTeamStart; j < oppTeamStart + TSIZE; ++j)   // find out who this teammate sees (who are in the same room and visible)
                     if (world.player[j].used && !world.player[j].dead &&
-                          (world.player[j].roomx == world.player[i].roomx && world.player[j].roomy == world.player[i].roomy &&
-                          (world.player[j].visibility > 10 || world.player[j].stats().has_flag()) ||
-                          world.getConfig().always_send_flag_location && world.player[j].stats().has_flag()))
+                        (world.player[j].room() == world.player[i].room() && (world.player[j].visibility > 10 || world.player[j].stats().has_flag()) ||
+                         world.getConfig().always_send_flag_location && world.player[j].stats().has_flag()))
+                    {
                         normalView[t] |= 1 << j;
+                    }
             }
             else if (world.getPupConfig().shadow_see_shadow || !world.player[i].item_shadow() || world.player[i].stats().has_flag())
                 shadowView[t] += static_cast<uint32_t>(1 << i);
@@ -1949,8 +1951,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
         // send almost empty frame if client not ready (leave bandwidth for data transfer) or if server showing gameover plaque
         if (!skip_frame) {
             // 2 bytes with the screen of self
-            frame.U8(recipient.roomx);
-            frame.U8(recipient.roomy);
+            frame.U8(recipient.room().x);
+            frame.U8(recipient.room().y);
 
             // player data field to indicate which players are on screen (and therefore sent on the frame)
             uint32_t players_onscreen = 0;
@@ -1961,7 +1963,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 
             for (int j = 0; j < maxplayers; j++) {
                 const ServerPlayer& h = world.player[j];
-                if (!h.used || h.roomx != recipient.roomx || h.roomy != recipient.roomy)
+                if (!h.used || h.room() != recipient.room())
                     continue;
                 const bool forceVisible = recipient.item_shadow() && world.getPupConfig().shadow_see_shadow && &h != &recipient;
                 if (h.visibility == 0 && i / TSIZE != j / TSIZE && !h.stats().has_flag() && !forceVisible)
@@ -1972,8 +1974,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 // position in 3 bytes
                 uint8_t xy;
                 uint16_t hx, hy;
-                hx = static_cast<uint16_t>(h.lx * (double(0xFFF) / plw) + .5);
-                hy = static_cast<uint16_t>(h.ly * (double(0xFFF) / plh) + .5);
+                hx = static_cast<uint16_t>(h.pos.x * (double(0xFFF) / plw) + .5);
+                hy = static_cast<uint16_t>(h.pos.y * (double(0xFFF) / plh) + .5);
                 xy = static_cast<uint8_t>(hx & 0x0FF);
                 frame.U8(xy);
                 xy = static_cast<uint8_t>(hy & 0x0FF);
@@ -1984,8 +1986,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 if (recipient.protocolExtensionsLevel < 0) {
                     // speed in 2 bytes
                     typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                    frame.U8(SpeedType::toByte(h.sx));
-                    frame.U8(SpeedType::toByte(h.sy));
+                    frame.U8(SpeedType::toByte(h.vel.x));
+                    frame.U8(SpeedType::toByte(h.vel.y));
                 }
 
                 // flags in 1 byte : dead, has deathbringer, deathbringer-affected, has shield, has turbo, has power
@@ -2010,8 +2012,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
                     // speed in 2 bytes
                     typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                    frame.U8(SpeedType::toByte(h.sx));
-                    frame.U8(SpeedType::toByte(h.sy));
+                    frame.U8(SpeedType::toByte(h.vel.x));
+                    frame.U8(SpeedType::toByte(h.vel.y));
                 }
 
                 // controls and gundirection in 1 byte
@@ -2078,7 +2080,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             if (recipient.protocolExtensionsLevel >= 0) {
                 uint32_t P = (recipient.item_shadow() ? shadowView : normalView)[i / TSIZE];
                 for (int pi = 0; pi < maxplayers; ++pi)
-                    if (world.player[pi].roomx == recipient.roomx && world.player[pi].roomy == recipient.roomy)
+                    if (world.player[pi].room() == recipient.room())
                         P &= ~(uint32_t(1) << pi);
                 const unsigned maxPlayers = min(settings.minimapSendLimit(), recipient.minimapPlayersPerFrame);
                 if (P == 0 || maxPlayers == 0) {
@@ -3062,10 +3064,10 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
     msg.U8(data_deathbringer);
     msg.U8(pid / TSIZE); // team
     msg.U32(world.frame);                       // frame # of the bringer shot (message can be delayed)
-    msg.U8(ply.roomx);
-    msg.U8(ply.roomy);
-    msg.U16(static_cast<unsigned>(ply.lx));
-    msg.U16(static_cast<unsigned>(ply.ly));
+    msg.U8(ply.room().x);
+    msg.U8(ply.room().y);
+    msg.U16(static_cast<unsigned>(ply.pos.x));
+    msg.U16(static_cast<unsigned>(ply.pos.y));
 
     broadcast_message(msg);
     record_message(msg);

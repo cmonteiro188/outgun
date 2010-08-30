@@ -898,8 +898,8 @@ void Graphics::draw_minimap_me(const Map& map, const ClientPlayer& player, doubl
 }
 
 pair<int, int> Graphics::calculate_minimap_coordinates(const Map& map, const ClientPlayer& player) const throw () {
-    const double px = (player.roomx * plw + player.lx) / static_cast<double>(plw * map.w);
-    const double py = (player.roomy * plh + player.ly) / static_cast<double>(plh * map.h);
+    const double px = player.pos.xTotal() / static_cast<double>(plw * map.w);
+    const double py = player.pos.yTotal() / static_cast<double>(plh * map.h);
     const int x = static_cast<int>(px * minimap_w) + minimap_x;
     const int y = static_cast<int>(py * minimap_h) + minimap_y;
     return pair<int, int>(x, y);
@@ -1387,7 +1387,7 @@ void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fi
 
 void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay) throw () {
     BITMAP* sprite = dead_sprite[player.team()];
-    ScaledCoordSet sc(player.roomx, player.roomy, player.lx, player.ly, this);
+    ScaledCoordSet sc(player.pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
         if (sprite) {
@@ -2167,8 +2167,8 @@ void Graphics::debug_panel(const vector<ClientPlayer>& players, int me, int bpsi
     for (vector<ClientPlayer>::const_iterator player = players.begin(); player != players.end(); ++player, ++line) {
         const int c = (me == line - 1) ? makecol(0xFF, 0xFF, 0x00) : makecol(0xFF, 0xFF, 0xFF);
         textprintf_ex(drawbuf, font, margin, line * line_h, c, -1, "p. %2i u=%i ons=%i sxy=(%i, %i) HR: p=(%.1f, %.1f) s=(%.1f, %.1f)",
-            line, player->used, player->onscreen, player->roomx, player->roomy,
-            player->lx, player->ly, player->sx, player->sy);
+                      line, player->used, player->onscreen, player->room().x, player->room().y,
+                      player->pos.x, player->pos.y, player->vel.x, player->vel.y);
     }
 
     line++;

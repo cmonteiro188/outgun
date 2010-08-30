@@ -1,7 +1,7 @@
 /*
  *  utility.h
  *
- *  Copyright (C) 2003, 2004, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -320,6 +320,7 @@ struct Vec {
     Vec& operator+=(const Vec& o) throw () { x += o.x; y += o.y; return *this; }
     Vec& operator-=(const Vec& o) throw () { x -= o.x; y -= o.y; return *this; }
     Vec& operator*=(const double mul) throw () { x *= mul; y *= mul; return *this; }
+    Vec& operator/=(const double div) throw () { return *this *= 1. / div; }
 
     double mag() const throw () { return sqrt(x * x + y * y); }
     double mag2() const throw () { return x * x + y * y; }
@@ -329,6 +330,7 @@ inline Vec operator+(Vec v1, const Vec& v2) throw () { return v1 += v2; }
 inline Vec operator-(Vec v1, const Vec& v2) throw () { return v1 -= v2; }
 inline Vec operator*(Vec v, double mul) throw () { return v *= mul; }
 inline Vec operator*(double mul, Vec v) throw () { return v *= mul; }
+inline Vec operator/(Vec v, double div) throw () { return v /= div; }
 
 inline double dot(const Vec& v1, const Vec& v2) throw () { return v1.x * v2.x + v1.y * v2.y; }
 inline double cross(const Vec& v1, const Vec& v2) throw () { return v1.x * v2.y - v1.y * v2.x; }

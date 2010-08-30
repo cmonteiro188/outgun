@@ -379,8 +379,7 @@ void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw 
     const uint8_t whox = reader.U8(), whoy = reader.U8();
     if (pid == me || pl.onscreen)
         return;
-    const double oldx = pl.roomx * plw + pl.lx;
-    const double oldy = pl.roomy * plh + pl.ly;
+    const double oldx = pl.pos.xTotal(), oldy = pl.pos.yTotal();
     const int xmul = 255 / fx.map.w;
     const int ymul = 255 / fx.map.h;
     const double xStep = double(plw) / xmul;
@@ -390,8 +389,7 @@ void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw 
                                (whox % xmul + .5) * xStep,
                                (whoy % ymul + .5) * yStep),
                    fx.frame, true);
-    double newx = pl.roomx * plw + pl.lx;
-    double newy = pl.roomy * plh + pl.ly;
+    double newx = pl.pos.xTotal(), newy = pl.pos.yTotal();
     if (fabs(newx - oldx) > fx.map.w * plw / 2)
         newx += fx.map.w * plw * (newx < oldx ? +1 : -1);
     if (fabs(newy - oldy) > fx.map.h * plh / 2)
@@ -464,15 +462,14 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
     }
     fx.skipped = false;
 
-    fx.player[me].roomx = read.U8(0, fx.map.w - 1);
-    fx.player[me].roomy = read.U8(0, fx.map.h - 1);
+    fx.player[me].pos.room.x = read.U8(0, fx.map.w - 1);
+    fx.player[me].pos.room.y = read.U8(0, fx.map.h - 1);
 
-    if (fx.player[me].roomx != fx.player[me].oldx || fx.player[me].roomy != fx.player[me].oldy) {
+    if (fx.player[me].room() != fx.player[me].oldRoom) {
         for (int j = 0; j < MAX_POWERUPS; j++)
             fx.item[j].kind = Powerup::pup_unused;  // the server will send messages for all seen, others should be forgotten
 
-        fx.player[me].oldx = fx.player[me].roomx;
-        fx.player[me].oldy = fx.player[me].roomy;
+        fx.player[me].oldRoom = fx.player[me].room();
     }
 
     const uint32_t players_onscreen = read.U32();
@@ -498,8 +495,8 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
 
         if (protocolExtensions < 0) {
             typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-            h.sx = SpeedType::toDouble(read.U8());
-            h.sy = SpeedType::toDouble(read.U8());
+            h.vel.x = SpeedType::toDouble(read.U8());
+            h.vel.y = SpeedType::toDouble(read.U8());
         }
 
         const uint8_t extra = read.U8();
@@ -513,11 +510,11 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
 
         if (protocolExtensions >= 0) {
             if (h.dead)
-                h.sx = h.sy = 0;
+                h.vel = Vec(0, 0);
             else {
                 typedef SignedByteFloat<3, -2> SpeedType;   // exponent from -2 to +6, with 4 significant bits -> epsilon = .25, max representable 32 * 31 = enough :)
-                h.sx = SpeedType::toDouble(read.U8());
-                h.sy = SpeedType::toDouble(read.U8());
+                h.vel.x = SpeedType::toDouble(read.U8());
+                h.vel.y = SpeedType::toDouble(read.U8());
             }
         }
 
@@ -544,7 +541,7 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
         }
 
         const bool clearlyVisible = i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag();
-        h.setPosition(WorldCoords(fx.player[me].roomx, fx.player[me].roomy, lx, ly), svframe, false, clearlyVisible);
+        h.setPosition(WorldCoords(fx.player[me].room(), lx, ly), svframe, false, clearlyVisible);
     }
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
@@ -625,8 +622,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             fx.teams[1].set_base_score(score);
 
         // room is probably changed
-        fx.player[me].oldx = -1;
-        fx.player[me].oldy = -1;
+        fx.player[me].oldRoom = RoomCoords(-1, -1);
     }
 
     break; case data_frags_update: {
@@ -847,10 +843,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const string maptitle = read.str();
         const uint8_t map_number = read.U8();
         const uint8_t total_maps = read.U8();
-        if (me != -1) {
-            fx.player[me].oldx = -1;
-            fx.player[me].oldy = -1;
-        }
+        if (me != -1)
+            fx.player[me].oldRoom = RoomCoords(-1, -1);
         if (read.hasMore())
             remove_flags = read.S8();
         else
