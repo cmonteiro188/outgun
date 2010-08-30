@@ -51,7 +51,14 @@ template<class T> struct BasicCoords {
 };
 
 typedef BasicCoords<int> RoomCoords;
-typedef BasicCoords<double> Coords; // within a room
+
+struct Coords : public BasicCoords<double> { // coordinates within a room
+    Coords() throw () { }
+    Coords(double x_, double y_) throw () : BasicCoords<double>(x_, y_) { }
+    explicit Coords(const Vec& v) throw () : BasicCoords<double>(v.x, v.y) { }
+
+    operator Vec() const throw () { return Vec(x, y); }
+};
 
 struct WorldCoords {
     WorldCoords(const RoomCoords& room_, double x_, double y_) throw () : room(room_), x(x_), y(y_) { }
@@ -62,6 +69,8 @@ struct WorldCoords {
 
     bool operator==(const WorldCoords& op) const throw () { return room == op.room && x == op.x && y == op.y; }
     bool operator!=(const WorldCoords& op) const throw () { return !(*this == op); }
+
+    Coords local() const throw () { return Coords(x, y); }
 
     RoomCoords room;
     double x, y; // coords within the room
@@ -76,7 +85,7 @@ struct WorldRect {
     double x1, y1, x2, y2;
 };
 
-typedef std::pair<double, Coords> BounceData;
+typedef std::pair<double, Vec> BounceData;
 
 class WallBase {    // base class
 public:
@@ -84,8 +93,8 @@ public:
     WallBase(int tex_, int alpha_) throw () : tex(tex_), alpha(alpha_) { }
     virtual ~WallBase() throw () { }
     virtual bool intersects_rect(double x1, double y1, double x2, double y2) const throw () = 0;
-    virtual bool intersects_circ(double x, double y, double r) const throw () = 0;
-    virtual void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw () = 0;
+    virtual bool intersects_circ(const Vec& center, double r) const throw () = 0;
+    virtual void tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw () = 0;
     int texture() const throw () { return tex; }
 
 private:
@@ -104,8 +113,8 @@ public:
     double y2() const throw () { return d; }
 
     bool intersects_rect(double x1, double y1, double x2, double y2) const throw () { return x1<=c && x2>=a && y1<=d && y2>=b; } // perfect
-    bool intersects_circ(double x, double y, double r) const throw ();   // perfect
-    void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw ();
+    bool intersects_circ(const Vec& center, double r) const throw ();   // perfect
+    void tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw ();
 
 private:
     double a, b, c, d;  // rectangle coords (a,b)->(c,d)
@@ -116,19 +125,16 @@ public:
     TriWall() throw () { }
     TriWall(double x1, double y1, double x2, double y2, double x3, double y3, int tex_, int alpha_) throw ();
 
-    double x1() const throw () { return p1x; }
-    double y1() const throw () { return p1y; }
-    double x2() const throw () { return p2x; }
-    double y2() const throw () { return p2y; }
-    double x3() const throw () { return p3x; }
-    double y3() const throw () { return p3y; }
+    const Coords& point1() const throw () { return p1; }
+    const Coords& point2() const throw () { return p2; }
+    const Coords& point3() const throw () { return p3; }
 
     bool intersects_rect(double rx1, double ry1, double rx2, double ry2) const throw (); // perfect
-    bool intersects_circ(double x, double y, double r) const throw ();                   // perfect
-    void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw ();
+    bool intersects_circ(const Vec& center, double r) const throw ();                    // perfect
+    void tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw ();
 
 private:
-    double p1x, p1y, p2x, p2y, p3x, p3y;
+    Coords p1, p2, p3;
     double boundx1, boundy1, boundx2, boundy2;
 };
 
@@ -137,22 +143,22 @@ public:
     CircWall() throw () { }
     CircWall(double x_, double y_, double ro_, double ri_, double ang1, double ang2, int tex_, int alpha_) throw ();
 
-    double X() const throw () { return x; }
-    double Y() const throw () { return y; }
+    const Coords& center() const throw () { return c; }
     double radius() const throw () { return ro; }
     double radius_in() const throw () { return ri; }
     const double* angles() const throw () { return angle; }
-    const Coords& angle_vector_1() const throw () { return va1; }
-    const Coords& angle_vector_2() const throw () { return va2; }
+    const Vec& angle_vector_1() const throw () { return va1; }
+    const Vec& angle_vector_2() const throw () { return va2; }
 
     bool intersects_rect(double x1, double y1, double x2, double y2) const throw (); // very much imperfect (uses bounding circle)
-    bool intersects_circ(double rcx, double rcy, double rr) const throw ();  // imperfect
-    void tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw ();
+    bool intersects_circ(const Vec& center, double rr) const throw ();  // imperfect
+    void tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw ();
 
 private:
-    double x, y, ro, ri;
+    Coords c;
+    double ro, ri;
     double angle[2];
-    Coords va1, va2, midvec;
+    Vec va1, va2, midvec;
     double anglecos;
 };
 
@@ -167,9 +173,9 @@ public:
     void addWall(WallBase* w) throw () { walls.push_back(w); }
     void addGround(WallBase* w) throw () { ground.push_back(w); }
 
-    bool fall_on_wall(double x1, double y1, double x2, double y2) const throw ();    // this check follows the quality of *Wall::intersects_rect and isn't perfect
-    bool fall_on_wall(double x, double y, double r) const throw ();   // this check follows the quality of *Wall::intersects_circ and isn't perfect
-    BounceData genGetTimeTillWall(double x, double y, double mx, double my, double radius, double maxFraction) const throw ();
+    bool fall_on_wall(double x1, double y1, double x2, double y2) const throw (); // this check follows the quality of *Wall::intersects_rect and isn't perfect
+    bool fall_on_wall(const Coords& center, double r) const throw ();             // this check follows the quality of *Wall::intersects_circ and isn't perfect
+    BounceData genGetTimeTillWall(const Coords& center, const Vec& vel, double radius, double maxFraction) const throw ();
 
     const std::vector<WallBase*>& readWalls() const throw () { return walls; }
     const std::vector<WallBase*>& readGround() const throw () { return ground; }
@@ -207,14 +213,12 @@ public:
     Map() throw () : w(0), h(0), crc(0) { }
 
     bool fall_on_wall(int px, int py, double x1, double y1, double x2, double y2) const throw () {
-        //if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
         nAssert(px>=0 && py>=0 && px<w && py<h);
         return room[px][py].fall_on_wall(x1, y1, x2, y2);
     }
     bool fall_on_wall(int px, int py, double x, double y, double r) const throw () {
-        //if (px<0 || py<0 || px>=w || py>=h) return false;   //#fix: remove this and track why these are given sometimes
         nAssert(px>=0 && py>=0 && px<w && py<h);
-        return room[px][py].fall_on_wall(x, y, r);
+        return room[px][py].fall_on_wall(Coords(x, y), r);
     }
     bool fall_on_wall(const WorldRect& rect) const throw () { return fall_on_wall(rect.room.x, rect.room.y, rect.x1, rect.y1, rect.x2, rect.y2); }
     bool fall_on_wall(const WorldCoords& center, double r) const throw () { return fall_on_wall(center.room.x, center.room.y, center.x, center.y, r); }
@@ -849,7 +853,7 @@ private:
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius) throw ();
     void limitPlayerSpeed(PlayerBase& pl) const throw ();  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
     void applyPlayerAcceleration(int pid) throw ();
-    void executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius) throw (); // needs plyRadius as a shortcut to bounceVec's length
+    void executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) throw (); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const throw (); // returns pair(p1-dead, p2-dead)
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction) throw ();
     void applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) throw ();

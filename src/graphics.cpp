@@ -644,7 +644,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
     if (TEST_FALL_ON_WALL)
         for (int y = 0; y < plh; y += 2)
             for (int x = 0; x < plw; x += 2)
-                putpixel(roombg, pf_scale(x), pf_scale(y), room.fall_on_wall(x, y, 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
+                putpixel(roombg, pf_scale(x), pf_scale(y), room.fall_on_wall(Coords(x, y), 15) ? makecol(255, 0, 0) : makecol(255, 255, 255));
 }
 
 void Graphics::draw_flagpos_mark(BITMAP* roombg, int team, int flag_x, int flag_y) throw () {
@@ -698,16 +698,16 @@ void Graphics::draw_tri_wall(BITMAP* buffer, const TriWall& wall, double x0, dou
     if (texture)
         drawing_mode(DRAW_MODE_COPY_PATTERN, texture, texOffsetBaseX, texOffsetBaseY);
     triangle(buffer,
-        iround(x0 + scale * wall.x1()), iround(y0 + scale * wall.y1()),
-        iround(x0 + scale * wall.x2()), iround(y0 + scale * wall.y2()),
-        iround(x0 + scale * wall.x3()), iround(y0 + scale * wall.y3()), color);
+             iround(x0 + scale * wall.point1().x), iround(y0 + scale * wall.point1().y),
+             iround(x0 + scale * wall.point2().x), iround(y0 + scale * wall.point2().y),
+             iround(x0 + scale * wall.point3().x), iround(y0 + scale * wall.point3().y), color);
     if (texture)
         solid_mode();
 }
 
 void Graphics::draw_circ_wall(BITMAP* buffer, const CircWall& wall, double x0, double y0, int texOffsetBaseX, int texOffsetBaseY, double scale, int color, BITMAP* texture) throw () {
-    const double x = wall.X();
-    const double y = wall.Y();
+    const double x = wall.center().x;
+    const double y = wall.center().y;
     const double ro = wall.radius();
     const double ri = wall.radius_in();
     const double* const angle = wall.angles();
@@ -1319,7 +1319,7 @@ void Graphics::draw_me_highlight(const WorldCoords& pos, double size) throw () {
 void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int aimDist, int team) throw () {
     const double minDist = pf_scale(GUNPOINT_RADIUS);
     const double gdx = cos(gundir.toRad()), gdy = sin(gundir.toRad());
-    const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(pos.x, pos.y, gdx, gdy, ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
+    const int maxDist = pf_scale(min<double>(room.genGetTimeTillWall(pos.local(), Vec(gdx, gdy), ROCKET_RADIUS * .1, plw + plh).first, plw + plh)); // cap at plw+plh, which is somewhere outside the screen, to avoid drawing a *very* long line
     if (maxDist < minDist)
         return;
 

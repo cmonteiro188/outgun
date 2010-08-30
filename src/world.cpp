@@ -68,29 +68,28 @@ bool compare_players(const PlayerBase* a, const PlayerBase* b) throw () {
 }
 
 /* subIntersection:
- * returns true if the area between lines (lx1,ly1)-(lx2,ly2) and (rx1,ry1)-(rx2,ry2) intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
- * every line must be y-ordered : ly1<=ly2, ry1<=ry2, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y
+ * returns true if the area between lines l1-l2 and r1-r2 intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
+ * every line must be y-ordered : l1.y<=l2.y, r1.y<=r2.y, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y
  *
  * how it works:
  * for the appropriate range of y, if there exists an y so that lx(y)<=rectx2 AND rx(y)>=rectx1 , there is an intersection in that range
  * those ranges are solved with simple linear equations since lx and rx are linear
  */
-bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx1, double ry1,  double rx2, double ry2,
-                double rectx1, double recty1, double rectx2, double recty2) throw () {
-    nAssert(ly1 <= ly2 && ry1 <= ry2);
-    double miny = max(max(ly1, ry1), recty1), maxy = min(min(ly2, ry2), recty2);
+bool subIntersection(const Vec& l1, const Vec& l2, const Vec& r1, const Vec& r2, double rectx1, double recty1, double rectx2, double recty2) throw () {
+    nAssert(l1.y <= l2.y && r1.y <= r2.y);
+    double miny = max(max(l1.y, r1.y), recty1), maxy = min(min(l2.y, r2.y), recty2);
     if (maxy < miny)
         return false;
     // first narrow the range by lx(y) <= rectx2
-    if (lx1 == lx2) {   // can't formulate a value for intersection-y
-        if (lx1 > rectx2)   // lx(y) <= rectx2 identically false => no solutions
+    if (l1.x == l2.x) {   // can't formulate a value for intersection-y
+        if (l1.x > rectx2)   // lx(y) <= rectx2 identically false => no solutions
             return false;
         // lx(y) <= rectx2 identically true => no narrowing from lx
     }
     else {
-        // solve lx(y) == rectx2 , where lx(y) = lx1 + (y-ly1)*(lx2-lx1)/(ly2-ly1)
-        const double intersect_y = (rectx2 - lx1) * (ly2 - ly1) / (lx2 - lx1) + ly1;
-        if (lx2 > lx1) {    // the intersection is at y <= intersect_y
+        // solve lx(y) == rectx2 , where lx(y) = l1.x + (y-l1.y)*(l2.x-l1.x)/(l2.y-l1.y)
+        const double intersect_y = (rectx2 - l1.x) * (l2.y - l1.y) / (l2.x - l1.x) + l1.y;
+        if (l2.x > l1.x) {    // the intersection is at y <= intersect_y
             if (maxy > intersect_y)
                 maxy = intersect_y;
         }
@@ -102,11 +101,11 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
     if (maxy < miny)
         return false;
     // now narrow the range further by rx(y) >= rectx1, similarly
-    if (rx1 == rx2)
-        return (rx1 >= rectx1);
+    if (r1.x == r2.x)
+        return (r1.x >= rectx1);
     else {
-        const double intersect_y = (rectx1 - rx1) * (ry2 - ry1) / (rx2 - rx1) + ry1;
-        if (rx2 > rx1) {    // the intersection is at y >= intersect_y
+        const double intersect_y = (rectx1 - r1.x) * (r2.y - r1.y) / (r2.x - r1.x) + r1.y;
+        if (r2.x > r1.x) {    // the intersection is at y >= intersect_y
             if (miny < intersect_y)
                 miny = intersect_y;
         }
@@ -118,69 +117,71 @@ bool subIntersection(double lx1, double ly1,  double lx2, double ly2,  double rx
     return (maxy >= miny);
 }
 
-bool RectWall::intersects_circ(double x, double y, double r) const throw () {
-    if (x - r <= c && x + r >= a && y - r <= d && y + r >= b) {
-        if (x >= a && x <= c)
+bool RectWall::intersects_circ(const Vec& center, double r) const throw () {
+    if (center.x - r <= c && center.x + r >= a && center.y - r <= d && center.y + r >= b) {
+        if (center.x >= a && center.x <= c)
             return true;
-        if (y >= b && y <= d)
+        if (center.y >= b && center.y <= d)
             return true;
         // Check the corners.
         const double r2 = r * r;
-        if ((x - a) * (x - a) + (y - b) * (y - b) <= r2)
+        if ((center - Vec(a, b)).mag2() <= r2)
             return true;
-        if ((x - c) * (x - c) + (y - b) * (y - b) <= r2)
+        if ((center - Vec(c, b)).mag2() <= r2)
             return true;
-        if ((x - a) * (x - a) + (y - d) * (y - d) <= r2)
+        if ((center - Vec(a, d)).mag2() <= r2)
             return true;
-        if ((x - c) * (x - c) + (y - d) * (y - d) <= r2)
+        if ((center - Vec(c, d)).mag2() <= r2)
             return true;
     }
     return false;
 }
 
 TriWall::TriWall(double x1, double y1, double x2, double y2, double x3, double y3, int tex_, int alpha_) throw ()
-        : WallBase(tex_, alpha_), p1x(x1), p1y(y1), p2x(x2), p2y(y2), p3x(x3), p3y(y3)
+        : WallBase(tex_, alpha_), p1(x1, y1), p2(x2, y2), p3(x3, y3)
 {
-    if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }  // 1, 2 sorted
-    if (p3y < p2y) {
-        swap(p2x, p3x); swap(p2y, p3y); // 1, 3 and 2, 3 sorted
-        if (p2y < p1y) { swap(p1x, p2x); swap(p1y, p2y); }  // all sorted
+    if (p2.y < p1.y)
+        swap(p1, p2);  // 1, 2 sorted
+    if (p3.y < p2.y) {
+        swap(p2, p3); // 1, 3 and 2, 3 sorted
+        if (p2.y < p1.y)
+            swap(p1, p2); // all sorted
     }
-    boundx1 = min(p1x, min(p2x, p3x)), boundy1 = min(p1y, min(p2y, p3y));
-    boundx2 = max(p1x, max(p2x, p3x)), boundy2 = max(p1y, max(p2y, p3y));
+    boundx1 = min(p1.x, min(p2.x, p3.x)), boundy1 = min(p1.y, min(p2.y, p3.y));
+    boundx2 = max(p1.x, max(p2.x, p3.x)), boundy2 = max(p1.y, max(p2.y, p3.y));
 }
 
-bool TriWall::intersects_circ(double x, double y, double r) const throw () {
+bool TriWall::intersects_circ(const Vec& center, double r) const throw () {
     // A crude check first.
-    if (!intersects_rect(x - r, y - r, x + r, y + r))
+    if (!intersects_rect(center.x - r, center.y - r, center.x + r, center.y + r))
         return false;
     // Check if the circle intersects with the triangle edges.
-    const double px[4] = { p1x, p2x, p3x, p1x };
-    const double py[4] = { p1y, p2y, p3y, p1y };
+    const Vec p[4] = { p1, p2, p3, p1 };
     for (int i = 0; i < 3; i++) {
-        const double a = sqr(px[i + 1] - px[i]) + sqr(py[i + 1] - py[i]);
-        const double b = 2 * ((px[i + 1] - px[i]) * (px[i] - x) + (py[i + 1] - py[i]) * (py[i] - y));
-        const double c = x * x + y * y + px[i] * px[i] + py[i] * py[i] - 2 * (x * px[i] + y * py[i]) - r * r;
+        const Vec diff = p[i + 1] - p[i];
+        const double a = diff.mag2();
+        const double b = 2 * dot(diff, p[i] - center);
+        const double c = center.mag2() + p[i].mag2() - 2 * dot(center, p[i]) - r * r;
         if (b * b - 4 * a * c >= 0.) {  // Check if the circle intersects with a line going by two triangle corners.
-            const double d = (x - px[i]) * (px[i + 1] - px[i]) + (y - py[i]) * (py[i + 1] - py[i]);
-            if (d / a >= 0 && d <= a || sqr(px[i] - x) + sqr(py[i] - y) <= r * r)   // Check the actual intersection.
+            const double d = dot(center - p[i], diff);
+            if (d / a >= 0 && d <= a || (p[i] - center).mag2() <= r * r)   // Check the actual intersection.
                 return true;
         }
     }
     // Check if the circle is inside the triangle though not intersecting with the edges.
-    const double bc = p2x * p3y - p2y * p3x;
-    const double ca = p3x * p1y - p3y * p1x;
-    const double ab = p1x * p2y - p1y * p2x;
-    const double ap = p1x * y   - p1y * x;
-    const double bp = p2x * y   - p2y * x;
-    const double cp = p3x * y   - p3y * x;
+    const double bc = cross(p2, p3);
+    const double ca = cross(p3, p1);
+    const double ab = cross(p1, p2);
+    const double ap = cross(p1, center);
+    const double bp = cross(p2, center);
+    const double cp = cross(p3, center);
     const double abc = (bc + ca + ab < 0 ? -1 : 1);
     return abc * (bc - bp + cp) > 0 && abc * (ca - cp + ap) > 0 && abc * (ab - ap + bp) > 0;
 }
 
 bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) const throw () {
     nAssert(ry1 <= ry2 && rx1 <= rx2);
-    nAssert(p1y <= p2y && p2y <= p3y);
+    nAssert(p1.y <= p2.y && p2.y <= p3.y);
     if (rx1 > boundx2 || rx2 < boundx1 || ry1 > boundy2 || ry2 < boundy1)
         return false;
     /* idea: triangle is split in two triangles: y<=y2 and y>=y2
@@ -188,16 +189,16 @@ bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) co
      * for each edge there may be a region [yi0, yi1] where (for a right side edge) xr(y)>=x1
      * if those regions overlap with each other and [ry1, ry2], there exists an intersection
      */
-    if (p2x < p1x + (p2y-p1y) * (p3x-p1x) / (p3y-p1y)) {    // p2 is left to the p1-p3 line
-        if (subIntersection(p1x,p1y, p2x,p2y, p1x,p1y, p3x,p3y, rx1, ry1, rx2, ry2))    // part y<=p2y : L,R sides p1-p2, p1-p3
+    if (p2.x < p1.x + (p2.y-p1.y) * (p3.x-p1.x) / (p3.y-p1.y)) {    // p2 is left to the p1-p3 line
+        if (subIntersection(p1, p2, p1, p3, rx1, ry1, rx2, ry2))    // part y<=p2.y : L,R sides p1-p2, p1-p3
             return true;
-        if (subIntersection(p2x,p2y, p3x,p3y, p1x,p1y, p3x,p3y, rx1, ry1, rx2, ry2))    // part y>=p2y : L,R sides p2-p3, p1-p3
+        if (subIntersection(p2, p3, p1, p3, rx1, ry1, rx2, ry2))    // part y>=p2.y : L,R sides p2-p3, p1-p3
             return true;
     }
     else {
-        if (subIntersection(p1x,p1y, p3x,p3y, p1x,p1y, p2x,p2y, rx1, ry1, rx2, ry2))    // part y<=p2y : L,R sides p1-p3, p1-p2
+        if (subIntersection(p1, p3, p1, p2, rx1, ry1, rx2, ry2))    // part y<=p2.y : L,R sides p1-p3, p1-p2
             return true;
-        if (subIntersection(p1x,p1y, p3x,p3y, p2x,p2y, p3x,p3y, rx1, ry1, rx2, ry2))    // part y>=p2y : L,R sides p1-p3, p2-p3
+        if (subIntersection(p1, p3, p2, p3, rx1, ry1, rx2, ry2))    // part y>=p2.y : L,R sides p1-p3, p2-p3
             return true;
     }
     return false;
@@ -205,8 +206,7 @@ bool TriWall::intersects_rect(double rx1, double ry1, double rx2, double ry2) co
 
 CircWall::CircWall(double x_, double y_, double ro_, double ri_, double ang1, double ang2, int tex_, int alpha_) throw () :
     WallBase(tex_, alpha_),
-    x(x_),
-    y(y_),
+    c(x_, y_),
     ro(ro_),
     ri(ri_)
 {
@@ -214,15 +214,15 @@ CircWall::CircWall(double x_, double y_, double ro_, double ri_, double ang1, do
     angle[1] = ang2;
     const double a1r = angle[0] * N_PI / 180;
     const double a2r = angle[1] * N_PI / 180;
-    va1 = Coords(sin(a1r), cos(a1r));
-    va2 = Coords(sin(a2r), cos(a2r));
+    va1 = Vec(sin(a1r), cos(a1r));
+    va2 = Vec(sin(a2r), cos(a2r));
     const double a2r_greater = (a2r >= a1r) ? a2r : (a2r + 2. * N_PI);
     if (a1r == a2r)
         anglecos = -1.; // full circle => max width
     else
         anglecos = cos((a2r_greater - a1r) / 2.);
     const double midangle = (a2r_greater + a1r) / 2;
-    midvec = Coords(sin(midangle), cos(midangle));
+    midvec = Vec(sin(midangle), cos(midangle));
 }
 
 /* CircWall::intersects_circ:
@@ -230,9 +230,9 @@ CircWall::CircWall(double x_, double y_, double ro_, double ri_, double ang1, do
  * - if the circle to be tested against overlaps the center of the wall, the current algorithm can't calculate the exact result
  * - the corners (where the wall's limiting angles cut the inner or outer limiting circle) aren't calculated exactly
  */
-bool CircWall::intersects_circ(double rcx, double rcy, double rr) const throw () {
-    const double dx = rcx - x, dy = rcy - y;
-    const double dcr = sqrt( dx*dx + dy*dy );   // this is the radius of the tested circle center in relation to the wall's center of radius
+bool CircWall::intersects_circ(const Vec& rc, double rr) const throw () {
+    const Vec d = rc - c;
+    const double dcr = d.mag();   // this is the radius of the tested circle center in relation to the wall's center of radius
     // if the circle is wholly outside the wall bounding circle (r=ro), there's no intersection
     if (dcr - rr > ro)
         return false;
@@ -246,8 +246,8 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const throw ()
     if (dcr - rr <= 0)
         return true;
     // find out at what range of angles the circle projects to, in relation to the wall's center of radius; compare this to the wall's bounding angles
-    double centerAngle = asin(-dy / dcr) * 180. / N_PI; // -dy because screen coordinates are reversed
-    if (dx < 0)
+    double centerAngle = asin(-d.y / dcr) * 180. / N_PI; // -d.y because screen coordinates are reversed
+    if (d.x < 0)
         centerAngle = 180 - centerAngle;
     // now within [-90, 270] in physical coordinates (not screen coordinates)
     // convert to the weird map coordinates
@@ -286,9 +286,9 @@ bool CircWall::intersects_circ(double rcx, double rcy, double rr) const throw ()
  * - the cheat in intersects_circ also applies
  */
 bool CircWall::intersects_rect(double x1, double y1, double x2, double y2) const throw () {
-    // more crude check against the wall's bounding rectangle would be: return x1<=x+ro && x2>=x-ro && y1<=y+ro && y2>=y-ro;
-    const double rwr = (x2 - x1) / 2., rhr = (y2 - y1) / 2.;
-    return intersects_circ(x1 + rwr, y1 + rhr, sqrt(rwr * rwr + rhr * rhr));
+    // more crude check against the wall's bounding rectangle would be: return x1<=c.x+ro && x2>=c.x-ro && y1<=c.y+ro && y2>=c.y-ro;
+    const Vec halfDiagonal((x2 - x1) / 2., (y2 - y1) / 2.);
+    return intersects_circ(Vec(x1, y1) + halfDiagonal, halfDiagonal.mag());
 }
 
 Room::Room(const Room& room) throw () {
@@ -337,34 +337,34 @@ bool Room::fall_on_wall(double x1, double y1, double x2, double y2) const throw 
     return false;
 }
 
-bool Room::fall_on_wall(double x, double y, double r) const throw () {
+bool Room::fall_on_wall(const Coords& center, double r) const throw () {
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
-        if ((*wi)->intersects_circ(x, y, r))
+        if ((*wi)->intersects_circ(center, r))
             return true;
     return false;
 }
 
-BounceData Room::genGetTimeTillWall(double x, double y, double mx, double my, double radius, double maxFraction) const throw () {
+BounceData Room::genGetTimeTillWall(const Coords& center, const Vec& vel, double radius, double maxFraction) const throw () {
     BounceData bd;
     bd.first = 1e99;
 
-    if (mx == 0 && my == 0)
+    if (vel.x == 0 && vel.y == 0)
         return bd;
 
-    const Coords bbox0(min(x - radius, x + mx * maxFraction - radius), min(y - radius, y + my * maxFraction - radius));
-    const Coords bbox1(max(x + radius, x + mx * maxFraction + radius), max(y + radius, y + my * maxFraction + radius));
+    const Coords bbox0(min(center.x - radius, center.x + vel.x * maxFraction - radius),
+                       min(center.y - radius, center.y + vel.y * maxFraction - radius));
+    const Coords bbox1(max(center.x + radius, center.x + vel.x * maxFraction + radius),
+                       max(center.y + radius, center.y + vel.y * maxFraction + radius));
 
     for (vector<WallBase*>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi) {
         // fast and crude bounding-box style check first
         if (!(*wi)->intersects_rect(bbox0.x, bbox0.y, bbox1.x, bbox1.y))
             continue;
         // check more carefully
-        (*wi)->tryBounce(&bd, x, y, mx, my, radius);
+        (*wi)->tryBounce(&bd, center, vel, radius);
         #ifdef EXTRA_DEBUG
-        if (bd.first < 1e10) {
-            const double dx = bd.second.x, dy = bd.second.y, r = radius;
-            nAssert(fabs(dx * dx + dy * dy - r * r) < 1e-8);
-        }
+        if (bd.first < 1e10)
+            nAssert(fabs(bd.second.mag2() - sqr(radius)) < 1e-8);
         #endif
     }
 
@@ -904,62 +904,60 @@ void ClientPlayer::setPosition(const WorldCoords& pos, double frame, bool minima
 
 /* bounceFromPoint():
  *
- * calculates how many times the vector (mx,my) can be traveled until point (dx,dy) is hit by a circle of radius r
+ * calculates how many times the vector /m/ can be traveled until point /d/ is hit by a circle of radius /r/
  *
  *
- *        (mx,my)      __--
+ *         m           __--
  *          \    __--^^
- *         __+-^^  + -(dx,dy)
+ *         __+-^^  + -d
  *     +-^^
  *   (0,0)
  *
- * | t(mx,my)-(dx,dy) | = r
+ * | tm-d | = r
  * take the smaller solution of t (if any real solution exists)
  *
- * d? = distance vector of the point, m? = movement vector of the circle, r = radius of the circle
- * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
+ * d = distance vector of the point, m = movement vector of the circle, r = radius of the circle
+ * returns: pair(t, collisionpoint-centerpoint) or pair(1e99, ...) for no collision
  */
-BounceData bounceFromPoint(double dx, double dy, double mx, double my, double r) throw () {
-    const double m2 = mx * mx + my * my, r2 = r * r;
-    const double mdotd = mx * dx + my * dy;
-    const double d2 = dx * dx + dy * dy;
-    const double disc = mdotd * mdotd - m2 * (d2 - r2);
+static BounceData bounceFromPoint(const Vec& d, const Vec& m, double r) throw () {
+    const double m2 = m.mag2(), mdotd = dot(m, d);
+    const double disc = mdotd * mdotd - m2 * (d.mag2() - r * r);
     if (disc >= 0) {    // there are real solutions
         const double t = (mdotd - sqrt(disc)) / m2; // the collision with smaller t (the larger t is when going away from the point)
         if (t >= 0)
-            return BounceData(t, Coords(dx - t * mx, dy - t * my));
+            return BounceData(t, d - t * m);
     }
-    return BounceData(1e99, Coords());  // no collision
+    return BounceData(1e99, Vec());  // no collision
 }
 
 /* bounceFromLine():
  *
- * calculates how many times the vector (mx,my) can be traveled until wall (dx1,dy1)-(dx2,dy2) is hit by a circle of radius r
+ * calculates how many times the vector m can be traveled until wall d1-d2 is hit by a circle of radius r
  * hits to the end points aren't detected by this function
  *
  *
- *        (mx,my)      __--
+ *         m           __--
  *          \    __--^^
- *         __+-^^  + -(dx1,dy1)
+ *         __+-^^  + -d1
  *     +-^^      .>|
- *   (0,0)      /  + -(dx2,dy2)
+ *   (0,0)      /  + -d2
  *             /
  *           wall
  *
  * the circle hits the wall proper with its center projection on the line
- * | ( t(mx,my)-(dx1,dy1) ) x ( (dx2,dy2)-(dx1,dy1) ) | / | (dx2,dy2)-(dx1,dy1) | = r
+ * | (tm-d1) x (d2-d1) | / | d2-d1 | = r
  * take the smaller solution of t and make sure the point is on the line
  *
- * d?? = distance vectors of the line's end-points, m? = movement vector of the circle, r = radius of the circle
- * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
+ * d? = distance vectors of the line's end-points, m = movement vector of the circle, r = radius of the circle
+ * returns: pair(t, collisionpoint-center) or pair(1e99, ...) for no collision
  */
-BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double mx, double my, double r) throw () {
-    // t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|(dx2,dy2)-(dx1,dy1)|
-    const double diffx = dx2 - dx1, diffy = dy2 - dy1;
-    const double div = mx * diffy - my * diffx;
+static BounceData bounceFromLine(const Vec& d1, const Vec& d2, const Vec& m, double r) throw () {
+    // t * ( mx(dy2-dy1) - my(dx2-dx1) ) = dx1(dy2-dy1) - dy1(dx2-dx1) +-R*|d2-d1|
+    const Vec diff = d2 - d1;
+    const double div = m.x * diff.y - m.y * diff.x;
     if (div != 0) { // div == 0 <=> movement is parallel to the line => no collisions possible
-        const double rBase = (dx1 * diffy - dy1 * diffx) / div;
-        const double rAdd = r * sqrt(diffx * diffx + diffy * diffy) / div;
+        const double rBase = (d1.x * diff.y - d1.y * diff.x) / div;
+        const double rAdd = r * diff.mag() / div;
         const double t = rBase - fabs(rAdd);    // the collision with smaller t (the larger t is when going away from the line)
         if (t >= 0) {
             // make sure we are not off an end of the line
@@ -970,24 +968,24 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
             // ( t*mx - dx1 - k(dx2-dx1) )^2 + ( t*my - dy1 - k(dy2-dy1) )^2  minimum (=r^2)
             // (dx2-dx1)*( t*mx - dx1 - k(dx2-dx1) ) + (dy2-dy1)*( t*my - dy1 - k(dy2-dy1) ) = 0  (derivative of the expression above *(-.5))
             // (dx2-dx1)*(t*mx-dx1) + (dy2-dy1)*(t*my-dy1) = k[ (dx2-dx1)^2 + (dy2-dy1)^2 ]
-            const double k = (diffx * (t * mx - dx1) + diffy * (t * my - dy1)) / (diffx * diffx + diffy * diffy);
+            const double k = dot(diff, t * m - d1) / diff.mag2();
             if (k >= 0. && k <= 1.)
-                return BounceData(t, Coords(dx1 + k * diffx - t * mx, dy1 + k * diffy - t * my));
+                return BounceData(t, d1 + k * diff - t * m);
         }
     }
-    return BounceData(1e99, Coords());  // no collision
+    return BounceData(1e99, Vec());  // no collision
 }
 
 /* bounceFromArc():
  *
- * calculates how many times the vector (mx,my) can be traveled until the arc is hit by a circle of radius cr
+ * calculates how many times the vector m can be traveled until the arc is hit by a circle of radius cr
  *
  *
- *        (mx,my)      __--
+ *         m           __--
  *          \    __--^^
  *         __+-^^   /^^^^
  *     +-^^        /
- *   (0,0) av,____|____.<-- (dx,dy)
+ *   (0,0) av,____|____.<-- d
  *           `    |     }
  *                 \    } ar
  *                  \___}
@@ -996,15 +994,15 @@ BounceData bounceFromLine(double dx1, double dy1, double dx2, double dy2, double
  *
  * | t(mx,my)-(dx,dy) | = ar+-cr , taking the smaller solution of t and making sure the position is within the given angle from av
  *
- * d? = distance vector of the arc's radial center, m? = movement vector of the circle, ar = radius of the arc, cr = radius of the moving circle
+ * d = distance vector of the arc's radial center, m = movement vector of the circle, ar = radius of the arc, cr = radius of the moving circle
  * av = arc center unit vector, ahwcos = cosine of half arc "width" (angle)
- * returns: pair( t, pair(collisionn-centern, collisionp-centerp) ) or pair(1e99, ...) for no collision
+ * returns: pair(t, collisionpoint-center) or pair(1e99, ...) for no collision
  */
-BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coords& av, double ahwcos, double ar, double cr, bool outside) throw () {
+static BounceData bounceFromArc(const Vec& d, const Vec& m, const Vec& av, double ahwcos, double ar, double cr, bool outside) throw () {
     const double bounceRad = ar + (outside ? cr : -cr);
-    const double m2 = mx * mx + my * my, r2 = bounceRad * bounceRad;
-    const double mdotd = mx * dx + my * dy;
-    const double d2 = dx * dx + dy * dy;
+    const double m2 = m.mag2(), r2 = sqr(bounceRad);
+    const double mdotd = dot(m, d);
+    const double d2 = d.mag2();
     const double disc = mdotd * mdotd - m2 * (d2 - r2);
     if (disc >= 0) {    // there are real solutions
         double t;
@@ -1014,121 +1012,121 @@ BounceData bounceFromArc(double dx, double dy, double mx, double my, const Coord
             t = (mdotd + sqrt(disc)) / m2;  // the collision with larger t (the smaller t is when going towards the center)
         if (t >= 0) {
             // make sure the point is within the given angle from av
-            // [ (t(mx,my) - (dx,dy)) dot av ] / [ |t(mx,my) - (dx,dy)| * |av| ] >= ahwcos
-            const double xd = t * mx - dx, yd = t * my - dy;
-            const double dot = xd * av.x - yd * av.y;  //NOTE: - because av.second is in reversed coordinates
-            if (dot >= ahwcos * bounceRad) {    // |(dx,dy) - t(mx,my)| = bounceRad, |av| = 1
-                // calc the vector from t(mx,my) to collision point:
+            // [ (tm - d) dot av ] / [ |tm - d| * |av| ] >= ahwcos
+            const Vec diff = t * m - d;
+            const double dot = diff.x * av.x - diff.y * av.y;  //NOTE: - because av.second is in reversed coordinates
+            if (dot >= ahwcos * bounceRad) {    // |d - tm| = bounceRad, |av| = 1
+                // calc the vector from tm to collision point:
                 // length = cr
-                // (xd,yd) = along that vector, direction from radial center to center of circle, length bounceRad
+                // diff = along that vector, direction from radial center to center of circle, length bounceRad
                 const double mul = (ar - bounceRad) / bounceRad;
-                return BounceData(t, Coords(xd * mul, yd * mul));
+                return BounceData(t, diff * mul);
             }
         }
     }
-    return BounceData(1e99, Coords());
+    return BounceData(1e99, Vec());
 }
 
-void RectWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw () {
+void RectWall::tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw () {
     #define add_rv() if (rv.first < bd->first) *bd = rv;
 
     BounceData rv;
     rv.first = 1e99;
     bool onLine = false;
-    if (mx > 0 && a > stx)  // check vertical wall a
-        rv = bounceFromLine(a - stx, b - sty, a - stx, d - sty, mx, my, plyRadius);
-    else if (mx < 0 && c < stx) // check vertical wall c
-        rv = bounceFromLine(c - stx, b - sty, c - stx, d - sty, mx, my, plyRadius);
+    if (m.x > 0 && a > st.x)  // check vertical wall a
+        rv = bounceFromLine(Vec(a, b) - st, Vec(a, d) - st, m, plyRadius);
+    else if (m.x < 0 && c < st.x) // check vertical wall c
+        rv = bounceFromLine(Vec(c, b) - st, Vec(c, d) - st, m, plyRadius);
     if (rv.first < 1e10) {
         onLine = true;
         add_rv();
     }
-    if (my > 0 && b > sty)  // check horizontal wall b
-        rv = bounceFromLine(a - stx, b - sty, c - stx, b - sty, mx, my, plyRadius);
-    else if (my < 0 && d < sty) // check horizontal wall d
-        rv = bounceFromLine(a - stx, d - sty, c - stx, d - sty, mx, my, plyRadius);
+    if (m.y > 0 && b > st.y)  // check horizontal wall b
+        rv = bounceFromLine(Vec(a, b) - st, Vec(c, b) - st, m, plyRadius);
+    else if (m.y < 0 && d < st.y) // check horizontal wall d
+        rv = bounceFromLine(Vec(a, d) - st, Vec(c, d) - st, m, plyRadius);
     if (rv.first < 1e10) {
         onLine = true;
         add_rv();
     }
     if (!onLine) {  // check corners
-        rv = bounceFromPoint(a - stx, b - sty, mx, my, plyRadius);
+        rv = bounceFromPoint(Vec(a, b) - st, m, plyRadius);
         add_rv();
-        rv = bounceFromPoint(c - stx, b - sty, mx, my, plyRadius);
+        rv = bounceFromPoint(Vec(c, b) - st, m, plyRadius);
         add_rv();
-        rv = bounceFromPoint(a - stx, d - sty, mx, my, plyRadius);
+        rv = bounceFromPoint(Vec(a, d) - st, m, plyRadius);
         add_rv();
-        rv = bounceFromPoint(c - stx, d - sty, mx, my, plyRadius);
+        rv = bounceFromPoint(Vec(c, d) - st, m, plyRadius);
         add_rv();
     }
 
     #undef add_rv
 }
 
-void TriWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw () {
+void TriWall::tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw () {
     #define add_rv() if (rv.first < bd->first) *bd = rv;
 
     BounceData rv;
-    rv = bounceFromLine(p1x - stx, p1y - sty, p2x - stx, p2y - sty, mx, my, plyRadius); // wall p1-p2
+    rv = bounceFromLine(p1 - st, p2 - st, m, plyRadius); // wall p1-p2
     add_rv();
-    rv = bounceFromLine(p1x - stx, p1y - sty, p3x - stx, p3y - sty, mx, my, plyRadius); // wall p1-p3
+    rv = bounceFromLine(p1 - st, p3 - st, m, plyRadius); // wall p1-p3
     add_rv();
-    rv = bounceFromLine(p2x - stx, p2y - sty, p3x - stx, p3y - sty, mx, my, plyRadius); // wall p2-p3
+    rv = bounceFromLine(p2 - st, p3 - st, m, plyRadius); // wall p2-p3
     add_rv();
-    rv = bounceFromPoint(p1x - stx, p1y - sty, mx, my, plyRadius);
+    rv = bounceFromPoint(p1 - st, m, plyRadius);
     add_rv();
-    rv = bounceFromPoint(p2x - stx, p2y - sty, mx, my, plyRadius);
+    rv = bounceFromPoint(p2 - st, m, plyRadius);
     add_rv();
-    rv = bounceFromPoint(p3x - stx, p3y - sty, mx, my, plyRadius);
+    rv = bounceFromPoint(p3 - st, m, plyRadius);
     add_rv();
 
     #undef add_rv
 }
 
-void CircWall::tryBounce(BounceData* bd, double stx, double sty, double mx, double my, double plyRadius) const throw () {
+void CircWall::tryBounce(BounceData* bd, const Vec& st, const Vec& m, double plyRadius) const throw () {
     #define add_rv() if (rv.first < bd->first) *bd = rv;
 
     BounceData rv;
     // outside
-    rv = bounceFromArc(x - stx, y - sty, mx, my, midvec, anglecos, ro, plyRadius, true);
+    rv = bounceFromArc(c - st, m, midvec, anglecos, ro, plyRadius, true);
     add_rv();
     // inside
     if (ri > plyRadius) {
-        rv = bounceFromArc(x - stx, y - sty, mx, my, midvec, anglecos, ri, plyRadius, false);
+        rv = bounceFromArc(c - st, m, midvec, anglecos, ri, plyRadius, false);
         add_rv();
     }
     if (angle[0] == angle[1])   // no sectoring
         return;
-    double p1x = x + ro * va1.x - stx, p1y = y - ro * va1.y - sty; //NOTE: - ...*va1.y because va1.y is in reversed coordinates
-    double p2x = x + ri * va1.x - stx, p2y = y - ri * va1.y - sty; //NOTE: - ...*va1.y because va1.y is in reversed coordinates
+    Vec p1(c.x + ro * va1.x - st.x, c.y - ro * va1.y - st.y); //NOTE: - ...*va1.y because va1.y is in reversed coordinates
+    Vec p2(c.x + ri * va1.x - st.x, c.y - ri * va1.y - st.y); //NOTE: - ...*va1.y because va1.y is in reversed coordinates
     // side wall at angle va1
-    rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
+    rv = bounceFromLine(p1, p2, m, plyRadius);
     add_rv();
     // corners at angle va1
-    rv = bounceFromPoint(p1x, p1y, mx, my, plyRadius);
+    rv = bounceFromPoint(p1, m, plyRadius);
     add_rv();
-    rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
+    rv = bounceFromPoint(p2, m, plyRadius);
     add_rv();
     // side wall at angle va2
-    p1x = x + ro * va2.x - stx, p1y = y - ro * va2.y - sty;    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
-    p2x = x + ri * va2.x - stx, p2y = y - ri * va2.y - sty;    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
-    rv = bounceFromLine(p1x, p1y, p2x, p2y, mx, my, plyRadius);
+    p1 = Vec(c.x + ro * va2.x - st.x, c.y - ro * va2.y - st.y);    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
+    p2 = Vec(c.x + ri * va2.x - st.x, c.y - ri * va2.y - st.y);    //NOTE: - ...*va2.y because va2.y is in reversed coordinates
+    rv = bounceFromLine(p1, p2, m, plyRadius);
     add_rv();
     // corners at angle va2
-    rv = bounceFromPoint(p1x, p1y, mx, my, plyRadius);
+    rv = bounceFromPoint(p1, m, plyRadius);
     add_rv();
-    rv = bounceFromPoint(p2x, p2y, mx, my, plyRadius);
+    rv = bounceFromPoint(p2, m, plyRadius);
     add_rv();
 
     #undef add_rv
 }
 
 BounceData WorldBase::getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction) throw () {
-    return room.genGetTimeTillWall(pl.lx, pl.ly, pl.sx, pl.sy, plyRadius, maxFraction);
+    return room.genGetTimeTillWall(Coords(pl.lx, pl.ly), Vec(pl.sx, pl.sy), plyRadius, maxFraction);
 }
 
 double WorldBase::getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction) throw () {
-    return room.genGetTimeTillWall(rock.x, rock.y, rock.sx, rock.sy, ROCKET_RADIUS, maxFraction).first;
+    return room.genGetTimeTillWall(Coords(rock.x, rock.y), Vec(rock.sx, rock.sy), ROCKET_RADIUS, maxFraction).first;
 }
 
 double WorldBase::getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) throw () {
@@ -2673,7 +2671,7 @@ bool ServerWorld::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
     return !player[pid].dead;
 }
 
-void WorldBase::executeBounce(PlayerBase& ply, const Coords& bounceVec, double plyRadius) throw () { // needs plyRadius as a shortcut to bounceVec's length
+void WorldBase::executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) throw () { // needs plyRadius as a shortcut to bounceVec's length
     // bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
     // : S -= 2* ( (S dot b) * b / |b|^2 )  ; |b| is always plyRadius
     // to add a specific speed loss only in the bounce direction, reduce from the 2.

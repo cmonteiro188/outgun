@@ -30,6 +30,7 @@
 #include <vector>
 
 #include <climits>
+#include <cmath>
 
 #include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
 
@@ -306,6 +307,33 @@ public:
     const void* data() const throw () { return d.data(); }
     unsigned size() const throw () { return d.size(); }
 };
+
+struct Vec {
+    double x, y;
+
+    Vec() throw () { }
+    Vec(double x_, double y_) throw () : x(x_), y(y_) { }
+
+    bool operator==(const Vec& o) const throw () { return x == o.x && y == o.y; }
+    bool operator!=(const Vec& o) const throw () { return !(*this == o); }
+
+    Vec& operator+=(const Vec& o) throw () { x += o.x; y += o.y; return *this; }
+    Vec& operator-=(const Vec& o) throw () { x -= o.x; y -= o.y; return *this; }
+    Vec& operator*=(const double mul) throw () { x *= mul; y *= mul; return *this; }
+
+    double mag() const throw () { return sqrt(x * x + y * y); }
+    double mag2() const throw () { return x * x + y * y; }
+};
+
+inline Vec operator+(Vec v1, const Vec& v2) throw () { return v1 += v2; }
+inline Vec operator-(Vec v1, const Vec& v2) throw () { return v1 -= v2; }
+inline Vec operator*(Vec v, double mul) throw () { return v *= mul; }
+inline Vec operator*(double mul, Vec v) throw () { return v *= mul; }
+
+inline double dot(const Vec& v1, const Vec& v2) throw () { return v1.x * v2.x + v1.y * v2.y; }
+inline double cross(const Vec& v1, const Vec& v2) throw () { return v1.x * v2.y - v1.y * v2.x; }
+
+inline double mag(const Vec& v) throw () { return v.mag(); }
 
 template<class T> T bound(T val, T lb, T hb) throw () { return val <= lb ? lb : val >= hb ? hb : val; }
 

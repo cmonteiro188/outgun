@@ -82,7 +82,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
         const double x = ix * pointDistance;
         for (unsigned iy = 0; iy < yPoints; ++iy) {
             const double y = iy * pointDistance;
-            roomMap[ix][iy] = room.fall_on_wall(x, y, pointRadius) ? mapWall : mapUnreached;
+            roomMap[ix][iy] = room.fall_on_wall(Coords(x, y), pointRadius) ? mapWall : mapUnreached;
         }
     }
 

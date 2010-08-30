@@ -1037,12 +1037,12 @@ void SceneAntialiaser::addTriWall (const  TriWall& wall, int texture) throw () {
     objects.back().overlay = false;
     vector<WallBorderSegment>& borders = objects.back().borders;
 
-    const double x1 = x0 + wall.x1() * scale;
-    const double y1 = y0 + wall.y1() * scale;
-    const double x2 = x0 + wall.x2() * scale;
-    const double y2 = y0 + wall.y2() * scale;
-    const double x3 = x0 + wall.x3() * scale;
-    const double y3 = y0 + wall.y3() * scale;
+    const double x1 = x0 + wall.point1().x * scale;
+    const double y1 = y0 + wall.point1().y * scale;
+    const double x2 = x0 + wall.point2().x * scale;
+    const double y2 = y0 + wall.point2().y * scale;
+    const double x3 = x0 + wall.point3().x * scale;
+    const double y3 = y0 + wall.point3().y * scale;
 
     bfns.push_back(new LineFunction(x1, y1, x2, y2));
     borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
@@ -1060,7 +1060,7 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
     objects.back().overlay = false;
     vector<WallBorderSegment>& borders = objects.back().borders;
 
-    const double cx = x0 + wall.X() * scale, cy = y0 + wall.Y() * scale;
+    const double cx = x0 + wall.center().x * scale, cy = y0 + wall.center().y * scale;
     const double ro = wall.radius() * scale;
     const double ri = wall.radius_in() * scale;
 
@@ -1078,8 +1078,8 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
         return;
     }
 
-    const Coords& va1 = wall.angle_vector_1();
-    const Coords& va2 = wall.angle_vector_2();
+    const Vec& va1 = wall.angle_vector_1();
+    const Vec& va2 = wall.angle_vector_2();
 
     double ar[2];
     for (int i = 0; i < 2; ++i)

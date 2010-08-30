@@ -132,7 +132,7 @@ bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double ra
     const double nearEnoughFraction = (dist - maxDistanceFromTarget) / dist;
     if (nearEnoughFraction <= 0.)
         return false;
-    return room.genGetTimeTillWall(mex, mey, dx, dy, radius, nearEnoughFraction).first < nearEnoughFraction;
+    return room.genGetTimeTillWall(Coords(mex, mey), Vec(dx, dy), radius, nearEnoughFraction).first < nearEnoughFraction;
 }
 
 double Robot::ScanDir(double mex, double mey, GunDirection dir) const throw () {
@@ -144,7 +144,7 @@ double Robot::ScanDir(double mex, double mey, GunDirection dir) const throw () {
         maxDist = min(maxDist, (sx > 0 ? S_W - mex : -mex) / sx);
     if (sy != 0)
         maxDist = min(maxDist, (sy > 0 ? S_H - mey : -mey) / sy);
-    return min(maxDist, room.genGetTimeTillWall(mex, mey, sx, sy, PLAYER_RADIUS, maxDist).first);
+    return min(maxDist, room.genGetTimeTillWall(Coords(mex, mey), Vec(sx, sy), PLAYER_RADIUS, maxDist).first);
 }
 
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(double mex, double mey, int target) const throw () {

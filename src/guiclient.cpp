@@ -3613,7 +3613,7 @@ void GuiClient::draw_playfield() throw () {
             fd.rock[i].team = fx.rock[i].team;
             fd.rock[i].power = fx.rock[i].power;
             const int radius = fd.rock[i].power ? ROCKET_RADIUS : POWER_ROCKET_RADIUS;
-            const bool shadow = fd.rock[i].y + radius + 8 < plh && !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(fd.rock[i].x, fd.rock[i].y + radius + 8, radius / 2);
+            const bool shadow = fd.rock[i].y + radius + 8 < plh && !fd.map.room[fx.rock[i].px][fx.rock[i].py].fall_on_wall(Coords(fd.rock[i].x, fd.rock[i].y + radius + 8), radius / 2);
             graphics.draw_rocket(fd.rock[i], shadow, time);
         }
 
