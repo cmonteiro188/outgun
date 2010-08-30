@@ -1634,21 +1634,20 @@ void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) throw
 void Graphics::draw_pup(const Powerup& pup, double time, bool live) throw () {
     nAssert(pup.kind >= 0 && pup.kind < static_cast<int>(pup_sprite.size()));
     BITMAP* const sprite = pup_sprite[pup.kind];
-    const WorldCoords pos(pup.px, pup.py, pup.x, pup.y);
     if (sprite) {
-        ScaledCoordSet sc(pos, this);
+        ScaledCoordSet sc(pup.pos, this);
         while (sc.next())
             draw_sprite(drawbuf, sprite, sc.x() - sprite->w / 2, sc.y() - sprite->h / 2);
     }
     else
         switch (pup.kind) {
-        /*break;*/ case Powerup::pup_shield:       draw_pup_shield      (pos, live);
-            break; case Powerup::pup_turbo:        draw_pup_turbo       (pos, live);
-            break; case Powerup::pup_shadow:       draw_pup_shadow      (pos, time);
-            break; case Powerup::pup_power:        draw_pup_power       (pos, time);
-            break; case Powerup::pup_weapon:       draw_pup_weapon      (pos, time);
-            break; case Powerup::pup_health:       draw_pup_health      (pos, time);
-            break; case Powerup::pup_deathbringer: draw_pup_deathbringer(pos, time, live);
+        /*break;*/ case Powerup::pup_shield:       draw_pup_shield      (pup.pos, live);
+            break; case Powerup::pup_turbo:        draw_pup_turbo       (pup.pos, live);
+            break; case Powerup::pup_shadow:       draw_pup_shadow      (pup.pos, time);
+            break; case Powerup::pup_power:        draw_pup_power       (pup.pos, time);
+            break; case Powerup::pup_weapon:       draw_pup_weapon      (pup.pos, time);
+            break; case Powerup::pup_health:       draw_pup_health      (pup.pos, time);
+            break; case Powerup::pup_deathbringer: draw_pup_deathbringer(pup.pos, time, live);
             break; default: nAssert(0);
         }
 }

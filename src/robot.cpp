@@ -699,7 +699,7 @@ ClientControls Robot::GetPowerup(double mex, double mey, bool onImportantMission
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (!fx.item[i].real() || area(fx.item[i].position()) != myArea())
             continue;
-        const Vec d(fx.item[i].x - mex, fx.item[i].y - mey);
+        const Vec d = fx.item[i].pos.local() - Vec(mex, mey);
         if (onImportantMission) {
             if (IsBehindWall(mex, mey, d.x, d.y, PLAYER_RADIUS, PLAYER_RADIUS + POWERUP_RADIUS))
                 continue;

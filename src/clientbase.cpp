@@ -807,10 +807,10 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_pup_visible: {
         const uint8_t iid = read.U8();
         fx.item[iid].kind = static_cast<Powerup::Pup_type>(read.U8(0, Powerup::pup_last_real));
-        fx.item[iid].px = read.U8(0, fx.map.w - 1);
-        fx.item[iid].py = read.U8(0, fx.map.h - 1);
-        fx.item[iid].x = read.U16();
-        fx.item[iid].y = read.U16();
+        fx.item[iid].pos.room.x = read.U8(0, fx.map.w - 1);
+        fx.item[iid].pos.room.y = read.U8(0, fx.map.h - 1);
+        fx.item[iid].pos.x = read.U16();
+        fx.item[iid].pos.y = read.U16();
     }
 
     break; case data_pup_picked:

@@ -1897,13 +1897,10 @@ void ServerWorld::drop_powerup(const ServerPlayer& player) throw () {
     for (int p = 0; p < MAX_POWERUPS; p++)
         if (item[p].kind == Powerup::pup_unused) {
             item[p].kind = player_items[rand() % player_items.size()];
-            item[p].px = player.room().x;
-            item[p].py = player.room().y;
-            item[p].x = static_cast<int>(player.pos.x);
-            item[p].y = static_cast<int>(player.pos.y);
+            item[p].pos = WorldCoords(player.room(), static_cast<int>(player.pos.x), static_cast<int>(player.pos.y));
             // inform players
             for (int i = 0; i < maxplayers; i++)
-                if (this->player[i].used && this->player[i].room().x == item[p].px && this->player[i].room().y == item[p].py)
+                if (this->player[i].used && this->player[i].room() == item[p].room())
                     net->sendPowerupVisible(i, p, item[p]);
             if (host->recording_active())
                 net->sendPowerupVisible(pid_record, p, item[p]);
@@ -1937,7 +1934,7 @@ void ServerWorld::respawn_powerup(int p) throw () {
         //check items if no players found
         if (runaway > 100)
             for (int i = 0; i < MAX_POWERUPS; i++)
-                if (item[i].kind != Powerup::pup_unused && RoomCoords(item[i].px, item[i].py) == pos.room) {
+                if (item[i].kind != Powerup::pup_unused && item[i].room() == pos.room) {
                     hit = true;
                     break;
                 }
@@ -1955,10 +1952,7 @@ void ServerWorld::respawn_powerup(int p) throw () {
             return;
     }
     item[p].kind = pupConfig.choose_powerup_kind();
-    item[p].px = pos.room.x;
-    item[p].py = pos.room.y;
-    item[p].x = pos.x;
-    item[p].y = pos.y;
+    item[p].pos = pos;
     for (int i = 0; i < maxplayers; i++)
         if (player[i].used && player[i].room() == pos.room)
             net->sendPowerupVisible(i, p, item[p]);
@@ -2000,7 +1994,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
     Powerup& it = item[pk];
     ServerPlayer& pl = player[pid];
 
-    net->broadcastPowerupPicked(it.px, it.py, pk);
+    net->broadcastPowerupPicked(it.room().x, it.room().y, pk);
 
     // Check which powerups player has.
     bool pups[Powerup::pup_last_real + 1];
@@ -2157,7 +2151,7 @@ void ServerWorld::game_player_screen_change(int p) throw () {
     //check for new powerups visible
     for (int i = 0; i < MAX_POWERUPS; i++) {
         const Powerup& it = item[i];
-        if (it.real() && RoomCoords(it.px, it.py) == player[p].room())
+        if (it.real() && it.room() == player[p].room())
             net->sendPowerupVisible(p, i, it);
     }
     // check for rockets visible to the new room
@@ -3281,7 +3275,7 @@ void ServerWorld::simulateFrame() throw () {
         // Players under deathbringer effect can not take powerups.
         if (!pl.under_deathbringer_effect(get_time()))
             for (int k = 0; k < MAX_POWERUPS; k++)
-                if (item[k].kind <= Powerup::pup_last_real && RoomCoords(item[k].px, item[k].py) == pl.room() && (Coords(item[k].x, item[k].y) - pl.pos.local()).mag2() < sqr(touchRadius))
+                if (item[k].kind <= Powerup::pup_last_real && item[k].room() == pl.room() && (item[k].pos.local() - pl.pos.local()).mag2() < sqr(touchRadius))
                     game_touch_powerup(i, k);
 
         // limit health and energy (after powerups because they might have an effect)

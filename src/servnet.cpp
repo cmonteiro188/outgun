@@ -3076,12 +3076,12 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
 void ServerNetworking::sendPowerupVisible(int pid, int pup_id, const Powerup& it) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_pup_visible);
-    msg.U8(pup_id);  //what item
-    msg.U8(it.kind); //kind
-    msg.U8(it.px);       //screen
-    msg.U8(it.py);
-    msg.U16(it.x);  //pos in screen
-    msg.U16(it.y);
+    msg.U8(pup_id);
+    msg.U8(it.kind);
+    msg.U8(it.room().x);
+    msg.U8(it.room().y);
+    msg.U16(it.pos.x);
+    msg.U16(it.pos.y);
     if (pid == pid_record)
         record_message(msg);
     else

@@ -752,13 +752,13 @@ public:
 
     double respawn_time;
 
-    int px; //screen
-    int py;
-    int x;  //position
-    int y;
+    WorldCoords pos;
 
     Powerup() throw () : kind(pup_unused) { }
-    WorldCoords position() const throw () { return WorldCoords(px, py, x, y); }
+
+    const WorldCoords& position() const throw () { return pos; }
+    const RoomCoords& room() const throw () { return pos.room; }
+
     bool real() const throw () { return kind <= pup_last_real; }
 };
 
