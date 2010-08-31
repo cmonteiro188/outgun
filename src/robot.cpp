@@ -125,7 +125,7 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double 
 }
 
 bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double radius, double maxDistanceFromTarget) const throw () {
-    const Room& room = fx.map.room[fx.player[me].room().x][fx.player[me].room().y];
+    const Room& room = fx.map[fx.player[me].room()];
     const double dist = sqrt(sqr(dx) + sqr(dy));
     if (dist == 0)
         return false;
@@ -138,7 +138,7 @@ bool Robot::IsBehindWall(double mex, double mey, double dx, double dy, double ra
 double Robot::ScanDir(double mex, double mey, GunDirection dir) const throw () {
     const double deg = dir.toRad();
     const double sx = cos(deg), sy = sin(deg);
-    const Room& room = fx.map.room[fx.player[me].room().x][fx.player[me].room().y];
+    const Room& room = fx.map[fx.player[me].room()];
     double maxDist = 1e99;
     if (sx != 0)
         maxDist = min(maxDist, (sx > 0 ? S_W - mex : -mex) / sx);
@@ -191,7 +191,7 @@ int Robot::GetDangerousRocket() const throw () {
 
     const ClientPlayer& player = fx.player[me];
 
-    const Room& room = fx.map.room[player.room().x][player.room().y];
+    const Room& room = fx.map[player.room()];
 
     const double bounceTime = fx.getTimeTillBounce(room, player, PLAYER_RADIUS, thinkAheadFrames).first;
 
@@ -768,7 +768,7 @@ Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw ()
         if (pl.team() != fx.player[me].team()) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
-            if (fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame > pl.posUpdated)
+            if (fx.map[pl.room()].enemies_seen_frame > pl.posUpdated)
                 continue;
             c.enemies++;
         }
@@ -845,7 +845,7 @@ void Robot::BuildMap() throw () {
 
     for (int x = 0; x < fx.map.w; ++x)
         for (int y = 0; y < fx.map.h; ++y)
-            fx.map.room[x][y].enemies_seen_frame = 0;
+            fx.map[RoomCoords(x, y)].enemies_seen_frame = 0;
 
     for (int i = 0; i < Table_Max; i++)
         distanceTable[i].center = 0;
@@ -1211,7 +1211,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
         if (enemy) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
-            if (fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame > pl.posUpdated)
+            if (fx.map[pl.room()].enemies_seen_frame > pl.posUpdated)
                 continue;
         }
 
@@ -1293,7 +1293,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             if (state == 3 && !pl.onscreen) { // check if the position is current enough
                 if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
                     continue;
-                if (fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame > pl.posUpdated)
+                if (fx.map[pl.room()].enemies_seen_frame > pl.posUpdated)
                     continue;
             }
             pos = pl.position();
@@ -1326,7 +1326,7 @@ void Robot::TargetFog() throw () {
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
             continue;
-        const double delta = fabs(fx.frame - fx.map.room[na->roomx][na->roomy].enemies_seen_frame);
+        const double delta = fabs(fx.frame - fx.map[RoomCoords(na->roomx, na->roomy)].enemies_seen_frame);
         if (delta >= max_delta) {
             max_delta = delta;
             target = na;
@@ -1438,7 +1438,7 @@ bool Robot::IsMission() const throw () {
 void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
     if (pl.posUpdated < fx.frame - FADEOUT) // we don't care about them anymore
         return;
-    if (pl.posUpdated >= fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame) // they could still be there
+    if (pl.posUpdated >= fx.map[pl.room()].enemies_seen_frame) // they could still be there
         return;
 
     // see where they could have gone
@@ -1459,7 +1459,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
             continue;
 
         const Area* n = ni->area;
-        const double nSeen = fx.map.room[n->roomx][n->roomy].enemies_seen_frame;
+        const double nSeen = fx.map[RoomCoords(n->roomx, n->roomy)].enemies_seen_frame;
         if (nSeen >= fx.frame - 10)
             continue; // actually, they could have went in and out before nSeen if there was a period of the room not being seen, but such is hard to keep track of
 
@@ -1491,12 +1491,12 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
 ClientControls Robot::getRobotControls() throw () {
     const Vec pos = fx.player[me].pos.local() + averageLag * fx.player[me].vel;
 
-    fx.map.room[fx.player[me].room().x][fx.player[me].room().y].enemies_seen_frame = fx.frame;
+    fx.map[fx.player[me].room()].enemies_seen_frame = fx.frame;
 
     if (fx.player[me].item_shadow_time > fx.frame / 10.) {
         for (int x = 0; x < fx.map.w; ++x)
             for (int y = 0; y < fx.map.h; ++y) {
-                double& esf = fx.map.room[x][y].enemies_seen_frame;
+                double& esf = fx.map[RoomCoords(x, y)].enemies_seen_frame;
                 esf = max(esf, fx.frame - 10); // estimate at most 10 frames to send everyone's position (assumes that we already had shadow 10 frames ago)
             }
     }
@@ -1506,7 +1506,7 @@ ClientControls Robot::getRobotControls() throw () {
         if (!p.used || p.dead || p.team() != fx.player[me].team())
             continue;
         if (p.posUpdated == fx.frame && p.fromMinimapUpdate && p.prevMapPosUpdateFrame >= p.posUpdated - 20 && p.prevMapUpdateRoom == p.room()) {
-            double& esf = fx.map.room[p.room().x][p.room().y].enemies_seen_frame;
+            double& esf = fx.map[p.room()].enemies_seen_frame;
             esf = max(esf, p.prevMapPosUpdateFrame); // we'd expect to have received information of any enemies in the room between the two updates of the friend
         }
     }

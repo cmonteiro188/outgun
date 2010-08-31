@@ -207,10 +207,20 @@ class Map {
     bool parse_line(LogSet& log, const std::string& line, const std::vector<std::pair<std::string, std::vector<std::string> > >& label_lines,
                     int& crx, int& cry, double& scalex, double& scaley, bool label_block = false) throw ();
 
+    std::vector< std::vector<Room> > rooms;  // accessed by [x][y]
+
+    Room& room(const RoomCoords& coords) throw () {
+        nAssert(coords.x >= 0 && coords.x < w && coords.y >= 0 && coords.y < h);
+        return rooms[coords.x][coords.y];
+    }
+    const Room& room(const RoomCoords& coords) const throw () {
+        nAssert(coords.x >= 0 && coords.x < w && coords.y >= 0 && coords.y < h);
+        return rooms[coords.x][coords.y];
+    }
+
 public:
     MapTeam tinfo[2];   //team information for red=0 and blue=1 teams
     std::vector<WorldCoords> wild_flags;
-    std::vector< std::vector<Room> > room;  // accessed by [x][y]
 
     std::string title;  //map title
     std::string author;
@@ -219,14 +229,11 @@ public:
 
     Map() throw () : w(0), h(0), crc(0) { }
 
-    bool fall_on_wall(int px, int py, double x1, double y1, double x2, double y2) const throw () {
-        nAssert(px>=0 && py>=0 && px<w && py<h);
-        return room[px][py].fall_on_wall(x1, y1, x2, y2);
-    }
-    bool fall_on_wall(int px, int py, double x, double y, double r) const throw () {
-        nAssert(px>=0 && py>=0 && px<w && py<h);
-        return room[px][py].fall_on_wall(Coords(x, y), r);
-    }
+    const Room& operator[](const RoomCoords& coords) const throw () { return room(coords); }
+          Room& operator[](const RoomCoords& coords)       throw () { return room(coords); }
+
+    bool fall_on_wall(int px, int py, double x1, double y1, double x2, double y2) const throw () { return room(RoomCoords(px, py)).fall_on_wall(x1, y1, x2, y2); }
+    bool fall_on_wall(int px, int py, double x, double y, double r) const throw () { return room(RoomCoords(px, py)).fall_on_wall(Coords(x, y), r); }
     bool fall_on_wall(const WorldRect& rect) const throw () { return fall_on_wall(rect.room.x, rect.room.y, rect.x1, rect.y1, rect.x2, rect.y2); }
     bool fall_on_wall(const WorldCoords& center, double r) const throw () { return fall_on_wall(center.room.x, center.room.y, center.x, center.y, r); }
     bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) throw ();

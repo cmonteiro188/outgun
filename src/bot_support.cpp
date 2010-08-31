@@ -58,7 +58,7 @@ void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
 }
 
 ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
-    const Room& room = map.room[roomx][roomy];
+    const Room& room = map[RoomCoords(roomx, roomy)];
 
     static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
     static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;

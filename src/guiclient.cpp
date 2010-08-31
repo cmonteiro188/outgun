@@ -3655,7 +3655,7 @@ void GuiClient::draw_playfield() throw () {
                 }
                 else
                     aimDist = -1;
-                graphics.draw_aim(fx.map.room[fx.player[me].room().x][fx.player[me].room().y], playerPos(me), gunDir, aimDist, me / TSIZE);
+                graphics.draw_aim(fx.map[fx.player[me].room()], playerPos(me), gunDir, aimDist, me / TSIZE);
             }
         }
     }

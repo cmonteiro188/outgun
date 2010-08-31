@@ -487,7 +487,7 @@ void Graphics::draw_background(const Map& map, const VisibilityMap& roomVis, con
 }
 
 void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int roomy, int texRoomX, int texRoomY, bool mapInfoMode) throw () {
-    const Room& room = map.room[roomx][roomy];
+    const Room& room = map[RoomCoords(roomx, roomy)];
 
     // the room at top left is textured like it's the room at coordinates (texRoomX,texRoomY)
     // this means moving the texture offsetting origin to the top left of room (0,0)
@@ -1089,7 +1089,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
             const double bx = startx + x * plw * scale;
             scene.setScaling(bx, by, scale);
             scene.setClipping(0, 0, plw, plh);
-            const Room& room = map.room[x][y];
+            const Room& room = map[RoomCoords(x, y)];
             for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
                 scene.addWallClipped(*wi, 1);
         }

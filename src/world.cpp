@@ -498,7 +498,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         }
         x1 *= plw / scalex; x2 *= plw / scalex;
         y1 *= plh / scaley; y2 *= plh / scaley;
-        Room& rm = room[crx][cry];
+        Room& rm = room(RoomCoords(crx, cry));
         RectWall* wall = new RectWall(x1, y1, x2, y2, texid, alpha);
         if (command == "W")
             rm.addWall(wall);
@@ -524,7 +524,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         }
         x1 *= plw / scalex; x2 *= plw / scalex; x3 *= plw / scalex;
         y1 *= plh / scaley; y2 *= plh / scaley; y3 *= plh / scaley;
-        Room& rm = room[crx][cry];
+        Room& rm = room(RoomCoords(crx, cry));
         TriWall* wall = new TriWall(x1, y1, x2, y2, x3, y3, texid, alpha);
         if (type == 'W')
             rm.addWall(wall);
@@ -564,7 +564,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
         y *= plh / scaley;
         ro *= plh / scaley;
         ri *= plh / scaley;
-        Room& rm = room[crx][cry];
+        Room& rm = room(RoomCoords(crx, cry));
         CircWall* wall = new CircWall(x, y, ro, ri, a1, a2, texid, alpha);
         if (type == 'W')
             rm.addWall(wall);
@@ -628,8 +628,8 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
-            room.resize(w);
-            for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
+            rooms.resize(w);
+            for (vector<vector<Room> >::iterator ri = rooms.begin(); ri != rooms.end(); ++ri)
                 ri->resize(h);
         }
         else if (name == "height") {    // P height h : set map height to h rooms
@@ -642,7 +642,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
                 log.error(_("Invalid map line: $1", line));
                 return false;
             }
-            for (vector<vector<Room> >::iterator ri = room.begin(); ri != room.end(); ++ri)
+            for (vector<vector<Room> >::iterator ri = rooms.begin(); ri != rooms.end(); ++ri)
                 ri->resize(h);
         }
         else if (name == "title") { // P title text : set map title to text
@@ -1310,7 +1310,7 @@ void WorldBase::addRocket(int i, int playernum, int team, const WorldCoords& pos
 
     if (xdelta) {
         r.vel = xdelta * shot_deltax * Vec(cos(deg + N_PI_2), sin(deg + N_PI_2));
-        const double wallTime = getTimeTillWall(map.room[pos.room.x][pos.room.y], r, 1.01);
+        const double wallTime = getTimeTillWall(map[pos.room], r, 1.01);
         r.move(1);
         if (wallTime < 1.) {
             cb.rocketHitWall(i, r.power, r.pos);
@@ -1321,7 +1321,7 @@ void WorldBase::addRocket(int i, int playernum, int team, const WorldCoords& pos
     r.vel = physics.rocket_speed * Vec(cos(deg), sin(deg));
     // advance 15 pixels before really shooting -> don't hit very close by players
     const double advance = 15. / physics.rocket_speed + double(frameAdvance);
-    const double wallTime = getTimeTillWall(map.room[pos.room.x][pos.room.y], r, advance * 1.01);
+    const double wallTime = getTimeTillWall(map[pos.room], r, advance * 1.01);
     if (wallTime <= advance) {
         r.move(wallTime);
         cb.rocketHitWall(i, r.power, r.pos);
@@ -2714,7 +2714,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
     // apply physics to each room separately
     for (int rx = 0; rx < map.w; ++rx)
         for (int ry = 0; ry < map.h; ++ry)
-            applyPhysicsToRoom(map.room[rx][ry], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
+            applyPhysicsToRoom(map[RoomCoords(rx, ry)], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
 void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) throw () {
@@ -2722,7 +2722,7 @@ void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius
 
     double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
     for (;;) {
-        const BounceData bounce = getTimeTillBounce(map.room[pl.room().x][pl.room().y], pl, plyRadius, fraction);
+        const BounceData bounce = getTimeTillBounce(map[pl.room()], pl, plyRadius, fraction);
         const double bounceTime = bounce.first + subFrame;
         const double mt = min(fraction, max(bounceTime, subFrame + .01)); // mt is where subFrame will be advanced to for the next round
         const double plTime = min(bounceTime - .001, mt);
@@ -2992,7 +2992,7 @@ void WorldBase::applyPhysicsToRoom(const Room& room, vector<int>& rply, vector<i
 void WorldBase::rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) throw () {
     for (int i = 0; i < MAX_ROCKETS; ++i)
         if (rock[i].owner != -1) {
-            const double wallTime = getTimeTillWall(map.room[rock[i].room().x][rock[i].room().y], rock[i], frames);
+            const double wallTime = getTimeTillWall(map[rock[i].room()], rock[i], frames);
             if (wallTime < frames) {
                 rock[i].move(wallTime);
                 callback.rocketHitWall(i, rock[i].power, rock[i].pos);
