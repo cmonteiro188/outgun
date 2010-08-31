@@ -85,6 +85,15 @@ void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
     }
 }
 
+WorldCoords ClientBase::readPosition(BinaryReader& read) const throw () {
+    WorldCoords pos;
+    pos.room.x = read.U8(0, fx.map.w - 1);
+    pos.room.y = read.U8(0, fx.map.h - 1);
+    pos.x = read.S16();
+    pos.y = read.S16();
+    return pos;
+}
+
 ClientBase::ClientBase(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
     externalErrorLog(externalErrorLog_),
     errorLog(clientLog, externalErrorLog, "ERROR: "),
@@ -714,8 +723,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const uint8_t rteampower = read.U8(); // power (bit 0) and shooter pid/team
         const bool power = rteampower & 1;
 
-        const uint8_t rpx = read.U8(0, fx.map.w - 1), rpy = read.U8(0, fx.map.h - 1);
-        const int16_t rx = read.S16(), ry = read.S16();
+        WorldCoords pos = readPosition(read);
 
         int team;
         if (protocolExtensions >= 0) {
@@ -727,7 +735,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 }
                 team = pid / TSIZE;
                 if (fx.player[pid].posUpdated < frameno) {
-                    fx.player[pid].setPosition(WorldCoords(rpx, rpy, rx, ry), frameno);
+                    fx.player[pid].setPosition(pos, frameno);
                     fx.player[pid].gundir = dir;
                 }
             }
@@ -738,9 +746,9 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             team = (rteampower & 2) >> 1;
 
         ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+        fx.shootRockets(cb, 0, rpow, dir, rids, static_cast<int>(fx.frame - frameno), team, power, pos);
 
-        netRocketFired(rpx, rpy, rx, ry, power);
+        netRocketFired(pos, power);
     }
 
     break; case data_old_rocket_visible: {
@@ -764,11 +772,10 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool power = rteampower & 1;
         const int team = (rteampower & 2) >> 1;
 
-        const uint8_t rpx = read.U8(0, fx.map.w - 1), rpy = read.U8(0, fx.map.h - 1);
-        const int16_t rx = read.S16(), ry = read.S16();
+        WorldCoords pos = readPosition(read);
 
         ClientPhysicsCallbacks cb(*this);
-        fx.shootRockets(cb, 0, 1, dir, &rockid, static_cast<int>(fx.frame - frameno), team, power, rpx, rpy, rx, ry);
+        fx.shootRockets(cb, 0, 1, dir, &rockid, static_cast<int>(fx.frame - frameno), team, power, pos);
         // no sound
     }
 

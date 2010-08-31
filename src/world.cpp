@@ -1297,20 +1297,20 @@ void WorldBase::add_random_flag(int t) throw () {
     }
 }
 
-void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x, int y,
+void WorldBase::addRocket(int i, int playernum, int team, const WorldCoords& pos,
                           bool power, GunDirection dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) throw () {
     Rocket& r = rock[i];
     r.owner = playernum;
     r.team = team;
     r.power = power;
-    r.pos = WorldCoords(px, py, x, y);
+    r.pos = pos;
     r.direction = dir;
 
     const double deg = dir.toRad();
 
     if (xdelta) {
         r.vel = xdelta * shot_deltax * Vec(cos(deg + N_PI_2), sin(deg + N_PI_2));
-        const double wallTime = getTimeTillWall(map.room[px][py], r, 1.01);
+        const double wallTime = getTimeTillWall(map.room[pos.room.x][pos.room.y], r, 1.01);
         r.move(1);
         if (wallTime < 1.) {
             cb.rocketHitWall(i, r.power, r.pos);
@@ -1321,7 +1321,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
     r.vel = physics.rocket_speed * Vec(cos(deg), sin(deg));
     // advance 15 pixels before really shooting -> don't hit very close by players
     const double advance = 15. / physics.rocket_speed + double(frameAdvance);
-    const double wallTime = getTimeTillWall(map.room[px][py], r, advance * 1.01);
+    const double wallTime = getTimeTillWall(map.room[pos.room.x][pos.room.y], r, advance * 1.01);
     if (wallTime <= advance) {
         r.move(wallTime);
         cb.rocketHitWall(i, r.power, r.pos);
@@ -1333,7 +1333,7 @@ void WorldBase::addRocket(int i, int playernum, int team, int px, int py, int x,
 }
 
 void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, const uint8_t* rids, int frameAdvance,
-                             int team, bool power, int px, int py, int x, int y) throw () {
+                             int team, bool power, const WorldCoords& pos) throw () {
     struct RocketFormation {
         int nForward;
         int directions[6];
@@ -1352,19 +1352,19 @@ void WorldBase::shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, G
     const RocketFormation& form = formations[pow - 1];
 
     if (form.nForward == 1)
-        addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameAdvance, cb);
+        addRocket(rids[0], playernum, team, pos, power, dir,  0, frameAdvance, cb);
     else if (form.nForward == 2) {
-        addRocket(rids[0], playernum, team, px, py, x, y, power, dir, -1, frameAdvance, cb);
-        addRocket(rids[1], playernum, team, px, py, x, y, power, dir, +1, frameAdvance, cb);
+        addRocket(rids[0], playernum, team, pos, power, dir, -1, frameAdvance, cb);
+        addRocket(rids[1], playernum, team, pos, power, dir, +1, frameAdvance, cb);
     }
     else {
-        addRocket(rids[0], playernum, team, px, py, x, y, power, dir,  0, frameAdvance, cb);
-        addRocket(rids[1], playernum, team, px, py, x, y, power, dir, -2, frameAdvance, cb);
-        addRocket(rids[2], playernum, team, px, py, x, y, power, dir, +2, frameAdvance, cb);
+        addRocket(rids[0], playernum, team, pos, power, dir,  0, frameAdvance, cb);
+        addRocket(rids[1], playernum, team, pos, power, dir, -2, frameAdvance, cb);
+        addRocket(rids[2], playernum, team, pos, power, dir, +2, frameAdvance, cb);
     }
     const int* dirp = &form.directions[0];
     for (int ri = form.nForward; ri < pow; ++ri, ++dirp)
-        addRocket(rids[ri], playernum, team, px, py, x, y, power, GunDirection(dir).adjust(*dirp), 0, frameAdvance, cb);
+        addRocket(rids[ri], playernum, team, pos, power, GunDirection(dir).adjust(*dirp), 0, frameAdvance, cb);
 }
 
 void ConstFlagIterator::findValid() throw () {
@@ -2381,7 +2381,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
         sid[i] = getFreeRocket();
 
     ServerPhysicsCallbacks cb(*this);
-    WorldBase::shootRockets(cb, pid, shots, player[pid].attackGunDir, sid, 0, pid/TSIZE, player[pid].item_power, pos.room.x, pos.room.y, pos.x, pos.y);
+    WorldBase::shootRockets(cb, pid, shots, player[pid].attackGunDir, sid, 0, pid/TSIZE, player[pid].item_power, pos);
 
     //build people-that-know DOUBLE WORD (32bits == 32players max)
     //send message to players on the same screen
@@ -2394,7 +2394,7 @@ void ServerWorld::shootRockets(int pid, int shots) throw () {
     for (int k = 0; k < shots; k++)
         rock[sid[k]].vislist = vislist;
 
-    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, pos.room.x, pos.room.y, pos.x, pos.y, vislist);
+    net->sendRocketMessage(shots, player[pid].attackGunDir, sid, pid, player[pid].item_power, pos, vislist);
 }
 
 void ServerWorld::deleteRocket(int rid, int16_t hitx, int16_t hity, int targ) throw () {

@@ -109,6 +109,13 @@ ServerNetworking::~ServerNetworking() throw () {
     }
 }
 
+void ServerNetworking::writePos(BinaryWriter& msg, const WorldCoords& pos) const throw () {
+    msg.U8(pos.room.x);
+    msg.U8(pos.room.y);
+    msg.S16(static_cast<int>(pos.x));
+    msg.S16(static_cast<int>(pos.y));
+}
+
 bool ServerNetworking::writeToAdminShell(ConstDataBlockRef data) const throw () {
     try {
         int written;
@@ -2982,7 +2989,7 @@ void ServerNetworking::sendWeaponPower(int pid) const throw () {
 }
 
 void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power,
-                                         int px, int py, int x, int y, uint32_t vislist) const throw () { // sid = shot-id; array of uint8_t[shots]
+                                         const WorldCoords& pos, uint32_t vislist) const throw () { // sid = shot-id; array of uint8_t[shots]
     for (int iProto = 0; iProto < 2; ++iProto) {
         const bool preciseGundir = iProto == 1 && world.physics.allowFreeTurning;
         BinaryBuffer<256> msg;
@@ -3004,10 +3011,7 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, uint8_t
         else
             shotType |= 2 | (pid << 2); // we're always sending the pid, but this might change in the future
         msg.U8(shotType);    // owner of all rockets
-        msg.U8(px);  //coord
-        msg.U8(py);
-        msg.S16(x);
-        msg.S16(y);
+        writePos(msg, pos);
 
         for (int i = 0; i < maxplayers; i++)
             if ((vislist & (1 << i)) && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
@@ -3064,10 +3068,7 @@ void ServerNetworking::sendDeathbringer(int pid, const ServerPlayer& ply) const 
     msg.U8(data_deathbringer);
     msg.U8(pid / TSIZE); // team
     msg.U32(world.frame);                       // frame # of the bringer shot (message can be delayed)
-    msg.U8(ply.room().x);
-    msg.U8(ply.room().y);
-    msg.U16(static_cast<unsigned>(ply.pos.x));
-    msg.U16(static_cast<unsigned>(ply.pos.y));
+    writePos(msg, ply.pos);
 
     broadcast_message(msg);
     record_message(msg);
@@ -3078,10 +3079,7 @@ void ServerNetworking::sendPowerupVisible(int pid, int pup_id, const Powerup& it
     msg.U8(data_pup_visible);
     msg.U8(pup_id);
     msg.U8(it.kind);
-    msg.U8(it.room().x);
-    msg.U8(it.room().y);
-    msg.U16(it.pos.x);
-    msg.U16(it.pos.y);
+    writePos(msg, it.pos);
     if (pid == pid_record)
         record_message(msg);
     else

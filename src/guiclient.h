@@ -464,7 +464,7 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
 
-    void netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw ();
+    void netRocketFired(const WorldCoords& pos, bool power) throw ();
     void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw ();
     void netPowerCollision(int target, double time) throw ();
     void net_data_sound(BinaryReader& read) throw ();

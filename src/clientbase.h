@@ -62,6 +62,8 @@ class ClientBase {
     #endif
     friend class TM_ConnectionUpdate;
 
+    WorldCoords readPosition(BinaryReader& read) const throw ();
+
 protected:
 
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
@@ -200,7 +202,7 @@ protected:
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
     virtual void process_replay_packet(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
 
-    virtual void netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () { (void)(rpx && rpy && rx && ry && power); }
+    virtual void netRocketFired(const WorldCoords& pos, bool power) throw () { (void)pos; (void)power; }
     virtual void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () { (void)(rockid && rokx && roky && time); }
     virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
     virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }

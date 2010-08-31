@@ -44,6 +44,7 @@ class ServerHelloResult;
 class ServerPlayer;
 class ServerWorld;
 class Rocket;
+class WorldCoords;
 
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
@@ -201,6 +202,8 @@ private:
     double playerSlotReservationTime; // the last time reservedPlayerSlots was bumped, used to erase unused reservations
     int reservedPlayerSlots; // number of clients that have been seen (in clientHello) but not yet connected
 
+    void writePos(BinaryWriter& msg, const WorldCoords& pos) const throw ();
+
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
@@ -318,7 +321,7 @@ public:
     void sendWorldReset() const throw ();
     void sendStartGame() const throw ();
     void sendWeaponPower(int pid) const throw ();
-    void sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power, int px, int py, int x, int y, uint32_t vislist) const throw (); // sid = shot-id: array of uint8_t[shots]
+    void sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power, const WorldCoords& pos, uint32_t vislist) const throw (); // sid = shot-id: array of uint8_t[shots]
     void sendOldRocketVisible(int pid, int rid, const Rocket& rocket) const throw ();
     void sendRocketDeletion(uint32_t plymask, int rid, int16_t hitx, int16_t hity, int targ) const throw ();
     void sendDeathbringer(int pid, const ServerPlayer& ply) const throw ();

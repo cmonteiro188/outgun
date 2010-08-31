@@ -850,7 +850,7 @@ public:
     static const int shot_deltax = PLAYER_RADIUS + ROCKET_RADIUS - 2;
 
 private:
-    void addRocket(int i, int playernum, int team, int px, int py, int x, int y,
+    void addRocket(int i, int playernum, int team, const WorldCoords& pos,
                    bool power, GunDirection dir, int xdelta, int frameAdvance, PhysicsCallbacksBase& cb) throw ();
 
 public: //#fix: needed by bots; make accessible through some more sophisticated methods?
@@ -900,7 +900,7 @@ public:
     virtual ~WorldBase() throw () { }
 
     void shootRockets(PhysicsCallbacksBase& cb, int playernum, int pow, GunDirection dir, const uint8_t* rids,
-                      int frameAdvance, int team, bool power, int px, int py, int x, int y) throw ();
+                      int frameAdvance, int team, bool power, const WorldCoords& pos) throw ();
 
     void run_server_player_physics(int pid) throw ();
     virtual bool load_map(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) throw () { return map.load(log, mapdir, mapname, buffer); }

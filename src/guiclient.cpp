@@ -1431,8 +1431,8 @@ void GuiClient::skip_replay_player_position(BinaryDataBlockReader& read) throw (
     read_replay_player_position(read, 0);
 }
 
-void GuiClient::netRocketFired(int rpx, int rpy, int rx, int ry, bool power) throw () {
-    if (on_screen_exact(rpx, rpy, rx, ry))
+void GuiClient::netRocketFired(const WorldCoords& pos, bool power) throw () {
+    if (on_screen_exact(pos.room.x, pos.room.y, pos.x, pos.y))
         addThreadMessage(new TM_Sound(power ? SAMPLE_POWER_FIRE : SAMPLE_FIRE));
 }
 
