@@ -120,8 +120,10 @@ void notify() {
         cerr << "Executing ./watchserver-notifier failed\n";
         abort();
     }
+    #ifdef WIFEXITED
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
         cerr << "./watchserver-notifier failed (returned " << WEXITSTATUS(status) << ")\n";
+    #endif
 }
 
 int main(int argc, const char* argv[]) {
