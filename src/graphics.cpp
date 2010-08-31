@@ -2648,7 +2648,7 @@ void Graphics::draw_effects(double time) throw () {
             continue;
         }
         const double delta = time - fx->time;
-        if (delta < 0) { // fx->time may be in the future at least with deathbringer smoke if lag prediction amount has reduced after it was created
+        if (delta < 0) { // fx->time may be in the future at least with deathbringer smoke if lag prediction amount has reduced after it was created, or frames delayed (effects added on extrapolated frames)
             fx = cfx.erase(fx);
             continue;
         }
@@ -2707,7 +2707,7 @@ void Graphics::draw_turbofx(double time) throw () {
             continue;
         }
         const double delta = time - fx->time;
-        if (delta > 0.3)
+        if (delta < 0. || delta > 0.3)
             fx = cfx.erase(fx);
         else {
             const int alpha = static_cast<int>(fx->alpha * (90 - delta * 300));
