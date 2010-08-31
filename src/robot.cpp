@@ -116,7 +116,7 @@ double Robot::distanceFromDoor(const Area::Neighbor& n, double lx, double ly) co
 }
 
 bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, double mex, double mey) const throw () {
-    const DeathbringerExplosion* const dbe = explosionInRoom(neighbor.area->roomx, neighbor.area->roomy);
+    const DeathbringerExplosion* const dbe = explosionInRoom(neighbor.area->room.x, neighbor.area->room.y);
     if (!dbe)
         return false;
     // see when we can be there at the earliest, don't worry if the explosion has expired then
@@ -522,7 +522,7 @@ ClientControls Robot::EscapeExplosion(double mex, double mey) const throw () {
     double shortestDistance = 1e99; // always excape to the nearest room regardless of the explosion location (if that's a bad direction, we probably couldn't escape in any)
     const Area* const a = myArea();
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
-        if (explosionInRoom(ni->area->roomx, ni->area->roomy))
+        if (explosionInRoom(ni->area->room.x, ni->area->room.y))
             continue;
         const double dist = distanceFromDoor(*ni, mex, mey);
         if (dist < shortestDistance) {
@@ -892,7 +892,7 @@ void Robot::setDestination(Area* const target) throw () {
         return;
     destination = target;
     #ifdef BOTDEBUG
-    fprintf(stderr, "%d: Set destination: %d %d\n", me, target->roomx, target->roomy);
+    fprintf(stderr, "%d: Set destination: %d %d\n", me, target->room.x, target->room.y);
     #endif
 
     BuildDistanceTable(target, Table_Destination);
@@ -1326,7 +1326,7 @@ void Robot::TargetFog() throw () {
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
             continue;
-        const double delta = fabs(fx.frame - fx.map[RoomCoords(na->roomx, na->roomy)].enemies_seen_frame);
+        const double delta = fabs(fx.frame - fx.map[na->room].enemies_seen_frame);
         if (delta >= max_delta) {
             max_delta = delta;
             target = na;
@@ -1459,7 +1459,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
             continue;
 
         const Area* n = ni->area;
-        const double nSeen = fx.map[RoomCoords(n->roomx, n->roomy)].enemies_seen_frame;
+        const double nSeen = fx.map[n->room].enemies_seen_frame;
         if (nSeen >= fx.frame - 10)
             continue; // actually, they could have went in and out before nSeen if there was a period of the room not being seen, but such is hard to keep track of
 
@@ -1468,7 +1468,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
 
         const double lx = doorPos.x - xDelta(ni->direction) * S_W,
                      ly = doorPos.y - yDelta(ni->direction) * S_H; // move from this-room-coords to relative to the neighbor
-        posGuess = WorldCoords(n->roomx, n->roomy, lx, ly);
+        posGuess = WorldCoords(n->room, lx, ly);
         timeGuess = max(nSeen + 10, earliestTimeThere);
         haveGuess = true;
     }
@@ -1599,7 +1599,7 @@ ClientControls Robot::getRobotControls() throw () {
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-        fprintf(stderr, "Going to %d,%d (target type %d).\n", destination->roomx, destination->roomy, destinationType);
+        fprintf(stderr, "Going to %d,%d (target type %d).\n", destination->room.x, destination->room.y, destinationType);
         #endif
         return ctrl;
     }

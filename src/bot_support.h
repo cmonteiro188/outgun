@@ -38,7 +38,7 @@ enum DistanceTableId {
 
 class AreaMap {
     class RoomAreaMap;
-    ControlledPtr<RoomAreaMap> splitRoom(const Map& map, int roomx, int roomy) throw ();
+    ControlledPtr<RoomAreaMap> splitRoom(const Map& map, const RoomCoords& room) throw ();
 
 public:
     AreaMap() throw() { }
@@ -50,7 +50,7 @@ public:
 
     class Area {
     public:
-        int roomx, roomy;
+        RoomCoords room;
 
         int distance[Table_Max];
 
@@ -77,15 +77,15 @@ public:
         std::vector<Neighbor> n; // all neighbors in the same direction must be stored in sequence
         std::vector<Area*> rn; /// all areas that have this as a neighbor
 
-        Area(int rx, int ry) throw ();
+        Area(const RoomCoords& room_) throw ();
 
-        friend ControlledPtr<RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw ();
+        friend ControlledPtr<RoomAreaMap> AreaMap::splitRoom(const Map& map, const RoomCoords& room) throw ();
         friend void AreaMap::initialize(const Map& map) throw ();
         friend AreaMap& AreaMap::operator=(const AreaMap& o) throw ();
     };
 
-          Area* identifyArea(int roomx, int roomy, double lx, double ly)       throw ();
-    const Area* identifyArea(int roomx, int roomy, double lx, double ly) const throw ();
+          Area* identifyArea(const WorldCoords& pos)       throw ();
+    const Area* identifyArea(const WorldCoords& pos) const throw ();
 
     void clearDistanceTable(DistanceTableId num) throw ();
 
@@ -96,7 +96,7 @@ private:
             virtual ~AreaMapLevel() throw () { }
             virtual AreaMapLevel* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () = 0;
 
-            virtual Area* find(double x, double y) const throw () = 0;
+            virtual Area* find(const Coords& pos) const throw () = 0;
         };
 
         class SingleArea : public AreaMapLevel {
@@ -106,7 +106,7 @@ private:
             SingleArea(Area* area) throw () : a(area) { nAssert(area); }
             SingleArea* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SingleArea(map_get_assert(areaTranslation, a)); }
 
-            Area* find(double, double) const throw () { return a; }
+            Area* find(const Coords&) const throw () { return a; }
         };
 
         class SplitByX : public AreaMapLevel {
@@ -118,7 +118,7 @@ private:
             ~SplitByX() throw () { delete l; delete r; }
             SplitByX* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SplitByX(l->clone(areaTranslation), r->clone(areaTranslation), borderX); }
 
-            Area* find(double x, double y) const throw () { return (x < borderX ? l : r)->find(x, y); }
+            Area* find(const Coords& pos) const throw () { return (pos.x < borderX ? l : r)->find(pos); }
         };
 
         class SplitByY : public AreaMapLevel {
@@ -130,7 +130,7 @@ private:
             ~SplitByY() throw () { delete t; delete b; }
             SplitByY* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new SplitByY(t->clone(areaTranslation), b->clone(areaTranslation), borderY); }
 
-            Area* find(double x, double y) const throw () { return (y < borderY ? t : b)->find(x, y); }
+            Area* find(const Coords& pos) const throw () { return (pos.y < borderY ? t : b)->find(pos); }
         };
 
         class AreaSplitter {
@@ -162,7 +162,7 @@ private:
         ~RoomAreaMap() throw () { delete topLevel; }
         RoomAreaMap* clone(const std::map<const Area*, Area*>& areaTranslation) const throw () { return new RoomAreaMap(topLevel->clone(areaTranslation)); }
 
-        Area* identifyArea(double x, double y) const throw () { return topLevel->find(x, y); }
+        Area* identifyArea(const Coords& pos) const throw () { return topLevel->find(pos); }
     };
 
     PointerVector<Area> areas;

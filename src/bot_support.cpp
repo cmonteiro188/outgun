@@ -57,8 +57,8 @@ void BotSharedDataStorage::release(const MapIdentifier& mid) throw () {
     }
 }
 
-ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx, int roomy) throw () {
-    const Room& room = map[RoomCoords(roomx, roomy)];
+ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const RoomCoords& roomPos) throw () {
+    const Room& room = map[roomPos];
 
     static const unsigned xPoints = 65; // keep this at 4n+1 for some n, to satisfy the assertion below (since plh = plw × 3 / 4)
     static const unsigned yPoints = (xPoints - 1) * plh / plw + 1;
@@ -119,7 +119,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
     vector<Area*> roomAreas;
     unsigned nCancelledAreas = 0;
     for (int areaIndex = 0; areaIndex < mapReachedCurrent; ++areaIndex) {
-        Area* const a = new Area(roomx, roomy);
+        Area* const a = new Area(roomPos);
         for (int iEdge = 0; iEdge < 2; ++iEdge) {
             const unsigned xEdge = iEdge ? xPoints - 1 : 0;
             const unsigned yEdge = iEdge ? yPoints - 1 : 0;
@@ -162,7 +162,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
         roomAreas.clear();
         nCancelledAreas = 0;
         // every room still needs an area
-        Area* const a = new Area(roomx, roomy);
+        Area* const a = new Area(roomPos);
         areas.push_back(give_control(a));
         roomAreas.push_back(a);
         // no need to touch roomMap because RoomAreaMap will see that there's only one area
@@ -176,7 +176,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, int roomx
     return give_control(new RoomAreaMap(roomMap, roomAreas));
 }
 
-AreaMap::Area::Area(int rx, int ry) throw () : roomx(rx), roomy(ry) {
+AreaMap::Area::Area(const RoomCoords& room_) throw () : room(room_) {
     for (int i = 0; i < Table_Max; i++)
         distance[i] = -1;
 }
@@ -341,13 +341,13 @@ AreaMap::RoomAreaMap::RoomAreaMap(const vector< vector<int> >& roomMap, const ve
         topLevel = AreaSplitter(roomMap, roomAreas, 0, 0, roomMap.size() - 1, roomMap[0].size() - 1)();
 }
 
-AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly) throw () {
-    return const_cast<Area*>(static_cast<const AreaMap*>(this)->identifyArea(roomx, roomy, lx, ly));
+AreaMap::Area* AreaMap::identifyArea(const WorldCoords& pos) throw () {
+    return const_cast<Area*>(static_cast<const AreaMap*>(this)->identifyArea(pos));
 }
 
-const AreaMap::Area* AreaMap::identifyArea(int roomx, int roomy, double lx, double ly) const throw () {
-    if (roomx >= 0 && roomy >= 0 && (unsigned)roomx < roomMaps.size() && (unsigned)roomy < roomMaps[0].size())
-        return roomMaps[roomx][roomy].identifyArea(lx, ly);
+const AreaMap::Area* AreaMap::identifyArea(const WorldCoords& pos) const throw () {
+    if (pos.room.x >= 0 && pos.room.y >= 0 && (unsigned)pos.room.x < roomMaps.size() && (unsigned)pos.room.y < roomMaps[0].size())
+        return roomMaps[pos.room.x][pos.room.y].identifyArea(pos.local());
     else
         return &areas.front(); // just return some area even for invalid coordinates; they are temporary and won't cause much harm
 }
@@ -385,7 +385,7 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
     for (int x = 0; x < sourceMap.w; ++x) {
         roomMaps.push_back(give_control(new PointerVector<RoomAreaMap>()));
         for (int y = 0; y < sourceMap.h; ++y)
-            roomMaps[x].push_back(splitRoom(sourceMap, x, y));
+            roomMaps[x].push_back(splitRoom(sourceMap, RoomCoords(x, y)));
     }
 
     // link doors to target areas
@@ -400,10 +400,10 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
                 areaNeighborIndex.clear(); // this is required because the same Area can be reachable in multiple directions if the map is just one room high and/or wide; we need separate Neighbors for each direction
             }
             const int dx = n.dx(), dy = n.dy();
-            n.area = identifyArea(positiveModulo(ai->roomx + dx, sourceMap.w),
-                                  positiveModulo(ai->roomy + dy, sourceMap.h),
-                                  dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
-                                  dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2);
+            n.area = identifyArea(WorldCoords(positiveModulo(ai->room.x + dx, sourceMap.w),
+                                              positiveModulo(ai->room.y + dy, sourceMap.h),
+                                              dx ? (dx < 0 ? plw : 0) : (n.doors.front().first + n.doors.front().second) / 2,
+                                              dy ? (dy < 0 ? plh : 0) : (n.doors.front().first + n.doors.front().second) / 2));
             const map<Area*, unsigned>::const_iterator nii = areaNeighborIndex.find(n.area);
             if (nii == areaNeighborIndex.end()) {
                 areaNeighborIndex[n.area] = ni++;

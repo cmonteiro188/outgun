@@ -70,10 +70,10 @@ class Robot : public ClientBase, public BotInterface {
 
     void BuildMap() throw ();
 
-          Area* area(int roomx, int roomy, double lx, double ly)       throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
-    const Area* area(int roomx, int roomy, double lx, double ly) const throw () { return areaMap.identifyArea(roomx, roomy, lx, ly); }
-          Area* area(const WorldCoords& c)       throw () { return area(c.room.x, c.room.y, c.x, c.y); }
-    const Area* area(const WorldCoords& c) const throw () { return area(c.room.x, c.room.y, c.x, c.y); }
+          Area* area(int roomx, int roomy, double lx, double ly)       throw () { return area(WorldCoords(roomx, roomy, lx, ly)); }
+    const Area* area(int roomx, int roomy, double lx, double ly) const throw () { return area(WorldCoords(roomx, roomy, lx, ly)); }
+          Area* area(const WorldCoords& c)       throw () { return areaMap.identifyArea(c); }
+    const Area* area(const WorldCoords& c) const throw () { return areaMap.identifyArea(c); }
           Area* area(const ClientPlayer& p)       throw () { return area(p.position()); }
     const Area* area(const ClientPlayer& p) const throw () { return area(p.position()); }
           Area* myArea()       throw () { return area(fx.player[me]); }
