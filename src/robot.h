@@ -63,6 +63,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
+    Coords      myPos; // extrapolated
 
     struct TeamCounts {
         int enemies, friends;
@@ -84,8 +85,8 @@ class Robot : public ClientBase, public BotInterface {
     bool        imminentExplosionHere() const throw ();
     class AlreadyInRoom { }; // exception
     Coords      nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) const throw (AlreadyInRoom);
-    double      distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw ();
-    bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, const Coords& myPos) const throw ();
+    double      distanceFromDoor(const Area::Neighbor& n) const throw ();
+    bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const throw ();
 
     void        updateUnknownPosition(ClientPlayer& pl) throw ();
 
@@ -98,40 +99,40 @@ class Robot : public ClientBase, public BotInterface {
 
     bool        AmILast() const throw ();
     bool        IsMission() const throw (); // have i mission? (No agression mode)
-    int         GetEasyEnemy(const Coords& myPos) const throw (); // get easy enemy to kill
+    int         GetEasyEnemy() const throw (); // get easy enemy to kill
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
     int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
     bool        IsFlagAtBase(const Flag& f, int team) const throw ();
     enum AimLevel { AL_None, AL_Near, AL_Full };
-    std::pair<AimLevel, int> TryAimTradTurning(const Coords& myPos, int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
-    std::pair<bool, GunDirection> TryAimFreeTurning(const Coords& myPos, int target) const throw (); // returns (shoot?, direction)
-    double      GetHitTime(const Coords& myPos, const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
-    double      GetHitTeammateTime(const Coords& myPos, const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
+    std::pair<AimLevel, int> TryAimTradTurning(int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
+    std::pair<bool, GunDirection> TryAimFreeTurning(int target) const throw (); // returns (shoot?, direction)
+    double      GetHitTime(const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
+    double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
-    bool        IsBehindWall(const Coords& myPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
-    double      ScanDir(const Coords& myPos, GunDirection dir) const throw (); // return length to wall
-    std::pair<bool, GunDirection> NeedShootFreeTurning(const Coords& myPos, const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
-    std::pair<bool, int> NeedShootTradTurning(const Coords& myPos) throw (); // to shoot or not to shoot, and the direction if shooting
+    bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
+    double      ScanDir(GunDirection dir) const throw (); // return length to wall
+    std::pair<bool, GunDirection> NeedShootFreeTurning(const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
+    std::pair<bool, int> NeedShootTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
     GunDirection GetDir(const Vec& delta) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
     int         GetDangerousRocket() const throw (); // get danger rocket index
-    int         GetDangerousEnemy(const Coords& myPos) const throw (); // same for enemy
-    int         GetNearestEnemy(const Coords& myPos) const throw (); // get nearest enemy
-    int         FreeDir(const Coords& myPos) const throw (); // maximum free space at front
+    int         GetDangerousEnemy() const throw (); // same for enemy
+    int         GetNearestEnemy() const throw (); // get nearest enemy
+    int         FreeDir() const throw (); // maximum free space at front
 
-    ClientControls Aim(const Coords& myPos, int i) const throw ();
-    ClientControls EscapeRocket(const Coords& myPos, int mrock) const throw ();
-    ClientControls EscapeExplosion(const Coords& myPos) const throw ();
-    ClientControls GetFlag(const Coords& myPos) const throw ();
-    ClientControls FollowFlag(const Coords& myPos) const throw ();
-    ClientControls GetPowerup(const Coords& myPos, bool onImportantMission) const throw ();
+    ClientControls Aim(int i) const throw ();
+    ClientControls EscapeRocket(int mrock) const throw ();
+    ClientControls EscapeExplosion() const throw ();
+    ClientControls GetFlag() const throw ();
+    ClientControls FollowFlag() const throw ();
+    ClientControls GetPowerup(bool onImportantMission) const throw ();
     ClientControls MoveDirNoAggregate(int dir) const throw ();
-    ClientControls MoveTo(const Coords& myPos, const Vec& delta, double maxDistanceFromTarget) const throw ();
-    ClientControls MoveToDoor(const Coords& myPos, const Area::Neighbor& n) const throw ();
-    ClientControls MoveToNoAggregate(const Coords& myPos, const Vec& delta, double maxDistanceFromTarget) const throw ();
+    ClientControls MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw ();
+    ClientControls MoveToDoor(const Area::Neighbor& n) const throw ();
+    ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw ();
     ClientControls MoveDir(int dir) const throw ();
-    ClientControls Escape(const Coords& myPos) const throw ();
-    ClientControls FreeWalk(const Coords& myPos) const throw ();
-    ClientControls MoveToDestination(const Coords& myPos) const throw ();
+    ClientControls Escape() const throw ();
+    ClientControls FreeWalk() const throw ();
+    ClientControls MoveToDestination() const throw ();
 
     void BuildDistanceTable(Area* startPoint, DistanceTableId num) throw (); // build distance table from single point
     void BuildDistanceTable(const std::vector<Area*>& startPoints, DistanceTableId num) throw (); // build distance table from multiple points

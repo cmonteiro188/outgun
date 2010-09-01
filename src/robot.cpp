@@ -106,24 +106,24 @@ bool Robot::imminentExplosionHere() const throw () {
     return false;
 }
 
-double Robot::distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw () {
+double Robot::distanceFromDoor(const Area::Neighbor& n) const throw () {
     try {
-        return (nearestDoor(n, pos) - pos).mag();
+        return (nearestDoor(n, myPos) - myPos).mag();
     } catch (AlreadyInRoom) {
         return 0;
     }
 }
 
-bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor, const Coords& myPos) const throw () {
+bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const throw () {
     const DeathbringerExplosion* const dbe = explosionInRoom(neighbor.area->room);
     if (!dbe)
         return false;
     // see when we can be there at the earliest, don't worry if the explosion has expired then
-    const double minMoveTime = distanceFromDoor(neighbor, myPos) / fx.physics.max_run_speed; // ignores that we're faster with turbo
+    const double minMoveTime = distanceFromDoor(neighbor) / fx.physics.max_run_speed; // ignores that we're faster with turbo
     return !dbe->expired(fx.frame + averageLag + minMoveTime);
 }
 
-bool Robot::IsBehindWall(const Coords& myPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
+bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
     const Room& room = fx.map[fx.player[me].room()];
     const double dist = delta.mag();
     if (dist == 0)
@@ -134,7 +134,7 @@ bool Robot::IsBehindWall(const Coords& myPos, const Vec& delta, double radius, d
     return room.genGetTimeTillWall(myPos, delta, radius, nearEnoughFraction).first < nearEnoughFraction;
 }
 
-double Robot::ScanDir(const Coords& myPos, GunDirection dir) const throw () {
+double Robot::ScanDir(GunDirection dir) const throw () {
     const double deg = dir.toRad();
     const Vec d(cos(deg), sin(deg));
     const Room& room = fx.map[fx.player[me].room()];
@@ -146,7 +146,7 @@ double Robot::ScanDir(const Coords& myPos, GunDirection dir) const throw () {
     return min(maxDist, room.genGetTimeTillWall(myPos, d, PLAYER_RADIUS, maxDist).first);
 }
 
-pair<Robot::AimLevel, int> Robot::TryAimTradTurning(const Coords& myPos, int target) const throw () {
+pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
@@ -160,7 +160,7 @@ pair<Robot::AimLevel, int> Robot::TryAimTradTurning(const Coords& myPos, int tar
 
     const int dir = GetDir(d).to8way();
 
-    if (IsBehindWall(myPos, d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS))
+    if (IsBehindWall(d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS))
         return make_pair(AL_None, dir);
 
     static const int rocketsPerWeaponLevel[9] = { 1, 2, 3, 2, 3, 2, 3, 2, 3 };
@@ -215,7 +215,7 @@ int Robot::GetDangerousRocket() const throw () {
     return nearRocket;
 }
 
-int Robot::GetEasyEnemy(const Coords& myPos) const throw () {
+int Robot::GetEasyEnemy() const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -246,7 +246,7 @@ int Robot::GetEasyEnemy(const Coords& myPos) const throw () {
                 rocketPlaneDist = fabs(d.y + d.x) / sqrt(2.);
         }
 
-        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(myPos, d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS)) {
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS)) {
             target = i;
             nearestDist = rocketPlaneDist + escapeDist;
         }
@@ -258,7 +258,7 @@ int Robot::GetEasyEnemy(const Coords& myPos) const throw () {
     return target;
 }
 
-int Robot::GetDangerousEnemy(const Coords& myPos) const throw () {
+int Robot::GetDangerousEnemy() const throw () {
     int target = -1;
     double nearestDist = 1e10;
 
@@ -303,7 +303,7 @@ int Robot::GetDangerousEnemy(const Coords& myPos) const throw () {
                 rocketPlaneDist = fabs(d.y + d.x) / sqrt(2.);
         }
 
-        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(myPos, d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS)) {
+        if (rocketPlaneDist < 2 * PLAYER_RADIUS && rocketPlaneDist + escapeDist < nearestDist && !IsBehindWall(d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS)) {
             target = i;
             nearestDist = rocketPlaneDist + escapeDist;
         }
@@ -315,7 +315,7 @@ int Robot::GetDangerousEnemy(const Coords& myPos) const throw () {
     return target;
 }
 
-int Robot::GetNearestEnemy(const Coords& myPos) const throw () {
+int Robot::GetNearestEnemy() const throw () {
     int target = -1;
     double mdist = 0;
 
@@ -331,7 +331,7 @@ int Robot::GetNearestEnemy(const Coords& myPos) const throw () {
         const double dist = d.mag();
 
         if (dist < mdist || mdist == 0) {
-            //if (IsBehindWall(myPos, d)) // XXX ?
+            //if (IsBehindWall(d)) // XXX ?
             //    continue;
             mdist = dist;
             target = i;
@@ -340,7 +340,7 @@ int Robot::GetNearestEnemy(const Coords& myPos) const throw () {
     return target;
 }
 
-pair<bool, GunDirection> Robot::TryAimFreeTurning(const Coords& myPos, int target) const throw () {
+pair<bool, GunDirection> Robot::TryAimFreeTurning(int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
@@ -353,10 +353,10 @@ pair<bool, GunDirection> Robot::TryAimFreeTurning(const Coords& myPos, int targe
     const double tm = dist / fx.physics.rocket_speed;
     d += tm * fx.player[target].vel;
 
-    return make_pair(!IsBehindWall(myPos, d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS), GetDir(d));
+    return make_pair(!IsBehindWall(d, ROCKET_RADIUS, PLAYER_RADIUS + ROCKET_RADIUS), GetDir(d));
 }
 
-double Robot::GetHitTime(const Coords& myPos, const GunDirection& dir, int iTarget) const throw () {
+double Robot::GetHitTime(const GunDirection& dir, int iTarget) const throw () {
     const ClientPlayer& target = fx.player[iTarget];
 
     if (!target.onscreen || target.dead)
@@ -390,17 +390,17 @@ double Robot::GetHitTime(const Coords& myPos, const GunDirection& dir, int iTarg
     return perp.mag() < 3 * PLAYER_RADIUS ? hitTime : 1e100;
 }
 
-double Robot::GetHitTeammateTime(const Coords& myPos, const GunDirection& dir) const throw () {
+double Robot::GetHitTeammateTime(const GunDirection& dir) const throw () {
     double hitTime = 1e100;
     if (fx.physics.friendly_fire == 0)
         return hitTime;
     for (int i = 0; i < maxplayers; ++i)
         if (fx.player[i].used && fx.player[i].team() == fx.player[me].team() && i != me)
-            hitTime = min(hitTime, GetHitTime(myPos, dir, i));
+            hitTime = min(hitTime, GetHitTime(dir, i));
     return hitTime;
 }
 
-pair<bool, GunDirection> Robot::NeedShootFreeTurning(const Coords& myPos, const GunDirection& defaultDir) throw () {
+pair<bool, GunDirection> Robot::NeedShootFreeTurning(const GunDirection& defaultDir) throw () {
     vector<int> tryOrder;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
@@ -410,16 +410,16 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const Coords& myPos, const 
             tryOrder.push_back(i);
     }
 
-    pair<bool, GunDirection> aimLastSeen = last_seen == -1 ? make_pair(false, defaultDir) : TryAimFreeTurning(myPos, last_seen);
+    pair<bool, GunDirection> aimLastSeen = last_seen == -1 ? make_pair(false, defaultDir) : TryAimFreeTurning(last_seen);
     if (aimLastSeen.first) {
-        if (GetHitTime(myPos, aimLastSeen.second, last_seen) <= GetHitTeammateTime(myPos, aimLastSeen.second))
+        if (GetHitTime(aimLastSeen.second, last_seen) <= GetHitTeammateTime(aimLastSeen.second))
             return aimLastSeen;
         aimLastSeen.first = false;
     }
     random_shuffle(tryOrder.begin(), tryOrder.end());
     for (vector<int>::const_iterator ti = tryOrder.begin(); ti != tryOrder.end(); ++ti) {
-        const pair<bool, GunDirection> aim = TryAimFreeTurning(myPos, *ti);
-        if (aim.first && GetHitTime(myPos, aim.second, *ti) <= GetHitTeammateTime(myPos, aim.second)) {
+        const pair<bool, GunDirection> aim = TryAimFreeTurning(*ti);
+        if (aim.first && GetHitTime(aim.second, *ti) <= GetHitTeammateTime(aim.second)) {
             last_seen = *ti;
             return aim;
         }
@@ -427,17 +427,17 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const Coords& myPos, const 
     return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
-pair<bool, int> Robot::NeedShootTradTurning(const Coords& myPos) throw () {
+pair<bool, int> Robot::NeedShootTradTurning() throw () {
     vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || pl.team() == fx.player[me].team() || !pl.onscreen || pl.dead)
             continue;
 
-        const pair<AimLevel, int> aim = TryAimTradTurning(myPos, i);
+        const pair<AimLevel, int> aim = TryAimTradTurning(i);
         if (aim.first != AL_Full)
             continue;
-        const double hitTime = GetHitTime(myPos, GunDirection().from8way(aim.second), i);
+        const double hitTime = GetHitTime(GunDirection().from8way(aim.second), i);
         if (hitTime > 1e10) // GetHitTime signals "no hit" with a huge time, and uses a better calculation than TryAim
             continue;
         if (!dirDistances[aim.second].first || hitTime < dirDistances[aim.second].second)
@@ -446,7 +446,7 @@ pair<bool, int> Robot::NeedShootTradTurning(const Coords& myPos) throw () {
     int bestDir = -1;
     double bestValue = 1e99;
     for (int dir = 0; dir < 8; ++dir) {
-        if (!dirDistances[dir].first || dirDistances[dir].second > GetHitTeammateTime(myPos, GunDirection().from8way(dir)))
+        if (!dirDistances[dir].first || dirDistances[dir].second > GetHitTeammateTime(GunDirection().from8way(dir)))
             continue;
         int dirDiff = abs(dir - myGundir);
         nAssert(dirDiff < 8);
@@ -461,7 +461,7 @@ pair<bool, int> Robot::NeedShootTradTurning(const Coords& myPos) throw () {
     return make_pair(bestDir != -1, bestDir);
 }
 
-ClientControls Robot::EscapeRocket(const Coords& myPos, int mrock) const throw () {
+ClientControls Robot::EscapeRocket(int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
     const Vec sd = rocket.pos.local() + averageLag * rocket.vel - myPos;
 
@@ -510,7 +510,7 @@ ClientControls Robot::EscapeRocket(const Coords& myPos, int mrock) const throw (
     return ctrl;
 }
 
-ClientControls Robot::EscapeExplosion(const Coords& myPos) const throw () {
+ClientControls Robot::EscapeExplosion() const throw () {
     if (!explosionInRoom(fx.player[me].room()) && !imminentExplosionHere())
         return ClientControls();
 
@@ -520,29 +520,29 @@ ClientControls Robot::EscapeExplosion(const Coords& myPos) const throw () {
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         if (explosionInRoom(ni->area->room))
             continue;
-        const double dist = distanceFromDoor(*ni, myPos);
+        const double dist = distanceFromDoor(*ni);
         if (dist < shortestDistance) {
             bestRoom = &*ni;
             shortestDistance = dist;
         }
     }
     if (bestRoom)
-        return MoveToDoor(myPos, *bestRoom);
+        return MoveToDoor(*bestRoom);
     else
         return ClientControls();
 }
 
-ClientControls Robot::Aim(const Coords& myPos, int i) const throw () {
+ClientControls Robot::Aim(int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[i].pos.local() + averageLag * fx.player[i].vel;
     const Vec d = tt - myPos;
 
-    const pair<AimLevel, int> aim = TryAimTradTurning(myPos, i);
+    const pair<AimLevel, int> aim = TryAimTradTurning(i);
     if (aim.first == AL_Full && aim.second == myGundir)
         return ClientControls();
     else if (aim.first == AL_None || aim.second != myGundir)
-        return MoveTo(myPos, d, PLAYER_RADIUS + PLAYER_RADIUS);
+        return MoveTo(d, PLAYER_RADIUS + PLAYER_RADIUS);
     nAssert(aim.first == AL_Near && aim.second == myGundir);
 
     // almost aimed
@@ -574,13 +574,13 @@ ClientControls Robot::Aim(const Coords& myPos, int i) const throw () {
     return ctrl;
 }
 
-int Robot::FreeDir(const Coords& myPos) const throw () {
+int Robot::FreeDir() const throw () {
     int mdir = 0;
     double mdist = 0;
 
     for (int i = myGundir - 1; i <= myGundir + 1; ++i) {
         const int d = (i + 8) % 8;
-        const double dist = ScanDir(myPos, GunDirection().from8way(d));
+        const double dist = ScanDir(GunDirection().from8way(d));
 
         if (dist > mdist || mdist == 0 || dist >= mdist - ROCKET_RADIUS && i == myGundir) {
             mdist = dist;
@@ -666,13 +666,13 @@ ClientControls Robot::MoveDir(int dir) const throw () {
     return ClientControls().fromDirection(dir).setRun();
 }
 
-ClientControls Robot::FreeWalk(const Coords& myPos) const throw () {
-    return MoveDirNoAggregate(FreeDir(myPos));
+ClientControls Robot::FreeWalk() const throw () {
+    return MoveDirNoAggregate(FreeDir());
 }
 
-ClientControls Robot::MoveToNoAggregate(const Coords& myPos, const Vec& delta, double maxDistanceFromTarget) const throw () {
-    if (IsBehindWall(myPos, delta, PLAYER_RADIUS, maxDistanceFromTarget)) { //walking
-        const int mdir = FreeDir(myPos);
+ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw () {
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) { //walking
+        const int mdir = FreeDir();
         return MoveDir(mdir);
     }
     else {
@@ -682,32 +682,32 @@ ClientControls Robot::MoveToNoAggregate(const Coords& myPos, const Vec& delta, d
 }
 
 
-ClientControls Robot::MoveTo(const Coords& myPos, const Vec& delta, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw () {
     int mdir;
-    if (IsBehindWall(myPos, delta, PLAYER_RADIUS, maxDistanceFromTarget))//walking
-        mdir = FreeDir(myPos);
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))//walking
+        mdir = FreeDir();
     else
         mdir = GetDir(delta).to8way();
     return MoveDir(mdir);
 }
 
-ClientControls Robot::GetPowerup(const Coords& myPos, bool onImportantMission) const throw () {
+ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (!fx.item[i].real() || area(fx.item[i].position()) != myArea())
             continue;
         const Vec d = fx.item[i].pos.local() - myPos;
         if (onImportantMission) {
-            if (IsBehindWall(myPos, d, PLAYER_RADIUS, PLAYER_RADIUS + POWERUP_RADIUS))
+            if (IsBehindWall(d, PLAYER_RADIUS, PLAYER_RADIUS + POWERUP_RADIUS))
                 continue;
             if (dot(d, fx.player[me].vel) < 0 && d.mag2() > sqr(5 * PLAYER_RADIUS)) // don't bother if the powerup is behind
                 continue;
         }
-        return MoveTo(myPos, d, PLAYER_RADIUS + POWERUP_RADIUS);
+        return MoveTo(d, PLAYER_RADIUS + POWERUP_RADIUS);
     }
     return ClientControls();
 }
 
-ClientControls Robot::GetFlag(const Coords& myPos) const throw () {
+ClientControls Robot::GetFlag() const throw () {
     const int myTeam = fx.player[me].team();
 
     if (HaveFlag(me)) {
@@ -720,7 +720,7 @@ ClientControls Robot::GetFlag(const Coords& myPos) const throw () {
                 if (area(fi->position()) != myArea() || fi->carried())
                     continue;
                 if (type == 0 || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
-                    return MoveTo(myPos, fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
+                    return MoveTo(fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
             }
         }
         return ClientControls(); // can't pick up another flag
@@ -735,7 +735,7 @@ ClientControls Robot::GetFlag(const Coords& myPos) const throw () {
             if (area(fi->position()) != myArea() || fi->carried())
                 continue;
             if (type != 0 || !IsFlagAtBase(*fi, team)) // try to pick up enemy or wild flag, or return own flag; nothing to do with own flags at base
-                return MoveTo(myPos, fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
+                return MoveTo(fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
         }
     }
 
@@ -786,7 +786,7 @@ bool Robot::AmILast() const throw () {
     return true;
 }
 
-ClientControls Robot::Escape(const Coords& myPos) const throw () {
+ClientControls Robot::Escape() const throw () {
     if (!HaveFlag(me))
         return ClientControls();
 
@@ -800,16 +800,16 @@ ClientControls Robot::Escape(const Coords& myPos) const throw () {
     for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
         const TeamCounts tc = Teams(ni->area, false);
         if (tc.friends + 1 > tc.enemies && tc.friends > 0) {
-            if (dangerousExplosionInNeighbor(*ni, myPos))
+            if (dangerousExplosionInNeighbor(*ni))
                 return ClientControls(); // don't check other neighbors, because this is the one we'll tend to go to when the explosion is over (soon)
             else
-                return MoveToDoor(myPos, *ni);
+                return MoveToDoor(*ni);
         }
     }
     return ClientControls();
 }
 
-ClientControls Robot::FollowFlag(const Coords& myPos) const throw () {
+ClientControls Robot::FollowFlag() const throw () {
     Vec d(0, 0);
     Vec s(0, 0);
     int num = 0;
@@ -830,7 +830,7 @@ ClientControls Robot::FollowFlag(const Coords& myPos) const throw () {
     const double dist = d.mag();
     if (dist < 3 * PLAYER_RADIUS)
         return ClientControls();
-    return MoveToNoAggregate(myPos, d, PLAYER_RADIUS);
+    return MoveToNoAggregate(d, PLAYER_RADIUS);
 }
 
 void Robot::BuildMap() throw () {
@@ -894,7 +894,7 @@ void Robot::setDestination(Area* const target) throw () {
     BuildDistanceTable(target, Table_Destination);
 }
 
-ClientControls Robot::MoveToDestination(const Coords& myPos) const throw () {
+ClientControls Robot::MoveToDestination() const throw () {
     if (destinationType == Dest_None)
         return ClientControls();
 
@@ -917,19 +917,19 @@ ClientControls Robot::MoveToDestination(const Coords& myPos) const throw () {
                 oldDestinationFound = true;
                 break;
             }
-            if (!dangerousExplosionInNeighbor(*ni, myPos))
+            if (!dangerousExplosionInNeighbor(*ni))
                 goodNeighbors.push_back(&*ni);
         }
     }
 
-    if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination, myPos)) // we keep the same destination and wait for the explosion to settle because it won't take long
+    if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination)) // we keep the same destination and wait for the explosion to settle because it won't take long
         return ClientControls();
 
     if (!oldDestinationFound)
         immediateDestination = goodNeighbors.empty() ? 0 : goodNeighbors[rand() % goodNeighbors.size()];
 
     if (immediateDestination)
-        return MoveToDoor(myPos, *immediateDestination);
+        return MoveToDoor(*immediateDestination);
     else
         return ClientControls();
 }
@@ -986,11 +986,11 @@ Coords Robot::nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) con
         return Coords(freeTarget, fixedTarget);
 }
 
-ClientControls Robot::MoveToDoor(const Coords& myPos, const Area::Neighbor& neighbor) const throw () {
+ClientControls Robot::MoveToDoor(const Area::Neighbor& neighbor) const throw () {
     const Area::Neighbor::Direction dir = neighbor.direction;
     try {
         const Coords door = nearestDoor(neighbor, myPos);
-        return MoveToNoAggregate(myPos, door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos, 0);
+        return MoveToNoAggregate(door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos, 0);
     } catch (AlreadyInRoom) {
         ClientControls ctrl;
         ctrl.setRun();
@@ -1487,8 +1487,6 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
 }
 
 ClientControls Robot::getRobotControls() throw () {
-    const Coords myPos = Coords(fx.player[me].pos.local() + averageLag * fx.player[me].vel);
-
     fx.map[fx.player[me].room()].enemies_seen_frame = fx.frame;
 
     if (fx.player[me].item_shadow_time > fx.frame / 10.) {
@@ -1525,16 +1523,16 @@ ClientControls Robot::getRobotControls() throw () {
         const int dangerousRocket = GetDangerousRocket();
         if (dangerousRocket != -1) {
             if (last_seen == -1)
-                last_seen = GetDangerousEnemy(myPos);
+                last_seen = GetDangerousEnemy();
             #ifdef DEBUGSTRATEGY
             fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
             fprintf(stderr, "Escaping rocket.\n");
             #endif
-            return EscapeRocket(myPos, dangerousRocket);
+            return EscapeRocket(dangerousRocket);
         }
     }
 
-    ClientControls ctrl = EscapeExplosion(myPos);
+    ClientControls ctrl = EscapeExplosion();
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1543,7 +1541,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = GetFlag(myPos);
+    ctrl = GetFlag();
     if (!ctrl.idle()) { // if any
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1555,14 +1553,14 @@ ClientControls Robot::getRobotControls() throw () {
     ChooseDestination();
 
     if (IsMission()) // get only dangerous enemy
-        last_seen = GetDangerousEnemy(myPos);
+        last_seen = GetDangerousEnemy();
     else if (last_seen != -1) { // already locked on someone
-        const int easy = GetEasyEnemy(myPos); // more easy???
+        const int easy = GetEasyEnemy(); // more easy???
         if (easy != -1)
             last_seen = easy;
     }
     else // get someone
-        last_seen = GetNearestEnemy(myPos);
+        last_seen = GetNearestEnemy();
 
     const bool importantMission = HaveFlag(me) && IsMission();
 
@@ -1571,11 +1569,11 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Targetting enemy.\n");
         #endif
-        return Aim(myPos, last_seen);
+        return Aim(last_seen);
     }
 
     // ok, free tour ;)
-    ctrl = GetPowerup(myPos, importantMission);
+    ctrl = GetPowerup(importantMission);
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1584,7 +1582,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = Escape(myPos);
+    ctrl = Escape();
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1593,7 +1591,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = MoveToDestination(myPos);
+    ctrl = MoveToDestination();
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1602,7 +1600,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = FollowFlag(myPos);
+    ctrl = FollowFlag();
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
@@ -1611,7 +1609,7 @@ ClientControls Robot::getRobotControls() throw () {
         return ctrl;
     }
 
-    ctrl = FreeWalk(myPos);
+    ctrl = FreeWalk();
     if (last_seen == -1)
         ctrl.clearRun();
     #ifdef DEBUGSTRATEGY
@@ -1639,6 +1637,8 @@ ClientControls Robot::RobotMain() throw () {
         return ClientControls();
     }
 
+    myPos = Coords(fx.player[me].pos.local() + averageLag * fx.player[me].vel);
+
     if (myGundir == -1) // was dead, or something like that
         myGundir = fx.player[me].gundir.to8way();
 
@@ -1649,10 +1649,9 @@ ClientControls Robot::RobotMain() throw () {
     if (!ctrl.isStrafe() && ctrl.getDirection() != -1)
         myGundir = ctrl.getDirection();
 
-    const Coords myPos = Coords(fx.player[me].pos.local() + averageLag * fx.player[me].vel);
     bool shoot;
     if (fx.physics.allowFreeTurning) {
-        const pair<bool, GunDirection> shootDir = NeedShootFreeTurning(myPos, GunDirection().from8way(myGundir)); // if there's no player to target, aim where we're going
+        const pair<bool, GunDirection> shootDir = NeedShootFreeTurning(GunDirection().from8way(myGundir)); // if there's no player to target, aim where we're going
         shoot = shootDir.first;
         // adjust gunDir
         static const double turnCeilingPerFrame = N_PI_2;
@@ -1669,7 +1668,7 @@ ClientControls Robot::RobotMain() throw () {
             shoot = false;
     }
     else {
-        const pair<bool, int> shootDir = NeedShootTradTurning(myPos);
+        const pair<bool, int> shootDir = NeedShootTradTurning();
         shoot = shootDir.first;
         if (shoot && shootDir.second != myGundir) {
             if (shootDir.second == currentGundir) {
