@@ -3334,7 +3334,7 @@ void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
     // hide stuff if frame skipped
     const bool hide_game = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || !replaying && me < 0;
 
-    const double time = fd.frame / 10;
+    const double time = fd.frame >= 0 ? fd.frame / 10 : 0;
 
     if (hide_game) {
         graphics.draw_background(map_ready);
