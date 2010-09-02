@@ -1927,11 +1927,11 @@ void Server::run_bot_thread() throw () {
         }
         if (botTestMode) {
             sched_yield();
-            nAssert(settings.get_bot_ping() == 0); // this is a user (not code) error, but bot test mode is a dev feature
+            nAssert(settings.get_bot_ping() % 100 == 0); // this is a user (not code) error, but bot test mode is a dev feature
             const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
             bool upToDate = true;
             for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
-                if (bi->bot_reacted_frame() != currentFrame || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
+                if (bi->bot_reacted_frame() != currentFrame || uint8_t(bi->bot_sent_frame() - settings.get_bot_ping() / 100) != world.player[bi->bot_player_id()].lastClientFrame) {
                     //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
                     upToDate = false;
                 }
