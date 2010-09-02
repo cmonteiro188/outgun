@@ -406,6 +406,7 @@ void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw 
     const double dx = newx - oldx, dy = newy - oldy;
     if (fabs(dx) >= xStep || fabs(dy) >= yStep)
         pl.gundir.fromRad(atan2(dy, dx));
+    pl.vel = Vec(0, 0); // keep bots from trying to predict minimap players' movement from old velocities
 }
 
 bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting

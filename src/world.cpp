@@ -1162,26 +1162,24 @@ double WorldBase::getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& 
     return 1e99;
 }
 
-void WorldBase::applyPlayerAcceleration(int pid) throw () {
-    PlayerBase* h = player[pid].getPtr();
-
+void WorldBase::applyPlayerAcceleration(PlayerBase& pl) const throw () {
     double player_accel = physics.accel;
-    if (h->item_turbo)
+    if (pl.item_turbo)
         player_accel *= physics.turbo_mul;
-    if (h->controls.isRun()) {
+    if (pl.controls.isRun()) {
         player_accel *= physics.run_mul;
 
         // check possible flag penalty
         bool flag_penalty = false;
-        const Team& enemy = teams[1 - pid / TSIZE];
+        const Team& enemy = teams[1 - pl.team()];
         for (vector<Flag>::const_iterator fi = enemy.flags().begin(); fi != enemy.flags().end(); ++fi)
-            if (fi->carrier() == pid) {
+            if (fi->carrier() == pl.id) {
                 flag_penalty = true;
                 break;
             }
         if (!flag_penalty)
             for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-                if (fi->carrier() == pid) {
+                if (fi->carrier() == pl.id) {
                     flag_penalty = true;
                     break;
                 }
@@ -1189,20 +1187,20 @@ void WorldBase::applyPlayerAcceleration(int pid) throw () {
             player_accel *= physics.flag_mul;
     }
 
-    h->vel *= 1. - physics.drag;
+    pl.vel *= 1. - physics.drag;
 
     // apply friction (constant speed decrease)
-    const double spd = h->vel.mag();
+    const double spd = pl.vel.mag();
     if (spd <= physics.fric || spd < .001)  // the test on .001 is because fric <= 0 is allowed but spd == 0 doesn't work in the formula below
-        h->vel = Vec(0, 0);
+        pl.vel = Vec(0, 0);
     else
-        h->vel *= 1. - physics.fric / spd;
+        pl.vel *= 1. - physics.fric / spd;
 
-    if (h->under_deathbringer_effect(get_time()))
+    if (pl.under_deathbringer_effect(get_time()))
         return;
 
-    double sideAcc = (h->controls.isRight() ? 1 : 0) - (h->controls.isLeft() ? 1 : 0);
-    double forwAcc = (h->controls.isUp   () ? 1 : 0) - (h->controls.isDown() ? 1 : 0);
+    double sideAcc = (pl.controls.isRight() ? 1 : 0) - (pl.controls.isLeft() ? 1 : 0);
+    double forwAcc = (pl.controls.isUp   () ? 1 : 0) - (pl.controls.isDown() ? 1 : 0);
 
     if (sideAcc == 0 && forwAcc == 0)
         return;
@@ -1212,24 +1210,24 @@ void WorldBase::applyPlayerAcceleration(int pid) throw () {
     }
 
     Vec acc;
-    if (h->accelerationMode == AM_World || !physics.allowFreeTurning)
+    if (pl.accelerationMode == AM_World || !physics.allowFreeTurning)
         acc = Vec(sideAcc, -forwAcc);
     else {
-        const double dirX = cos(h->gundir.toRad()), dirY = sin(h->gundir.toRad());
+        const double dirX = cos(pl.gundir.toRad()), dirY = sin(pl.gundir.toRad());
         acc = Vec(dirX * forwAcc - dirY * sideAcc,
                   dirY * forwAcc + dirX * sideAcc);
     }
-    if (fabs(h->vel.x) > .001 || fabs(h->vel.y) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
+    if (fabs(pl.vel.x) > .001 || fabs(pl.vel.y) > .001) { // the player is moving in some direction (otherwise, any direction is 'forward')
         // handle different directions : scale braking component by brake_mul and turning component by turn_mul
         // acceleration component parallel to v = par = (a dot v) * v / |v|^2 ; perpendicular component perp = a - par
-        const double par_mul = dot(acc, h->vel) / h->vel.mag2();
-        Vec par = h->vel * par_mul;
+        const double par_mul = dot(acc, pl.vel) / pl.vel.mag2();
+        Vec par = pl.vel * par_mul;
         const Vec perp = acc - par;
         if (par_mul < 0)  // par is opposite to v == braking
             par *= physics.brake_mul;
         acc = perp * physics.turn_mul + par;
     }
-    h->vel += acc * player_accel;
+    pl.vel += acc * player_accel;
 }
 
 void WorldBase::returnAllFlags() throw () {
@@ -2630,7 +2628,7 @@ bool ServerWorld::shouldApplyPhysicsToPlayerCallback(int pid) throw () {
     return !player[pid].dead;
 }
 
-void WorldBase::executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) throw () { // needs plyRadius as a shortcut to bounceVec's length
+void WorldBase::executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) const throw () { // needs plyRadius as a shortcut to bounceVec's length
     // bounce: speed component parallel with bounceVec ( (S dot b / |b|) * b / |b| ) is reversed, while perpendicular component is kept
     // : S -= 2* ( (S dot b) * b / |b|^2 )  ; |b| is always plyRadius
     // to add a specific speed loss only in the bounce direction, reduce from the 2.
@@ -2700,7 +2698,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
         if (callback.shouldApplyPhysicsToPlayer(i)) {
             if (pl.room().x < 0 || pl.room().y < 0 || pl.room().x >= map.w || pl.room().y >= map.h)
                 continue;   //#fix: remove this and track why these are given sometimes
-            applyPlayerAcceleration(i);
+            applyPlayerAcceleration(pl);
             roomPly[pl.room().x][pl.room().y].push_back(i);
         }
     }
@@ -2717,7 +2715,7 @@ void WorldBase::applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, d
             applyPhysicsToRoom(map[RoomCoords(rx, ry)], roomPly[rx][ry], roomRock[rx][ry], callback, plyRadius, fraction);
 }
 
-void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) throw () {
+void WorldBase::applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) const throw () {
     // this function is heavily copied from applyPhysicsToRoom; any changes should be made primarily there //#fix: refactor?
 
     double subFrame = 0.;   // signifies current time within frame, goes from 0 to fraction (0 <= fraction <= 1)
@@ -3536,6 +3534,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
             rock[i] = source.rock[i];
     }
 
+    // following partly shared with extrapolateSinglePlayerPosition:
     static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network
     for (uint8_t ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
         if (me != -1)
@@ -3547,6 +3546,20 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
         player[me].controls = ctrlTab[ctrlLast];
     applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
     frame += subFrameAfter;
+}
+
+void ClientWorld::extrapolateSinglePlayerPosition(ClientPlayer& pl, ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw () {
+    nAssert(!skipped);
+    // following partly shared with extrapolate:
+    static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network
+    for (uint8_t ctrli = ctrlFirst; ctrli != ctrlLast; ++ctrli) {   // note: it is OK to wrap around in the middle of the sequence
+        pl.controls = ctrlTab[ctrli];
+        applyPlayerAcceleration(pl);
+        applyPhysicsToPlayerInIsolation(pl, PLAYER_RADIUS - playerPosAccuracy, 1.); // 1 is full frame
+    }
+    pl.controls = ctrlTab[ctrlLast];
+    applyPlayerAcceleration(pl);
+    applyPhysicsToPlayerInIsolation(pl, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
 }
 
 // Save stats in HTML file.

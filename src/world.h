@@ -864,14 +864,15 @@ public: //#fix: needed by bots; make accessible through some more sophisticated 
     static BounceData getTimeTillBounce(const Room& room, const PlayerBase& pl, double plyRadius, double maxFraction) throw ();
     static double getTimeTillWall(const Room& room, const Rocket& rock, double maxFraction) throw ();
     static double getTimeTillCollision(const PlayerBase& pl, const Rocket& rock, double collRadius) throw ();
-private:
+protected:
     static double getTimeTillCollision(const PlayerBase& pl1, const PlayerBase& pl2, double collRadius) throw ();
     void limitPlayerSpeed(PlayerBase& pl) const throw ();  // hard limit to somewhat acceptable values; required to call when physically incorrect changes are made
-    void applyPlayerAcceleration(int pid) throw ();
-    void executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) throw (); // needs plyRadius as a shortcut to bounceVec's length
+    void applyPlayerAcceleration(PlayerBase& pl) const throw ();
+    void executeBounce(PlayerBase& ply, const Vec& bounceVec, double plyRadius) const throw (); // needs plyRadius as a shortcut to bounceVec's length
     std::pair<bool, bool> executeBounce(PlayerBase& pl1, PlayerBase& pl2, PhysicsCallbacksBase& callback) const throw (); // returns pair(p1-dead, p2-dead)
+
+private:
     void applyPhysicsToRoom(const Room& room, std::vector<int>& rply, std::vector<int>& rrock, PhysicsCallbacksBase& callback, double plyRadius, double fraction) throw ();
-    void applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) throw ();
 
     void print_team_stats_row(std::ostream& out, const std::string& header, int amount1, int amount2, const std::string& postfix = "") const throw ();
 
@@ -882,6 +883,7 @@ public:
     virtual void reset() throw ();
 
     void applyPhysics(PhysicsCallbacksBase& callback, double plyRadius, double fraction) throw ();
+    void applyPhysicsToPlayerInIsolation(PlayerBase& pl, double plyRadius, double fraction) const throw ();
     void rocketFrameAdvance(int frames, PhysicsCallbacksBase& callback) throw ();
 
     void setMaxPlayers(int num) throw () { maxplayers = num; }
@@ -1163,6 +1165,7 @@ public:
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
                      ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw ();
+    void extrapolateSinglePlayerPosition(ClientPlayer& pl, ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw ();
 
     /*void save_stats(const std::string& dir, const Team* teams,
                 const std::vector<ClientPlayer*>& players, const std::string& map_name) const throw ();*/

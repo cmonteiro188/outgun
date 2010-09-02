@@ -96,7 +96,7 @@ const DeathbringerExplosion* Robot::explosionInRoom(const RoomCoords& room) cons
 bool Robot::imminentExplosionHere() const throw () {
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || !pl.onscreen || pl.dead)
+        if (!pl.used || pl.dead || !here(pl, true))
             continue;
         if (pl.team() == fx.player[me].team() && !fx.physics.friendly_db)
             continue;
@@ -108,7 +108,7 @@ bool Robot::imminentExplosionHere() const throw () {
 
 double Robot::distanceFromDoor(const Area::Neighbor& n) const throw () {
     try {
-        return (nearestDoor(n, myPos) - myPos).mag();
+        return (nearestDoor(n, myPos.local()) - myPos.local()).mag();
     } catch (AlreadyInRoom) {
         return 0;
     }
@@ -124,33 +124,33 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const t
 }
 
 bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
-    const Room& room = fx.map[fx.player[me].room()];
+    const Room& room = fx.map[myPos.room];
     const double dist = delta.mag();
     if (dist == 0)
         return false;
     const double nearEnoughFraction = (dist - maxDistanceFromTarget) / dist;
     if (nearEnoughFraction <= 0.)
         return false;
-    return room.genGetTimeTillWall(myPos, delta, radius, nearEnoughFraction).first < nearEnoughFraction;
+    return room.genGetTimeTillWall(myPos.local(), delta, radius, nearEnoughFraction).first < nearEnoughFraction;
 }
 
 double Robot::ScanDir(GunDirection dir) const throw () {
     const double deg = dir.toRad();
     const Vec d(cos(deg), sin(deg));
-    const Room& room = fx.map[fx.player[me].room()];
+    const Room& room = fx.map[myPos.room];
     double maxDist = 1e99;
     if (d.x != 0)
         maxDist = min(maxDist, (d.x > 0 ? S_W - myPos.x : -myPos.x) / d.x);
     if (d.y != 0)
         maxDist = min(maxDist, (d.y > 0 ? S_H - myPos.y : -myPos.y) / d.y);
-    return min(maxDist, room.genGetTimeTillWall(myPos, d, PLAYER_RADIUS, maxDist).first);
+    return min(maxDist, room.genGetTimeTillWall(myPos.local(), d, PLAYER_RADIUS, maxDist).first);
 }
 
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
-    Vec d = tt - myPos;
+    Vec d = tt - myPos.local();
     const double dist = d.mag();
 
     if (dist <= PLAYER_RADIUS)
@@ -188,7 +188,8 @@ int Robot::GetDangerousRocket() const throw () {
     int nearRocket = -1;
     double firstTime = 1e99;
 
-    const ClientPlayer& player = fx.player[me];
+    ClientPlayer player = fx.player[me];
+    player.pos = myPos;
 
     const Room& room = fx.map[player.room()];
 
@@ -200,11 +201,13 @@ int Robot::GetDangerousRocket() const throw () {
         if (rocket.owner == -1 || rocket.team == player.team() && !fx.physics.friendly_fire || rocket.room() != player.room())
             continue;
 
-        const double collisionTime = fx.getTimeTillCollision(player, rocket, (PLAYER_RADIUS + ROCKET_RADIUS) * safetyRoomMul);
+        Rocket rFuture = rocket;
+        rFuture.move(averageLag); // same as the player start position
+        const double collisionTime = fx.getTimeTillCollision(player, rFuture, (PLAYER_RADIUS + ROCKET_RADIUS) * safetyRoomMul);
         if (collisionTime > bounceTime + framesAfterBounce || collisionTime >= firstTime)
             continue;
 
-        const double rocketWallTime = fx.getTimeTillWall(room, rocket, thinkAheadFrames);
+        const double rocketWallTime = fx.getTimeTillWall(room, rFuture, thinkAheadFrames);
         if (collisionTime > rocketWallTime)
             continue;
 
@@ -221,12 +224,11 @@ int Robot::GetEasyEnemy() const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
-        const Vec d = tt - myPos;
+        const Vec d = tt - myPos.local();
 
         const double playerDist = d.mag();
         const double escapeDist = (playerDist / fx.physics.rocket_speed) * fx.physics.max_run_speed / 2;
@@ -264,12 +266,11 @@ int Robot::GetDangerousEnemy() const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        const ClientPlayer& player = fx.player[me];
-        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
-        const Vec d = tt - myPos;
+        const Vec d = tt - myPos.local();
 
         const double playerDist = d.mag();
         const GunDirection aimTowardsMe = inv_dir(GetDir(d));
@@ -319,15 +320,13 @@ int Robot::GetNearestEnemy() const throw () {
     int target = -1;
     double mdist = 0;
 
-    const ClientPlayer& player = fx.player[me];
-
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        if (!enemy.used || enemy.team() == player.team() || !enemy.onscreen || enemy.dead)
+        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
-        const Vec d = tt - myPos;
+        const Vec d = tt - myPos.local();
         const double dist = d.mag();
 
         if (dist < mdist || mdist == 0) {
@@ -344,7 +343,7 @@ pair<bool, GunDirection> Robot::TryAimFreeTurning(int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
-    Vec d = tt - myPos;
+    Vec d = tt - myPos.local();
     const double dist = d.mag();
 
     if (dist < 1)
@@ -359,11 +358,11 @@ pair<bool, GunDirection> Robot::TryAimFreeTurning(int target) const throw () {
 double Robot::GetHitTime(const GunDirection& dir, int iTarget) const throw () {
     const ClientPlayer& target = fx.player[iTarget];
 
-    if (!target.onscreen || target.dead)
+    if (target.dead || !here(target, true))
         return 1e100;
 
     const Vec tt = target.pos.local() + averageLag * target.vel;
-    const Vec d = tt - myPos;
+    const Vec d = tt - myPos.local();
     const double dist = d.mag();
 
     if (dist <= PLAYER_RADIUS)
@@ -404,7 +403,7 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const GunDirection& default
     vector<int> tryOrder;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() == fx.player[me].team() || !pl.onscreen || pl.dead)
+        if (!pl.used || pl.team() == fx.player[me].team() || pl.dead || !here(pl, true))
             continue;
         if (i != last_seen)
             tryOrder.push_back(i);
@@ -431,7 +430,7 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
     vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() == fx.player[me].team() || !pl.onscreen || pl.dead)
+        if (!pl.used || pl.team() == fx.player[me].team() || pl.dead || !here(pl, true))
             continue;
 
         const pair<AimLevel, int> aim = TryAimTradTurning(i);
@@ -463,7 +462,7 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
 
 ClientControls Robot::EscapeRocket(int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
-    const Vec sd = rocket.pos.local() + averageLag * rocket.vel - myPos;
+    const Vec sd = rocket.pos.local() + averageLag * rocket.vel - myPos.local();
 
     ClientControls ctrl;
     ctrl.setStrafe();
@@ -511,7 +510,7 @@ ClientControls Robot::EscapeRocket(int mrock) const throw () {
 }
 
 ClientControls Robot::EscapeExplosion() const throw () {
-    if (!explosionInRoom(fx.player[me].room()) && !imminentExplosionHere())
+    if (!explosionInRoom(myPos.room) && !imminentExplosionHere())
         return ClientControls();
 
     const Area::Neighbor* bestRoom = 0;
@@ -536,7 +535,7 @@ ClientControls Robot::Aim(int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
     const Vec tt = fx.player[i].pos.local() + averageLag * fx.player[i].vel;
-    const Vec d = tt - myPos;
+    const Vec d = tt - myPos.local();
 
     const pair<AimLevel, int> aim = TryAimTradTurning(i);
     if (aim.first == AL_Full && aim.second == myGundir)
@@ -597,10 +596,11 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
     int n = 0;
 
     for (int i = 0; i < maxplayers; ++i) {
-        if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen || i == me)
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !pl.onscreen || i == me)
             continue;
 
-        const Vec d = fx.player[i].pos.local() - fx.player[me].pos.local() + averageLag * (fx.player[i].vel - fx.player[me].vel);
+        const Vec d = pl.pos.local() - fx.player[me].pos.local() + averageLag * (pl.vel - fx.player[me].vel); // don't use myPos, so that all players have the same view
         if (fabs(d.x) > PLAYER_RADIUS || fabs(d.y) > PLAYER_RADIUS)
             continue;
         sd += d;
@@ -695,7 +695,7 @@ ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
     for (int i = 0; i < MAX_POWERUPS; ++i) {
         if (!fx.item[i].real() || area(fx.item[i].position()) != myArea())
             continue;
-        const Vec d = fx.item[i].pos.local() - myPos;
+        const Vec d = fx.item[i].pos.local() - myPos.local();
         if (onImportantMission) {
             if (IsBehindWall(d, PLAYER_RADIUS, PLAYER_RADIUS + POWERUP_RADIUS))
                 continue;
@@ -720,7 +720,7 @@ ClientControls Robot::GetFlag() const throw () {
                 if (area(fi->position()) != myArea() || fi->carried())
                     continue;
                 if (type == 0 || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
-                    return MoveTo(fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
+                    return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
             }
         }
         return ClientControls(); // can't pick up another flag
@@ -735,7 +735,7 @@ ClientControls Robot::GetFlag() const throw () {
             if (area(fi->position()) != myArea() || fi->carried())
                 continue;
             if (type != 0 || !IsFlagAtBase(*fi, team)) // try to pick up enemy or wild flag, or return own flag; nothing to do with own flags at base
-                return MoveTo(fi->position().local() - myPos, PLAYER_RADIUS + FLAG_RADIUS);
+                return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
         }
     }
 
@@ -778,9 +778,9 @@ Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw ()
 bool Robot::AmILast() const throw () {
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || !pl.onscreen || pl.dead)
+        if (!pl.used || pl.dead || !here(pl))
             continue;
-        if (pl.team() == fx.player[me].team() && i > me && area(pl) == myArea())
+        if (pl.team() == fx.player[me].team() && i > me)
             return false; // i am not last one
     }
     return true;
@@ -815,7 +815,7 @@ ClientControls Robot::FollowFlag() const throw () {
     int num = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() != fx.player[me].team() || !pl.onscreen || pl.dead || i == me || !HaveFlag(i) || area(pl) != myArea())
+        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || i == me || !HaveFlag(i) || !here(pl))
             continue;
 
         d += pl.pos.local();
@@ -824,7 +824,7 @@ ClientControls Robot::FollowFlag() const throw () {
     }
     if (!num || (!s.x && !s.y) || IsHome(myArea()))
         return ClientControls();
-    d = (d + averageLag * s) / num - myPos;
+    d = (d + averageLag * s) / num - myPos.local();
     const double speedMul = 4 * PLAYER_RADIUS / s.mag(); // take only the direction, try to lead the carrier by a constant distance
     d += s * speedMul;
     const double dist = d.mag();
@@ -989,8 +989,8 @@ Coords Robot::nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) con
 ClientControls Robot::MoveToDoor(const Area::Neighbor& neighbor) const throw () {
     const Area::Neighbor::Direction dir = neighbor.direction;
     try {
-        const Coords door = nearestDoor(neighbor, myPos);
-        return MoveToNoAggregate(door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos, 0);
+        const Coords door = nearestDoor(neighbor, myPos.local());
+        return MoveToNoAggregate(door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos.local(), 0);
     } catch (AlreadyInRoom) {
         ClientControls ctrl;
         ctrl.setRun();
@@ -1139,10 +1139,11 @@ bool Robot::IsMassive() const throw () {
     Vec d(0, 0);
     int n = 0;
     for (int i = 0; i < maxplayers; ++i) {
-        if (!fx.player[i].used || fx.player[i].team() != fx.player[me].team() || fx.player[i].dead || !fx.player[i].onscreen) //#fix: should we eliminate players in other areas within the same room from this?
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !here(pl))
             continue;
 
-        const Vec diff = fx.player[i].pos.local() - fx.player[me].pos.local() + averageLag * (fx.player[i].vel - fx.player[me].vel);
+        const Vec diff = pl.pos.local() + averageLag * pl.vel - myPos.local();
         d += Vec(fabs(diff.x), fabs(diff.y));
         ++n;
     }
@@ -1515,7 +1516,7 @@ ClientControls Robot::getRobotControls() throw () {
 
     if (last_seen != -1) {
         const ClientPlayer& lsp = fx.player[last_seen];
-        if (!lsp.used || lsp.team() == fx.player[me].team() || !lsp.onscreen || lsp.dead) // lost target
+        if (!lsp.used || lsp.team() == fx.player[me].team() || lsp.dead || !here(lsp, true)) // lost target
             last_seen = -1;
     }
 
@@ -1637,7 +1638,14 @@ ClientControls Robot::RobotMain() throw () {
         return ClientControls();
     }
 
-    myPos = Coords(fx.player[me].pos.local() + averageLag * fx.player[me].vel);
+    ClientPlayer futureMe = fx.player[me];
+    const uint8_t nControlFrames = clFrameSent - clFrameWorld;
+    averageLag = nControlFrames + .5;
+    if (nControlFrames)
+        fx.extrapolateSinglePlayerPosition(futureMe, controlHistory, clFrameWorld + 1, clFrameSent, 1.5);
+    else
+        fx.extrapolateSinglePlayerPosition(futureMe, controlHistory, clFrameSent, clFrameSent, .5);
+    myPos = futureMe.pos;
 
     if (myGundir == -1) // was dead, or something like that
         myGundir = fx.player[me].gundir.to8way();

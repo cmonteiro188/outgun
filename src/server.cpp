@@ -1366,7 +1366,7 @@ void Server::chat(int pid, const string& message) throw () {
                 ist >> ping;
                 if (!ist && ist.eof())
                     network.plprintf(pid, msg_server, "Current bot ping is %d.", settings.get_bot_ping());
-                else if (ist && ping >= 0 && ping <= 500) {
+                else if (ist && ping >= 0 && ping <= 2000) {
                     string all;
                     ist >> all;
                     if (!ist.eof() || (ist && all != "all"))
@@ -1379,7 +1379,7 @@ void Server::chat(int pid, const string& message) throw () {
                     }
                 }
                 else
-                    network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 500.");
+                    network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 2000.");
             }
             else if (option == "rename") {
                 unsigned bot_id;

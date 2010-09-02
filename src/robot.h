@@ -63,7 +63,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
-    Coords      myPos; // extrapolated
+    WorldCoords myPos; // extrapolated
 
     struct TeamCounts {
         int enemies, friends;
@@ -75,8 +75,10 @@ class Robot : public ClientBase, public BotInterface {
     const Area* area(const WorldCoords& c) const throw () { return areaMap.identifyArea(c); }
           Area* area(const ClientPlayer& p)       throw () { return area(p.position()); }
     const Area* area(const ClientPlayer& p) const throw () { return area(p.position()); }
-          Area* myArea()       throw () { return area(fx.player[me]); }
-    const Area* myArea() const throw () { return area(fx.player[me]); }
+          Area* myArea()       throw () { return area(myPos); }
+    const Area* myArea() const throw () { return area(myPos); }
+
+    bool here(const ClientPlayer& p, bool roomEnough = false) const throw () { return p.posUpdated > fx.frame - 10 && p.room() == myPos.room && (roomEnough || area(p) == myArea()); }
 
     static int xDelta(Area::Neighbor::Direction dir) throw ();
     static int yDelta(Area::Neighbor::Direction dir) throw ();
