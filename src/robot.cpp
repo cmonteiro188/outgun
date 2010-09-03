@@ -1786,7 +1786,10 @@ void Robot::bot_loop() throw () {
     #endif
     nAssert(me >= 0 && me < maxplayers);
     if (me / TSIZE != desiredTeam) {
-        nAssert(fx.frame < 100);
+        if (fx.frame >= 100) {
+            disconnect_command();
+            return;
+        }
         if (botReactedFrame == -1) {
             BinaryBuffer<16> msg;
             msg.U8(data_change_team_on);
