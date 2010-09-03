@@ -87,7 +87,7 @@ int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area:
 const DeathbringerExplosion* Robot::explosionInRoom(const RoomCoords& room) const throw () {
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
         const WorldCoords& pos = dbi->position();
-        if (pos.room == room && (dbi->team() != fx.player[me].team() || fx.physics.friendly_db))
+        if (pos.room == room && (dbi->team() != myTeam() || fx.physics.friendly_db))
             return &*dbi;
     }
     return 0;
@@ -98,7 +98,7 @@ bool Robot::imminentExplosionHere() const throw () {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || pl.dead || !here(pl, true))
             continue;
-        if (pl.team() == fx.player[me].team() && !fx.physics.friendly_db)
+        if (myTeam(pl) && !fx.physics.friendly_db)
             continue;
         if (pl.item_deathbringer && pl.under_deathbringer_effect(get_time()))
             return true;
@@ -224,7 +224,7 @@ int Robot::GetEasyEnemy() const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
+        if (!enemy.used || myTeam(enemy) || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = predictPos(enemy);
@@ -266,7 +266,7 @@ int Robot::GetDangerousEnemy() const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
+        if (!enemy.used || myTeam(enemy) || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = predictPos(enemy);
@@ -322,7 +322,7 @@ int Robot::GetNearestEnemy() const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& enemy = fx.player[i];
-        if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
+        if (!enemy.used || myTeam(enemy) || enemy.dead || !here(enemy, true))
             continue;
 
         const Vec tt = predictPos(enemy);
@@ -394,7 +394,7 @@ double Robot::GetHitTeammateTime(const GunDirection& dir) const throw () {
     if (fx.physics.friendly_fire == 0)
         return hitTime;
     for (int i = 0; i < maxplayers; ++i)
-        if (fx.player[i].used && fx.player[i].team() == fx.player[me].team() && i != me)
+        if (fx.player[i].used && myTeam(fx.player[i]) && i != me)
             hitTime = min(hitTime, GetHitTime(dir, i));
     return hitTime;
 }
@@ -403,7 +403,7 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const GunDirection& default
     vector<int> tryOrder;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() == fx.player[me].team() || pl.dead || !here(pl, true))
+        if (!pl.used || myTeam(pl) || pl.dead || !here(pl, true))
             continue;
         if (i != last_seen)
             tryOrder.push_back(i);
@@ -430,7 +430,7 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
     vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() == fx.player[me].team() || pl.dead || !here(pl, true))
+        if (!pl.used || myTeam(pl) || pl.dead || !here(pl, true))
             continue;
 
         const pair<AimLevel, int> aim = TryAimTradTurning(i);
@@ -597,7 +597,7 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !pl.onscreen || i == me)
+        if (!pl.used || !myTeam(pl) || pl.dead || !pl.onscreen || i == me)
             continue;
 
         const Vec d = predictPos(pl) - predictPos(fx.player[me]); // don't use myPos, so that all players have the same view
@@ -708,13 +708,11 @@ ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
 }
 
 ClientControls Robot::GetFlag() const throw () {
-    const int myTeam = fx.player[me].team();
-
     if (HaveFlag(me)) {
         for (int type = 0; type < 2; ++type) { // 0 for own flags, 1 for wild
             if (!(type == 0 ? capture_on_team_flags_in_effect : capture_on_wild_flags_in_effect))
                 continue;
-            const int team = type == 0 ? myTeam : 2;
+            const int team = type == 0 ? myTeam() : 2;
             const vector<Flag>& flags = type == 0 ? fx.teams[team].flags() : fx.wild_flags;
             for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
                 if (area(fi->position()) != myArea() || fi->carried())
@@ -729,7 +727,7 @@ ClientControls Robot::GetFlag() const throw () {
     for (int type = 0; type < 3; ++type) { // 0 for own flags, 1 for enemy, 2 for wild
         if (type == 2 ? lock_wild_flags_in_effect : lock_team_flags_in_effect)
             continue;
-        const int team = type == 0 ? myTeam : type == 1 ? !myTeam : 2;
+        const int team = type == 0 ? myTeam() : type == 1 ? !myTeam() : 2;
         const vector<Flag>& flags = type == 2 ? fx.wild_flags : fx.teams[team].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             if (area(fi->position()) != myArea() || fi->carried())
@@ -750,7 +748,7 @@ Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw ()
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || area(pl) != a || pl.dead)
             continue;
-        if (pl.team() == fx.player[me].team()) {
+        if (myTeam(pl)) {
             if (i == me)
                 meFound = true;
             c.friends++;
@@ -761,7 +759,7 @@ Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw ()
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || area(pl) != a || pl.dead)
             continue;
-        if (pl.team() != fx.player[me].team()) {
+        if (!myTeam(pl)) {
             if (fx.frame - pl.posUpdated > FADEOUT)
                 continue;
             if (fx.map[pl.room()].enemies_seen_frame > pl.posUpdated)
@@ -780,7 +778,7 @@ bool Robot::AmILast() const throw () {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || pl.dead || !here(pl))
             continue;
-        if (pl.team() == fx.player[me].team() && i > me)
+        if (myTeam(pl) && i > me)
             return false; // i am not last one
     }
     return true;
@@ -815,7 +813,7 @@ ClientControls Robot::FollowFlag() const throw () {
     int num = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || i == me || !HaveFlag(i) || !here(pl))
+        if (!pl.used || !myTeam(pl) || pl.dead || i == me || !HaveFlag(i) || !here(pl))
             continue;
 
         d += pl.pos.local();
@@ -1017,13 +1015,12 @@ int Robot::GetPlayers(int team) const throw () {
 
 bool Robot::IsDefender() throw () {
     // get flag base
-    const int team = fx.player[me].team();
-    const vector<WorldCoords>& tflags = fx.map.tinfo[team].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
 
     if (tflags.empty())
         return false;
 
-    const int npl = GetPlayers(team);
+    const int npl = GetPlayers(myTeam());
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
     const int defNum = npl / nAllFlags; // split players evenly between all flags of all teams, rounding down the number of defenders per flag
 
@@ -1036,9 +1033,8 @@ bool Robot::IsDefender() throw () {
         int nearNum = 0;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || player.team() != fx.player[me].team() || player.dead || i == me ||
-                player.room().x >= fx.map.w || player.room().y >= fx.map.h)
-                    continue;
+            if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+                continue;
             const int distance = area(player)->distance[Table_Def];
             if (distance < m_distance || distance == m_distance && (i < me || HaveFlag(i)))
                 nearNum++;
@@ -1054,12 +1050,12 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
     destinationType = Dest_None;
 
     if (!flag) {
-        const bool at_bases = IsFlagsAtBases(fx.player[me].team()); // are own flags safe?
+        const bool at_bases = IsFlagsAtBases(myTeam()); // are own flags safe?
 
         const bool sef = !lock_team_flags_in_effect; // try to steal enemy flags?
         const bool swf = !lock_wild_flags_in_effect; // try to steal wild flags?
 
-        bool efc = !IsCarriersDef(1 - fx.player[me].team()); // try to defend carriers of enemy flags?
+        bool efc = !IsCarriersDef(1 - myTeam()); // try to defend carriers of enemy flags?
         bool wfc = !IsCarriersDef(2); // try to defend carriers of wild flags?
         bool mfb = sef && IsDefender(); // try to defend own flags at bases? (!sef means the enemy won't try our flags either, so nothing to defend)
 
@@ -1104,7 +1100,7 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
         const bool ctf = capture_on_team_flags_in_effect;
         const bool cwf = capture_on_wild_flags_in_effect;
 
-        if (GetPlayers(fx.player[me].team()) > 1) {
+        if (GetPlayers(myTeam()) > 1) {
             TargetNearest(  0,   0,   0,
                           ctf,   0,   0,
                           cwf,   0,   0,   0,
@@ -1140,7 +1136,7 @@ bool Robot::IsMassive() const throw () {
     int n = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !here(pl))
+        if (!pl.used || !myTeam(pl) || pl.dead || !here(pl))
             continue;
 
         const Vec diff = predictPos(pl) - myPos.local();
@@ -1200,7 +1196,7 @@ void Robot::TargetNearestBase(int& m_distance, Area*& targetArea, int team) thro
 
 void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) throw () {
     // looking for soldiers
-    const bool enemy = (fx.player[me].team() != team);
+    const bool enemy = myTeam() != team;
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
@@ -1245,7 +1241,7 @@ bool Robot::IsCarriersDef(int team) throw () {
     const int myDist = myArea()->distance[Table_Def];
     for (int pi = 0; pi < maxplayers; ++pi) {
         const ClientPlayer& pl = fx.player[pi];
-        if (!pl.used || pl.team() != fx.player[me].team())
+        if (!pl.used || !myTeam(pl))
             continue;
         ++teammates;
         const int dist = area(pl)->distance[Table_Def];
@@ -1256,7 +1252,7 @@ bool Robot::IsCarriersDef(int team) throw () {
 }
 
 bool Robot::IsHome(const Area* a) const throw () {
-    const vector<WorldCoords>& tflags = fx.map.tinfo[fx.player[me].team()].flags;
+    const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
     // our bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
         if (area(*pi) == a)
@@ -1276,7 +1272,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
     const bool wantCarried = state == 2 || state == 3;
-    const int carrierTeam = state == 2 ? fx.player[me].team() : !fx.player[me].team();
+    const int carrierTeam = state == 2 ? myTeam() : !myTeam();
 
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
@@ -1357,7 +1353,7 @@ void Robot::TargetNearest(int efb, int efd, int efc,
                           int eb,  int fb, int wb) throw () {
     int m_distance = -1;
     Area* targetArea = 0;
-    const int t = fx.player[me].team();
+    const int t = myTeam();
     const int et = 1 - t;
 
     BuildDistanceTable(myArea(), Table_Main);
@@ -1500,7 +1496,7 @@ ClientControls Robot::getRobotControls() throw () {
 
     for (int pi = 0; pi < maxplayers; ++pi) {
         const ClientPlayer& p = fx.player[pi];
-        if (!p.used || p.dead || p.team() != fx.player[me].team())
+        if (!p.used || p.dead || !myTeam(p))
             continue;
         if (p.posUpdated == fx.frame && p.fromMinimapUpdate && p.prevMapPosUpdateFrame >= p.posUpdated - 20 && p.prevMapUpdateRoom == p.room()) {
             double& esf = fx.map[p.room()].enemies_seen_frame;
@@ -1510,13 +1506,13 @@ ClientControls Robot::getRobotControls() throw () {
 
     for (int pi = 0; pi < maxplayers; ++pi) {
         ClientPlayer& p = fx.player[pi];
-        if (p.used && !p.dead && p.team() != fx.player[me].team())
+        if (p.used && !p.dead && !myTeam(p))
             updateUnknownPosition(p);
     }
 
     if (last_seen != -1) {
         const ClientPlayer& lsp = fx.player[last_seen];
-        if (!lsp.used || lsp.team() == fx.player[me].team() || lsp.dead || !here(lsp, true)) // lost target
+        if (!lsp.used || myTeam(lsp) || lsp.dead || !here(lsp, true)) // lost target
             last_seen = -1;
     }
 

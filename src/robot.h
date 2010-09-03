@@ -84,6 +84,9 @@ class Robot : public ClientBase, public BotInterface {
     Coords      predictPos(const ClientPlayer& p) const throw () { return predictPos(p.pos.local(), p.vel); }
     Coords      predictPos(const Rocket& r) const throw () { return predictPos(r.pos.local(), r.vel); }
 
+    int         myTeam() const throw () { return fx.player[me].team(); }
+    bool        myTeam(const ClientPlayer& p) const throw () { return p.team() == myTeam(); }
+
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
 
