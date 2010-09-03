@@ -78,10 +78,14 @@ class Robot : public ClientBase, public BotInterface {
           Area* myArea()       throw () { return area(myPos); }
     const Area* myArea() const throw () { return area(myPos); }
 
-    bool here(const ClientPlayer& p, bool roomEnough = false) const throw () { return p.posUpdated > fx.frame - 10 && p.room() == myPos.room && (roomEnough || area(p) == myArea()); }
+    bool        here(const ClientPlayer& p, bool roomEnough = false) const throw () { return p.posUpdated > fx.frame - 10 && p.room() == myPos.room && (roomEnough || area(p) == myArea()); }
 
-    static int xDelta(Area::Neighbor::Direction dir) throw ();
-    static int yDelta(Area::Neighbor::Direction dir) throw ();
+    Coords      predictPos(const Coords& startPos, const Vec& vel) const throw () { return Coords(startPos + averageLag * vel); }
+    Coords      predictPos(const ClientPlayer& p) const throw () { return predictPos(p.pos.local(), p.vel); }
+    Coords      predictPos(const Rocket& r) const throw () { return predictPos(r.pos.local(), r.vel); }
+
+    static int  xDelta(Area::Neighbor::Direction dir) throw ();
+    static int  yDelta(Area::Neighbor::Direction dir) throw ();
 
     const DeathbringerExplosion* explosionInRoom(const RoomCoords& room) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
     bool        imminentExplosionHere() const throw ();

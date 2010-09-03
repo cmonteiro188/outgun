@@ -149,7 +149,7 @@ double Robot::ScanDir(GunDirection dir) const throw () {
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
-    const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
+    const Vec tt = predictPos(fx.player[target]);
     Vec d = tt - myPos.local();
     const double dist = d.mag();
 
@@ -227,7 +227,7 @@ int Robot::GetEasyEnemy() const throw () {
         if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
-        const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
+        const Vec tt = predictPos(enemy);
         const Vec d = tt - myPos.local();
 
         const double playerDist = d.mag();
@@ -269,7 +269,7 @@ int Robot::GetDangerousEnemy() const throw () {
         if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
-        const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
+        const Vec tt = predictPos(enemy);
         const Vec d = tt - myPos.local();
 
         const double playerDist = d.mag();
@@ -325,7 +325,7 @@ int Robot::GetNearestEnemy() const throw () {
         if (!enemy.used || enemy.team() == fx.player[me].team() || enemy.dead || !here(enemy, true))
             continue;
 
-        const Vec tt = enemy.pos.local() + averageLag * enemy.vel;
+        const Vec tt = predictPos(enemy);
         const Vec d = tt - myPos.local();
         const double dist = d.mag();
 
@@ -342,7 +342,7 @@ int Robot::GetNearestEnemy() const throw () {
 pair<bool, GunDirection> Robot::TryAimFreeTurning(int target) const throw () {
     nAssert(fx.physics.allowFreeTurning);
 
-    const Vec tt = fx.player[target].pos.local() + averageLag * fx.player[target].vel;
+    const Vec tt = predictPos(fx.player[target]);
     Vec d = tt - myPos.local();
     const double dist = d.mag();
 
@@ -361,7 +361,7 @@ double Robot::GetHitTime(const GunDirection& dir, int iTarget) const throw () {
     if (target.dead || !here(target, true))
         return 1e100;
 
-    const Vec tt = target.pos.local() + averageLag * target.vel;
+    const Vec tt = predictPos(target);
     const Vec d = tt - myPos.local();
     const double dist = d.mag();
 
@@ -462,7 +462,7 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
 
 ClientControls Robot::EscapeRocket(int mrock) const throw () {
     const Rocket& rocket = fx.rock[mrock];
-    const Vec sd = rocket.pos.local() + averageLag * rocket.vel - myPos.local();
+    const Vec sd = predictPos(rocket) - myPos.local();
 
     ClientControls ctrl;
     ctrl.setStrafe();
@@ -534,7 +534,7 @@ ClientControls Robot::EscapeExplosion() const throw () {
 ClientControls Robot::Aim(int i) const throw () {
     nAssert(!fx.physics.allowFreeTurning);
 
-    const Vec tt = fx.player[i].pos.local() + averageLag * fx.player[i].vel;
+    const Vec tt = predictPos(fx.player[i]);
     const Vec d = tt - myPos.local();
 
     const pair<AimLevel, int> aim = TryAimTradTurning(i);
@@ -600,7 +600,7 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
         if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !pl.onscreen || i == me)
             continue;
 
-        const Vec d = pl.pos.local() - fx.player[me].pos.local() + averageLag * (pl.vel - fx.player[me].vel); // don't use myPos, so that all players have the same view
+        const Vec d = predictPos(pl) - predictPos(fx.player[me]); // don't use myPos, so that all players have the same view
         if (fabs(d.x) > PLAYER_RADIUS || fabs(d.y) > PLAYER_RADIUS)
             continue;
         sd += d;
@@ -1143,7 +1143,7 @@ bool Robot::IsMassive() const throw () {
         if (!pl.used || pl.team() != fx.player[me].team() || pl.dead || !here(pl))
             continue;
 
-        const Vec diff = pl.pos.local() + averageLag * pl.vel - myPos.local();
+        const Vec diff = predictPos(pl) - myPos.local();
         d += Vec(fabs(diff.x), fabs(diff.y));
         ++n;
     }
