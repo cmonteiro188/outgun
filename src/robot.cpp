@@ -1107,7 +1107,7 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
             if (destinationType == Dest_Base) {
                 const TeamCounts tc = Teams(destination, false);
                 if (tc.friends) { // if we are going to base where is already our forces, forget it
-                    if (destination != myArea() || AmILast())
+                    if (destination != myArea() || tc.enemies == 0 && AmILast())
                         TargetFog();
                 }
             }
