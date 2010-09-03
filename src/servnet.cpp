@@ -1743,8 +1743,7 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
         controls.clearModifiersIfIdle();
         if (pl.controls != controls) {
             pl.controls = controls;
-            if (!pl.dead)
-                pl.record_controls = true;
+            pl.record_controls = true;
         }
 
         GunDirection newDir;
