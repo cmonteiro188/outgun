@@ -2434,7 +2434,7 @@ void Graphics::draw_replay_info(float rate, unsigned position, unsigned length, 
     print_text_border_centre_check_bg(time.str(), x, y, colour[Colour::replay_text], colour[Colour::replay_text_border], -1);
 
     if (length > 0) {
-        y += 3 * max(height, text_height(font)) / 2;
+        y += 2 * max(height, text_height(font));
         const int x1 = health_x;
         const int x2 = playfield_x + playfield_w;
         const int pos_x = x1 + position * (x2 - x1) / length;
