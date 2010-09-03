@@ -1045,6 +1045,24 @@ bool Robot::IsDefender() throw () {
     return false;
 }
 
+bool Robot::EnemyHasUnseenFlags(bool wild) const throw () {
+    const vector<Flag>& flags = wild ? fx.wild_flags : fx.teams[myTeam()].flags();
+
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+        if (!fi->carried())
+            continue;
+        const ClientPlayer& pl = fx.player[fi->carrier()];
+
+        if (!pl.used || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+            return true;
+        if (myTeam(pl))
+            continue;
+        if (pl.posUpdated < max(fx.frame - FADEOUT, fx.map[pl.room()].enemies_seen_frame))
+            return true;
+    }
+    return false;
+}
+
 void Robot::ChooseDestination() throw () { // NEED rewrite
     const int flag = HaveFlag(me);
     destinationType = Dest_None;
@@ -1071,11 +1089,12 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
             }
         }
         if (destinationType == Dest_None) {
+            const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
             TargetNearest(sef, sef, efc,
                           mfb,   1,   1,
                           swf, swf,   1, wfc,
                             0,   0,
-                            0,   0,   0);
+                          deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
         }
         if (destinationType == Dest_None) {
             TargetNearest(  0,   0,   0,

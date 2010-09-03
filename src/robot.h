@@ -102,6 +102,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        IsDefender() throw (); // am i defender? (role)
     bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
+    bool        EnemyHasUnseenFlags(bool wild) const throw ();
     int         GetPlayers(int team) const throw (); // get num of players
     TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
     bool        IsHome(const Area* a) const throw (); //is it base
