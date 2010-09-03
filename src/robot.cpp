@@ -1337,6 +1337,8 @@ void Robot::TargetFog() throw () {
     Area* target = 0;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
         Area* const na = ni->area;
+        if (destinationType == Dest_Base && na->distance[Table_Destination] > 3)
+            continue;
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
             continue;
