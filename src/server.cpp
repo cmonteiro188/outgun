@@ -572,20 +572,18 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
     network.broadcast_stats_ready();
 
     if (botTestMode && world.frame > 100) { // there's a special restart on frame 100
-        static int points[2], wins[2], kills[2];
-        int newKills[2] = { 0, 0 };
-        for (int p = 0; p < maxplayers; ++p)
-            if (world.player[p].used)
-                newKills[world.player[p].team()] += world.player[p].stats().kills();
+        static int points[2], wins[2], draws = 0;
         for (int t = 0; t < 2; ++t) {
             points[t] += world.teams[t].score();
             if (world.teams[t].score() > world.teams[!t].score())
                 ++wins[t];
-            kills[t] += newKills[t];
         }
-        std::cout << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": " << world.teams[0].score() << '-' << world.teams[1].score()
-                  << "; total: " << points[0] << '-' << points[1] << "; wins: " << wins[0] << '-' << wins[1] << "; kills: " << newKills[0] << '-' << newKills[1]
-                  << "; total: " << kills[0] << '-' << kills[1] << '\n' << std::flush;
+        if (world.teams[0].score() == world.teams[1].score())
+            draws++;
+        std::cout << "Games: " << wins[0] << '-' << draws << '-' << wins[1] << "; "
+                  << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": "
+                  << world.teams[0].score() << '-' << world.teams[1].score()
+                  << "; total: " << points[0] << '-' << points[1] << std::endl;
     }
 
     vector<int> winners;
