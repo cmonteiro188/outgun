@@ -1271,7 +1271,7 @@ bool Robot::IsCarriersDef(int team) throw () {
     const int myDist = myArea()->distance[Table_Def];
     for (int pi = 0; pi < maxplayers; ++pi) {
         const ClientPlayer& pl = fx.player[pi];
-        if (!pl.used || !myTeam(pl))
+        if (!pl.used || pl.dead || !myTeam(pl))
             continue;
         ++teammates;
         const int dist = area(pl)->distance[Table_Def];
