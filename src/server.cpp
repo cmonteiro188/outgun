@@ -78,7 +78,7 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     threadLockMutex("Server::threadLockMutex"),
     abortFlag(false),
     quit_bots(false),
-    botTestMode(true),
+    botTestMode(false),
     botReactedFrame(0),
     world(this, &network, log),
     network(this, settings, world, log, threadLock, threadLockMutex),
