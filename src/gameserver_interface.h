@@ -49,6 +49,7 @@ public:
     int server_maxplayers;  //maxplayers for the local server, given on the command line (don't use anywhere new)
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads; all must be set properly when used
     bool threadLock;    // disable all concurrency?
+    bool botTestMode;
 
     typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;  // must be set properly (non-null) when used
@@ -56,7 +57,7 @@ public:
     bool ownScreen;
 
     ServerExternalSettings() throw () : dedserver(false), port(DEFAULT_UDP_PORT), minLocalPort(0), maxLocalPort(0), privateserver(false),
-        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), statusOutput(0), showErrorCount(true), ownScreen(false) { }
+        portForced(false), privSettingForced(false), ipForced(false), server_maxplayers(16), threadLock(true), botTestMode(false), statusOutput(0), showErrorCount(true), ownScreen(false) { }
 };
 
 class GameserverInterface {

@@ -313,6 +313,8 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         }
         else if (!strcmp(argv[i], "-unsafeserver"))
             serverCfg.threadLock = false;
+        else if (!strcmp(argv[i], "-bottest"))
+            serverCfg.botTestMode = true;
         #ifndef DEDICATED_SERVER_ONLY
         else if (!strcmp(argv[i], "-win"))
             clientCfg.winclient = 1;
