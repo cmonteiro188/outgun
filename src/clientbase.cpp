@@ -611,8 +611,23 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             log.error("Invalid name for player " + itoa(pid) + '.');
     }
 
-    break; case data_text_message:
-        net_data_text_message(read);
+    break; case data_text_message: {
+        const Message_type type = static_cast<Message_type>(read.U8(0, Message_types - 1));
+        const string text = read.str();
+        if (find_nonprintable_char(text)) {
+            log.error("Server sent non-printable characters in a message.");
+            addThreadMessage(new TM_DoDisconnect());
+            break;
+        }
+        int8_t sender_team = -1;
+        if (protocolExtensions >= 0 || replaying) {
+            if (type == msg_team || type == msg_normal)
+                sender_team = read.S8();
+        }
+        else if (type == msg_team)
+            sender_team = fx.player[me].team();
+        net_text_message(type, sender_team, text);
+    }
 
     break; case data_first_packet: {
         me = read.U8();

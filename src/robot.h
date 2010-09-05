@@ -96,6 +96,7 @@ class Robot : public ClientBase, public BotInterface {
     Coords      nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) const throw (AlreadyInRoom);
     double      distanceFromDoor(const Area::Neighbor& n) const throw ();
     bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const throw ();
+    bool        moreDefensive(const ClientPlayer& player) const throw ();
 
     void        updateUnknownPosition(ClientPlayer& pl) throw ();
 
@@ -163,6 +164,10 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls getRobotControls() throw ();
 
     ClientControls RobotMain() throw ();
+
+    bool firstBotInTeam() const throw ();
+
+    void net_text_message(Message_type type, int sender_team, const std::string& text) throw ();
 
     void connect_command() throw ();    // call with frameMutex locked
 

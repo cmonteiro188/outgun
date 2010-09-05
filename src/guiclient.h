@@ -474,8 +474,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void net_data_reset_map_list(BinaryReader& read) throw ();
     void net_data_map_vote(BinaryReader& read) throw ();
     void net_data_map_votes_update(BinaryReader& read) throw ();
-    void net_data_text_message(BinaryReader& read) throw ();
-
+    void net_text_message(Message_type type, int sender_team, const std::string& text) throw ();
     void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
     void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
     void netFlagTake(int pid, bool wild_flag) throw ();

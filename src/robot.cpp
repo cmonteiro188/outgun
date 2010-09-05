@@ -123,6 +123,15 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const t
     return !dbe->expired(fx.frame + averageLag + minMoveTime);
 }
 
+bool Robot::moreDefensive(const ClientPlayer& player) const throw () {
+    if (HaveFlag(player.id))
+        return true;
+    if (player.name.substr(0, 4) == "BOT ")
+        return player.id < me;
+    else
+        return player.defending;
+}
+
 bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
     const Room& room = fx.map[myPos.room];
     const double dist = delta.mag();
@@ -1036,7 +1045,7 @@ bool Robot::IsDefender() throw () {
             if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
                 continue;
             const int distance = area(player)->distance[Table_Def];
-            if (distance < m_distance || distance == m_distance && (i < me || HaveFlag(i)))
+            if (distance < m_distance || distance == m_distance && moreDefensive(player))
                 nearNum++;
         }
         if (nearNum < defNum)
@@ -1264,7 +1273,7 @@ bool Robot::IsCarriersDef(int team) throw () {
             continue;
         ++teammates;
         const int dist = area(pl)->distance[Table_Def];
-        if (dist < myDist || dist == myDist && (pi < me || HaveFlag(pi)))
+        if (dist < myDist || dist == myDist && moreDefensive(pl))
             ++nearer;
     }
     return nearer >= teammates / 2;
@@ -1777,6 +1786,53 @@ void Robot::client_disconnected(ConstDataBlockRef data) throw () {
 void Robot::connect_command() throw () {   // call with frameMutex locked
     prepareForConnect();
     connect(serverIP.toString(), bot_password, "");
+}
+
+bool Robot::firstBotInTeam() const throw () {
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& p = fx.player[i];
+        if (p.used && myTeam(p) && p.name.substr(0, 4) == "BOT ")
+            return i == me;
+    }
+    return true; // possible if we've been renamed to something without "BOT "
+}
+
+void Robot::net_text_message(Message_type type, int sender_team, const string& text) throw () {
+    if (type != msg_team || sender_team != myTeam())
+        return;
+    const string::size_type colon = text.find(": ");
+    if (colon == string::npos || colon >= text.length() - 2)
+        return;
+    const string senderName = text.substr(0, colon);
+    int senderPid = -1;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (pl.used && myTeam(pl) && pl.name == senderName) {
+            senderPid = i;
+            break;
+        }
+    }
+    if (senderPid == -1)
+        return;
+    ClientPlayer& sender = fx.player[senderPid];
+    const string msg = text.substr(colon + 2);
+    string description;
+    if (msg == "d" || msg == "def" || msg == "defending") {
+        sender.defending = true;
+        description = sender.name + " prefers defending";
+    }
+    else if (msg == "a" || msg == "att" || msg == "attacking") {
+        sender.defending = false;
+        description = sender.name + " prefers attacking";
+    }
+    else
+        return;
+    if (firstBotInTeam()) {
+        BinaryBuffer<256> msg;
+        msg.U8(data_text_message);
+        msg.str(".Roger - " + description);
+        client->send_message(msg);
+    }
 }
 
 void Robot::bot_send_frame(ClientControls controls) throw () {
