@@ -494,11 +494,6 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
             }
             else if (current.green_flag)
                 out << "flag 2 " << x << ' ' << y << " 8 6\n";
-            if (current.respawn != -1) {
-                out << "V respawn " << current.respawn << ' ' << x << ' ' << y << "\n";
-                const int floor = current.respawn == 2 ? rand() % 2 + 1 : current.respawn + 3; // 1 and 2 alternative floors, 3 red floor, 4 blue floor
-                out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
-            }
             vector<string> walls;
             if (current.top)
                 walls.push_back("top");
@@ -510,6 +505,11 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 walls.push_back("right");
             for (vector<string>::const_iterator wi = walls.begin(); wi != walls.end(); ++wi)
                 out << "X " << *wi << ' ' << x << ' ' << y << '\n';
+            if (current.respawn != -1) {
+                out << "V respawn " << current.respawn << ' ' << x << ' ' << y << "\n";
+                const int floor = current.respawn == 2 ? rand() % 2 + 1 : current.respawn + 3; // 1 and 2 alternative floors, 3 red floor, 4 blue floor
+                out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
+            }
         }
     vector<string> files;
     const string dir = wheregamedir + "mapgen" + directory_separator;
