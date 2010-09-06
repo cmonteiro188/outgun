@@ -52,7 +52,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     for (vector<vector<SimpleRoom> >::iterator vi = room.begin(); vi != room.end(); vi++)
         *vi = vector<SimpleRoom>(h, true);
 
-    if (green_flag && (create_asymmetric || w % 2 == 0 && h % 2 == 0)) // no green flag if it can't be symmetrical
+    if (green_flag && w % 2 == 0 && h % 2 == 0) // no green flag if it can't be symmetrical
         green_flag = false;
 
     if (create_asymmetric)
@@ -139,7 +139,11 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
         flags = 2;
 
     if (green_flag && flags == 2) { // Try to add a green flag.
-        const DistRoom green = select_green_flag_base(x1, y1);
+        DistRoom green;
+        if (symmetry == asymmetric)
+            green = select_asymmetric_green_base(RoomCoords(x1, y1), RoomCoords(x2, y2));
+        else
+            green = select_green_flag_base(x1, y1);
         if (green) {
             SimpleRoom& green_base = room[green.x][green.y];
             green_base.green_flag = true;
@@ -367,6 +371,34 @@ MapGenerator::BasePair MapGenerator::select_asymmetric_bases() const throw () {
                     }
                 }
     nAssert(!candidates.empty());
+    return candidates[rand() % candidates.size()];
+}
+
+MapGenerator::DistRoom MapGenerator::select_asymmetric_green_base(const RoomCoords& red_base, const RoomCoords& blue_base) const throw () {
+    // Select a room that is as far as possible and at the same distance from
+    // both the team bases. That is not always possible and then there won't be
+    // a green flag.
+    vector<DistRoom> candidates;
+    int max_dist = 0;
+    for (int y = 0; y < height(); y++)
+        for (int x = 0; x < width(); x++) {
+            if (room[x][y].team_flag)
+                continue;
+            const int red_dist = distance(x, y, red_base.x, red_base.y);
+            if (red_dist < max_dist)
+                continue;
+            const int blue_dist = distance(x, y, blue_base.x, blue_base.y);
+            if (blue_dist < max_dist || blue_dist != red_dist)
+                continue;
+            if (red_dist > max_dist) {
+                candidates.clear();
+                max_dist = red_dist;
+            }
+            DistRoom d(x, y, red_dist);
+            candidates.push_back(d);
+        }
+    if (candidates.empty())
+        return DistRoom::invalid();
     return candidates[rand() % candidates.size()];
 }
 
