@@ -25,6 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "world.h"
+
 class MapGenerator {
     enum Direction { up, down, left, right };
     enum Symmetry { asymmetric, rotational, horizontal, vertical };
@@ -48,17 +50,19 @@ class MapGenerator {
         int cost, score;
     };
 
-    struct Dist {
-        Dist(): dist(-1) { }
-        Dist(int x, int y, int d = -1): coords(x, y), dist(d) { }
+    struct DistRoom : public RoomCoords {
+        DistRoom(): dist(0) { }
+        DistRoom(int x, int y, int d = 0): RoomCoords(x, y), dist(d) { }
+
+        static DistRoom invalid() { return DistRoom(0, 0, -1); }
 
         operator const void*() const throw() { return dist >= 0 ? this : 0; }
         bool operator !() const throw() { return dist < 0; }
 
-        std::pair<int, int> coords; int dist;
+        int dist;
     };
 
-    typedef std::pair<Dist, Dist> BasePair;
+    typedef std::pair<DistRoom, DistRoom> BasePair;
 
 public:
     /** Generate map. Return the distance between the bases.
@@ -74,13 +78,13 @@ private:
     void shift_rooms_if_needed() throw ();
     void shift_rooms(int x_shift, int y_shift) throw ();
 
-    Dist select_base() const throw ();
-    Dist select_green_flag_base(int team_flag_x, int team_flag_y) const throw ();
-    Dist select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
+    DistRoom select_base() const throw ();
+    DistRoom select_green_flag_base(int team_flag_x, int team_flag_y) const throw ();
+    DistRoom select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
     BasePair select_asymmetric_bases() const throw ();
 
     int distance(int sx, int sy, int gx, int gy) const throw ();
-    const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) const throw ();
+    const RoomCoords& find_best(const std::vector<std::vector<Node> >& node, const std::vector<RoomCoords>& open) const throw ();
 
     int width() const throw () { return room.size(); }
     int height() const throw () { return room.front().size(); }

@@ -41,7 +41,6 @@ using std::ios;
 using std::max;
 using std::min;
 using std::ostream;
-using std::pair;
 using std::string;
 using std::vector;
 
@@ -99,16 +98,16 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     int dist;
     if (symmetry == asymmetric) {
         const BasePair bases = select_asymmetric_bases();
-        x1 = bases.first.coords.first;
-        y1 = bases.first.coords.second;
-        x2 = bases.second.coords.first;
-        y2 = bases.second.coords.second;
+        x1 = bases.first.x;
+        y1 = bases.first.y;
+        x2 = bases.second.x;
+        y2 = bases.second.y;
         dist = bases.first.dist;
     }
     else {
-        const Dist base = select_base();
-        x1 = base.coords.first;
-        y1 = base.coords.second;
+        const DistRoom base = select_base();
+        x1 = base.x;
+        y1 = base.y;
         x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
         y2 = symmetry == horizontal ? y1 : height() - 1 - y1;
         dist = base.dist;
@@ -121,9 +120,9 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
         flags = 2;
 
     if (symmetry != asymmetric && flags == 2 && rand() % 4 == 0) { // Try to add a green flag.
-        const Dist green = select_green_flag_base(x1, y1);
+        const DistRoom green = select_green_flag_base(x1, y1);
         if (green) {
-            SimpleRoom& green_base = room[green.coords.first][green.coords.second];
+            SimpleRoom& green_base = room[green.x][green.y];
             green_base.green_flag = true;
             flags++;
         }
@@ -131,23 +130,19 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
 
     // respawn areas
     if (respawn_area) {
-        const int respawn_x1 = rand() % w;
-        const int respawn_y1 = rand() % h;
-        int respawn_x2;
-        int respawn_y2;
-        if (symmetry == asymmetric) {
-            respawn_x2 = rand() % w;
-            respawn_y2 = rand() % h;
-        }
+        const RoomCoords red(rand() % w, rand() % h);
+        RoomCoords blue;
+        if (symmetry == asymmetric)
+            blue = RoomCoords(rand() % w, rand() % h);
         else {
-            respawn_x2 = symmetry == vertical   ? respawn_x1 : width()  - 1 - respawn_x1;
-            respawn_y2 = symmetry == horizontal ? respawn_y1 : height() - 1 - respawn_y1;
+            blue.x = symmetry == vertical   ? red.x : width()  - 1 - red.x;
+            blue.y = symmetry == horizontal ? red.y : height() - 1 - red.y;
         }
-        if (respawn_x1 == respawn_x2 && respawn_y1 == respawn_y2)
-            room[respawn_x1][respawn_y1].respawn = 2;
+        if (red == blue)
+            room[red.x][red.y].respawn = 2;
         else {
-            room[respawn_x1][respawn_y1].respawn = 0;
-            room[respawn_x2][respawn_y2].respawn = 1;
+            room[red.x][red.y].respawn = 0;
+            room[blue.x][blue.y].respawn = 1;
         }
     }
 
@@ -280,22 +275,22 @@ void MapGenerator::draw(ostream& out) const throw () {
         }
 }
 
-MapGenerator::Dist MapGenerator::select_base() const throw () {
+MapGenerator::DistRoom MapGenerator::select_base() const throw () {
     return select_base(true, 0, 0);
 }
 
-MapGenerator::Dist MapGenerator::select_green_flag_base(int team_flag_x, int team_flag_y) const throw () {
+MapGenerator::DistRoom MapGenerator::select_green_flag_base(int team_flag_x, int team_flag_y) const throw () {
     // Find a base for the green flag. It must be in the same distance from both 
     // the team bases, symmetrically. That means that the green flags can only 
     // be in the centre line of the map, unless the map is asymmetric.
     if ((symmetry == horizontal || symmetry == rotational) && width() % 2 == 0 ||
         (symmetry == vertical   || symmetry == rotational) && height() % 2 == 0)
-            return Dist();
+            return DistRoom::invalid();
     return select_base(false, team_flag_x, team_flag_y);
 }
 
-MapGenerator::Dist MapGenerator::select_base(bool team_base, int team_flag_x, int team_flag_y) const throw () {
-    vector<Dist> distances;
+MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x, int team_flag_y) const throw () {
+    vector<DistRoom> candidates;
     int max_dist = 0;
     int gx, gy;
     if (!team_base) {
@@ -313,8 +308,8 @@ MapGenerator::Dist MapGenerator::select_base(bool team_base, int team_flag_x, in
                     (symmetry == vertical   || symmetry == rotational) && y != height() / 2)
                 continue;
             const int dist = distance(x, y, gx, gy);
-            Dist d(x, y, dist);
-            distances.push_back(d);
+            DistRoom d(x, y, dist);
+            candidates.push_back(d);
             if (dist > max_dist)
                 max_dist = dist;
         }
@@ -323,16 +318,13 @@ MapGenerator::Dist MapGenerator::select_base(bool team_base, int team_flag_x, in
         min_dist = min(max_dist, max(8 * max_dist / 10, 3));
     else
         min_dist = max_dist;
-    for (vector<Dist>::iterator di = distances.begin(); di != distances.end(); )
+    for (vector<DistRoom>::iterator di = candidates.begin(); di != candidates.end(); )
         if (di->dist < min_dist)
-            di = distances.erase(di);
+            di = candidates.erase(di);
         else
             ++di;
-    nAssert(!distances.empty());
-    //cout << "Maximum " << max_dist << '\n';
-    const Dist& selected = distances[rand() % distances.size()];
-    //cout << "Selected " << selected.dist << '\n';
-    return selected;
+    nAssert(!candidates.empty());
+    return candidates[rand() % candidates.size()];
 }
 
 MapGenerator::BasePair MapGenerator::select_asymmetric_bases() const throw () {
@@ -350,8 +342,8 @@ MapGenerator::BasePair MapGenerator::select_asymmetric_bases() const throw () {
                             max_dist = dist;
                         }
                         BasePair bases;
-                        bases.first = Dist(start_x, start_y, dist);
-                        bases.second = Dist(end_x, end_y, dist);
+                        bases.first = DistRoom(start_x, start_y, dist);
+                        bases.second = DistRoom(end_x, end_y, dist);
                         candidates.push_back(bases);
                     }
                 }
@@ -367,13 +359,13 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
     node[sx][sy].cost = 0;
     node[sx][sy].score = node[sx][sy].cost + abs(gx - sx) + abs(gy - sy);
 
-    const pair<int, int> target = pair<int, int>(gx, gy);
-    vector<pair<int, int> > open;
-    open.push_back(pair<int, int>(sx, sy));
+    const RoomCoords target(gx, gy);
+    vector<RoomCoords> open;
+    open.push_back(RoomCoords(sx, sy));
     while (!open.empty()) {
-        const pair<int, int> current = find_best(node, open);
+        const RoomCoords current = find_best(node, open);
         open.erase(find(open.begin(), open.end(), current));
-        const int rx = current.first, ry = current.second;
+        const int rx = current.x, ry = current.y;
         if (current == target)
             return node[rx][ry].cost;
         const int cost = node[rx][ry].cost + 1;
@@ -399,6 +391,7 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
             }
             const int nx = (rx + width() + dx) % width();
             const int ny = (ry + height() + dy) % height();
+            const RoomCoords next_room(nx, ny);
             Node& neighbour = node[nx][ny];
             if (cost >= neighbour.cost)     // worse route
                 continue;
@@ -412,19 +405,19 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
                     min_dy = height() - min_dy;
             }
             neighbour.score = neighbour.cost + min_dx + min_dy;
-            if (find(open.begin(), open.end(), pair<int, int>(nx, ny)) == open.end())
-                open.push_back(pair<int, int>(nx, ny));
+            if (find(open.begin(), open.end(), next_room) == open.end())
+                open.push_back(next_room);
         }
     }
     return 0;
 }
 
-const pair<int, int>& MapGenerator::find_best(const vector<vector<Node> >& node, const vector<pair<int, int> >& open) const throw () {
+const RoomCoords& MapGenerator::find_best(const vector<vector<Node> >& node, const vector<RoomCoords>& open) const throw () {
     int score = INT_MAX;
-    const pair<int, int>* best_node = 0;
-    for (vector<pair<int, int> >::const_iterator ni = open.begin(); ni != open.end(); ++ni)
-        if (node[ni->first][ni->second].score < score) {
-            score = node[ni->first][ni->second].score;
+    const RoomCoords* best_node = 0;
+    for (vector<RoomCoords>::const_iterator ni = open.begin(); ni != open.end(); ++ni)
+        if (node[ni->x][ni->y].score < score) {
+            score = node[ni->x][ni->y].score;
             best_node = &*ni;
         }
     nAssert(best_node);
