@@ -248,6 +248,7 @@ public:
     bool random;
     float over_edge;    // probability (0...1) for routes over the edge
     float respawn_area; // probability (0...1) for specific respawn areas
+    float wild_flag;    // probability (0...1) for wild flag in addition to team flags
     bool asymmetric;
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)

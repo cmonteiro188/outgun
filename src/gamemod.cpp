@@ -1,7 +1,7 @@
 /*
  *  gamemod.cpp
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2004, 2008, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -90,26 +90,24 @@ bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
     ist >> mi.width >> mi.height;
     const bool ok = ist;
     float over_edge = 0.2;
-    ist >> over_edge;
     float respawn_area = 0.1;
-    if (ist)
-        ist >> respawn_area;
+    float wild_flag = 0.1;
     string symmetry = "s";
-    if (ist)
-        ist >> symmetry;
-    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1 && (symmetry == "s" || symmetry == "a")) {
+    ist >> over_edge >> respawn_area >> wild_flag >> symmetry;
+    if (ok && ist.eof() && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1 && wild_flag >= 0 && wild_flag <= 1 && (symmetry == "s" || symmetry == "a")) {
         mi.author = "Outgun";
         mi.title = "<Random>";
         mi.random = true;
         mi.over_edge = over_edge;
         mi.respawn_area = respawn_area;
+        mi.wild_flag = wild_flag;
         mi.asymmetric = symmetry == "s" ? false : true;
         var->push_back(mi);
         log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
         return true;
     }
     else
-        return basicErrorMessage(log, value, _("two positive integers, optionally two real numbers between 0 and 1 and optionally 's' or 'a', separated by spaces"));
+        return basicErrorMessage(log, value, _("two positive integers, three real numbers between 0 and 1, then 's' or 'a', all separated by spaces; some from the end possibly omitted"));
 }
 
 bool GS_PowerupNum::set(LogSet& log, const string& value) throw () {

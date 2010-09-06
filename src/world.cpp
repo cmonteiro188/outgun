@@ -765,7 +765,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-MapInfo::MapInfo() throw () : random(false), over_edge(false), votes(0), sentVotes(0), last_game(0), highlight(false) { }
+MapInfo::MapInfo() throw () : random(false), votes(0), sentVotes(0), last_game(0), highlight(false) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) throw () {
     Map map;
@@ -778,7 +778,6 @@ bool MapInfo::load(LogSet& log, const string& mapName) throw () {
     width = map.w;
     height = map.h;
     random = false;
-    over_edge = false;
     votes = sentVotes = 0;
     return true;
 }
@@ -1664,7 +1663,11 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
 void ServerWorld::generate_map(const string& mapdir, const string& file_name, const MapInfo& mapInfo) throw () {
     MapGenerator generator;
     for (int i = 0; i < 50; i++) {
-        const int base_distance = generator.generate(mapInfo.width, mapInfo.height, rand() % 1000 < 1000 * mapInfo.over_edge, rand() % 1000 < 1000 * mapInfo.respawn_area, mapInfo.asymmetric);
+        const int base_distance = generator.generate(mapInfo.width, mapInfo.height,
+                                                     rand() % 1000 < 1000 * mapInfo.over_edge,
+                                                     rand() % 1000 < 1000 * mapInfo.respawn_area,
+                                                     rand() % 1000 < 1000 * mapInfo.wild_flag,
+                                                     mapInfo.asymmetric);
         if (base_distance > 1 || mapInfo.width <= 2 || mapInfo.height <= 2)
             break;
     }

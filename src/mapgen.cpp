@@ -2,6 +2,7 @@
  *  mapgen.cpp
  *
  *  Copyright (C) 2008, 2010 - Jani Rivinoja
+ *  Copyright (C) 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -44,20 +45,38 @@ using std::ostream;
 using std::string;
 using std::vector;
 
-int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, bool create_asymmetric) throw () {
+int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, bool green_flag, bool create_asymmetric) throw () {
     over_edge = allow_over_edge;
     room.clear();
     room.resize(w);
     for (vector<vector<SimpleRoom> >::iterator vi = room.begin(); vi != room.end(); vi++)
         *vi = vector<SimpleRoom>(h, true);
 
+    if (green_flag && (create_asymmetric || w % 2 == 0 && h % 2 == 0)) // no green flag if it can't be symmetrical
+        green_flag = false;
+
     if (create_asymmetric)
         symmetry = asymmetric;
-    else if (rand() % 4)
-        symmetry = rotational;
-    else do
-        symmetry = Symmetry(rand() % 3 + 1);
-    while (symmetry == vertical && h == 1 && w > 1 || symmetry == horizontal && w == 1 && h > 1);
+    else if (green_flag) {
+        if (w % 2 == 0)
+            symmetry = vertical;
+        else if (h % 2 == 0)
+            symmetry = horizontal;
+        else {
+            if (rand() % 5 == 0) // rotational maps only have the center room available for the green flag, which can be boring
+                symmetry = rotational;
+            else
+                symmetry = rand() % 2 ? horizontal : vertical;
+        }
+    }
+    else {
+        if (rand() % 4)
+            symmetry = rotational;
+        else
+            do {
+                symmetry = Symmetry(rand() % 3 + 1);
+            } while (symmetry == vertical && h == 1 && w > 1 || symmetry == horizontal && w == 1 && h > 1);
+    }
 
     int rx = rand() % width(), ry = rand() % height();
     room[rx][ry].visited = true;
@@ -119,7 +138,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     else
         flags = 2;
 
-    if (symmetry != asymmetric && flags == 2 && rand() % 4 == 0) { // Try to add a green flag.
+    if (green_flag && flags == 2) { // Try to add a green flag.
         const DistRoom green = select_green_flag_base(x1, y1);
         if (green) {
             SimpleRoom& green_base = room[green.x][green.y];
