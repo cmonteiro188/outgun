@@ -831,15 +831,23 @@ ClientControls Robot::FollowFlag() const throw () {
         s += pl.vel;
         num++;
     }
-    if (!num || (!s.x && !s.y) || IsHome(myArea()))
+    if (!num || IsHome(myArea()))
         return ClientControls();
     d = (d + averageLag * s) / num - myPos.local();
-    const double speedMul = 4 * PLAYER_RADIUS / s.mag(); // take only the direction, try to lead the carrier by a constant distance
-    d += s * speedMul;
-    const double dist = d.mag();
-    if (dist < 3 * PLAYER_RADIUS)
-        return ClientControls();
-    return MoveToNoAggregate(d, PLAYER_RADIUS);
+
+    Vec target = d;
+    const double sMag = s.mag();
+    if (sMag) {
+        const double timeAdvance = 4.; // the time of velocities added to the position difference to estimate inertia
+        target += timeAdvance * (s - fx.player[me].vel);
+        target += s * (5 * PLAYER_RADIUS / sMag); // take only the direction, try to lead the carrier by a constant distance
+    }
+    if (target.mag() < 3 * PLAYER_RADIUS)
+        return ClientControls().setStrafe(); // signal to caller 'do nothing' instead of 'don't care'
+    if (!IsBehindWall(target, PLAYER_RADIUS, 0))
+        return MoveToNoAggregate(target, PLAYER_RADIUS);
+    else
+        return MoveToNoAggregate(d, PLAYER_RADIUS);
 }
 
 void Robot::BuildMap() throw () {
