@@ -4539,16 +4539,63 @@ void GuiClient::MCF_replay(Textarea& target) throw () {
     start_replay(filename);
 }
 
+string GuiClient::replayCacheFile() const throw () {
+    return wheregamedir + "replay" + directory_separator + "index.bin";
+}
+
+GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
+    ifstream in(replayCacheFile().c_str());
+    if (!in)
+        return ReplayCache();
+    BinaryStreamReader read(in);
+    try {
+        if (read.U32() != replayCacheVersionIdentifier)
+            return ReplayCache();
+        ReplayCache cache;
+        while (read.hasMore()) {
+            const string fileName = read.str();
+            const string infoString = read.str();
+            cache.insert(cache.end(), make_pair(fileName, infoString));
+        }
+        return cache;
+    } catch (BinaryReader::ReadOutside) {
+        return ReplayCache();
+    }
+}
+
+void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
+    ofstream out(replayCacheFile().c_str());
+    if (!out) {
+        log("Can't write to %s", replayCacheFile().c_str());
+        return;
+    }
+    ExpandingBinaryBuffer write;
+    write.U32(replayCacheVersionIdentifier);
+    for (ReplayList::const_iterator ii = replays.begin(); ii != replays.end(); ++ii) {
+        write.str(ii->first);
+        write.str(ii->second);
+        out << write;
+        write.clear();
+    }
+}
+
 void GuiClient::MCF_prepareReplayMenu() throw () {
     menu.replays.reset();
-    vector<pair<string, string> > replays;
+    const ReplayCache cache = loadReplayCache();
+    ReplayList replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
     while (replay_files->hasNext()) {
         const string name = FileName(replay_files->next()).getBaseName();
+        ReplayCache::const_iterator iCache = cache.find(name);
+        if (iCache != cache.end()) {
+            replays.push_back(*iCache);
+            continue;
+        }
         const string replay_file = wheregamedir + "replay" + directory_separator + name + ".replay";
         ifstream in(replay_file.c_str(), ios::binary);
         BinaryStreamReader read(in);
         try {
+            // whenever anything here changes, you should probably change replayCacheVersionIdentifier to invalidate cached information
             if (read.constLengthStr(REPLAY_IDENTIFICATION.length()) != REPLAY_IDENTIFICATION) {
                 log.error(_("$1 is not an Outgun replay.", replay_file));
                 continue;
@@ -4582,6 +4629,8 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     typedef MenuCallback<GuiClient> MCB;
     typedef MenuKeyCallback<GuiClient> MKC;
     menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
+
+    saveReplayCache(replays);
 }
 
 void GuiClient::load_highlight_texts() throw () {

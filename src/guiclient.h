@@ -295,6 +295,15 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void initMenus() throw ();
 
+    typedef std::vector< std::pair<std::string, std::string> > ReplayList;
+    typedef std::map<std::string, std::string> ReplayCache;
+
+    static const uint32_t replayCacheVersionIdentifier = 0xBBDA0B43;
+
+    std::string replayCacheFile() const throw ();
+    ReplayCache loadReplayCache() const throw ();
+    void        saveReplayCache(const ReplayList& replays) const throw ();
+
     // menu callback functions
     void MCF_menuOpener(Menu& menu) throw ();
     void MCF_menuCloser() throw ();
