@@ -295,10 +295,18 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void initMenus() throw ();
 
-    typedef std::vector< std::pair<std::string, std::string> > ReplayList;
-    typedef std::map<std::string, std::string> ReplayCache;
+    struct ReplayDescriptor {
+        std::string description;
+        bool final;
 
-    static const uint32_t replayCacheVersionIdentifier = 0xBBDA0B43;
+        ReplayDescriptor(const std::string& desc, bool final_) throw () : description(desc), final(final_) { }
+
+        bool operator<(const ReplayDescriptor&) const throw () { return false; }
+    };
+    typedef std::vector< std::pair<std::string, ReplayDescriptor> > ReplayList;
+    typedef std::map<std::string, ReplayDescriptor> ReplayCache;
+
+    static const uint32_t replayCacheVersionIdentifier = 0x56E0FED5;
 
     std::string replayCacheFile() const throw ();
     ReplayCache loadReplayCache() const throw ();

@@ -4555,7 +4555,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         while (read.hasMore()) {
             const string fileName = read.str();
             const string infoString = read.str();
-            cache.insert(cache.end(), make_pair(fileName, infoString));
+            cache.insert(cache.end(), make_pair(fileName, ReplayDescriptor(infoString, true)));
         }
         return cache;
     } catch (BinaryReader::ReadOutside) {
@@ -4572,8 +4572,10 @@ void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
     ExpandingBinaryBuffer write;
     write.U32(replayCacheVersionIdentifier);
     for (ReplayList::const_iterator ii = replays.begin(); ii != replays.end(); ++ii) {
+        if (!ii->second.final)
+            continue;
         write.str(ii->first);
-        write.str(ii->second);
+        write.str(ii->second.description);
         out << write;
         write.clear();
     }
@@ -4614,7 +4616,7 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
             text << name << ' ' << server_name << " - " << map_name;
             if (length > 0)
                 text << ' ' << length / 600 << ':' << setw(2) << setfill('0') << length / 10 % 60;
-            replays.push_back(pair<string, string>(name, text.str()));
+            replays.push_back(make_pair(name, ReplayDescriptor(text.str(), length > 0)));
         } catch (BinaryReader::ReadOutside) {
             log("Replay file %s is invalid.", replay_file.c_str());
         }
@@ -4623,8 +4625,8 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
     sort(replays.begin(), replays.end());
-    for (vector<pair<string, string> >::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
-        menu.replays.add(ri->first, ri->second);
+    for (ReplayList::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
+        menu.replays.add(ri->first, ri->second.description);
 
     typedef MenuCallback<GuiClient> MCB;
     typedef MenuKeyCallback<GuiClient> MKC;
