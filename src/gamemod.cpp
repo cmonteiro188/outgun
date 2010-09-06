@@ -94,18 +94,22 @@ bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
     float respawn_area = 0.1;
     if (ist)
         ist >> respawn_area;
-    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1) {
+    string symmetry = "s";
+    if (ist)
+        ist >> symmetry;
+    if (ok && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1 && (symmetry == "s" || symmetry == "a")) {
         mi.author = "Outgun";
         mi.title = "<Random>";
         mi.random = true;
         mi.over_edge = over_edge;
         mi.respawn_area = respawn_area;
+        mi.asymmetric = symmetry == "s" ? false : true;
         var->push_back(mi);
         log("Added a random %d×%d map to map rotation.", mi.width, mi.height);
         return true;
     }
     else
-        return basicErrorMessage(log, value, _("two positive integers and optionally a real number between 0 and 1, separated by spaces"));
+        return basicErrorMessage(log, value, _("two positive integers, optionally two real numbers between 0 and 1 and optionally 's' or 'a', separated by spaces"));
 }
 
 bool GS_PowerupNum::set(LogSet& log, const string& value) throw () {

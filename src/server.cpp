@@ -512,7 +512,7 @@ bool Server::load_rotation_map(int pos) throw () {
         dir = string() + SERVER_MAPS_DIR + directory_separator + "generated";
         file_name = "mapgen_" + itoa(rand());
         maprot[pos].file = file_name;
-        world.generate_map(dir, file_name, maprot[pos].width, maprot[pos].height, maprot[pos].over_edge, maprot[pos].respawn_area, maprot[pos].title, "Outgun");
+        world.generate_map(dir, file_name, maprot[pos]);
     }
     else {
         dir = SERVER_MAPS_DIR;

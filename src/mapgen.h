@@ -58,10 +58,12 @@ class MapGenerator {
         std::pair<int, int> coords; int dist;
     };
 
+    typedef std::pair<Dist, Dist> BasePair;
+
 public:
     /** Generate map. Return the distance between the bases.
      */
-    int generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false) throw ();
+    int generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false, bool create_asymmetric = false) throw ();
 
     void draw(std::ostream& out) const throw ();
     void save_map(std::ostream& out, const std::string& title, const std::string& author) const throw ();
@@ -75,6 +77,7 @@ private:
     Dist select_base() const throw ();
     Dist select_green_flag_base(int team_flag_x, int team_flag_y) const throw ();
     Dist select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
+    BasePair select_asymmetric_bases() const throw ();
 
     int distance(int sx, int sy, int gx, int gy) const throw ();
     const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) const throw ();
