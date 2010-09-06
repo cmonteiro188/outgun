@@ -31,12 +31,13 @@ class MapGenerator {
 
     class SimpleRoom {
     public:
-        SimpleRoom(bool walls = false) throw () : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), flag(false), respawn(-1), mirror(false) { }
+        SimpleRoom(bool walls = false) throw () : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), team_flag(false), green_flag(false), respawn(-1), mirror(false) { }
 
         bool top, bottom, left, right;  // walls
         bool visited;
         bool checked_through;
-        bool flag;
+        bool team_flag;
+        bool green_flag;
         int respawn; // -1 no, 0 red, 1 blue, 2 both teams
         bool mirror;
     };
@@ -47,7 +48,15 @@ class MapGenerator {
         int cost, score;
     };
 
-    struct Dist { std::pair<int, int> coords; int dist; };
+    struct Dist {
+        Dist(): dist(-1) { }
+        Dist(int x, int y, int d = -1): coords(x, y), dist(d) { }
+
+        operator const void*() const throw() { return dist >= 0 ? this : 0; }
+        bool operator !() const throw() { return dist < 0; }
+
+        std::pair<int, int> coords; int dist;
+    };
 
 public:
     /** Generate map. Return the distance between the bases.
@@ -63,9 +72,12 @@ private:
     void shift_rooms_if_needed() throw ();
     void shift_rooms(int x_shift, int y_shift) throw ();
 
-    Dist select_base() throw ();
-    int distance(int sx, int sy, int gx, int gy) throw ();
-    const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) throw ();
+    Dist select_base() const throw ();
+    Dist select_green_flag_base(int team_flag_x, int team_flag_y) const throw ();
+    Dist select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
+
+    int distance(int sx, int sy, int gx, int gy) const throw ();
+    const std::pair<int, int>& find_best(const std::vector<std::vector<Node> >& node, const std::vector<std::pair<int, int> >& open) const throw ();
 
     int width() const throw () { return room.size(); }
     int height() const throw () { return room.front().size(); }
@@ -75,3 +87,4 @@ private:
     bool over_edge;
     int flags;
 };
+
