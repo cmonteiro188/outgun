@@ -52,7 +52,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     for (vector<vector<SimpleRoom> >::iterator vi = room.begin(); vi != room.end(); vi++)
         *vi = vector<SimpleRoom>(h, true);
 
-    if (green_flag && w % 2 == 0 && h % 2 == 0) // no green flag if it can't be symmetrical
+    if (green_flag && !create_asymmetric && w % 2 == 0 && h % 2 == 0) // no green flag if it can't be symmetrical
         green_flag = false;
 
     if (create_asymmetric)
