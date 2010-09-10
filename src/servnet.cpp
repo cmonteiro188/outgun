@@ -819,6 +819,9 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     if (pupConfig.shadow_see_shadow)
         settings |= (1 << i);
     i++;
+    if (config.suddenDeath())
+        settings |= (1 << i);
+    i++;
     nAssert(i <= 16);
     msg.U16(settings);
     msg.U16(pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
@@ -828,6 +831,7 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     world.physics.write(msg);
     msg.U16(static_cast<unsigned>(10 * config.flag_return_delay));
     msg.U8(config.getExtraTimePeriods());
+    msg.U8(config.getWinScoreDifference());
     /* TODO: 1.0.4 send more settings
        - locked flags?
        - captureable flags?

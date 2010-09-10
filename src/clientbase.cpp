@@ -1310,6 +1310,11 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             et_periods = read.U8();
         else
             et_periods = 1;
+        uint8_t win_score_diff;
+        if (read.hasMore())
+            win_score_diff = read.U8();
+        else
+            win_score_diff = 1;
         #ifndef DEDICATED_SERVER_ONLY
         fd.physics = fx.physics;
 
@@ -1320,8 +1325,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         gameSettings.time_limit = timelimit * 600; // convert to frames
         gameSettings.extra_time = extratime * 600; // convert to frames
         gameSettings.extra_time_periods = et_periods;
-        // sudden death data is missing
-        // win score difference is missing
+        gameSettings.win_score_difference = win_score_diff;
+        gameSettings.sudden_death = misc1 & (1 << 10);
         #else
         (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime);
         #endif
