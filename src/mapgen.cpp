@@ -315,22 +315,17 @@ MapGenerator::DistRoom MapGenerator::select_green_flag_base(int team_flag_x, int
 MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x, int team_flag_y) const throw () {
     vector<DistRoom> candidates;
     int max_dist = 0;
-    int gx, gy;
-    if (!team_base) {
-        gx = team_flag_x;
-        gy = team_flag_y;
-    }
     for (int y = 0; y < height(); y++)
         for (int x = 0; x < width(); x++) {
             if (team_base) {
-                gx = symmetry == vertical   ? x : width()  - 1 - x;
-                gy = symmetry == horizontal ? y : height() - 1 - y;
+                team_flag_x = symmetry == vertical   ? x : width()  - 1 - x;
+                team_flag_y = symmetry == horizontal ? y : height() - 1 - y;
             }
             else if (room[x][y].team_flag ||
                     (symmetry == horizontal || symmetry == rotational) && x != width() / 2 ||
                     (symmetry == vertical   || symmetry == rotational) && y != height() / 2)
                 continue;
-            const int dist = distance(x, y, gx, gy);
+            const int dist = distance(x, y, team_flag_x, team_flag_y);
             DistRoom d(x, y, dist);
             candidates.push_back(d);
             if (dist > max_dist)
