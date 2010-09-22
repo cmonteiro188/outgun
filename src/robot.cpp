@@ -867,18 +867,19 @@ void Robot::BuildMap() throw () {
     destination = 0;
 }
 
-void Robot::BuildDistanceTable(Area* startPoint, DistanceTableId num) throw () {
-    return BuildDistanceTable(vector<Area*>(1, startPoint), num);
+void Robot::BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw () {
+    return BuildDistanceTable(vector<Area*>(1, startPoint), respawnWeight, num);
 }
 
-void Robot::BuildDistanceTable(const vector<Area*>& startPoints, DistanceTableId num) throw () {
+void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnWeight, DistanceTableId num) throw () {
     if (startPoints.size() == 1) {
-        if (distanceTable[num].center == startPoints[0])
+        const DistanceTableDescriptor desc(startPoints[0], respawnWeight);
+        if (distanceTable[num] == desc)
             return;
-        distanceTable[num].center = startPoints[0];
+        distanceTable[num] = desc;
     }
     else
-        distanceTable[num].center = 0;
+        distanceTable[num] = DistanceTableDescriptor();
 
     areaMap.clearDistanceTable(num);
 
@@ -893,7 +894,10 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, DistanceTableId
         for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
             if (ni->area->distance[num] != -1) // already labeled
                 continue;
-            ni->area->distance[num] = a->distance[num] + 1;
+            double dist = 1.;
+            dist -= ni->area->respawnFrequency[ myTeam()] * respawnWeight * .5;
+            dist += ni->area->respawnFrequency[!myTeam()] * respawnWeight;
+            ni->area->distance[num] = a->distance[num] + static_cast<int>(dist * roomToRoomBaseDistance);
             workQueue.push(ni->area);
         }
     }
@@ -908,7 +912,7 @@ void Robot::setDestination(Area* const target) throw () {
     fprintf(stderr, "%d: Set destination: %d %d\n", me, target->room.x, target->room.y);
     #endif
 
-    BuildDistanceTable(target, Table_Destination);
+    BuildDistanceTable(target, myRespawnWeight(), Table_Destination);
 }
 
 ClientControls Robot::MoveToDestination() const throw () {
@@ -920,20 +924,24 @@ ClientControls Robot::MoveToDestination() const throw () {
     if (here->distance[Table_Destination] == -1 || destination == here)
         return ClientControls();
 
+    int bestDistance = here->distance[Table_Destination];
     vector<const Area::Neighbor*> goodNeighbors;
     bool oldDestinationFound = false;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
         const Area* const na = ni->area;
-        if (na->distance[Table_Destination] < here->distance[Table_Destination]) {
+        if (na->distance[Table_Destination] <= bestDistance) {
             if (HaveFlag(me)) {
                 const TeamCounts tc = Teams(na, false);
                 if (tc.enemies > tc.friends + 1)
                     continue;
             }
-            if (&*ni == immediateDestination) {
-                oldDestinationFound = true;
-                break;
+            if (na->distance[Table_Destination] < bestDistance) {
+                bestDistance = na->distance[Table_Destination];
+                goodNeighbors.clear();
+                oldDestinationFound = false;
             }
+            if (&*ni == immediateDestination)
+                oldDestinationFound = true;
             if (!dangerousExplosionInNeighbor(*ni))
                 goodNeighbors.push_back(&*ni);
         }
@@ -1047,7 +1055,7 @@ bool Robot::IsDefender() throw () {
 
     // for all bases
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        BuildDistanceTable(area(*pi), Table_Def); //#opt: reserve enough distance tables to avoid building them here every frame in case of multiple flags
+        BuildDistanceTable(area(*pi), 0., Table_Def); //#opt: reserve enough distance tables to avoid building them here every frame in case of multiple flags
         const int m_distance = here->distance[Table_Def];
         int nearNum = 0;
         for (int i = 0; i < maxplayers; ++i) {
@@ -1169,6 +1177,10 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
     }
 }
 
+double Robot::myRespawnWeight() const throw () {
+    return HaveFlag(me) ? 1. : 0.;
+}
+
 bool Robot::IsMassive() const throw () {
     Vec d(0, 0);
     int n = 0;
@@ -1273,7 +1285,7 @@ bool Robot::IsCarriersDef(int team) throw () {
     if (carrierAreas.empty()) // nothing to defend
         return true;
 
-    BuildDistanceTable(carrierAreas, Table_Def);
+    BuildDistanceTable(carrierAreas, 0., Table_Def);
 
     int teammates = 0, nearer = 0;
     const int myDist = myArea()->distance[Table_Def];
@@ -1358,7 +1370,7 @@ void Robot::TargetFog() throw () {
     Area* target = 0;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
         Area* const na = ni->area;
-        if (destinationType == Dest_Base && na->distance[Table_Destination] > 3)
+        if (destinationType == Dest_Base && na->distance[Table_Destination] > 3 * roomToRoomBaseDistance)
             continue;
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
@@ -1398,7 +1410,7 @@ void Robot::TargetNearest(int efb, int efd, int efc,
     const int t = myTeam();
     const int et = 1 - t;
 
-    BuildDistanceTable(myArea(), Table_Main);
+    BuildDistanceTable(myArea(), myRespawnWeight(), Table_Main);
 
     destinationType = Dest_None;
 

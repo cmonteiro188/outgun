@@ -51,8 +51,16 @@ class Robot : public ClientBase, public BotInterface {
     AreaMap areaMap;
     typedef AreaMap::Area Area;
 
+    static const int roomToRoomBaseDistance = 1000; // distances are multiplies of this, barring modifiers
+
     struct DistanceTableDescriptor { // the actual table is distributed in all Areas
         const Area* center; // the Area that has distance=0, or 0 if there are multiple centers
+        double respawnWeight;
+
+        DistanceTableDescriptor() throw () : center(0) { }
+        DistanceTableDescriptor(const Area* c, double rw) throw () : center(c), respawnWeight(rw) { }
+
+        bool operator==(const DistanceTableDescriptor& o) const { return center == o.center && respawnWeight == o.respawnWeight; }
     };
 
     DistanceTableDescriptor distanceTable[Table_Max];
@@ -145,10 +153,12 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls FreeWalk() const throw ();
     ClientControls MoveToDestination() const throw ();
 
-    void BuildDistanceTable(Area* startPoint, DistanceTableId num) throw (); // build distance table from single point
-    void BuildDistanceTable(const std::vector<Area*>& startPoints, DistanceTableId num) throw (); // build distance table from multiple points
+    void BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw (); // build distance table from single point
+    void BuildDistanceTable(const std::vector<Area*>& startPoints, double respawnWeight, DistanceTableId num) throw (); // build distance table from multiple points
     void setDestination(Area* target) throw ();
     void ChooseDestination() throw ();
+
+    double myRespawnWeight() const throw ();
 
     void TargetNearestBase(int& m_distance, Area*& nearestArea, int team) throw ();
     void TargetNearestTeam(int& m_distance, Area*& nearestArea, int team) throw ();

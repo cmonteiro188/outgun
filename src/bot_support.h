@@ -54,6 +54,8 @@ public:
 
         int distance[Table_Max];
 
+        double respawnFrequency[2]; // if specific respawn areas are set, respawnFrequencies for each team sum to 1; else all are 0
+
         struct Neighbor {
             enum Direction { Up, Down, Left, Right };
 

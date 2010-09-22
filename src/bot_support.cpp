@@ -21,6 +21,7 @@
  *
  */
 
+#include <numeric>
 #include <queue>
 
 #include "bot_support.h"
@@ -173,12 +174,44 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const Roo
                 if (roomMap[x][y] >= 0 && !roomAreas[roomMap[x][y]])
                     roomMap[x][y] = mapWall;
 
+    // count respawn areas
+    for (int team = 0; team < 2; ++team) {
+        const vector<WorldRect>& respawns = map.tinfo[team].respawn;
+        for (vector<WorldRect>::const_iterator ri = respawns.begin(); ri != respawns.end(); ++ri) {
+            if (ri->room != roomPos)
+                continue;
+            if (roomAreas.size() - nCancelledAreas == 1) {
+                for (vector<Area*>::const_iterator ai = roomAreas.begin(); ai != roomAreas.end(); ++ai)
+                    if (*ai)
+                        (*ai)->respawnFrequency[team] += 1. / respawns.size();
+            }
+            else {
+                const int ix1 = (ri->x1 + pointDistance / 2) / pointDistance;
+                const int ix2 = (ri->x2 + pointDistance / 2) / pointDistance;
+                const int iy1 = (ri->y1 + pointDistance / 2) / pointDistance;
+                const int iy2 = (ri->y2 + pointDistance / 2) / pointDistance;
+                nAssert(ix1 >= 0 && unsigned(ix2) < xPoints && iy1 >= 0 && unsigned(iy2) < yPoints);
+                vector<int> areaPoints(0, roomAreas.size());
+                for (int x = ix1; x <= ix2; ++x)
+                    for (int y = iy1; y <= iy2; ++y)
+                        if (roomMap[x][y] != mapWall)
+                            ++areaPoints[roomMap[x][y]];
+                const int totalPoints = std::accumulate(areaPoints.begin(), areaPoints.end(), 0);
+                for (unsigned ai = 0; ai < roomAreas.size(); ++ai)
+                    if (areaPoints[ai])
+                        roomAreas[ai]->respawnFrequency[team] += double(areaPoints[ai]) / totalPoints / respawns.size();
+            }
+        }
+    }
+
     return give_control(new RoomAreaMap(roomMap, roomAreas));
 }
 
 AreaMap::Area::Area(const RoomCoords& room_) throw () : room(room_) {
     for (int i = 0; i < Table_Max; i++)
         distance[i] = -1;
+    for (int i = 0; i < 2; ++i)
+        respawnFrequency[i] = 0.;
 }
 
 void AreaMap::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
