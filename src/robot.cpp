@@ -71,7 +71,7 @@ using std::max;
 using std::min;
 using std::pair;
 using std::string;
-using std::queue;
+using std::priority_queue;
 using std::vector;
 
 const int S_W = plw;
@@ -883,13 +883,13 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnW
 
     areaMap.clearDistanceTable(num);
 
-    queue<const Area*> workQueue;
+    priority_queue<const Area*, vector<const Area*>, DistanceComparison> workQueue((DistanceComparison(num)));
     for (vector<Area*>::const_iterator ai = startPoints.begin(); ai != startPoints.end(); ++ai) {
         (*ai)->distance[num] = 0;
         workQueue.push(*ai);
     }
     while (!workQueue.empty()) {
-        const Area* const a = workQueue.front();
+        const Area* const a = workQueue.top();
         workQueue.pop();
         for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
             if (ni->area->distance[num] != -1) // already labeled
@@ -897,6 +897,7 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnW
             double dist = 1.;
             dist -= ni->area->respawnValue[ myTeam()] * respawnWeight * .5;
             dist += ni->area->respawnValue[!myTeam()] * respawnWeight;
+            nAssert(dist >= 0.);
             ni->area->distance[num] = a->distance[num] + static_cast<int>(dist * roomToRoomBaseDistance);
             workQueue.push(ni->area);
         }

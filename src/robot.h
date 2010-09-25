@@ -77,6 +77,15 @@ class Robot : public ClientBase, public BotInterface {
         int enemies, friends;
     };
 
+    class DistanceComparison { // helper to BuildDistanceTable
+        DistanceTableId table;
+
+    public:
+        DistanceComparison(DistanceTableId tab) throw () : table(tab) { }
+        bool operator()(const Area* a1, const Area* a2) const throw () { return a1->distance[table] > a2->distance[table]; }
+    };
+
+
     void BuildMap() throw ();
 
           Area* area(const WorldCoords& c)       throw () { return areaMap.identifyArea(c); }
