@@ -211,7 +211,7 @@ AreaMap::Area::Area(const RoomCoords& room_) throw () : room(room_) {
     for (int i = 0; i < Table_Max; i++)
         distance[i] = -1;
     for (int i = 0; i < 2; ++i)
-        respawnFrequency[i] = 0.;
+        respawnFrequency[i] = respawnValue[i] = 0.;
 }
 
 void AreaMap::RoomAreaMap::AreaSplitter::testPoint(bool axisIsX, int point, unsigned value) throw () {
@@ -448,6 +448,16 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
                 ai->n.erase(ai->n.begin() + ni);
                 // ni stays the same for next round, pointing to a new Neighbor now
             }
+        }
+    }
+
+    // construct respawn values from respawn frequencies
+    for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai) {
+        static const double bledPart = .5;
+        for (int team = 0; team < 2; ++team) {
+            ai->respawnValue[team] = ai->respawnFrequency[team] * (1. - bledPart);
+            for (vector<Area*>::const_iterator ni = ai->reverseNeighbors().begin(); ni != ai->reverseNeighbors().end(); ++ni)
+                ai->respawnValue[team] += (*ni)->respawnFrequency[team] * bledPart / (*ni)->neighbors().size();
         }
     }
 

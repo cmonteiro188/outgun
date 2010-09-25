@@ -895,8 +895,8 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnW
             if (ni->area->distance[num] != -1) // already labeled
                 continue;
             double dist = 1.;
-            dist -= ni->area->respawnFrequency[ myTeam()] * respawnWeight * .5;
-            dist += ni->area->respawnFrequency[!myTeam()] * respawnWeight;
+            dist -= ni->area->respawnValue[ myTeam()] * respawnWeight * .5;
+            dist += ni->area->respawnValue[!myTeam()] * respawnWeight;
             ni->area->distance[num] = a->distance[num] + static_cast<int>(dist * roomToRoomBaseDistance);
             workQueue.push(ni->area);
         }
