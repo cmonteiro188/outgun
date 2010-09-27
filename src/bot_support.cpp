@@ -191,7 +191,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const Roo
                 const int iy1 = (ri->y1 + pointDistance / 2) / pointDistance;
                 const int iy2 = (ri->y2 + pointDistance / 2) / pointDistance;
                 nAssert(ix1 >= 0 && unsigned(ix2) < xPoints && iy1 >= 0 && unsigned(iy2) < yPoints);
-                vector<int> areaPoints(0, roomAreas.size());
+                vector<int> areaPoints(roomAreas.size(), 0);
                 for (int x = ix1; x <= ix2; ++x)
                     for (int y = iy1; y <= iy2; ++y)
                         if (roomMap[x][y] != mapWall)
