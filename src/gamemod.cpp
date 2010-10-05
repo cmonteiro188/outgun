@@ -91,15 +91,17 @@ bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
     const bool ok = ist;
     float over_edge = 0.2;
     float respawn_area = 0.1;
+    float repetitive_respawn_area = 0.5;
     float wild_flag = 0.1;
     string symmetry = "s";
-    ist >> over_edge >> respawn_area >> wild_flag >> symmetry;
-    if (ok && ist.eof() && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1 && wild_flag >= 0 && wild_flag <= 1 && (symmetry == "s" || symmetry == "a")) {
+    ist >> over_edge >> respawn_area >> repetitive_respawn_area >> wild_flag >> symmetry;
+    if (ok && ist.eof() && mi.width > 0 && mi.height > 0 && over_edge >= 0 && over_edge <= 1 && respawn_area >= 0 && respawn_area <= 1 && repetitive_respawn_area >= 0 && repetitive_respawn_area <= 1 && wild_flag >= 0 && wild_flag <= 1 && (symmetry == "s" || symmetry == "a")) {
         mi.author = "Outgun";
         mi.title = "<Random>";
         mi.random = true;
         mi.over_edge = over_edge;
         mi.respawn_area = respawn_area;
+        mi.repetitive_respawn_area = repetitive_respawn_area;
         mi.wild_flag = wild_flag;
         mi.asymmetric = symmetry == "s" ? false : true;
         var->push_back(mi);
@@ -107,7 +109,7 @@ bool GS_RandomMap::set(LogSet& log, const string& value) throw () {
         return true;
     }
     else
-        return basicErrorMessage(log, value, _("two positive integers, three real numbers between 0 and 1, then 's' or 'a', all separated by spaces; some from the end possibly omitted"));
+        return basicErrorMessage(log, value, _("two positive integers, four real numbers between 0 and 1, then 's' or 'a', all separated by spaces; some from the end possibly omitted"));
 }
 
 bool GS_PowerupNum::set(LogSet& log, const string& value) throw () {

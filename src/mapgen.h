@@ -35,6 +35,8 @@ class MapGenerator {
     public:
         SimpleRoom(bool walls = false) throw () : top(walls), bottom(walls), left(walls), right(walls), visited(false), checked_through(false), team_flag(false), green_flag(false), respawn(-1), mirror(false) { }
 
+        void add_respawn(int team);
+
         bool top, bottom, left, right;  // walls
         bool visited;
         bool checked_through;
@@ -67,7 +69,7 @@ class MapGenerator {
 public:
     /** Generate map. Return the distance between the bases.
      */
-    int generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false, bool green_flag = false, bool create_asymmetric = false) throw ();
+    int generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false, float repetitive_respawn = 0, bool green_flag = false, bool create_asymmetric = false) throw ();
 
     void draw(std::ostream& out) const throw ();
     void save_map(std::ostream& out, const std::string& title, const std::string& author) const throw ();

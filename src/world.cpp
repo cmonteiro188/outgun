@@ -1666,6 +1666,7 @@ void ServerWorld::generate_map(const string& mapdir, const string& file_name, co
         const int base_distance = generator.generate(mapInfo.width, mapInfo.height,
                                                      rand() % 1000 < 1000 * mapInfo.over_edge,
                                                      rand() % 1000 < 1000 * mapInfo.respawn_area,
+                                                     mapInfo.repetitive_respawn_area,
                                                      rand() % 1000 < 1000 * mapInfo.wild_flag,
                                                      mapInfo.asymmetric);
         if (base_distance > 1 || mapInfo.width <= 2 || mapInfo.height <= 2)

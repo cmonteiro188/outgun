@@ -45,7 +45,15 @@ using std::ostream;
 using std::string;
 using std::vector;
 
-int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, bool green_flag, bool create_asymmetric) throw () {
+void MapGenerator::SimpleRoom::add_respawn(int team) {
+    nAssert(team >= 0 && team <= 2);
+    if (respawn == -1)
+        respawn = team;
+    else if (respawn == 1 - team)
+        respawn = 2;
+}
+
+int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, float repetitive_respawn, bool green_flag, bool create_asymmetric) throw () {
     over_edge = allow_over_edge;
     room.clear();
     room.resize(w);
@@ -152,22 +160,19 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     }
 
     // respawn areas
-    if (respawn_area) {
-        const RoomCoords red(rand() % w, rand() % h);
-        RoomCoords blue;
-        if (symmetry == asymmetric)
-            blue = RoomCoords(rand() % w, rand() % h);
-        else {
-            blue.x = symmetry == vertical   ? red.x : width()  - 1 - red.x;
-            blue.y = symmetry == horizontal ? red.y : height() - 1 - red.y;
-        }
-        if (red == blue)
-            room[red.x][red.y].respawn = 2;
-        else {
-            room[red.x][red.y].respawn = 0;
-            room[blue.x][blue.y].respawn = 1;
-        }
-    }
+    if (respawn_area)
+        do {
+            const RoomCoords red(rand() % w, rand() % h);
+            RoomCoords blue;
+            if (symmetry == asymmetric)
+                blue = RoomCoords(rand() % w, rand() % h);
+            else {
+                blue.x = symmetry == vertical   ? red.x : width()  - 1 - red.x;
+                blue.y = symmetry == horizontal ? red.y : height() - 1 - red.y;
+            }
+            room[red.x][red.y].add_respawn(0);
+            room[blue.x][blue.y].add_respawn(1);
+        } while (rand() % 1000 < 1000 * repetitive_respawn);
 
     return dist;
 }
