@@ -2885,8 +2885,8 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 }
 
 void GuiClient::start_replay(const std::string& filename) throw () {
-    disconnect_command();
     stop_replay();
+    prepareForConnect(); // Handles the disconnection part in this case.
     openMenus.clear();
     replay.clear();
     replay.open(filename.c_str(), ios::binary);
@@ -3056,8 +3056,8 @@ void GuiClient::start_spectating(const string& host) throw () {
 }
 
 void GuiClient::start_spectating(const Network::Address& address) throw () {
-    disconnect_command();
     stop_replay();
+    prepareForConnect();
 
     log("Start spectating.");
     serverIP = address;
