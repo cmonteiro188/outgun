@@ -331,7 +331,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Double    ("turbo_acceleration",          &world.physics.turbo_mul));
     cat.add(new GS_Double    ("flag_acceleration",           &world.physics.flag_mul));
     cat.add(new GS_Collisions("player_collisions",           &world.physics.player_collisions));
-    cat.add(new GS_Double    ("rocket_speed",                &world.physics.rocket_speed));
+    cat.add(new GS_Double    ("rocket_speed",                &world.physics.rocket_speed, 0.01));
     categories.push_back(cat);
 }
 
