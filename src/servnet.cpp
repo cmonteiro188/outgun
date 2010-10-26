@@ -2840,6 +2840,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw (
         BinaryBuffer<4> msg;
         msg.U32(STA_QUIT);
         writeToAdminShell(msg);
+        platSleep(100); // Give the admin shell chance to close the socket before the server.
     }
 
     shellssock.closeIfOpen();
