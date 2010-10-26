@@ -2836,7 +2836,7 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw (
         log.error(_("Admin shell: $1", e.str()));
     }
 
-    {
+    if (shellssock.isOpen()) {
         BinaryBuffer<4> msg;
         msg.U32(STA_QUIT);
         writeToAdminShell(msg);
