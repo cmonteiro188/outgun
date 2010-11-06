@@ -2739,7 +2739,7 @@ void Graphics::make_db_effect() throw () {
     db_effect = create_bitmap_ex(32, size, size);
     nAssert(db_effect);
 
-    clear_to_color(db_effect, colour[Colour::deathbringer_smoke]);
+    clear_to_color(db_effect, colour[Colour::deathbringer_carrier_circle]);
 
     set_write_alpha_blender();
     drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
