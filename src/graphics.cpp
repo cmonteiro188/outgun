@@ -1452,15 +1452,14 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
     int rad = pf_scale(drad);
     if (min_transp) {
         const int rgb = 120 - effAlpha;
-        if (team > -1)
-            c = teamcol[team];
-        else
-            c = makecol(rgb, rgb, rgb);
+        c = makecol(rgb, rgb, rgb);
         rad /= 2;
     }
     else {
-        if (team > -1)
-            c = teamcol[team];
+        if (team == 0)
+            c = colour[Colour::deathbringer_smoke_red];
+        else if (team == 1)
+            c = colour[Colour::deathbringer_smoke_blue];
         else
             c = colour[Colour::deathbringer_smoke];
         set_trans_mode(effAlpha);
@@ -1753,7 +1752,7 @@ void Graphics::draw_pup_deathbringer(const WorldCoords& pos, double time, bool l
     while (sc.next())
         circlefill(drawbuf, sc.x(), sc.y(), pf_scale(12), colour[Colour::pup_deathbringer]);
     if (live)
-        create_deathcarrier(pos, -1, 255, time, true);
+        create_deathcarrier(pos, -1 /* no team */, 255, time, true);
 }
 
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) throw () {
@@ -2635,7 +2634,7 @@ void Graphics::create_deathcarrier(WorldCoords pos, int team, int alpha, double 
         pos.x += rand() % 40 - 20;
         pos.y += rand() % 40;
     }
-    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, pos, time, team, alpha / 255., colour[Colour::deathbringer_smoke]));
+    cfx.push_back(GraphicsEffect(FX_DEATHCARRIER_SMOKE, pos, time, team, alpha / 255.));
 }
 
 void Graphics::create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time) throw () {

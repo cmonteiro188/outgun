@@ -149,6 +149,8 @@ COL(pup_deathbringer           , 0x22, 0x33, 0x22)
 
 SECTION("Deathbringer effects")
 COL(deathbringer_smoke         , 0x00, 0x00, 0x00)
+COL(deathbringer_smoke_red     , 0x22, 0x00, 0x00)
+COL(deathbringer_smoke_blue    , 0x00, 0x00, 0x22)
 COL(deathbringer_carrier_circle, 0x00, 0x00, 0x00)
 COL(deathbringer_affected      , 0x00, 0x00, 0x00)
 
