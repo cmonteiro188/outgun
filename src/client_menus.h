@@ -101,6 +101,17 @@ enum ClientCfgSetting {
     CCS_Colours,
     CCS_UseThemeColours,
     CCS_SaveReplayStats,
+    CCS_QuickMessagesEnabled,
+    CCS_QuickMessage1,
+    CCS_QuickMessage2,
+    CCS_QuickMessage3,
+    CCS_QuickMessage4,
+    CCS_QuickMessage5,
+    CCS_QuickMessage6,
+    CCS_QuickMessage7,
+    CCS_QuickMessage8,
+    CCS_QuickMessage9,
+    CCS_QuickMessage10,
     CCS_EndOfCommands
 };
 
@@ -383,6 +394,20 @@ public:
     void addLine(const std::string& line) throw ();
 };
 
+class Menu_quickMessages {
+public:
+    static const int numberOfMessages = 10;
+
+    StaticText  guide;
+    Checkbox    enabled;
+    std::vector<Textfield> messages;
+
+    Menu menu;
+
+    Menu_quickMessages() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+};
+
 class Menu_options {
 public:
     Menu_player          player;
@@ -392,6 +417,7 @@ public:
     Menu_theme           theme;
     Menu_graphics        graphics;
     Menu_sounds          sounds;
+    Menu_quickMessages   quickMessages;
     Menu_language        language;
     Menu_bugReportPolicy bugReports;
 

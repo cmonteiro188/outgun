@@ -692,6 +692,30 @@ void Menu_bugReportPolicy::init() throw () {
     add(&policy);
 }
 
+Menu_quickMessages::Menu_quickMessages() throw () :
+    guide           (_("Note that team messages start with a dot (.).")),
+
+    enabled         (_("Enable quick messages")),
+
+    menu            (_("Quick messages"), true)
+{
+    for (int i = 0; i < numberOfMessages; i++) {
+        const int key = (i + 1) % 10; // More than ten messages is unusable (but ten should already be enough).
+        const string caption = _("Alt+$1", itoa(key));
+        messages.push_back(Textfield(caption, "", 30));
+    }
+}
+
+void Menu_quickMessages::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
+    menu.setHook(opener);
+    DualComponentAdder add(menu, collector);
+    add(&guide);
+    add(&enabled, CCS_QuickMessagesEnabled);
+    int i = 0;
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++, i++)
+        add(&(*mi), ClientCfgSetting(CCS_QuickMessage1 + i));
+}
+
 Menu_options::Menu_options() throw () :
     player    (),
     game      (),
@@ -700,6 +724,7 @@ Menu_options::Menu_options() throw () :
     theme     (),
     graphics  (),
     sounds    (),
+    quickMessages(),
     language  (),
     bugReports(),
 
@@ -715,6 +740,7 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     theme     .initialize(opener->clone(), collector);
     graphics  .initialize(opener->clone(), collector);
     sounds    .initialize(opener->clone(), collector);
+    quickMessages.initialize(opener->clone(), collector);
     language  .initialize(opener->clone(), collector);
     bugReports.initialize(opener->clone(), collector);
     DualComponentAdder add(menu, collector);
@@ -727,6 +753,7 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     add(&graphics.menu);
     add.space();
     add(&sounds.menu);
+    add(&quickMessages.menu);
     add.space();
     add(&language.menu);
     add(&bugReports.menu);

@@ -2443,6 +2443,18 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         return;
     }
 
+    // Quick messages
+    if (!replaying && ch == 0 && sc >= KEY_0 && sc <= KEY_9 && menu.options.quickMessages.enabled() && talkbuffer.empty()) {
+        int messageIndex = sc - KEY_1;
+        if (messageIndex == -1)
+            messageIndex = 9;
+        const string& message = menu.options.quickMessages.messages[messageIndex]();
+        if (!message.empty()) {
+            talkbuffer = message;
+            sc = KEY_ENTER; // send the message
+        }
+    }
+
     switch (sc) {   // Allow these keys to be used also for typing text.
     /*break;*/ case KEY_MINUS_PAD:
         if (!replaying && !withControl)
