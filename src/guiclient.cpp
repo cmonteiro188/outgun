@@ -3785,7 +3785,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     if (player.item_deathbringer && time > player.next_smoke_effect_time) {
         player.next_smoke_effect_time = time + 0.01;
         for (int i = 0; i < 2; i++)
-            graphics.create_deathcarrier(pos, alpha, time);
+            graphics.create_deathcarrier(pos, player.team(), alpha, time);
     }
     // draw deathbringer affected effect
     if (player.deathbringer_affected)
