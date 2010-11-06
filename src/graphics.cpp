@@ -1525,7 +1525,7 @@ void Graphics::draw_deathbringer_affected(const WorldCoords& pos, int team, int 
     solid_mode();
 }
 
-void Graphics::draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha) throw () {
+void Graphics::draw_deathbringer_carrier_circle(const WorldCoords& pos, int alpha) throw () {
     if (min_transp)
         return;
     BITMAP* buffer;
@@ -1752,7 +1752,7 @@ void Graphics::draw_pup_deathbringer(const WorldCoords& pos, double time, bool l
     while (sc.next())
         circlefill(drawbuf, sc.x(), sc.y(), pf_scale(12), colour[Colour::pup_deathbringer]);
     if (live)
-        create_deathcarrier(pos, -1 /* no team */, 255, time, true);
+        create_deathbringer_smoke(pos, -1 /* no team */, 255, time, true);
 }
 
 void Graphics::draw_waiting_map_message(const string& caption, const string& map) throw () {
@@ -2624,8 +2624,8 @@ void Graphics::create_powerwallexplo(const WorldCoords& pos, int team, double ti
     cfx.push_back(GraphicsEffect(FX_POWER_WALL_EXPLOSION, pos, time, team));
 }
 
-//create deathbringer carrier trail fx
-void Graphics::create_deathcarrier(WorldCoords pos, int team, int alpha, double time, bool for_item) throw () {
+//create deathbringer smoke fx
+void Graphics::create_deathbringer_smoke(WorldCoords pos, int team, int alpha, double time, bool for_item) throw () {
     if (for_item) {
         pos.x += rand() % 30 - 15;
         pos.y += rand() % 30 - 5;

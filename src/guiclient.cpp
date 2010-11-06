@@ -3649,7 +3649,7 @@ void GuiClient::draw_playfield() throw () {
 
     for (int i = 0; i < maxplayers; i++)
         if (player_on_screen_exact(i) && fx.player[i].item_deathbringer)
-            graphics.draw_deathbringer_carrier_effect(playerPos(i), calculatePlayerAlpha(i));
+            graphics.draw_deathbringer_carrier_circle(playerPos(i), calculatePlayerAlpha(i));
 
     graphics.draw_effects(time);
 
@@ -3781,11 +3781,11 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     //draw player
     graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
 
-    //draw deathbringer carrier effect
+    //draw deathbringer carrier smoke effect
     if (player.item_deathbringer && time > player.next_smoke_effect_time) {
         player.next_smoke_effect_time = time + 0.01;
         for (int i = 0; i < 2; i++)
-            graphics.create_deathcarrier(pos, player.team(), alpha, time);
+            graphics.create_deathbringer_smoke(pos, player.team(), alpha, time);
     }
     // draw deathbringer affected effect
     if (player.deathbringer_affected)
