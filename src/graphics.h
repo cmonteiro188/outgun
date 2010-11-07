@@ -169,14 +169,14 @@ public:
 
     void draw_rocket(const Rocket& rocket, bool shadow, double time) throw ();
     void draw_gun_explosion(const WorldCoords& pos, int rad, int team) throw ();
-    void draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha) throw ();
+    void draw_deathbringer_smoke(const WorldCoords& pos, double time, double alpha, int team) throw ();
     void draw_deathbringer(const DeathbringerExplosion& db, double frame) throw ();
 
     void draw_player_health(int value) throw ();
     void draw_player_energy(int value) throw ();
 
     void draw_deathbringer_affected(const WorldCoords& pos, int team, int alpha) throw ();
-    void draw_deathbringer_carrier_effect(const WorldCoords& pos, int alpha) throw ();
+    void draw_deathbringer_carrier_circle(const WorldCoords& pos, int alpha) throw ();
     void draw_shield(const WorldCoords& pos, int r, bool live, int alpha = 255, int team = -1, GunDirection direction = GunDirection()) throw ();
 
     void draw_virou_sorvete(const WorldCoords& pos, double respawn_delay = 0.) throw ();
@@ -226,7 +226,7 @@ public:
 
     void create_wallexplo(const WorldCoords& pos, int team, double time) throw ();
     void create_powerwallexplo(const WorldCoords& pos, int team, double time) throw ();
-    void create_deathcarrier(WorldCoords pos, int alpha, double time, bool for_item = false) throw ();
+    void create_deathbringer_smoke(WorldCoords pos, int team, int alpha, double time, bool for_item = false) throw ();
     void create_turbofx(const WorldCoords& pos, int col1, int col2, GunDirection gundir, int alpha, double time) throw ();
     void create_gunexplo(const WorldCoords& pos, int team, double time) throw ();
 
