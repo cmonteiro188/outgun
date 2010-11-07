@@ -112,6 +112,7 @@ enum ClientCfgSetting {
     CCS_QuickMessage8,
     CCS_QuickMessage9,
     CCS_QuickMessage10,
+    CCS_SendQuickMessageImmediately,
     CCS_EndOfCommands
 };
 
@@ -400,6 +401,7 @@ public:
 
     StaticText  guide;
     Checkbox    enabled;
+    Checkbox    sendImmediately;
     std::vector<Textfield> messages;
 
     Menu menu;

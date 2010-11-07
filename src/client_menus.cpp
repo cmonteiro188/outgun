@@ -696,6 +696,7 @@ Menu_quickMessages::Menu_quickMessages() throw () :
     guide           (_("Note that team messages start with a dot (.).")),
 
     enabled         (_("Enable quick messages")),
+    sendImmediately (_("Send message immediately")),
 
     menu            (_("Quick messages"), true)
 {
@@ -711,6 +712,7 @@ void Menu_quickMessages::initialize(MenuHookable<Menu>::HookFunctionT* opener, S
     DualComponentAdder add(menu, collector);
     add(&guide);
     add(&enabled, CCS_QuickMessagesEnabled);
+    add(&sendImmediately, CCS_SendQuickMessageImmediately);
     int i = 0;
     for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++, i++)
         add(&(*mi), ClientCfgSetting(CCS_QuickMessage1 + i));

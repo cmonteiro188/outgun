@@ -2451,7 +2451,11 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         const string& message = menu.options.quickMessages.messages[messageIndex]();
         if (!message.empty()) {
             talkbuffer = message;
-            sc = KEY_ENTER; // send the message
+            talkbuffer_cursor = message.length();
+            if (menu.options.quickMessages.sendImmediately())
+                sc = KEY_ENTER; // send the message
+            else
+                return;
         }
     }
 
