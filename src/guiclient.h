@@ -210,7 +210,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     bool deadAfterHighlighted;
 
     double FPS;
-    int framecount, totalframecount;
+    int framecount;
     double frameCountStartTime;
 
     std::vector<ServerListEntry> gamespy;
