@@ -102,16 +102,6 @@ enum ClientCfgSetting {
     CCS_UseThemeColours,
     CCS_SaveReplayStats,
     CCS_QuickMessagesEnabled,
-    CCS_QuickMessage1,
-    CCS_QuickMessage2,
-    CCS_QuickMessage3,
-    CCS_QuickMessage4,
-    CCS_QuickMessage5,
-    CCS_QuickMessage6,
-    CCS_QuickMessage7,
-    CCS_QuickMessage8,
-    CCS_QuickMessage9,
-    CCS_QuickMessage10,
     CCS_SendQuickMessageImmediately,
     CCS_EndOfCommands
 };
@@ -408,6 +398,7 @@ public:
 
     Menu_quickMessages() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+    void loadMessages(const std::vector<std::string>& newMessages) throw ();
 };
 
 class Menu_options {

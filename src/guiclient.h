@@ -230,6 +230,8 @@ class GuiClient : public ClientBase, public ClientInterface {
     bool show_all_messages;
     std::vector<std::string> highlight_text;
 
+    const std::string quickMessageFile;
+
     Graphics graphics;
     bool screenshot;
     std::ifstream replay;
@@ -375,6 +377,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     void load_highlight_texts() throw ();
     void load_fav_maps() throw ();
     void apply_fav_maps() throw ();
+
+    void loadQuickMessages() throw ();
+    void saveQuickMessages() const throw ();
 
     void loadHelp() throw ();
     void addSplashLine(std::string line) throw (); // internal to loadSplashScreen

@@ -715,7 +715,15 @@ void Menu_quickMessages::initialize(MenuHookable<Menu>::HookFunctionT* opener, S
     add(&sendImmediately, CCS_SendQuickMessageImmediately);
     int i = 0;
     for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++, i++)
-        add(&(*mi), ClientCfgSetting(CCS_QuickMessage1 + i));
+        add(&(*mi));
+}
+
+void Menu_quickMessages::loadMessages(const vector<string>& newMessages) throw () {
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++)
+        mi->set("");
+    unsigned i = 0;
+    for (vector<string>::const_iterator msg = newMessages.begin(); msg != newMessages.end() && i < messages.size(); msg++, i++)
+        messages[i].set(*msg);
 }
 
 Menu_options::Menu_options() throw () :
