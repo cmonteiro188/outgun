@@ -556,7 +556,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             a1 += 360;
         if (a2 < 0)
             a2 += 360;
-        if (!ist || !ist.eof() || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
+        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || ro <= 0 || ri < 0 || ri >= ro || (a1 != 0 && a1 == a2) || a1 < 0 || a2 < 0 || a1 >= 360 || a2 >= 360 || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
