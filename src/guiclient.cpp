@@ -763,7 +763,8 @@ void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call wi
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    sendFavoriteColors();
+    if (!menu.options.player.useRandomColor())
+        sendFavoriteColors();
     sendMinimapBandwidth();
 
     extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
