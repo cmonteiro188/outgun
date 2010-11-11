@@ -96,8 +96,11 @@ pup_health_cross             0000FF
 pup_shield                   6666FF
 pup_deathbringer             222244
 
-deathbringer_smoke           000022
-deathbringer_carrier_circle  000022
+deathbringer_smoke           000000
+deathbringer_smoke_red       220000
+deathbringer_smoke_blue      000022
+deathbringer_carrier_circle  000000
+deathbringer_affected        000000
 
 power_rocket                 FFFFFF
 player_power_team            FFFFFF

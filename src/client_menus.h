@@ -101,6 +101,7 @@ enum ClientCfgSetting {
     CCS_Colours,
     CCS_UseThemeColours,
     CCS_SaveReplayStats,
+    CCS_RandomColour,
     CCS_QuickMessagesEnabled,
     CCS_SendQuickMessageImmediately,
     CCS_EndOfCommands
@@ -171,6 +172,7 @@ public:
     Textfield   name;
     Textarea    randomName;
     Colorselect favoriteColors;
+    Checkbox    useRandomColor;
     Textfield   password;
     StaticText  namestatus;
     Checkbox    ranking;

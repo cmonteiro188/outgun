@@ -212,6 +212,7 @@ Menu_player::Menu_player() throw () :
     randomName      (_("Get random name")),
 
     favoriteColors  (_("Favorite colors")),
+    useRandomColor  (_("Use random color")),
 
     password        (_("Ranking password"), "", 15, '*'),
     namestatus      (_("Registration status")),
@@ -229,6 +230,7 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
     add(&randomName);
     add.space();
     add(&favoriteColors);
+    add(&useRandomColor, CCS_RandomColour);
     add.space();
     add(&password);
     add(&namestatus);

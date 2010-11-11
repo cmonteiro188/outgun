@@ -401,7 +401,6 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     lastAltEnterTime(0),
     FPS(0),
     framecount(0),
-    totalframecount(0),
     frameCountStartTime(0),
     serverListMutex("GuiClient::serverListMutex"),
     refreshStatus(RS_none),
@@ -428,7 +427,6 @@ bool GuiClient::start() throw () {
 
     menusel = menu_none;
 
-    totalframecount = 0;
     framecount = 0;
 
     startBase();
@@ -768,7 +766,8 @@ void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call wi
     m_serverInfo.clear();
     m_serverInfo.addLine("");   // can't draw a totally empty menu; this will be overwritten with config information
 
-    sendFavoriteColors();
+    if (!menu.options.player.useRandomColor())
+        sendFavoriteColors();
     sendMinimapBandwidth();
 
     extConfig.statusOutput(_("Connected to $1 ($2)", hostname.substr(0, 32), serverIP.toString()));
@@ -3456,7 +3455,6 @@ void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
     }
 
     // another frame, calculate FPS
-    totalframecount++;
     framecount++;
     const double baixo = get_time() - frameCountStartTime;
     if (baixo > 1.0) {
