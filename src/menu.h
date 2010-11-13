@@ -477,7 +477,7 @@ private:
 
 class TextTree : public Component {
 public:
-    TextTree(const std::string& caption_ = "") throw () : Component(caption_), selectedIndex() { root().setValue(caption_); root().select(); }
+    TextTree(const std::string& caption_ = "") throw () : Component(caption_), selectedIndex(), start() { root().setValue(caption_); root().select(); }
     ~TextTree() throw () { }
 
     void clear() throw () { root().clear(); selectedIndex = 0; }
@@ -500,7 +500,8 @@ private:
     bool handleKey(TreeItem& item, unsigned& currentIndex, char scan, unsigned char chr) throw ();
 
     TreeItem rootItem;
-    unsigned selectedIndex;
+    int selectedIndex;
+    mutable int start;     // this may change in drawing
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks

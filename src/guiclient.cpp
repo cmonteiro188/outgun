@@ -4631,6 +4631,8 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     typedef MenuKeyCallback<GuiClient> MKC;
     menu.replays.addHooks(new MCB::A<TreeItem, &GuiClient::MCF_replay>(this));
 
+    menu.replays.expandLatest();
+
     saveReplayCache(replays);
 }
 

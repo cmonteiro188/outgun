@@ -454,6 +454,7 @@ public:
     void add(const std::string& replay, const std::string& text) throw ();
     void reset() throw ();
     void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
+    void expandLatest() throw ();
 
 private:
     void addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw ();

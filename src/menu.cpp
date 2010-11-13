@@ -1151,6 +1151,19 @@ int TextTree::minHeight() const throw () {
 }
 
 void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
+    TemporaryClipRect clip(buffer, x, y, buffer->w, y + h, true);
+    //const int totalHeight = height();
+    const int totalCount = root().deepCountOpenItems() + 1;
+    if (start > totalCount - h / line_h())
+        start = totalCount - h / line_h();
+    if (start > selectedIndex)
+        start = selectedIndex;
+    if (start < selectedIndex - h / line_h() + 1)
+        start = selectedIndex - h / line_h() + 1;
+    if (start < 0)
+        start = 0;
+    y -= start * line_h();
+    h += start * line_h();
     drawItem(root(), 0, buffer, x, y, h, active, col);
 }
 

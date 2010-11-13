@@ -861,6 +861,14 @@ void Menu_replays::addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw (
     addHooksRecursively(items.root(), hook);
 }
 
+void Menu_replays::expandLatest() throw () {
+    TreeItem* item = &items.root();
+    while (item->hasChildren()) {
+        item->open();
+        item = &item->children()[0];
+    }
+}
+
 void Menu_replays::addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
     // Add hooks only to the replay items, which have no children.
     if (!item.hasChildren())
