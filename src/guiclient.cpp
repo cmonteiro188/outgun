@@ -4531,8 +4531,9 @@ void GuiClient::MCF_stopServer() throw () {
         listenServer.stop();
 }
 
-void GuiClient::MCF_replay(Textarea& target) throw () {
-    const string& replay_name = menu.replays.getFile(target);
+void GuiClient::MCF_replay(TreeItem& target) throw () {
+    //const string& replay_name = menu.replays.getFile(target.key());
+    const string& replay_name = target.key();
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
@@ -4628,7 +4629,7 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
 
     typedef MenuCallback<GuiClient> MCB;
     typedef MenuKeyCallback<GuiClient> MKC;
-    menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
+    menu.replays.addHooks(new MCB::A<TreeItem, &GuiClient::MCF_replay>(this));
 
     saveReplayCache(replays);
 }

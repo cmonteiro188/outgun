@@ -801,6 +801,7 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) throw ()
 
 Menu_replays::Menu_replays() throw () :
     caption (_("Date - Server - Map")),
+    items   (_("Replays")),
 
     menu    (_("Replays"), false)
 {
@@ -813,7 +814,39 @@ void Menu_replays::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
 }
 
 void Menu_replays::add(const string& replay, const string& text) throw () {
-    items.push_back(pair<string, Textarea>(replay, Textarea(text)));
+    string date = text.substr(0, 10);
+    string year = date.substr(0, 4);
+    string yearMonth = date.substr(0, 7);
+    string yearMonthDay = date.substr(0, 10);
+    string time = text.substr(11, 6);
+    // TODO: If date could not be parsed, add to "others" category.
+
+    TreeItem* yearItem = items.root().findDeep(year);
+    if (!yearItem) {
+        TreeItem item(year, year);
+        items.root().addChild(item);
+        yearItem = items.root().findDeep(year);
+    }
+    nAssert(yearItem);
+
+    TreeItem* monthItem = yearItem->findDeep(yearMonth);
+    if (!monthItem) {
+        TreeItem item(yearMonth, yearMonth); // TODO: format caption as "2010 November";
+        yearItem->addChild(item);
+        monthItem = yearItem->findDeep(yearMonth);
+    }
+    nAssert(monthItem);
+
+    TreeItem* dayItem = monthItem->findDeep(yearMonthDay);
+    if (!dayItem) {
+        TreeItem item(yearMonthDay, yearMonthDay);
+        monthItem->addChild(item);
+        dayItem = monthItem->findDeep(yearMonthDay);
+    }
+    nAssert(dayItem);
+
+    TreeItem replayItem(replay, text);
+    dayItem->addChild(replayItem);
 }
 
 void Menu_replays::reset() throw () {
@@ -821,24 +854,20 @@ void Menu_replays::reset() throw () {
     items.clear();
     BasicComponentAdder add(menu);
     add(&caption);
+    add(&items);
 }
 
-void Menu_replays::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw () {
-    BasicComponentAdder add(menu);
-    for (vector<pair<string, Textarea> >::iterator item = items.begin(); item != items.end(); ++item) {
-        item->second.setHook(hook->clone());
-        add(&item->second);
-    }
-    delete hook;
+void Menu_replays::addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
+    addHooksRecursively(items.root(), hook);
 }
 
-const string& Menu_replays::getFile(const Textarea& target) throw () {
-    for (vector<pair<string, Textarea> >::const_iterator item = items.begin(); item != items.end(); ++item) {
-        if (&item->second == &target)
-            return item->first;
-    }
-    nAssert(0);
-    return items.front().first;
+void Menu_replays::addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
+    // Add hooks only to the replay items, which have no children.
+    if (!item.hasChildren())
+        item.setHook(hook->clone());
+    else
+        for (TreeItem::Container::iterator child = item.children().begin(); child != item.children().end(); child++)
+            addHooksRecursively(*child, hook);
 }
 
 Menu_main::Menu_main() throw () :

@@ -319,7 +319,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void MCF_cancelConnect() throw ();
     void MCF_disconnect() throw ();
     void MCF_exitOutgun() throw ();
-    void MCF_replay(Textarea& target) throw ();
+    void MCF_replay(TreeItem& target) throw ();
     void MCF_prepareReplayMenu() throw ();
     void MCF_prepareMainMenu() throw ();
     void MCF_preparePlayerMenu() throw ();

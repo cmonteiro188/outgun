@@ -443,8 +443,8 @@ private:
 
 class Menu_replays {
 public:
-    std::vector<std::pair<std::string, Textarea> > items;
     Textarea        caption;
+    TextTree        items;
 
     Menu menu;
 
@@ -453,8 +453,10 @@ public:
 
     void add(const std::string& replay, const std::string& text) throw ();
     void reset() throw ();
-    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw ();
-    const std::string& getFile(const Textarea& target) throw ();
+    void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
+
+private:
+    void addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
 };
 
 class Menu_main {
