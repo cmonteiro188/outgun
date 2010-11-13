@@ -1108,10 +1108,14 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
             open();
         return true;
     }
-    else if (scan == KEY_LEFT)
+    else if (scan == KEY_LEFT) {
         close();
-    else if (scan == KEY_RIGHT)
+        return true;
+    }
+    else if (scan == KEY_RIGHT) {
         open();
+        return true;
+    }
     return false;
 }
 
