@@ -1074,8 +1074,8 @@ TreeItem* TreeItem::getByOpenIndex(size_t index) throw () {
 }
 
 int TreeItem::width(int level) const throw () {
-    // The width is maximum width of the item and its open child items, indentation included.
-    int w = text_length(font, string(level * 2, ' ') + value());
+    // The width is maximum width of the item and its open child items + indentation + scrollbar.
+    int w = text_length(font, string(level * 2, ' ') + value()) + 2 * char_w();
     if (isOpen())
         for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
             w = max(w, item->width(level + 1));
@@ -1152,7 +1152,11 @@ int TextTree::minHeight() const throw () {
 
 void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
     TemporaryClipRect clip(buffer, x, y, buffer->w, y + h, true);
+    const int y0 = y;
+    const int h0 = h;
     const int totalCount = root().deepCountOpenItems() + 1;
+    const int visible_lines = h / line_h();
+
     if (start > totalCount - h / line_h())
         start = totalCount - h / line_h();
     if (start > selectedIndex)
@@ -1164,6 +1168,14 @@ void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colo
     y -= start * line_h();
     h += start * line_h();
     drawItem(root(), 0, buffer, x, y, h, active, col);
+
+    // draw scrollbar if everything didn't fit
+    if (visible_lines != totalCount) {
+        const int sbx = min(x + width() + char_w(), buffer->w - 12);
+        const int bar_y = static_cast<int>(static_cast<double>(h0 * start) / totalCount + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(h0 * visible_lines) / totalCount + 0.5);
+        scrollbar(buffer, sbx, y0, h0, bar_y, bar_h, col[Colour::scrollbar], col[Colour::scrollbar_bg]);
+    }
 }
 
 void TextTree::drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
