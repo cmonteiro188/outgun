@@ -1120,26 +1120,22 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
 }
 
 
+TextTree::TextTree(const string& caption_) throw () :
+    Component(caption_),
+    start()
+{
+    root().setValue(caption_);
+    selectItem(0);
+}
+
 void TextTree::previous() throw () {
     if (selectedIndex == 0)
         return;
-    TreeItem* newItem = root().getByOpenIndex(selectedIndex - 1);
-    if (newItem) {
-        TreeItem* current = root().getByOpenIndex(selectedIndex);
-        current->deselect();
-        newItem->select();
-        selectedIndex--;
-    }
+    selectItem(selectedIndex - 1);
 }
 
 void TextTree::next() throw () {
-    TreeItem* newItem = root().getByOpenIndex(selectedIndex + 1);
-    if (newItem) {
-        TreeItem* current = root().getByOpenIndex(selectedIndex);
-        current->deselect();
-        newItem->select();
-        selectedIndex++;
-    }
+    selectItem(selectedIndex + 1);
 }
 
 int TextTree::width() const throw () {
@@ -1156,7 +1152,6 @@ int TextTree::minHeight() const throw () {
 
 void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
     TemporaryClipRect clip(buffer, x, y, buffer->w, y + h, true);
-    //const int totalHeight = height();
     const int totalCount = root().deepCountOpenItems() + 1;
     if (start > totalCount - h / line_h())
         start = totalCount - h / line_h();
@@ -1208,5 +1203,16 @@ bool TextTree::handleKey(char scan, unsigned char chr) throw () {
     }
     else
         return root().handleKey(scan, chr);
+}
+
+void TextTree::selectItem(int index) throw () {
+    TreeItem* newItem = root().getByOpenIndex(index);
+    if (newItem) {
+        if (selectedItem)
+            selectedItem->deselect();
+        selectedIndex = index;
+        selectedItem = newItem;
+        selectedItem->select();
+    }
 }
 

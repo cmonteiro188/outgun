@@ -477,10 +477,10 @@ private:
 
 class TextTree : public Component {
 public:
-    TextTree(const std::string& caption_ = "") throw () : Component(caption_), selectedIndex(), start() { root().setValue(caption_); root().select(); }
+    TextTree(const std::string& caption_ = "") throw ();
     ~TextTree() throw () { }
 
-    void clear() throw () { root().clear(); selectedIndex = 0; }
+    void clear() throw () { root().clear(); selectItem(0); }
 
     const TreeItem& root() const throw () { return rootItem; }
     TreeItem& root() throw () { return rootItem; }
@@ -496,11 +496,13 @@ public:
     bool handleKey(char scan, unsigned char chr) throw ();
 
 private:
+    void selectItem(int index) throw ();
+
     void drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw ();
-    bool handleKey(TreeItem& item, unsigned& currentIndex, char scan, unsigned char chr) throw ();
 
     TreeItem rootItem;
     int selectedIndex;
+    TreeItem* selectedItem;
     mutable int start;     // this may change in drawing
 };
 
