@@ -1033,7 +1033,7 @@ size_t TreeItem::deepCountLowestLevelItems() const throw () {
     return count;
 }
 
-const TreeItem* TreeItem::findDeep(const std::string& itemKey) const throw () {
+const TreeItem* TreeItem::findDeep(const string& itemKey) const throw () {
     if (key() == itemKey)
         return this;
     for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
@@ -1042,7 +1042,7 @@ const TreeItem* TreeItem::findDeep(const std::string& itemKey) const throw () {
     return 0;
 }
 
-TreeItem* TreeItem::findDeep(const std::string& itemKey) throw () {
+TreeItem* TreeItem::findDeep(const string& itemKey) throw () {
     if (key() == itemKey)
         return this;
     for (Container::iterator item = childItems.begin(); item != childItems.end(); item++)
@@ -1052,7 +1052,6 @@ TreeItem* TreeItem::findDeep(const std::string& itemKey) throw () {
 }
 
 TreeItem* TreeItem::getByOpenIndex(size_t index) throw () {
-    std::cout << "getByIndex " << index << '\n';
     if (index == 0)
         return this;
     if (!isOpen())
