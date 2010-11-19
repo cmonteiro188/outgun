@@ -813,7 +813,7 @@ void Menu_replays::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     (void)collector;
 }
 
-void Menu_replays::add(const string& replay, const string& text) throw () {
+void Menu_replays::add(const string& replayFile, const string& text) throw () {
     string date = text.substr(0, 10);
     string year = date.substr(0, 4);
     string yearMonth = date.substr(0, 7);
@@ -845,9 +845,9 @@ void Menu_replays::add(const string& replay, const string& text) throw () {
     }
     nAssert(dayItem);
 
-    TreeItem* replayItem = dayItem->findDeep(replay);
+    TreeItem* replayItem = dayItem->findDeep(replayFile);
     if (!replayItem) {
-        TreeItem item(replay, text);
+        TreeItem item(replayFile, text);
         dayItem->addChild(item);
     }
 }
