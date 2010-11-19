@@ -426,8 +426,8 @@ private:
 
 class TreeItem : public MenuHookable<TreeItem> {
 public:
-    TreeItem(const std::string& val = "") : value_(val), opened(), selected_() { }
-    TreeItem(const std::string& key_, const std::string& val) : itemKey(key_), value_(val), opened(), selected_() { }
+    TreeItem(const std::string& val = "") throw () : value_(val), opened(), selected_() { }
+    TreeItem(const std::string& key_, const std::string& val) throw () : itemKey(key_), value_(val), opened(), selected_() { }
     ~TreeItem() throw () { }
 
     typedef std::vector<TreeItem> Container;
