@@ -130,6 +130,7 @@ public:
     typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
 
     Hook1() throw () : hookFn(0) { }
+    Hook1(const Hook1& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~Hook1() throw () { free(); }
     void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
     bool active() const throw () { return hookFn != 0; }
