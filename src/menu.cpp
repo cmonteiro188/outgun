@@ -1051,6 +1051,17 @@ TreeItem* TreeItem::findDeep(const string& itemKey) throw () {
     return 0;
 }
 
+bool TreeItem::removeDeep(const string& itemKey) throw () {
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); item++)
+        if (item->key() == itemKey) {
+            childItems.erase(item);
+            return true;
+        }
+        else if (item->removeDeep(itemKey))
+            return true;
+    return false;
+}
+
 TreeItem* TreeItem::getByOpenIndex(size_t index) throw () {
     if (index == 0)
         return this;

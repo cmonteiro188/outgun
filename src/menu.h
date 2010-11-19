@@ -460,6 +460,8 @@ public:
 
     const TreeItem* findDeep(const std::string& itemKey) const throw ();
     TreeItem* findDeep(const std::string& itemKey) throw ();
+    bool removeDeep(const std::string& itemKey) throw ();
+
     TreeItem* getByOpenIndex(std::size_t index) throw ();
 
     int width(int level = 0) const throw ();

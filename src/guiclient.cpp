@@ -4581,14 +4581,14 @@ void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
 }
 
 void GuiClient::MCF_prepareReplayMenu() throw () {
-    menu.replays.reset();
-    const ReplayCache cache = loadReplayCache();
+    ReplayCache cache = loadReplayCache();
     ReplayList replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
     while (replay_files->hasNext()) {
         const string name = FileName(replay_files->next()).getBaseName();
-        ReplayCache::const_iterator iCache = cache.find(name);
+        ReplayCache::iterator iCache = cache.find(name);
         if (iCache != cache.end()) {
+            iCache->second.confirmed = true;
             replays.push_back(*iCache);
             continue;
         }
@@ -4624,6 +4624,10 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
     sort(replays.begin(), replays.end());
+    for (ReplayCache::const_iterator ri = cache.begin(); ri != cache.end(); ri++)
+        if (!ri->second.confirmed)
+            menu.replays.remove(ri->first);
+
     for (ReplayList::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second.description);
 

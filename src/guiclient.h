@@ -298,8 +298,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     struct ReplayDescriptor {
         std::string description;
         bool final;
+        bool confirmed; // confirmed that the file exists
 
-        ReplayDescriptor(const std::string& desc, bool final_) throw () : description(desc), final(final_) { }
+        ReplayDescriptor(const std::string& desc, bool final_) throw () : description(desc), final(final_), confirmed() { }
 
         bool operator<(const ReplayDescriptor&) const throw () { return false; }
     };

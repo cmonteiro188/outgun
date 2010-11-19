@@ -845,8 +845,15 @@ void Menu_replays::add(const string& replay, const string& text) throw () {
     }
     nAssert(dayItem);
 
-    TreeItem replayItem(replay, text);
-    dayItem->addChild(replayItem);
+    TreeItem* replayItem = dayItem->findDeep(replay);
+    if (!replayItem) {
+        TreeItem item(replay, text);
+        dayItem->addChild(item);
+    }
+}
+
+void Menu_replays::remove(const string& replayFile) throw () {
+    items.root().removeDeep(replayFile);
 }
 
 void Menu_replays::reset() throw () {

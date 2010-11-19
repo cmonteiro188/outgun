@@ -452,6 +452,7 @@ public:
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
     void add(const std::string& replay, const std::string& text) throw ();
+    void remove(const std::string& replayFile) throw ();
     void reset() throw ();
     void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
     void expandLatest() throw ();
