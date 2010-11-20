@@ -1,7 +1,7 @@
 /*
  *  function_utility.h
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -56,9 +56,13 @@ public:
     HookFunctionHolder0(FunctionT* fn) throw () : hookFn(fn) { }
     HookFunctionHolder0(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder0() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()() const throw () { return (*hookFn)(); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -69,16 +73,13 @@ class Hook0 {
 public:
     typedef HookFunctionBase0<RetT> FunctionT;
 
-    Hook0() throw () : hookFn(0) { }
-    ~Hook0() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call() const throw () { if (hookFn) return (*hookFn)(); else return RetT(); }
+    Hook0() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call() const throw () { return holder ? holder() : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    HookFunctionHolder0<RetT> holder;
 };
 
 template<class RetT>
@@ -116,9 +117,13 @@ public:
     HookFunctionHolder1(FunctionT* fn) throw () : hookFn(fn) { }
     HookFunctionHolder1(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder1() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1) const throw () { return (*hookFn)(a1); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -129,16 +134,13 @@ class Hook1 {
 public:
     typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
 
-    Hook1() throw () : hookFn(0) { }
-    ~Hook1() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1) const throw () { if (hookFn) return (*hookFn)(a1); else return RetT(); }
+    Hook1() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1) const throw () { return holder ? holder(a1) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    HookFunctionHolder1<RetT, Arg1T> holder;
 };
 
 template<class RetT, class Arg1T>
@@ -176,9 +178,13 @@ public:
     HookFunctionHolder2(FunctionT* fn) throw () : hookFn(fn) { }
     HookFunctionHolder2(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder2() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2) const throw () { return (*hookFn)(a1, a2); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -189,16 +195,13 @@ class Hook2 {
 public:
     typedef HookFunctionBase2<RetT, Arg1T, Arg2T> FunctionT;
 
-    Hook2() throw () : hookFn(0) { }
-    ~Hook2() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1, Arg2T a2) const throw () { if (hookFn) return (*hookFn)(a1, a2); else return RetT(); }
+    Hook2() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1, Arg2T a2) const throw () { return holder ? holder(a1, a2) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    HookFunctionHolder2<RetT, Arg1T, Arg2T> holder;
 };
 
 template<class RetT, class Arg1T, class Arg2T>
@@ -236,9 +239,13 @@ public:
     HookFunctionHolder3(FunctionT* fn) throw () : hookFn(fn) { }
     HookFunctionHolder3(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
     ~HookFunctionHolder3() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { return (*hookFn)(a1, a2, a3); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -249,16 +256,13 @@ class Hook3 {
 public:
     typedef HookFunctionBase3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
 
-    Hook3() throw () : hookFn(0) { }
-    ~Hook3() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { if (hookFn) return (*hookFn)(a1, a2, a3); else return RetT(); }
+    Hook3() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { return holder ? holder(a1, a2, a3) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    HookFunctionHolder3<RetT, Arg1T, Arg2T, Arg3T> holder;
 };
 
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
