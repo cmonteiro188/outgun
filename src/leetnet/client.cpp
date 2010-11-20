@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2006 - Jani Rivinoja
  */
 
@@ -123,6 +123,9 @@ public:
     //the server address
     Network::Address       serveraddr;
 
+    int serverSendingPort;
+    int framesSinceKeepalive;
+
     //client station
     station_c       *station;
 
@@ -180,6 +183,8 @@ public:
     //with the server. if set to FALSE, will stop trying to connect or will disconnect
     //results are returned in the CFUNC_CONNENCTION_UPDATE callback
     virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () {
+        serverSendingPort = -1;
+
         log("connect now=%i  set to=%i   constatus=%i", want_connect, yes, connect_status);
 
         //noop
@@ -310,6 +315,11 @@ public:
             doSendFrame(data);
         else
             queueSend(new QSendFrame(data));
+        if (++framesSinceKeepalive == 10 * 60 && serverSendingPort > 0 && serverSendingPort < 65536) {
+            BinaryBuffer<32> msg;
+            sendRawPacketToPort(msg, serverSendingPort);
+            framesSinceKeepalive = 0;
+        }
     }
 
     void doSendFrame(ConstDataBlockRef data) throw () {
@@ -606,11 +616,12 @@ DLOG_Scope s("CPIDg");
 
                 // check if callback called already
                 if (connect_status != 3) {
-                    const uint32_t port = read.U32();
-                    if (port > 0 && port < 65536) {
+                    framesSinceKeepalive = 0;
+                    serverSendingPort = read.U32();
+                    if (serverSendingPort > 0 && serverSendingPort < 65536) {
                         // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
                         BinaryBuffer<32> msg;
-                        sendRawPacketToPort(msg, port);
+                        sendRawPacketToPort(msg, serverSendingPort);
                     }
 
                     //connection callback w/ status = 0  (connected)
