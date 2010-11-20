@@ -987,6 +987,8 @@ public:
     int start_weapon;
     bool start_deathbringer;
 
+    bool team_shield, team_turbo, team_shadow, team_power, team_weapon, team_health, team_deathbringer;
+
     void reset() throw ();
 
     Powerup::Pup_type choose_powerup_kind() const throw ();
@@ -1127,7 +1129,7 @@ public:
     void suicide(int pid) throw ();
     void respawn_powerup(int p) throw ();
     void check_powerup_creation(bool instant) throw ();
-    void game_touch_powerup(int p, int pk) throw ();
+    void game_touch_powerup(int p, int pk, bool teammateTouched = false) throw ();
     bool check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw ();
     void game_player_screen_change(int p) throw ();
 

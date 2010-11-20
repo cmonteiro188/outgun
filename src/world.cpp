@@ -1485,6 +1485,14 @@ void PowerupSettings::reset() throw () {
     start_power = 0;
     start_weapon = 1;
     start_deathbringer = false;
+
+    team_shield = false;
+    team_turbo = false;
+    team_shadow = false;
+    team_power = false;
+    team_weapon = false;
+    team_health = false;
+    team_deathbringer = false;
 }
 
 Powerup::Pup_type PowerupSettings::choose_powerup_kind() const throw () {
@@ -1994,11 +2002,12 @@ void ServerWorld::check_powerup_creation(bool instant) throw () {
         }
 }
 
-void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
+void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) throw () {
     Powerup& it = item[pk];
     ServerPlayer& pl = player[pid];
 
-    net->broadcastPowerupPicked(it.room().x, it.room().y, pk);
+    if (!teammateTouched)
+        net->broadcastPowerupPicked(it.room().x, it.room().y, pk);
 
     // Check which powerups player has.
     bool pups[Powerup::pup_last_real + 1];
@@ -2014,8 +2023,10 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
     if (!pups[it.kind] && pup_count >= pupConfig.pups_player_max)   // Drop one if necessary.
         drop_worst_powerup(pl);
 
+    bool shareToTeam = false;
     switch (it.kind) {
     /*break;*/ case Powerup::pup_shield: {
+            shareToTeam = pupConfig.team_shield;
             if (!pl.item_shield)
                 pl.record_powerups = true;
 
@@ -2035,6 +2046,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_POWERUP);
         }
         break; case Powerup::pup_turbo: {
+            shareToTeam = pupConfig.team_turbo;
             double itemTime = pl.item_turbo_time - get_time();
             if (!pl.item_turbo || itemTime < 0) {
                 itemTime = 0;
@@ -2049,6 +2061,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_TURBO_ON);
         }
         break; case Powerup::pup_shadow: {
+            shareToTeam = pupConfig.team_shadow;
             double itemTime = pl.item_shadow_time - get_time();
             if (!pl.item_shadow() || itemTime < 0)
                 itemTime = 0;
@@ -2061,6 +2074,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
         }
         break; case Powerup::pup_power: {
+            shareToTeam = pupConfig.team_power;
             double itemTime = pl.item_power_time - get_time();
             if (!pl.item_power || itemTime < 0) {
                 itemTime = 0;
@@ -2075,6 +2089,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_POWER_ON);
         }
         break; case Powerup::pup_weapon: {
+            shareToTeam = pupConfig.team_weapon;
             if (pl.energy < 200) {
                 pl.energy += 100;
                 if (pl.energy > 200)
@@ -2087,11 +2102,13 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
             net->broadcast_screen_sample(pl.id, SAMPLE_WEAPON_UP);
         }
         break; case Powerup::pup_health: {
+            shareToTeam = pupConfig.team_health;
             pl.megabonus += pupConfig.pup_health_bonus;
             net->broadcast_screen_sample(pl.id, SAMPLE_MEGAHEALTH);
         }
         break; case Powerup::pup_deathbringer: {
-            if (pupConfig.getDeathbringerSwitch()) {
+            shareToTeam = pupConfig.team_deathbringer;
+            if (pupConfig.getDeathbringerSwitch() && !teammateTouched) {
                 pl.item_deathbringer = !pl.item_deathbringer;
                 pl.record_powerups = true;
             }
@@ -2104,6 +2121,13 @@ void ServerWorld::game_touch_powerup(int pid, int pk) throw () {
         }
         break; default: nAssert(0);
     }
+
+    if (teammateTouched)
+        return;
+    else if (shareToTeam)
+        for (int i = 0; i < maxplayers; i++)
+            if (player[i].used && !player[i].dead && player[i].team() == pl.team() && pid != i)
+                game_touch_powerup(i, pk, true);
 
     // unused item
     it.kind = Powerup::pup_unused;

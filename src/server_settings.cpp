@@ -319,6 +319,13 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Int       ("pup_start_power",             &pupConfig.start_power, 0, 999));
     cat.add(new GS_Int       ("pup_start_weapon",            &pupConfig.start_weapon, 1, 9));
     cat.add(new GS_Boolean   ("pup_start_deathbringer",      &pupConfig.start_deathbringer));
+    cat.add(new GS_Boolean   ("pup_team_shield",             &pupConfig.team_shield));
+    cat.add(new GS_Boolean   ("pup_team_turbo",              &pupConfig.team_turbo));
+    cat.add(new GS_Boolean   ("pup_team_shadow",             &pupConfig.team_shadow));
+    cat.add(new GS_Boolean   ("pup_team_power",              &pupConfig.team_power));
+    cat.add(new GS_Boolean   ("pup_team_weapon",             &pupConfig.team_weapon));
+    cat.add(new GS_Boolean   ("pup_team_health",             &pupConfig.team_health));
+    cat.add(new GS_Boolean   ("pup_team_deathbringer",       &pupConfig.team_deathbringer));
     categories.push_back(cat);
 
     cat = Category("physics" , "Physics");
