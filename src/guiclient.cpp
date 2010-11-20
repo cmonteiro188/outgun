@@ -4542,7 +4542,7 @@ string GuiClient::replayCacheFile() const throw () {
 }
 
 GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
-    ifstream in(replayCacheFile().c_str());
+    ifstream in(replayCacheFile().c_str(), ios::binary);
     if (!in)
         return ReplayCache();
     BinaryStreamReader read(in);
@@ -4562,7 +4562,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
 }
 
 void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
-    ofstream out(replayCacheFile().c_str());
+    ofstream out(replayCacheFile().c_str(), ios::binary);
     if (!out) {
         log("Can't write to %s", replayCacheFile().c_str());
         return;
