@@ -128,7 +128,7 @@ void notify() {
 
 int main(int argc, const char* argv[]) {
     platInit();
-    AtScopeExit autoPlatUninit(newRedirectToFun0(platUninit));
+    AtScopeExit autoPlatUninit(newFun0(platUninit));
 
     int minPlayers = 1, minutesBeforeNotify = 1;
     string server;
@@ -165,7 +165,7 @@ int main(int argc, const char* argv[]) {
         cerr << e.str() << '\n';
         return 1;
     }
-    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+    AtScopeExit autoShutdownNetwork(newFun0(Network::shutdown));
 
     Network::Address address;
     if (!address.tryResolve(server)) {

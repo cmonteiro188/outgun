@@ -434,7 +434,7 @@ template<class CallClassT>
 class MenuCallback {
 public:
     template<class ArgT, void (CallClassT::*memFun)(ArgT&)>
-    class A : public HookFunctionBase1<void, ArgT&> {
+    class A : public Function1<void, ArgT&> {
     public:
         A(CallClassT* host_) throw () : host(host_) { }
         void operator()(ArgT& obj) const throw () { (host->*memFun)(obj); }
@@ -445,7 +445,7 @@ public:
     };
 
     template<class ArgT, void (CallClassT::*memFun)()>
-    class N : public HookFunctionBase1<void, ArgT&> {
+    class N : public Function1<void, ArgT&> {
     public:
         N(CallClassT* host_) throw () : host(host_) { }
         void operator()(ArgT&) const throw () { (host->*memFun)(); }
@@ -460,7 +460,7 @@ template<class CallClassT>
 class MenuKeyCallback {
 public:
     template<class ArgT, bool (CallClassT::*memFun)(ArgT&, char, unsigned char)>
-    class A : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
+    class A : public Function3<bool, ArgT&, char, unsigned char> {
     public:
         A(CallClassT* host_) throw () : host(host_) { }
         bool operator()(ArgT& obj, char scan, unsigned char chr) const throw () { return (host->*memFun)(obj, scan, chr); }
@@ -471,7 +471,7 @@ public:
     };
 
     template<class ArgT, bool (CallClassT::*memFun)(char, unsigned char)>
-    class N : public HookFunctionBase3<bool, ArgT&, char, unsigned char> {
+    class N : public Function3<bool, ArgT&, char, unsigned char> {
     public:
         N(CallClassT* host_) throw () : host(host_) { }
         bool operator()(ArgT&, char scan, unsigned char chr) const throw () { return (host->*memFun)(scan, chr); }

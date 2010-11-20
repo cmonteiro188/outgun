@@ -64,11 +64,11 @@ int main(int argc, const char* argv[]) {
         cout << e.str();
         return 0;
     }
-    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+    AtScopeExit autoShutdownNetwork(newFun0(Network::shutdown));
     cout << "Network init successful.\n";
     platInit();
     platInitAfterAllegro();
-    AtScopeExit autoPlatformCleanup(newRedirectToFun0(platUninit));
+    AtScopeExit autoPlatformCleanup(newFun0(platUninit));
     g_timeCounter.setZero();
 
     try {

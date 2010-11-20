@@ -112,19 +112,19 @@ void Server::SettingManager::build(bool reload) throw () {
     typedef SettingManager This;
     typedef ServerNetworking Network;
 
-    #define    FUN0            RedirectToFun0
-    #define   NFUN0         newRedirectToFun0
-    #define    FUN1            RedirectToFun1
-    #define   NFUN1         newRedirectToFun1
+    #define    FUN0            Fun0
+    #define   NFUN0         newFun0
+    #define    FUN1            Fun1
+    #define   NFUN1         newFun1
 
-    #define   MFUN1         RedirectToMemFun1
-    #define  NMFUN1      newRedirectToMemFun1
+    #define   MFUN1         MemFun1
+    #define  NMFUN1      newMemFun1
 
-    #define  CMFUN0    RedirectToConstMemFun0
-    #define NCMFUN0 newRedirectToConstMemFun0
+    #define  CMFUN0    ConstMemFun0
+    #define NCMFUN0 newConstMemFun0
 
-    #define  STCSR0      HookFnStripConstRef0
-    #define NSTCSR0   newHookFnStripConstRef0
+    #define  STCSR0    StripConstRef0
+    #define NSTCSR0 newStripConstRef0
 
     // checkers
     FUN1 <         bool, CSR> &checkForceIP        = *addFn(NFUN1  (          &         checkForceIpValue     ));

@@ -870,7 +870,7 @@ void ServerNetworking::client_report_status(int id) throw () {
         Lock ml(mjob_mutex);
         mjob_count++;
     }
-    RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+    MemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
     Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
                                        rmf, job,
                                        settings.lowerPriority());
@@ -1213,17 +1213,17 @@ bool ServerNetworking::start() throw () {
 
     //start TCP shell master thread in the port number 500 less than server UDP port
     shellmthread.start_assert("ServerNetworking::run_shellmaster_thread",
-                              RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
+                              MemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
                               settings.lowerPriority());
 
     //start TCP thread for talking with master server
     mthread.start_assert("ServerNetworking::run_mastertalker_thread",
-                         RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread),
+                         MemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread),
                          settings.lowerPriority());
 
     //start website thread
     webthread.start_assert("ServerNetworking::run_website_thread",
-                           RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread),
+                           MemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread),
                            settings.lowerPriority());
 
     relayThread.start(settings.lowerPriority());
@@ -1637,7 +1637,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
                 mjob_count++;
             }
 
-            RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+            MemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
             Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
                                                rmf, job,
                                                settings.lowerPriority());
@@ -2655,7 +2655,7 @@ void ServerNetworking::handleNewAdminShell(Thread& slaveThread, volatile bool& s
         slaveThread.join();
     slaveRunning = true;    // slave will set it false when exiting
     slaveThread.start("ServerNetworking::run_shellslave_thread",
-                      RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
+                      MemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
                       settings.lowerPriority());
 }
 
@@ -2887,7 +2887,7 @@ ServerNetworking::RelayThread::RelayThread(LogSet logs, volatile bool& quitFlag_
 
 void ServerNetworking::RelayThread::start(int priority) throw () {
     thread.start_assert("ServerNetworking::RelayThread::threadMain",
-                        RedirectToMemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain),
+                        MemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain),
                         priority);
 }
 

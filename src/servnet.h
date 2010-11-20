@@ -54,7 +54,7 @@ public:
     public:
         virtual ~Settings() throw () { }
 
-        typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+        typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
         virtual StatusOutputFnT statusOutput() const throw () = 0;
         virtual bool showErrorCount() const throw () = 0;
         virtual int lowerPriority() const throw () = 0;

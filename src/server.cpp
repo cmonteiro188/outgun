@@ -126,7 +126,7 @@ void Server::kickPlayer(int pid, int admin) throw () {
 
 bool Server::loadAuthorizations() throw () {
     try {
-        RedirectToMemFun1<SettingManager, bool, const string&> commandTest(&settings, &SettingManager::isGamemodCommandOrCategory);
+        MemFun1<SettingManager, bool, const string&> commandTest(&settings, &SettingManager::isGamemodCommandOrCategory);
         authorizations.load(commandTest);
         return true;
     } catch (const AuthorizationDatabase::FileError& e) {
@@ -996,7 +996,7 @@ bool Server::start(int target_maxplayers) throw () {
 
     //start bot thread
     botthread.start_assert("Server::run_bot_thread",
-                           RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread),
+                           MemFun0<Server, void>(this, &Server::run_bot_thread),
                            settings.lowerPriority());
 
     return true;

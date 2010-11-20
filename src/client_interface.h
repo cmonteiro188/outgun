@@ -50,7 +50,7 @@ public:
     std::string autoReplay;
     std::string autoSpectate;
 
-    typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+    typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;
 
     ClientExternalSettings() throw () : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
