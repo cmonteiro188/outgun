@@ -1526,11 +1526,11 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
         #ifdef BOTDEBUG
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Guessing %s moved to %d,%d (%d,%d) %.1f s ago - last seen at %d,%d/%d,%d %.1f s ago, verified away %.1f s ago\n", pl.name.c_str(),
-                posGuess.px, posGuess.py, (int)posGuess.x, (int)posGuess.y,
+                posGuess.room.x, posGuess.room.y, (int)posGuess.x, (int)posGuess.y,
                 (fx.frame - timeGuess) / 10.,
                 pl.room().x, pl.room().y, (int)pl.pos.x, (int)pl.pos.y,
                 (fx.frame - pl.posUpdated) / 10.,
-                (fx.frame - fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame) / 10.);
+                (fx.frame - fx.map[pl.room()].enemies_seen_frame) / 10.);
         #endif
         pl.setPosition(posGuess, timeGuess); // leaves no mark about the position being a guess, but that isn't terrible
     }
