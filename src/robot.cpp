@@ -27,6 +27,7 @@
 
 #include <iomanip>
 #include <queue>
+#include <set>
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
@@ -70,6 +71,7 @@ using std::make_pair;
 using std::max;
 using std::min;
 using std::pair;
+using std::set;
 using std::string;
 using std::priority_queue;
 using std::vector;
@@ -106,9 +108,9 @@ bool Robot::imminentExplosionHere() const throw () {
     return false;
 }
 
-double Robot::distanceFromDoor(const Area::Neighbor& n) const throw () {
+double Robot::distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw () {
     try {
-        return (nearestDoor(n, myPos.local()) - myPos.local()).mag();
+        return (nearestDoor(n, pos) - pos).mag();
     } catch (AlreadyInRoom) {
         return 0;
     }
@@ -146,6 +148,10 @@ bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFrom
 }
 
 double Robot::ScanDir(GunDirection dir) const throw () {
+    return WallHitPosition(dir, PLAYER_RADIUS).first;
+}
+
+pair<double, Coords> Robot::WallHitPosition(GunDirection dir, double radius) const throw () {
     const double deg = dir.toRad();
     const Vec d(cos(deg), sin(deg));
     const Room& room = fx.map[myPos.room];
@@ -154,7 +160,8 @@ double Robot::ScanDir(GunDirection dir) const throw () {
         maxDist = min(maxDist, (d.x > 0 ? S_W - myPos.x : -myPos.x) / d.x);
     if (d.y != 0)
         maxDist = min(maxDist, (d.y > 0 ? S_H - myPos.y : -myPos.y) / d.y);
-    return min(maxDist, room.genGetTimeTillWall(myPos.local(), d, PLAYER_RADIUS, maxDist).first);
+    const double dist = min(maxDist, room.genGetTimeTillWall(myPos.local(), d, radius, maxDist).first);
+    return make_pair(dist, Coords(myPos.local() + d * dist));
 }
 
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
@@ -437,12 +444,76 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const GunDirection& default
     return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
+pair<bool, int> Robot::ShootAtDoorTradTurning() throw () {
+    // if we've just arrived at a new room and don't yet know if there are enemies, don't shoot at doors
+    if (myPos.room != fx.player[me].room())
+        return make_pair(false, -1);
+
+    // if we're about to go to a new room, don't shoot at doors
+    const Coords futurePos = Coords(myPos.local() + 5 * fx.player[me].vel);
+    if (futurePos.x < 0 || futurePos.x > S_W || futurePos.y < 0 || futurePos.y > S_H)
+        return make_pair(false, -1);
+
+    set<const Area*> enemyAreas;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || myTeam(pl) || pl.dead || pl.posUpdated < fx.frame - FADEOUT)
+            continue;
+        enemyAreas.insert(area(pl));
+    }
+
+    const Area* const here = myArea();
+
+    // if an enemy can appear near to us, don't shoot at any doors
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        if (fx.map[ni->area->room].enemies_seen_frame >= fx.frame - 5 && !enemyAreas.count(ni->area)) // nothing to fear from there
+            continue;
+        const double dist = distanceFromDoor(*ni, myPos.local());
+        if (dist < S_H / 2)
+            return make_pair(false, -1);
+    }
+
+    pair<double, Coords> hitPos[8];
+    for (int dir = 0; dir < 8; ++dir)
+        hitPos[dir] = WallHitPosition(GunDirection().from8way(dir), ROCKET_RADIUS);
+
+    double bestDist = 1e99;
+    int bestDir = -1;
+    bool knownEnemyTargeted = false;
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        const bool roomSeen = fx.map[ni->area->room].enemies_seen_frame >= fx.frame - 5;
+        const bool knownEnemy = enemyAreas.count(ni->area);
+        const bool nearRespawn = ni->area->respawnValue[!myTeam()] >= .25;
+        if (!knownEnemy && (roomSeen || !nearRespawn))
+            continue;
+        for (int dir = 0; dir < 8; ++dir) {
+            if (hitPos[dir].first < S_H / 2) // only bother shooting speculatively if there's a long lifetime for the rocket
+                continue;
+            const double dist = distanceFromDoor(*ni, hitPos[dir].second);
+            if (dist < bestDist && knownEnemy == knownEnemyTargeted || knownEnemy && !knownEnemyTargeted) {
+                bestDist = dist;
+                bestDir = dir;
+                knownEnemyTargeted = knownEnemy;
+                if (dist < 1. && knownEnemy)
+                    return make_pair(true, dir);
+            }
+        }
+    }
+
+    if (bestDist > 4 * PLAYER_RADIUS)
+        return make_pair(false, -1);
+    else
+        return make_pair(true, bestDir);
+}
+
 pair<bool, int> Robot::NeedShootTradTurning() throw () {
     vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
+    bool anyInRoom = false;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || myTeam(pl) || pl.dead || !here(pl, true))
             continue;
+        anyInRoom = true;
 
         const pair<AimLevel, int> aim = TryAimTradTurning(i);
         if (aim.first != AL_Full)
@@ -453,6 +524,9 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
         if (!dirDistances[aim.second].first || hitTime < dirDistances[aim.second].second)
             dirDistances[aim.second] = make_pair(true, hitTime);
     }
+    if (!anyInRoom)
+        return ShootAtDoorTradTurning();
+
     int bestDir = -1;
     double bestValue = 1e99;
     for (int dir = 0; dir < 8; ++dir) {

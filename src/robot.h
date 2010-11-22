@@ -111,7 +111,8 @@ class Robot : public ClientBase, public BotInterface {
     bool        imminentExplosionHere() const throw ();
     class AlreadyInRoom { }; // exception
     Coords      nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) const throw (AlreadyInRoom);
-    double      distanceFromDoor(const Area::Neighbor& n) const throw ();
+    double      distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw ();
+    double      distanceFromDoor(const Area::Neighbor& n) const throw () { return distanceFromDoor(n, myPos.local()); }
     bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const throw ();
     bool        moreDefensive(const ClientPlayer& player) const throw ();
 
@@ -138,9 +139,11 @@ class Robot : public ClientBase, public BotInterface {
     double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
     bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
-    double      ScanDir(GunDirection dir) const throw (); // return length to wall
+    double      ScanDir(GunDirection dir) const throw (); // return length to wall (or room border) in dir
+    std::pair<double, Coords> WallHitPosition(GunDirection dir, double radius) const throw (); // return length to wall (or room border) in dir, and the hit position
     std::pair<bool, GunDirection> NeedShootFreeTurning(const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
-    std::pair<bool, int> NeedShootTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
+    std::pair<bool, int> ShootAtDoorTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
+    std::pair<bool, int> NeedShootTradTurning() throw ();   // to shoot or not to shoot, and the direction if shooting
     GunDirection GetDir(const Vec& delta) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
     int         GetDangerousRocket() const throw (); // get danger rocket index
     int         GetDangerousEnemy() const throw (); // same for enemy
