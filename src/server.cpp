@@ -47,6 +47,7 @@
 
 const int minimum_positive_score_for_ranking = 100;
 const int voteAnnounceInterval = 5; // in seconds, how often a changing voting status will be announced
+const std::string ongoing_record_file_extension = ".ongoing";
 
 using std::endl;
 using std::find;
@@ -667,12 +668,13 @@ void Server::start_recording() throw () {
         char time_str[time_w + 1];
         strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
         record_filename = wheregamedir + "replay" + directory_separator + time_str + ".replay";
+        const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
         record.clear();
-        record.open(record_filename.c_str(), ios::binary);
+        record.open(ongoing_record_filename.c_str(), ios::binary);
         if (record)
-            log("Recording started to %s.", record_filename.c_str());
+            log("Recording started to %s.", ongoing_record_filename.c_str());
         else
-            log("Could not create record file %s.", record_filename.c_str());
+            log("Could not create record file %s.", ongoing_record_filename.c_str());
 
         record << data;
     }
@@ -704,6 +706,9 @@ void Server::stop_recording() throw () {
             }
             record.close();
             record.clear();
+            const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
+            if (rename(ongoing_record_filename.c_str(), record_filename.c_str()))
+                log("Could not rename the replay file to %s", ongoing_record_filename.c_str());
         }
         else
             delete_recording();
@@ -713,10 +718,11 @@ void Server::stop_recording() throw () {
 void Server::delete_recording() throw () {
     record.close();
     record.clear();
-    if (remove(record_filename.c_str()))
-        log("Could not delete the replay file: %s", record_filename.c_str());
+    const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
+    if (remove(ongoing_record_filename.c_str()))
+        log("Could not delete the replay file: %s", ongoing_record_filename.c_str());
     else
-        log("Deleted the replay file: %s", record_filename.c_str());
+        log("Deleted the replay file: %s", ongoing_record_filename.c_str());
 }
 
 void Server::record_init_data() throw () {
