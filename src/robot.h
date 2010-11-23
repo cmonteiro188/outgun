@@ -71,6 +71,7 @@ class Robot : public ClientBase, public BotInterface {
     Coords      freeWalkTarget;
 
     bool        botPrevFire;
+    bool        enemiesInRoom;
     int         last_seen;
     int         myGundir;
     WorldCoords myPos; // extrapolated

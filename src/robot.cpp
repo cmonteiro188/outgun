@@ -931,6 +931,7 @@ ClientControls Robot::FollowFlag() const throw () {
 }
 
 void Robot::BuildMap() throw () {
+    enemiesInRoom = false;
     last_seen = -1;
     myGundir = -1;
 
@@ -945,6 +946,8 @@ void Robot::BuildMap() throw () {
 
     destinationType = Dest_None;
     destination = 0;
+    immediateDestination = 0;
+    freeWalkTarget.x = -1;
 }
 
 void Robot::BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw () {
@@ -1639,11 +1642,22 @@ ClientControls Robot::getRobotControls() throw () {
         }
     }
 
+    bool enemiesInRoomNow = false;
     for (int pi = 0; pi < maxplayers; ++pi) {
         ClientPlayer& p = fx.player[pi];
-        if (p.used && !p.dead && !myTeam(p))
-            updateUnknownPosition(p);
+        if (p.used && !p.dead && !myTeam(p)) {
+            if (here(p, true))
+                enemiesInRoomNow = true;
+            else
+                updateUnknownPosition(p);
+        }
     }
+
+    if (!enemiesInRoomNow && enemiesInRoom) { // randomize movement when the last enemy observer is lost
+        freeWalkTarget.x = -1;
+        immediateDestination = 0;
+    }
+    enemiesInRoom = enemiesInRoomNow;
 
     if (last_seen != -1) {
         const ClientPlayer& lsp = fx.player[last_seen];
@@ -1693,9 +1707,6 @@ ClientControls Robot::getRobotControls() throw () {
     }
     else // get someone
         last_seen = GetNearestEnemy();
-
-    if (last_seen != -1)
-        freeWalkTarget.x = -1; // to randomize movement as soon as the enemy leaves
 
     const bool importantMission = HaveFlag(me) && IsMission();
 
