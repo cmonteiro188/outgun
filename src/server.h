@@ -124,7 +124,7 @@ class Server : private NoCopying {
     // world
     ServerWorld     world;
     bool            gameover;
-    double          gameover_time;      //timeout for gameover plaque
+    double          gameoverEndTime, gameoverExtendedEndTime;
     int             maxplayers;
 
     // networking
@@ -148,7 +148,7 @@ class Server : private NoCopying {
 
         PowerupSettings pupConfig;
         WorldSettings   worldConfig;
-        int             game_end_delay;
+        int             game_end_delay, game_end_delay_extension;
         int             vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
         bool            require_specific_map_vote;
         std::vector<std::string> welcome_message;   // welcome message line by line
@@ -269,6 +269,7 @@ class Server : private NoCopying {
         int minimapSendLimit() const throw () { return minimap_send_limit; }
 
         int  get_game_end_delay() const throw () { return game_end_delay; }
+        int  get_game_end_delay_extension() const throw () { return game_end_delay_extension; }
         int  get_vote_block_time() const throw () { return vote_block_time; }
         bool get_require_specific_map_vote() const throw () { return require_specific_map_vote; }
 

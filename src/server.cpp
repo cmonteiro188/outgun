@@ -635,7 +635,8 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
 
     // Server is showing gameover plaque. Nobody should move or receive world frames.
     gameover = true;
-    gameover_time = get_time() + settings.get_game_end_delay();        // timeout for gameover plaque
+    gameoverEndTime = get_time() + settings.get_game_end_delay();
+    gameoverExtendedEndTime = gameoverEndTime + settings.get_game_end_delay_extension();
 
     ctf_game_restart();
 
@@ -1523,8 +1524,14 @@ bool Server::changeRegistration(int id, const string& token) throw () {
 void Server::simulate_and_broadcast_frame() throw () {
     //check end of gameover plaque
     bool recordFrameNumber = false;
-    if (gameover)
-        if (gameover_time < get_time()) {
+    if (gameover && get_time() >= gameoverEndTime) {
+        bool extend = false;
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].awaiting_client_readies) {
+                extend = true;
+                break;
+            }
+        if (!extend || get_time() >= gameoverExtendedEndTime) {
             stop_recording();
             gameover = false;
             start_recording();
@@ -1532,6 +1539,7 @@ void Server::simulate_and_broadcast_frame() throw () {
             network.sendStartGame();
             recordFrameNumber = true;
         }
+    }
     if (!gameover)
         world.simulateFrame();
 
