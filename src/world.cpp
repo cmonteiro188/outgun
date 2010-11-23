@@ -3507,8 +3507,10 @@ void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid)
                 host->score_neg(i, 1);  // small neg point penalty for your flag being captured
         }
     host->score_frag(pid, 3);
-    if (ass_pid != -1)
+    if (ass_pid != -1) {
         host->score_frag(ass_pid, 3);
+        player[ass_pid].stats().add_assist();
+    }
     player[pid].stats().add_capture(get_time());
     string capturers = player[pid].name;
     if (ass_pid != -1)
