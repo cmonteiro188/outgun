@@ -751,12 +751,18 @@ ClientControls Robot::MoveDir(int dir) const throw () {
     return ClientControls().fromDirection(dir).setRun();
 }
 
-ClientControls Robot::FreeWalk() const throw () {
+ClientControls Robot::FreeWalk() throw () {
+    for (int tries = 0; tries < 20; ++tries) {
+        if (freeWalkTarget.x >= 0 && !IsBehindWall(freeWalkTarget - myPos.local(), PLAYER_RADIUS, PLAYER_RADIUS) && mag(freeWalkTarget - myPos.local()) > 3 * PLAYER_RADIUS)
+            return MoveToNoAggregate(freeWalkTarget - myPos.local(), PLAYER_RADIUS);
+        freeWalkTarget = Coords(rand() % S_W, rand() % S_H);
+    }
+    freeWalkTarget.x = -1;
     return MoveDirNoAggregate(FreeDir());
 }
 
 ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw () {
-    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) { //walking
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) {
         const int mdir = FreeDir();
         return MoveDir(mdir);
     }
@@ -769,7 +775,7 @@ ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFrom
 
 ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw () {
     int mdir;
-    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))//walking
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
         mdir = FreeDir();
     else
         mdir = GetDir(delta).to8way();
@@ -1688,6 +1694,9 @@ ClientControls Robot::getRobotControls() throw () {
     else // get someone
         last_seen = GetNearestEnemy();
 
+    if (last_seen != -1)
+        freeWalkTarget.x = -1; // to randomize movement as soon as the enemy leaves
+
     const bool importantMission = HaveFlag(me) && IsMission();
 
     if (!importantMission && last_seen != -1 && !fx.physics.allowFreeTurning) {
@@ -1754,6 +1763,7 @@ ClientControls Robot::RobotMain() throw () {
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
                     fx.player[me].room().x >= fx.map.w || fx.player[me].room().y >= fx.map.h) {
         myGundir = -1;
+        freeWalkTarget.x = -1;
         if (botPrevFire) {
             BinaryBuffer<16> msg;
             msg.U8(data_fire_off);

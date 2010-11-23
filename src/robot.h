@@ -68,6 +68,8 @@ class Robot : public ClientBase, public BotInterface {
     const Area*     destination;
     mutable const Area::Neighbor* immediateDestination; // one of the neighboring rooms
 
+    Coords      freeWalkTarget;
+
     bool        botPrevFire;
     int         last_seen;
     int         myGundir;
@@ -162,7 +164,7 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw ();
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape() const throw ();
-    ClientControls FreeWalk() const throw ();
+    ClientControls FreeWalk() throw ();
     ClientControls MoveToDestination() const throw ();
 
     void BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw (); // build distance table from single point
