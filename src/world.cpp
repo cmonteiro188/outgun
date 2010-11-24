@@ -3663,7 +3663,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Simp
     print_team_stats_row(out, "Shots",          red.shots(), blue.shots());
     print_team_stats_row(out, "Hit accuracy",   static_cast<int>(100. * red.accuracy() + 0.5), static_cast<int>(100. * blue.accuracy() + 0.5), "%");
     print_team_stats_row(out, "Shots taken",    red.shots_taken(), blue.shots_taken());
-    print_team_stats_row(out, "Total movement", static_cast<int>(red.movement()), static_cast<int>(blue.movement()), " u");
+    print_team_stats_row(out, "Total movement", static_cast<int>(red.movement_outgun_units()), static_cast<int>(blue.movement_outgun_units()), " u");
     out << "</TABLE>\n\n";
 
     out << "<H3>Player stats</H3>\n\n";
@@ -3705,7 +3705,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Simp
         out << "<TD>" << stats.shots();
         out << "<TD>" << std::setprecision(0) << std::fixed << stats.accuracy() * 100. << '%';
         out << "<TD>" << stats.shots_taken();
-        out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement() << " u";
+        out << "<TD>" << std::setprecision(0) << std::fixed << stats.movement_outgun_units() << " u";
     }
     out << "\n</TABLE>\n\n";
     if (red.score() == 0 && blue.score() == 0)
@@ -4047,7 +4047,7 @@ double Statistics::speed(double time) const throw () {
     const double lt = lifetime(time);
     if (lt == 0.)
         return 0.;
-    return movement() / lt / PLAYER_RADIUS / 2.;
+    return movement_outgun_units() / lt;
 }
 
 double Statistics::flag_carrying_time(double time) const throw () {

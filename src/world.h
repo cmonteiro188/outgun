@@ -283,7 +283,7 @@ public:
     void set_shots(int n) throw () { total_shots = n; }
     void set_hits(int n) throw () { total_hits = n; }
     void set_shots_taken(int n) throw () { total_shots_taken = n; }
-    void set_movement(double amount) throw () { total_movement = amount; }
+    void set_movement(double amount) throw () { total_movement = amount; } // physical units
     void set_spawn_time(double time) throw () { last_spawn_time = time; }
     void set_start_time(double time) throw () { starttime = time; }
     void set_lifetime(double time) throw () { total_lifetime = time; }
@@ -308,7 +308,7 @@ public:
     void add_shot() throw () { ++total_shots; }
     void add_hit() throw () { ++total_hits; }
     void add_shot_take() throw () { ++total_shots_taken; }
-    void add_movement(double amount) throw () { total_movement += amount; }
+    void add_movement(double amount) throw () { total_movement += amount; } // physical units
 
     void finish_stats(double time) throw ();
 
@@ -336,9 +336,10 @@ public:
     double lifetime(double time) const throw ();         // in seconds
     double average_lifetime(double time) const throw (); // in seconds
     double playtime(double time) const throw ();         // in seconds
-    double movement() const throw ();                    // in Outgun units
+    double movement() const throw ();                    // in physical units
+    double movement_outgun_units() const throw () { return movement() / (2 * PLAYER_RADIUS); }
     double speed(double time) const throw ();            // in Outgun units per second
-    double old_speed() const throw () { return saved_speed; }
+    double old_speed() const throw () { return saved_speed; } // in Outgun units per second
     double start_time() const throw () { return starttime; }
     double flag_carrying_time(double time) const throw ();
     double flag_take_time() const throw () { return flag_taking_time; }
@@ -367,7 +368,7 @@ private:
     int total_shots_taken;
     double last_spawn_time;
     double total_lifetime;
-    double total_movement;
+    double total_movement; // in physical units
     double saved_speed;
     double starttime;
     bool dead;
@@ -719,6 +720,7 @@ public:
     int hits() const throw () { return total_hits; }
     int shots_taken() const throw () { return total_shots_taken; }
     double movement() const throw () { return total_movement; }
+    double movement_outgun_units() const throw () { return total_movement / (2 * PLAYER_RADIUS); }
     double accuracy() const throw ();
     double power() const throw () { return ranking_power; }
 
