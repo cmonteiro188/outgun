@@ -1198,14 +1198,14 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
                           sef,   1,   1,
                           swf, swf,   1,   1,
                             0,   0,
-                            0,   0,   0); // any flag that makes sense (with ignores relaxed)
+                          sef,   0, swf); // any flag that makes sense (with ignores relaxed), or an empty base (hopefully getting its flag returned when captured soon)
         }
         if (destinationType == Dest_None) {
             TargetNearest(  0,   0,   0,
                             0,   0,   0,
                             0,   0,   0,   0,
                             1,   0,
-                          sef,   0,   0);  // ..., or enemy, or enemy base
+                            0,   0,   0);  // if nothing else, target an enemy
         }
         if (destinationType == Dest_None || destinationType == Dest_Base) {
             if (destinationType == Dest_Base) {
