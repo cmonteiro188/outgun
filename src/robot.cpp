@@ -1124,34 +1124,36 @@ int Robot::GetPlayers(int team) const throw () {
     return npl;
 }
 
-bool Robot::IsDefender() throw () {
-    // get flag base
-    const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
+bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw () {
+    bool atBase;
+    if (flag.carried() || flag.position().room != base.room)
+        atBase = false;
+    else {
+        const Vec dist = base.local() - flag.position().local();
+        atBase = fabs(dist.x) <= 5. && fabs(dist.y) <= 5.;
+    }
 
-    if (tflags.empty())
+    const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
+    if (!limitInterest || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
         return false;
 
-    const int npl = GetPlayers(myTeam());
+    const WorldCoords pos = flag.carried() ? fx.player[flag.carrier()].pos : flag.position();
+    BuildDistanceTable(area(pos), 0., Table_Def);
+
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int defNum = npl / nAllFlags; // split players evenly between all flags of all teams, rounding down the number of defenders per flag
+    const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
+                                          : GetPlayers(myTeam()) / nAllFlags;
 
-    const Area* const here = myArea();
-
-    // for all bases
-    for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        BuildDistanceTable(area(*pi), 0., Table_Def); //#opt: reserve enough distance tables to avoid building them here every frame in case of multiple flags
-        const int m_distance = here->distance[Table_Def];
-        int nearNum = 0;
-        for (int i = 0; i < maxplayers; ++i) {
-            const ClientPlayer& player = fx.player[i];
-            if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
-                continue;
-            const int distance = area(player)->distance[Table_Def];
-            if (distance < m_distance || distance == m_distance && moreDefensive(player))
-                nearNum++;
-        }
-        if (nearNum < defNum)
-            return true;
+    const int myDistance = myArea()->distance[Table_Def];
+    int nearNum = 0;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& player = fx.player[i];
+        if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+            continue;
+        const int distance = area(player)->distance[Table_Def];
+        if (distance < myDistance || distance == myDistance && moreDefensive(player))
+            if (++nearNum >= maxPlayers)
+                return true;
     }
     return false;
 }
@@ -1179,33 +1181,24 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
     destinationType = Dest_None;
 
     if (!flag) {
-        const bool at_bases = IsFlagsAtBases(myTeam()); // are own flags safe?
-
         const bool sef = !lock_team_flags_in_effect; // try to steal enemy flags?
         const bool swf = !lock_wild_flags_in_effect; // try to steal wild flags?
 
-        bool efc = !IsCarriersDef(1 - myTeam()); // try to defend carriers of enemy flags?
-        bool wfc = !IsCarriersDef(2); // try to defend carriers of wild flags?
-        bool mfb = sef && IsDefender(); // try to defend own flags at bases? (!sef means the enemy won't try our flags either, so nothing to defend)
-
-        if (at_bases && !efc && !wfc && !mfb) { // all flags are safe and nothing to support
-            TargetNearest(sef, sef,   0,
-                            0,   0,   0,
-                          swf, swf,   0,   0,
-                            0,   0,
-                            0,   0,   0);
-            if (destinationType == Dest_None) { // we are in control of all flags -> always defend
-                efc = wfc = 1;
-                mfb = sef; // still no point in defending the base if the flag can't be taken - resources better spent defending carriers
-            }
-        }
+        const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
+        TargetNearest(sef, sef,   1,
+                      sef,   1,   1,
+                      swf, swf,   1,   1,
+                        0,   0,
+                      deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
         if (destinationType == Dest_None) {
-            const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
-            TargetNearest(sef, sef, efc,
-                          mfb,   1,   1,
-                          swf, swf,   1, wfc,
+            for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
+                for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
+                    *fii = false;
+            TargetNearest(sef, sef,   1,
+                          sef,   1,   1,
+                          swf, swf,   1,   1,
                             0,   0,
-                          deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
+                            0,   0,   0); // any flag that makes sense (with ignores relaxed)
         }
         if (destinationType == Dest_None) {
             TargetNearest(  0,   0,   0,
@@ -1357,36 +1350,6 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
     }
 }
 
-bool Robot::IsCarriersDef(int team) throw () {
-    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
-
-    vector<Area*> carrierAreas;
-
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-        if (fi->carried())
-            carrierAreas.push_back(area(fx.player[fi->carrier()]));
-
-    if (carrierAreas.empty()) // nothing to defend
-        return true;
-
-    BuildDistanceTable(carrierAreas, 0., Table_Def);
-
-    int teammates = 0, nearer = 0;
-    const int myDist = myArea()->distance[Table_Def];
-    for (int pi = 0; pi < maxplayers; ++pi) {
-        const ClientPlayer& pl = fx.player[pi];
-        if (!pl.used || !myTeam(pl))
-            continue;
-        ++teammates;
-        if (pl.dead)
-            continue;
-        const int dist = area(pl)->distance[Table_Def];
-        if (dist < myDist || dist == myDist && moreDefensive(pl))
-            ++nearer;
-    }
-    return nearer >= teammates / 2;
-}
-
 bool Robot::IsHome(const Area* a) const throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
     // our bases
@@ -1412,8 +1375,9 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
 
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-        if (fi->carried() != wantCarried)
+    int index = 0;
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++index) {
+        if (fi->carried() != wantCarried || flagsIgnored[team][index])
             continue;
 
         WorldCoords pos;
@@ -1658,6 +1622,14 @@ ClientControls Robot::getRobotControls() throw () {
         immediateDestination = 0;
     }
     enemiesInRoom = enemiesInRoomNow;
+
+    for (int team = 0; team <= 2; ++team) {
+        flagsIgnored[team].clear();
+        const vector<WorldCoords>& bases = team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags;
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (int fi = 0; fi < (int)flags.size(); ++fi)
+            flagsIgnored[team].push_back(flagIgnored(flags[fi], bases[fi], team));
+    }
 
     if (last_seen != -1) {
         const ClientPlayer& lsp = fx.player[last_seen];

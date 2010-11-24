@@ -76,6 +76,8 @@ class Robot : public ClientBase, public BotInterface {
     int         myGundir;
     WorldCoords myPos; // extrapolated
 
+    std::vector<bool> flagsIgnored[3];
+
     struct TeamCounts {
         int enemies, friends;
     };
@@ -121,8 +123,6 @@ class Robot : public ClientBase, public BotInterface {
 
     void        updateUnknownPosition(ClientPlayer& pl) throw ();
 
-    bool        IsDefender() throw (); // am i defender? (role)
-    bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
     bool        EnemyHasUnseenFlags(bool wild) const throw ();
     int         GetPlayers(int team) const throw (); // get num of players
@@ -189,6 +189,8 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls getRobotControls() throw ();
 
     ClientControls RobotMain() throw ();
+
+    bool flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw ();
 
     bool firstBotInTeam() const throw ();
 
