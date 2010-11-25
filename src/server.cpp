@@ -131,7 +131,7 @@ bool Server::loadAuthorizations() throw () {
         authorizations.load(commandTest);
         return true;
     } catch (const AuthorizationDatabase::FileError& e) {
-        log.error(e.description);
+        log(e.description);
         return false;
     }
 }
