@@ -791,7 +791,7 @@ void MapInfo::update(const Map& map) throw () {
 
 void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) throw () {
     ping = 0;
-    id = _pid;
+    pid = _pid;
     name = _name;
     clanTag = string();
     item_deathbringer = item_power = item_turbo = false;
@@ -1174,13 +1174,13 @@ void WorldBase::applyPlayerAcceleration(PlayerBase& pl) const throw () {
         bool flag_penalty = false;
         const Team& enemy = teams[1 - pl.team()];
         for (vector<Flag>::const_iterator fi = enemy.flags().begin(); fi != enemy.flags().end(); ++fi)
-            if (fi->carrier() == pl.id) {
+            if (fi->carrier() == pl.pid) {
                 flag_penalty = true;
                 break;
             }
         if (!flag_penalty)
             for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-                if (fi->carrier() == pl.id) {
+                if (fi->carrier() == pl.pid) {
                     flag_penalty = true;
                     break;
                 }
@@ -2043,7 +2043,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
                     pl.energy = 200;
             }
 
-            net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_POWERUP);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_SHIELD_POWERUP);
         }
         break; case Powerup::pup_turbo: {
             shareToTeam = pupConfig.team_turbo;
@@ -2057,8 +2057,8 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
             pl.item_turbo = true;
             pl.item_turbo_time = get_time() + itemTime;
 
-            net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_TURBO_ON);
+            net->sendPupTime(pl.pid, it.kind, itemTime);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_TURBO_ON);
         }
         break; case Powerup::pup_shadow: {
             shareToTeam = pupConfig.team_shadow;
@@ -2070,8 +2070,8 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
             pl.set_visibility(config.getShadowMinimum());
             pl.item_shadow_time = get_time() + itemTime;
 
-            net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_SHADOW_ON);
+            net->sendPupTime(pl.pid, it.kind, itemTime);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_SHADOW_ON);
         }
         break; case Powerup::pup_power: {
             shareToTeam = pupConfig.team_power;
@@ -2085,8 +2085,8 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
             pl.item_power = true;
             pl.item_power_time = get_time() + itemTime;
 
-            net->sendPupTime(pl.id, it.kind, itemTime);
-            net->broadcast_screen_sample(pl.id, SAMPLE_POWER_ON);
+            net->sendPupTime(pl.pid, it.kind, itemTime);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_POWER_ON);
         }
         break; case Powerup::pup_weapon: {
             shareToTeam = pupConfig.team_weapon;
@@ -2097,14 +2097,14 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
             }
             if (pl.weapon < pupConfig.pup_weapon_max) {
                 pl.weapon++;
-                net->sendWeaponPower(pl.id);
+                net->sendWeaponPower(pl.pid);
             }
-            net->broadcast_screen_sample(pl.id, SAMPLE_WEAPON_UP);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_WEAPON_UP);
         }
         break; case Powerup::pup_health: {
             shareToTeam = pupConfig.team_health;
             pl.megabonus += pupConfig.pup_health_bonus;
-            net->broadcast_screen_sample(pl.id, SAMPLE_MEGAHEALTH);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_MEGAHEALTH);
         }
         break; case Powerup::pup_deathbringer: {
             shareToTeam = pupConfig.team_deathbringer;
@@ -2117,7 +2117,7 @@ void ServerWorld::game_touch_powerup(int pid, int pk, bool teammateTouched) thro
                 pl.record_powerups = true;
             }
 
-            net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_GETDEATHBRINGER);
         }
         break; default: nAssert(0);
     }
@@ -2161,16 +2161,16 @@ void ServerWorld::drop_worst_powerup(ServerPlayer& pl) throw () {
     if (pl.item_deathbringer) {
         pl.item_deathbringer = false;
         pl.record_powerups = true;
-        net->broadcast_screen_sample(pl.id, SAMPLE_GETDEATHBRINGER);
+        net->broadcast_screen_sample(pl.pid, SAMPLE_GETDEATHBRINGER);
     }
     else if (pl.item_shield) {
         pl.item_shield = 0;
         pl.record_powerups = true;
-        net->broadcast_screen_sample(pl.id, SAMPLE_SHIELD_LOST);
+        net->broadcast_screen_sample(pl.pid, SAMPLE_SHIELD_LOST);
     }
     else {
         pl.weapon = 1;
-        net->sendWeaponPower(pl.id);
+        net->sendWeaponPower(pl.pid);
     }
 }
 
@@ -2682,7 +2682,7 @@ pair<bool, bool> WorldBase::executeBounce(PlayerBase& pl1, PlayerBase& pl2, Phys
     const double k2 = r * tVar;
     const Vec v2 = pl2.vel + ds * tVar;
 
-    const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.id, pl2.id, fabs(k2 - k1));
+    const PhysicsCallbacksBase::PlayerHitResult res = callback.playerHitPlayer(pl1.pid, pl2.pid, fabs(k2 - k1));
 
     const double newk1 = k1 + (-k2 - k1) * res.bounceStrength1;   // should there be a mass difference this would be more complicated
     const double newk2 = k2 + (-k1 - k2) * res.bounceStrength2;
@@ -3177,7 +3177,7 @@ void ServerWorld::simulateFrame() throw () {
             if (target.deathbringer_end >= get_time() || frame < target.start_take_damage_frame)
                 continue;
 
-            net->broadcast_screen_sample(target.id, SAMPLE_HITDEATHBRINGER);
+            net->broadcast_screen_sample(target.pid, SAMPLE_HITDEATHBRINGER);
             target.deathbringer_attacker = db.player();
 
             // time of effect ; also freeze his gun for this same amount of time
@@ -3233,7 +3233,7 @@ void ServerWorld::simulateFrame() throw () {
             p0->extra_frames_to_respawn = 0;
         }
         if (p0->extra_frames_to_respawn == 0 && p0->frames_to_respawn == 0)
-            respawnPlayer(p0->id);
+            respawnPlayer(p0->pid);
     }
 
     // for each player, do misc stuff

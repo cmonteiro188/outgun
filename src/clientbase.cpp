@@ -1174,8 +1174,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
         if (swap) {
             std::swap(fx.player[from], fx.player[to]);
-            fx.player[from].id = from;
-            fx.player[to  ].id =   to;
+            fx.player[from].pid = from;
+            fx.player[to  ].pid =   to;
             fx.player[from].set_team(from / TSIZE);
             fx.player[to  ].set_team(  to / TSIZE);
             // both players already exist in players_sb -> no changes except resorting
@@ -1186,7 +1186,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         else {
             fx.player[to] = fx.player[from];
             fx.player[from].used = false;
-            fx.player[to].id = to;
+            fx.player[to].pid = to;
             fx.player[to].set_team(to / TSIZE);
             #ifndef DEDICATED_SERVER_ONLY
             const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);

@@ -389,12 +389,12 @@ public:
     void check_fav_colors(int pid) throw ();
     void set_fav_colors(int pid, const std::vector<char>& colors) throw ();
 
-    void nameChange(int id, int pid, std::string name, const std::string& password) throw ();
+    void nameChange(int cid, int pid, std::string name, const std::string& password) throw ();
     void chat(int pid, const std::string& sbuf) throw ();   //#fix: separate console handling
 
     const ClientData& getClientData(int cid) const throw () { return client[cid]; }
           ClientData& getClientData(int cid) throw ()       { return client[cid]; }
-    bool changeRegistration(int id, const std::string& token) throw ();  // returns true if the token is different from before and non-empty
+    bool changeRegistration(int cid, const std::string& token) throw ();  // returns true if the token is different from before and non-empty
     void resetClient(int cid) throw () { client[cid].reset(); }
     void refresh_team_score_modifiers() throw ();
     void check_map_exit() throw ();

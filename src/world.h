@@ -440,7 +440,7 @@ public:
 
 // get rid of (or move elsewhere)
     bool used;
-    int id; // as in pid
+    int pid;
     std::string name, clanTag;
     int ping;
     //int frags;
@@ -785,7 +785,7 @@ class DeathbringerExplosion {
 
 public:
     DeathbringerExplosion(double explosionFrame, const PlayerBase& owner) throw ()
-            : frame0(explosionFrame), pos(owner.pos), ownerPid(owner.id), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
+            : frame0(explosionFrame), pos(owner.pos), ownerPid(owner.pid), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
     DeathbringerExplosion(double explosionFrame, const WorldCoords& position, int team) throw ()
             : frame0(explosionFrame), pos(position), ownerPid(-1), ownerTeam(team), playersOutsideMask(~0u) { }
 

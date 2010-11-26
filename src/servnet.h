@@ -208,11 +208,11 @@ private:
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
     void clientHello(const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
-    int  client_connected(int id, int customStoredData) throw ();
-    void client_disconnected(int id) throw ();
+    int  client_connected(int cid, int customStoredData) throw ();
+    void client_disconnected(int cid) throw ();
     void ping_result(int client_id, int ping_time) throw ();
     bool processMessage(int pid, ConstDataBlockRef data) throw ();
-    void incoming_client_data(int id, ConstDataBlockRef data) throw ();
+    void incoming_client_data(int cid, ConstDataBlockRef data) throw ();
 
     void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
 
@@ -317,7 +317,7 @@ public:
     void ctf_net_flag_status(int cid, int team) const throw ();
     void ctf_update_teamscore(int t) const throw ();
     void move_update_player(int a) throw (); // call after moving, a = pid after move
-    void client_report_status(int id) throw ();
+    void client_report_status(int cid) throw ();
     void sendWorldReset() const throw ();
     void sendStartGame() const throw ();
     void sendWeaponPower(int pid) const throw ();

@@ -338,7 +338,7 @@ void Server::move_player(int f, int t) throw () {
     //remove f
     game_remove_player(f, false);
 
-    world.player[t].id = t;
+    world.player[t].pid = t;
     world.player[t].set_team(t / TSIZE);
 
     //I really don't want to change teams anymore.
@@ -372,8 +372,8 @@ void Server::swap_players(int a, int b) throw () {
     swap(world.player[a], world.player[b]);
     world.swapEmbeddedPids(a, b);
 
-    world.player[a].id = a;
-    world.player[b].id = b;
+    world.player[a].pid = a;
+    world.player[b].pid = b;
     world.player[a].set_team(a / TSIZE);
     world.player[b].set_team(b / TSIZE);
 
@@ -1035,7 +1035,7 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) throw () {
     network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void Server::nameChange(int id, int pid, string name, const string& password) throw () {
+void Server::nameChange(int cid, int pid, string name, const string& password) throw () {
     replace_all_in_place(name, '\xA0', ' '); // 'normalize' any no-break space
 
     if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' '))
@@ -1049,11 +1049,11 @@ void Server::nameChange(int id, int pid, string name, const string& password) th
         return;
 
     //FLUSH PENDING REPORTS TO MASTER IF token_have/token_valid !!!
-    network.client_report_status(id);
+    network.client_report_status(cid);
 
     //name changed -- this means that the player is NOT REGISTERED
     //  anymore for recording statistics
-    client[id].token_have = false;
+    client[cid].token_have = false;
 
     world.player[pid].clanTag = string();
 
@@ -1079,7 +1079,7 @@ void Server::nameChange(int id, int pid, string name, const string& password) th
         else {
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                             name.c_str(), password.c_str(), network.get_client_address(id).toString().c_str());
+                             name.c_str(), password.c_str(), network.get_client_address(cid).toString().c_str());
             network.sendNameAuthorizationRequest(pid);
             return;
         }
@@ -1493,32 +1493,32 @@ void Server::chat(int pid, const string& message) throw () {
     }
 }
 
-bool Server::changeRegistration(int id, const string& token) throw () {
+bool Server::changeRegistration(int cid, const string& token) throw () {
     const int intoken = atoi(token.c_str());
-    if (intoken == client[id].intoken)
+    if (intoken == client[cid].intoken)
         return false;
 
     // v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
-    network.client_report_status(id);
+    network.client_report_status(cid);
 
-    client[id].token = token;
-    client[id].intoken = intoken;
+    client[cid].token = token;
+    client[cid].intoken = intoken;
 
     // NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
-    client[id].neg_delta_score = 0;
-    client[id].delta_score = 0;
-    client[id].fdp = 0.0;
-    client[id].fdn = 0.0;
-    client[id].score = 0;
-    client[id].neg_score = 0;
-    client[id].rank = 0;
+    client[cid].neg_delta_score = 0;
+    client[cid].delta_score = 0;
+    client[cid].fdp = 0.0;
+    client[cid].fdn = 0.0;
+    client[cid].score = 0;
+    client[cid].neg_score = 0;
+    client[cid].rank = 0;
 
-    client[id].token_have = !token.empty(); //token set
-    client[id].token_valid = false; //BUT not validated yet
+    client[cid].token_have = !token.empty(); //token set
+    client[cid].token_valid = false; //BUT not validated yet
 
-    network.broadcast_player_crap(network.getPid(id));
+    network.broadcast_player_crap(network.getPid(cid));
 
-    return client[id].token_have;
+    return client[cid].token_have;
 }
 
 void Server::simulate_and_broadcast_frame() throw () {

@@ -479,7 +479,7 @@ void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const throw 
 void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team, int assistant_pid) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_capture);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     if (assistant_pid != -1)
         msg.S8(assistant_pid);
     broadcast_message(msg);
@@ -495,7 +495,7 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_take);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(msg);
     record_message(msg);
 }
@@ -503,7 +503,7 @@ void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_return);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -512,7 +512,7 @@ void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const t
 void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_drop);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(msg);
     record_message(msg);
 }
@@ -522,7 +522,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     BinaryBuffer<64> msg;
     msg.U8(data_kill);
     // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
-    uint8_t attacker_info = attacker.id;
+    uint8_t attacker_info = attacker.pid;
     if (cause == DT_deathbringer)
         attacker_info |= 0x80;
     if (carrier_defended)
@@ -530,7 +530,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     if (flag_defended)
         attacker_info |= 0x20;
     // second byte: flag bit, wild flag bit, collision bit, and target id
-    uint8_t tar_flag = target.id;
+    uint8_t tar_flag = target.pid;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
@@ -558,7 +558,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_suicide);
-    uint8_t id_flag = player.id;
+    uint8_t id_flag = player.pid;
     if (flag)
         id_flag |= 0x80;
     if (wild_flag)
@@ -587,7 +587,7 @@ void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_new_player);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -607,7 +607,7 @@ void ServerNetworking::new_player_to_admin_shell(int pid) const throw () {
 void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_player_left);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -615,7 +615,7 @@ void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const t
 void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_spawn);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -624,7 +624,7 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw (
 void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> ext_msg;
     ext_msg.U8(data_movements_shots);
-    ext_msg.U8(player.id);
+    ext_msg.U8(player.pid);
     const Statistics& stats = player.stats();
     ext_msg.U32(static_cast<unsigned>(stats.movement()));
     BinaryBuffer<64> old_msg = ext_msg;
@@ -658,7 +658,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const throw () {
 void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_stats);
-    msg.U8(player.id | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
+    msg.U8(player.pid | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
     const Statistics& stats = player.stats();
     const bool e = cid == pid_record || world.player[ctop[cid]].protocolExtensionsLevel >= 0;
     msg.U32dyn8orU8(stats.kills(), e);
@@ -843,11 +843,11 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
 }
 
 //enqueue a job to the master server to update a client's delta score
-void ServerNetworking::client_report_status(int id) throw () {
+void ServerNetworking::client_report_status(int cid) throw () {
     if (!host->rankingLoginSet())
         return;
 
-    ClientData& clid = host->getClientData(id);
+    ClientData& clid = host->getClientData(cid);
 
     if (!clid.token_have || !clid.token_valid)
         return;
@@ -856,14 +856,14 @@ void ServerNetworking::client_report_status(int id) throw () {
 
     //submit-- create job
     MasterQuery* job = new MasterQuery();
-    job->cid = id;
+    job->cid = cid;
     job->code = MasterQuery::JT_score;
     job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
                                       "serial=" + url_encode(host->getRankingID()) +
                                       "&password=" + url_encode(host->getRankingPassword()) +
                                       "&dscp=" + itoa(clid.delta_score) +
                                       "&dscn=" + itoa(clid.neg_delta_score) +
-                                      "&name=" + url_encode(world.player[ctop[id]].name) +
+                                      "&name=" + url_encode(world.player[ctop[cid]].name) +
                                       "&token=" + url_encode(clid.token));
 
     {
@@ -1251,7 +1251,7 @@ void ServerNetworking::update_serverinfo() throw () {
     server->set_server_info(info.str().c_str());
 }
 
-int ServerNetworking::client_connected(int id, int customStoredData) throw () {
+int ServerNetworking::client_connected(int cid, int customStoredData) throw () {
     addPlayerMutex.lock();
 
     //2TEAM: check wich team to put player
@@ -1308,7 +1308,6 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
         }
 
     nAssert(myself != -1);
-    const int cid = id;
     ctop[cid] = myself;
 
     // send players_present before "myself" is present, so new_player can be broadcast to "myself" too
@@ -1341,7 +1340,7 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     if (world.player[myself].localIP)
         ++localPlayers;
     else {
-        Network::Address ip = get_client_address(id);
+        Network::Address ip = get_client_address(cid);
         ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
@@ -1369,7 +1368,7 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     world.player[myself].respawn_to_base = true;    // New players always spawn in the base.
     // don't actually spawn until the client has loaded the map and is in the game
 
-    host->resetClient(id);
+    host->resetClient(cid);
     world.player[myself].stats().set_lifetime(0);
 
     //first update the ADMIN SHELL
@@ -1393,9 +1392,9 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     }
 
     // - world ctf flags information
-    ctf_net_flag_status(id, 0);
-    ctf_net_flag_status(id, 1);
-    ctf_net_flag_status(id, 2);
+    ctf_net_flag_status(cid, 0);
+    ctf_net_flag_status(cid, 1);
+    ctf_net_flag_status(cid, 2);
 
     // - all other players' names
     // - all other players' frags
@@ -1406,20 +1405,20 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
         if (i == myself)
             continue;
 
-        send_player_name_update(id, i);
+        send_player_name_update(cid, i);
 
         //frags update
         BinaryBuffer<256> msg;
         msg.U8(data_frags_update);
         msg.U8(i);       // what player id
         msg.U32(world.player[i].stats().frags());
-        server->send_message(id, msg);
+        server->send_message(cid, msg);
 
-        send_player_crap_update(id, i);
+        send_player_crap_update(cid, i);
     }
 
     send_server_settings(world.player[myself]);
-    send_map_time(id);
+    send_map_time(cid);
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
 
@@ -1437,12 +1436,12 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     return myself;
 }
 
-void ServerNetworking::client_disconnected(int id) throw () {
-    if (ctop[id] == -1)
+void ServerNetworking::client_disconnected(int cid) throw () {
+    if (ctop[cid] == -1)
         return;
 
     //what player
-    const int pid = ctop[id];
+    const int pid = ctop[cid];
 
     const bool was_bot = world.player[pid].is_bot();
 
@@ -1455,12 +1454,12 @@ void ServerNetworking::client_disconnected(int id) throw () {
     }
 
     //report the latest player achievements to the master server
-    client_report_status(id);
+    client_report_status(cid);
 
     if (world.player[pid].localIP)
         --localPlayers;
     else {
-        Network::Address ip = get_client_address(id);
+        Network::Address ip = get_client_address(cid);
         ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi->first != ip; ++pi)
@@ -1472,7 +1471,7 @@ void ServerNetworking::client_disconnected(int id) throw () {
 
     freedUniqueIds.push(make_pair(world.player[pid].uniqueId, get_time() + 5 * 60.));
 
-    fileTransfer[id].reset();
+    fileTransfer[cid].reset();
     host->game_remove_player(pid, true);
     --player_count;
     if (was_bot)
@@ -1715,11 +1714,11 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
 }
 
 //process incoming client data (callback function)
-void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) throw () {
-    if (ctop[id] == -1)
+void ServerNetworking::incoming_client_data(int cid, ConstDataBlockRef data) throw () {
+    if (ctop[cid] == -1)
         return;
 
-    int pid = ctop[id];
+    int pid = ctop[cid];
 
     //1. process client's frame data
 
@@ -1781,7 +1780,7 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
 
     //2. process messages
     for (;;) {
-        ConstDataBlockRef msg = server->receive_message(id);
+        ConstDataBlockRef msg = server->receive_message(cid);
         if (msg.data() == 0)
             break;
         if (!processMessage(pid, msg)) {
@@ -1789,7 +1788,7 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
             host->disconnectPlayer(pid, disconnect_client_misbehavior);
             break;
         }
-        pid = ctop[id]; // the message might have affected the pid
+        pid = ctop[cid]; // the message might have affected the pid
     }
     if (!world.player[pid].attackOnce) // if the player started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
         world.player[pid].attackGunDir = world.player[pid].gundir;
