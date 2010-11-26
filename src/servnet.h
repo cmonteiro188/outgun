@@ -2,7 +2,7 @@
  *  servnet.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -207,7 +207,7 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
-    void clientHello(const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
+    bool clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw ();
     int  client_connected(int cid, int customStoredData) throw ();
     void client_disconnected(int cid) throw ();
     void ping_result(int client_id, int ping_time) throw ();

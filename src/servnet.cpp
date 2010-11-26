@@ -3129,9 +3129,8 @@ Network::Address ServerNetworking::get_client_address(int cid) const throw () {
     return server->get_client_address(cid);
 }
 
-void ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw () {
     BinaryDataBlockReader msg(data);
-    BinaryWriter reply(res->customData, sizeof(res->customData));
 
     // free reservedPlayerSlots that have been left unused, they might be needed now
     if (playerSlotReservationTime < get_time() - 60.) // in 60 seconds Leetnet should drop the client
@@ -3140,129 +3139,122 @@ void ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
     const string gameStr = msg.str();
     if (gameStr != GAME_STRING) {
         log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING.c_str(), gameStr.c_str());
-        res->accepted = false;      // not accepted
         reply.str("This game is " + GAME_STRING);
+        return false;
     }
-    else {
-        string protoStr = msg.str();
-        const time_t tt = time(0);
-        const tm* tmb = gmtime(&tt);
-        const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
-        const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
-        if (protoStr != GAME_PROTOCOL) {
-            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), protoStr.c_str());
-            res->accepted = false;
+    string protoStr = msg.str();
+    const time_t tt = time(0);
+    const tm* tmb = gmtime(&tt);
+    const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
+    const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
+    if (protoStr != GAME_PROTOCOL) {
+        log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), protoStr.c_str());
 
-            if (protoStr.length() > 50)
-                protoStr = "<unknown>";
-            reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
-        }
-        else if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
-                                            join_start > join_end && (seconds < join_start && seconds > join_end))) {
-            log("Rejected a client because the server is not open at this time.");
-            res->accepted = false;
+        if (protoStr.length() > 50)
+            protoStr = "<unknown>";
+        reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
+        return false;
+    }
+    if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+                                   join_start > join_end && (seconds < join_start && seconds > join_end))) {
+        log("Rejected a client because the server is not open at this time.");
 
-            ostringstream temp;
-            temp << "This server is open from ";
-            temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
-            temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
-            const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
-            temp << "Come again in ";
-            if (wait >= 3600)
-                temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
-            else if (wait >= 120)
-                temp << wait / 60 << " minutes.";
-            else
-                temp << "a minute.";
-            if (!settings.get_join_limit_message().empty())
-                temp << ' ' << settings.get_join_limit_message();
-            reply.str(temp.str());
-        }
-        else if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
-            log("Rejected a client because the server is full.");
-            res->accepted = false;
-            reply.U8(reject_server_full);
-        }
-        else if (host->isBanned(address)) {
-            log("Rejected a client because their IP is banned (%s).", address.toString().c_str());
-            res->accepted = false;
-            reply.U8(reject_banned);
-        }
+        ostringstream temp;
+        temp << "This server is open from ";
+        temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
+        temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
+        const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
+        temp << "Come again in ";
+        if (wait >= 3600)
+            temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
+        else if (wait >= 120)
+            temp << wait / 60 << " minutes.";
+        else
+            temp << "a minute.";
+        if (!settings.get_join_limit_message().empty())
+            temp << ' ' << settings.get_join_limit_message();
+        reply.str(temp.str());
+        return false;
+    }
+    if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
+        log("Rejected a client because the server is full.");
+        reply.U8(reject_server_full);
+        return false;
+    }
+    if (host->isBanned(address)) {
+        log("Rejected a client because their IP is banned (%s).", address.toString().c_str());
+        reply.U8(reject_banned);
+        return false;
+    }
+    const string name = msg.str();
+    const string password = msg.str();
+    if (!check_name(name))
+        return false; // no need to explain, the client must not allow this
+    if (password != settings.get_server_password()) {
+        if (password.empty())
+            reply.U8(reject_server_password_needed);
         else {
-            const string name = msg.str();
-            const string password = msg.str();
-            if (!check_name(name)) {
-                res->accepted = false;
-                // no need to explain, the client must not allow this
-            }
-            else if (password == settings.get_server_password()) {
-                const string player_password = msg.str();
-                if (host->check_name_password(name, player_password)) {
-                    if (player_count + reservedPlayerSlots >= maxplayers)
-                        host->remove_bot();
-                    ++reservedPlayerSlots;
-                    playerSlotReservationTime = get_time();
-                    res->accepted = true;
-                    reply.U8(maxplayers);
-                    reply.str(settings.get_hostname());
-                    if (msg.hasMore()) {
-                        res->customStoredData = msg.U8(); // store client protocol extensions level
-                        reply.U8(PROTOCOL_EXTENSIONS_VERSION);
-                    }
-                    else
-                        res->customStoredData = -1;
-                    while (msg.hasMore()) {
-                        const uint32_t extensionId = msg.U32();
-                        if (extensionId == 0)
-                            break;
-                        BinaryDataBlockReader extData(msg.block(msg.U8()));
-                        switch (extensionId) {
-                            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
-                             * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
-                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
-                             *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
-                             *    reply.U32(EXAMPLE_IDENTIFIER);
-                             *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this
-                             *    reply.U8(EXAMPLE_VERSION); // or whatever else you want to send
-                             */
-                        };
-                    }
-                    if (msg.hasMore() && res->customStoredData <= PROTOCOL_EXTENSIONS_VERSION) { // check that unofficial extensions behave: if client has a known protocol extensions level, it doesn't send anything after the unofficials
-                        res->accepted = false;
-                        reply.clear();
-                    }
-                }
-                else {
-                    res->accepted = false;
-                    if (player_password.empty())
-                        reply.U8(reject_player_password_needed);
-                    else {
-                        log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                     name.c_str(), player_password.c_str(), address.toString().c_str());
-                        reply.U8(reject_wrong_player_password);
-                    }
-                }
-            }
-            else {
-                res->accepted = false;
-                if (password.empty())
-                    reply.U8(reject_server_password_needed);
-                else {
-                    log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-                                 password.c_str(), address.toString().c_str(), name.c_str());
-                    reply.U8(reject_wrong_server_password);
-                }
-            }
+            log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
+                         password.c_str(), address.toString().c_str(), name.c_str());
+            reply.U8(reject_wrong_server_password);
         }
+        return false;
     }
-    res->customDataLength = reply.size();
+    const string player_password = msg.str();
+    if (!host->check_name_password(name, player_password)) {
+        if (player_password.empty())
+            reply.U8(reject_player_password_needed);
+        else {
+            log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+                         name.c_str(), player_password.c_str(), address.toString().c_str());
+            reply.U8(reject_wrong_player_password);
+        }
+        return false;
+    }
+    if (player_count + reservedPlayerSlots >= maxplayers)
+        host->remove_bot();
+    ++reservedPlayerSlots;
+    playerSlotReservationTime = get_time();
+    reply.U8(maxplayers);
+    reply.str(settings.get_hostname());
+    if (msg.hasMore()) {
+        customStoredData = msg.U8(); // store client protocol extensions level
+        reply.U8(PROTOCOL_EXTENSIONS_VERSION);
+    }
+    else
+        customStoredData = -1;
+    while (msg.hasMore()) {
+        const uint32_t extensionId = msg.U32();
+        if (extensionId == 0)
+            break;
+        BinaryDataBlockReader extData(msg.block(msg.U8()));
+        switch (extensionId) {
+            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+             * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
+             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
+             *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
+             *    reply.U32(EXAMPLE_IDENTIFIER);
+             *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this
+             *    reply.U8(EXAMPLE_VERSION); // or whatever else you want to send
+             */
+        };
+    }
+    if (msg.hasMore() && customStoredData <= PROTOCOL_EXTENSIONS_VERSION) { // check that unofficial extensions behave: if client has a known protocol extensions level, it doesn't send anything after the unofficials
+        reply.clear();
+        return false;
+    }
+    return true;
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
-    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    ServerNetworking* const sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->clientHello(address, data, res);
+
+    BinaryWriter reply(res->customData, sizeof(res->customData));
+    res->accepted = sn->clientHello(address, data, reply, res->customStoredData);
+    res->customDataLength = reply.size();
+
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }
