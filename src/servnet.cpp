@@ -3130,7 +3130,7 @@ Network::Address ServerNetworking::get_client_address(int cid) const throw () {
     return server->get_client_address(cid);
 }
 
-void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+void ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
     BinaryDataBlockReader msg(data);
     BinaryWriter reply(res->customData, sizeof(res->customData));
 
@@ -3184,8 +3184,8 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
             res->accepted = false;
             reply.U8(reject_server_full);
         }
-        else if (host->isBanned(client_id)) {
-            log("Rejected a client because their IP is banned (%s).", get_client_address(client_id).toString().c_str());
+        else if (host->isBanned(address)) {
+            log("Rejected a client because their IP is banned (%s).", address.toString().c_str());
             res->accepted = false;
             reply.U8(reject_banned);
         }
@@ -3239,7 +3239,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
                         reply.U8(reject_player_password_needed);
                     else {
                         log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                     name.c_str(), player_password.c_str(), get_client_address(client_id).toString().c_str());
+                                     name.c_str(), player_password.c_str(), address.toString().c_str());
                         reply.U8(reject_wrong_player_password);
                     }
                 }
@@ -3250,7 +3250,7 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
                     reply.U8(reject_server_password_needed);
                 else {
                     log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-                                 password.c_str(), get_client_address(client_id).toString().c_str(), name.c_str());
+                                 password.c_str(), address.toString().c_str(), name.c_str());
                     reply.U8(reject_wrong_server_password);
                 }
             }
@@ -3259,11 +3259,11 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
     res->customDataLength = reply.size();
 }
 
-void ServerNetworking::sfunc_client_hello(void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->clientHello(client_id, data, res);
+    sn->clientHello(address, data, res);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }

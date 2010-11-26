@@ -103,7 +103,7 @@ private:
     };
 
     // server callbacks
-    static void sfunc_client_hello          (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
+    static void sfunc_client_hello          (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     static void sfunc_client_connected      (void* customp, int client_id, int customStoredData) throw ();
     static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant) throw ();
     static void sfunc_client_data           (void* customp, int client_id, ConstDataBlockRef data) throw ();
@@ -207,7 +207,7 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
-    void clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
+    void clientHello(const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     int  client_connected(int id, int customStoredData) throw ();
     void client_disconnected(int id) throw ();
     void ping_result(int client_id, int ping_time) throw ();

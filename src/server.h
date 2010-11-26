@@ -368,7 +368,7 @@ public:
     void mutePlayer(int pid, int mode, int admin) throw ();
     void kickPlayer(int pid, int admin) throw ();
     void banPlayer(int pid, int admin, int minutes) throw ();
-    bool isBanned(int cid) const throw () { return authorizations.isBanned(network.get_client_address(cid)); }
+    bool isBanned(const Network::Address& address) const throw () { return authorizations.isBanned(address); }
     bool check_name_password(const std::string& name, const std::string& password) const throw ();
     void disconnectPlayer(int pid, Disconnect_reason reason) throw ();
     void sendMessage(int pid, Message_type type, const std::string& msg) throw ();

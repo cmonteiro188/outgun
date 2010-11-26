@@ -904,7 +904,7 @@ public:
                     ServerHelloResult res;
                     res.accepted = false;
                     res.customDataLength = 0;
-                    helloCallback(customp, cid, ConstDataBlockRef(&data[16], len-16), &res);
+                    helloCallback(customp, get_client_address(cid), ConstDataBlockRef(&data[16], len-16), &res);
                     log("client %i CONNECTION (II)", cid);
                     if (res.accepted) {
                         //connected!
