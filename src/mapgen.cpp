@@ -185,7 +185,7 @@ bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_room
         return false;
     SimpleRoom& next = room[(nx + width()) % width()][(ny + height()) % height()];
     SimpleRoom& current = room[rx][ry];
-    if (!mirror && next.visited)
+    if (!mirror && next.visited && symmetry != asymmetric)
         return false;
     if (!mirror && !next.visited) {
         visited_rooms++;
