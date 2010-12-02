@@ -1256,6 +1256,11 @@ int ServerNetworking::client_connected(int cid, int customStoredData) throw () {
 
     addPlayerMutex.lock();
 
+    if (player_count >= maxplayers) {
+        host->remove_bot();
+        nAssert(player_count == maxplayers - 1);
+    }
+
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
     int t2 = 0;     //blue team count
@@ -3213,8 +3218,6 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         }
         return false;
     }
-    if (player_count + reservedPlayerSlots >= maxplayers)
-        host->remove_bot();
     ++reservedPlayerSlots;
     playerSlotReservationTime = get_time();
     reply.U8(maxplayers);
