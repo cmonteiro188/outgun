@@ -29,6 +29,7 @@
 #include "../incalleg.h"
 #include "../admshell.h"
 #include "../binaryaccess.h"
+#include "../commont.h"
 #include "../function_utility.h"
 #include "../nassert.h"
 #include "../network.h"
@@ -317,7 +318,7 @@ void dualprintf(const char* fmt, ...) throw () {
     }
 }
 
-string plyNames[32];
+string plyNames[MAX_CLIENTS];
 const char* plyName(int idx) throw () {
     static char buf[50];
     platSnprintf(buf, 50, "%s (%d)", encode(plyNames[idx]).c_str(), idx);
