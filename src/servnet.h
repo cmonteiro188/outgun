@@ -135,7 +135,7 @@ private:
 
     int             max_world_rank;
 
-    ClientTransferData fileTransfer[MAX_PLAYERS];
+    ClientTransferData fileTransfer[MAX_CLIENTS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
     mutable Network::TCPSocket shellssock; // if open, admin shell messages are sent to this socket
@@ -146,7 +146,7 @@ private:
 
     std::string     server_identification;
     int             ping_send_client;
-    int             ctop[256];          // client id-to-player id index
+    int             ctop[MAX_CLIENTS];          // client id-to-player id index
     int             player_count;       // number of players including bots
     int             bot_count;
     std::vector< std::pair<Network::Address, int> > distinctRemotePlayers;

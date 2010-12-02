@@ -102,7 +102,7 @@ class Server : private NoCopying {
     double          team_smul[2];
     uint32_t         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
-    ClientData      client[MAX_PLAYERS];
+    ClientData      client[MAX_CLIENTS];
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;

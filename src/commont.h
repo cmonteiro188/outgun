@@ -304,6 +304,7 @@ extern std::string wheregamedir;
 
 // number-of-players
 static const int MAX_PLAYERS = 32;  // the MAXIMUM MAXIMUM number of players EVER
+static const int MAX_CLIENTS = 40;  // maximum number of client connections at a time; includes connections that are being made or torn
 #define TSIZE (maxplayers/2)    // macro for CTF TEAM SIZE: this is ugly; it relies on a maxplayers variable being accessible, the variable in question will vary by place of use
 
 static const int MAX_ROCKETS = 256; // maximum number of rockets (must be <= 256 while IDs are transmitted as bytes)

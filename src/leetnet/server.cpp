@@ -52,10 +52,6 @@
 #include "../timer.h" // for platSleep
 using namespace GNE;
 
-// max (absolute) clients that can connect to a server
-// change this to meet your needs
-#define  MAX_CLIENTS 32
-
 class server_ci;
 
 // client record struct for server

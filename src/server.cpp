@@ -971,7 +971,7 @@ bool Server::start(int target_maxplayers) throw () {
     setMaxPlayers(target_maxplayers);
 
     //reset client_c struct (closes files...)
-    for (int i = 0; i < MAX_PLAYERS; i++)
+    for (int i = 0; i < MAX_CLIENTS; i++)
         client[i].reset();
 
     gameover = false;

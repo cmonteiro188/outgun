@@ -130,28 +130,28 @@ bool ServerNetworking::writeToAdminShell(ConstDataBlockRef data) const throw () 
     return false;
 }
 
-void ServerNetworking::upload_next_file_chunk(int i) throw () {
+void ServerNetworking::upload_next_file_chunk(int cid) throw () {
     const int max_chunksize = 128;      // the max chunk size in bytes
 
     //actual size sent
-    int chunksize = fileTransfer[i].data.size() - fileTransfer[i].dp;     //attempt to send remaining...
+    int chunksize = fileTransfer[cid].data.size() - fileTransfer[cid].dp;     //attempt to send remaining...
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const uint8_t islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
+    const uint8_t islast = fileTransfer[cid].dp + chunksize == fileTransfer[cid].data.size();
 
     BinaryBuffer<256> msg;
     msg.U8(data_file_download);
     msg.U16(chunksize);
     msg.U8(islast);
-    msg.block(ConstDataBlockRef(fileTransfer[i].data.data() + fileTransfer[i].dp, chunksize));
-    server->send_message(i, msg);
+    msg.block(ConstDataBlockRef(fileTransfer[cid].data.data() + fileTransfer[cid].dp, chunksize));
+    server->send_message(cid, msg);
 
     //save old dp for the ack
-    fileTransfer[i].old_dp = fileTransfer[i].dp;
+    fileTransfer[cid].old_dp = fileTransfer[cid].dp;
 
     //inc dp
-    fileTransfer[i].dp += chunksize;
+    fileTransfer[cid].dp += chunksize;
 }
 
 string ServerNetworking::get_download_file(const string& ftype, const string& fname) throw () {
@@ -1174,7 +1174,7 @@ void ServerNetworking::send_relay_data(ConstDataBlockRef data) throw () {
 bool ServerNetworking::start() throw () {
     file_threads_quit = false;
 
-    for (int i = 0; i < 256; ++i)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
         ctop[i] = -1;
     player_count = 0;
     bot_count = 0;
@@ -1182,7 +1182,7 @@ bool ServerNetworking::start() throw () {
     max_world_rank = 0;
 
     ping_send_client = 0;
-    for (int i = 0; i < MAX_PLAYERS; ++i)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
         fileTransfer[i].reset();
 
     server_identification = itoa(abs(rand()));
@@ -1252,6 +1252,8 @@ void ServerNetworking::update_serverinfo() throw () {
 }
 
 int ServerNetworking::client_connected(int cid, int customStoredData) throw () {
+    nAssert(cid >= 0 && cid < MAX_CLIENTS);
+
     addPlayerMutex.lock();
 
     //2TEAM: check wich team to put player
@@ -2956,7 +2958,7 @@ void ServerNetworking::stop() throw () {
         nAssert(0);
 
     //reset client_c struct (closes files...)
-    for (int i = 0; i < MAX_PLAYERS; i++)
+    for (int i = 0; i < MAX_CLIENTS; i++)
         fileTransfer[i].reset();
 
     file_threads_quit = true;   // flag so threads will quit themselves
