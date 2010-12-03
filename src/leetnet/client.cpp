@@ -168,75 +168,67 @@ public:
 
     virtual void setCallbackCustomPointer(void* ptr) throw () { customp = ptr; }
 
-    //set the server's address. call before connect()
-    virtual void set_server_address(const char *address) throw () {
-        serveraddr.fromIP(address);
-    }
+    virtual void connect(const char *address, ConstDataBlockRef data, int minLocalPort, int maxLocalPort) throw () {
+        if (want_connect)
+            return;
 
-    //set the custom data sent with every connection packet
-    //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(ConstDataBlockRef data) throw () {
-        connect_data = data;
-    }
+        want_connect = true;
 
-    //set connection status. if set to TRUE, engine will try to estabilish connection
-    //with the server. if set to FALSE, will stop trying to connect or will disconnect
-    //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () {
         serverSendingPort = -1;
+        log("connecting; constatus=%i", connect_status);
 
-        log("connect now=%i  set to=%i   constatus=%i", want_connect, yes, connect_status);
+        serveraddr.fromIP(address);
+        connect_data = data;
 
-        //noop
-        if (want_connect == yes) return;
+        if (connect_status == 0) {
+            log("starting connect sequence.");
 
-        //changed
-        want_connect = yes;
-
-        //want to connect
-        if (want_connect) {
-            if (connect_status == 0) {
-                log("starting connect sequence.");
-
-                //start connection sequence
-                start_connect(minLocalPort, maxLocalPort);
-            }
-            else if (connect_status == 1) {
-                log("wil star connect sequence.");
-
-                //trying disconnection -- wait until after it's done
-                //this is just a hack
-                while (connect_status == 1)
-                    platSleep(500);  // *** NO CPU PROBLEM HERE ***
-
-                log("starting connect sequence.");
-
-                //now connect normally
-                start_connect(minLocalPort, maxLocalPort);
-            }
+            //start connection sequence
+            start_connect(minLocalPort, maxLocalPort);
         }
-        //want to disconnect
-        else {
-            if (connect_status == 3) {
-                log("starting disconnect seq...");
+        else if (connect_status == 1) {
+            log("wil star connect sequence.");
 
-                //start disconnecting
-                start_disconnect();
+            //trying disconnection -- wait until after it's done
+            //this is just a hack
+            while (connect_status == 1)
+                platSleep(500);  // *** NO CPU PROBLEM HERE ***
 
-                //join with disconnector thread
-                log("joining disconnect thread...");
-                thread_disconnect.join();
-                log("disconnect thread joined.");
+            log("starting connect sequence.");
 
-                //REVIEW: additional cleanup, must enable
-                //        new connections later ? FIXME
-            }
-            else if (connect_status == 2) {
-                log("stop_connect() - gave up connecting..");
+            //now connect normally
+            start_connect(minLocalPort, maxLocalPort);
+        }
+    }
 
-                //trying connection - just stop trying. if it gets accepted, we will reply again telling to disconnect
-                stop_connect();
-            }
+    virtual void disconnect() throw () {
+        if (!want_connect)
+            return;
+
+        want_connect = false;
+
+        serverSendingPort = -1;
+        log("disconnecting; constatus=%i", connect_status);
+
+        if (connect_status == 3) {
+            log("starting disconnect seq...");
+
+            //start disconnecting
+            start_disconnect();
+
+            //join with disconnector thread
+            log("joining disconnect thread...");
+            thread_disconnect.join();
+            log("disconnect thread joined.");
+
+            //REVIEW: additional cleanup, must enable
+            //        new connections later ? FIXME
+        }
+        else if (connect_status == 2) {
+            log("stop_connect() - gave up connecting..");
+
+            //trying connection - just stop trying. if it gets accepted, we will reply again telling to disconnect
+            stop_connect();
         }
     }
 
@@ -768,8 +760,7 @@ DLOG_Scope s("CPIDg");
 
     //dtor
     virtual ~client_ci() throw () {
-        //disconnect if connected
-        connect(false);
+        disconnect();
 
         while (connect_threads_running) // added thread safety thing
             platSleep(100);
