@@ -31,6 +31,7 @@
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
+#include "localconnection.h"
 #include "nassert.h"
 #include "network.h"
 #include "protocol.h"
@@ -47,21 +48,21 @@ typedef Robot Robot1;
 #define Robot Robot2 // both for include, and the rest of this file
 #include "robot2.h"
 
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () {
     static bool turn = false;
     turn = !turn;
     if (turn)
-        return new Robot2(config, clientLog, externalErrorLog_);
+        return new Robot2(config, clientLog, externalErrorLog_, conn);
     else
-        return new Robot1(config, clientLog, externalErrorLog_);
+        return new Robot1(config, clientLog, externalErrorLog_, conn);
 }
 
 #endif
 
 #else
 
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Robot(config, clientLog, externalErrorLog_);
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () {
+    return new Robot(config, clientLog, externalErrorLog_, conn);
 }
 
 #endif
@@ -1826,12 +1827,19 @@ ClientControls Robot::RobotMain() throw () {
     return ctrl;
 }
 
-Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () :
     ClientBase(config, clientLog, externalErrorLog_),
+    connection(conn),
+    connectionWrapper(0),
+    connectQueued(false),
     sharedDataHandle(g_botSharedDataStorage),
     finished(false),
     botPrevFire(false)
 { }
+
+Robot::~Robot() throw () {
+    delete connection;
+}
 
 void Robot::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
     Lock ml(frameMutex);
@@ -1841,7 +1849,8 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
     botId = bot_id;
     serverIP = addr;
 
-    startBase("_bot" + itoa(botId));
+    connectionWrapper = new ClientLocalConnection(*connection);
+    startBase(give_control(connectionWrapper));
 
     playername = name;
 
@@ -1849,13 +1858,11 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
 
     set_ping(ping);
 
-    connect_command();
+    connectQueued = true;
 }
 
 void Robot::set_ping(int ping) throw () {
-    while (client->decreasePacketDelay()) { }
-    for (int i = 0; i < ping / 10; ++i)
-        client->increasePacketDelay();
+    connection->sc.setPing(ping);
 }
 
 void Robot::client_connected(ConstDataBlockRef data) throw () { // call with frameMutex locked
@@ -1939,7 +1946,34 @@ void Robot::bot_send_frame(ClientControls controls) throw () {
     client->send_frame(msg);
 }
 
+void Robot::pollConnection() throw () {
+    if (!connected) {
+        nAssert(connectionWrapper);
+        if (connectQueued) {
+            connectQueued = false;
+            Lock ml(frameMutex);
+            connect_command();
+        }
+        if (connectionWrapper->readHelloReply().data()) {
+            cfunc_connection_update(this, 0, connectionWrapper->readHelloReply());
+            connectionWrapper->clearHelloReply();
+        }
+        return;
+    }
+    if (!connection->sc.connected()) {
+        BinaryBuffer<1> data;
+        data.U8(disconnect_kick);
+        cfunc_connection_update(this, 1, data);
+        return;
+    }
+    const ConstDataBlockRef frame = connectionWrapper->receive_frame();
+    if (frame.data())
+        cfunc_server_data(this, frame);
+}
+
 void Robot::bot_loop() throw () {
+    pollConnection();
+
     Lock ml(frameMutex);
 
     handlePendingThreadMessages();

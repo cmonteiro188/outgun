@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  */
 
 /*
@@ -57,6 +57,7 @@ class server_ci;
 // client record struct for server
 struct client_t {
     volatile bool       used;               // "true" if there is a client connected in this slot
+    bool disabled; // blocked from being used (only set when !used)
 
     int                         id;                 // the client's id (index on the array)
 
@@ -225,6 +226,7 @@ public:
         for (int i=0;i<MAX_CLIENTS;i++) {
 
             client[i].used = false;             // free player slot
+            client[i].disabled = false;
             client[i].id = i;                           // id (for thread)
             client[i].server = this;            // server (for thread)
 
@@ -520,6 +522,23 @@ public:
         return thestat;
     }
 
+    virtual int reserveClientId() throw () {
+        for (int i = 0; i < MAX_CLIENTS; ++i) {
+            Lock ml(client[i].station_mutex);
+            if (!client[i].used && !client[i].disabled) {
+                client[i].disabled = true;
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    virtual void returnClientId(int reservedId) throw () {
+        Lock ml(client[reservedId].station_mutex);
+        nAssert(client[reservedId].disabled);
+        client[reservedId].disabled = false;
+    }
+
     //------------------------
     // server slave-disconnector thread API (temp thread that sends disconnection packets to the client
     //------------------------
@@ -708,7 +727,7 @@ public:
             //lock client
             client[i].station_mutex.lock();
 
-            if (!client[i].used)
+            if (!client[i].used && !client[i].disabled)
             {
                 //zero'ing state
                 client[i].id = i;                   // the client's id (index on the array)
@@ -1192,7 +1211,7 @@ void thread_master_f(server_ci* server) throw ()
 
         // if no data, keep reading
         if (result.length == 0) {
-            quickSleep();
+            platSleep(2);
             continue;
         }
 

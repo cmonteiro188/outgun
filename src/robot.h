@@ -30,9 +30,16 @@
 #include "clientbase.h"
 #include "client_interface.h"
 
+class LocalConnection;
+class ClientLocalConnection;
+
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : public ClientBase, public BotInterface {
+    LocalConnection* connection; // owned
+    ClientLocalConnection* connectionWrapper; // given to ClientBase to replace leetnet client
+    bool connectQueued;
+
     enum DestinationType {
         Dest_None,
         Dest_Flag,
@@ -203,11 +210,13 @@ class Robot : public ClientBase, public BotInterface {
 
     void bot_send_frame(ClientControls controls) throw ();
 
+    void pollConnection() throw ();
+
     std::string getPlayerPassword() const throw () { return std::string(); }
 
 public:
-    Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
-    ~Robot() throw () { }
+    Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw ();
+    ~Robot() throw ();
 
     void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();
     void stop() throw ();

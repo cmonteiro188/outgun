@@ -883,7 +883,15 @@ void Server::init_bots() throw () {
     address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        BotInterface* bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog);
+        const ControlledPtr<LocalConnection> conn = network.newLocalConnection();
+        if (!conn) {
+            log("Can't reserve player slot for needed bot.");
+            #ifdef EXTRA_DEBUG
+            nAssert(0);
+            #endif
+            break;
+        }
+        BotInterface* const bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog, conn);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
@@ -1938,12 +1946,11 @@ void Server::run_bot_thread() throw () {
             }
         }
         if (botTestMode) {
-            sched_yield();
             nAssert(settings.get_bot_ping() % 100 == 0); // this is a user (not code) error, but bot test mode is a dev feature
             const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
             bool upToDate = true;
             for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
-                if (bi->bot_reacted_frame() != currentFrame || uint8_t(bi->bot_sent_frame() - settings.get_bot_ping() / 100) != world.player[bi->bot_player_id()].lastClientFrame) {
+                if (bi->bot_reacted_frame() != currentFrame - settings.get_bot_ping() / 100 || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
                     //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
                     upToDate = false;
                 }

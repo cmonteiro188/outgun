@@ -428,7 +428,7 @@ bool GuiClient::start() throw () {
 
     framecount = 0;
 
-    startBase();
+    startBase(give_control(new_client_c(extConfig.networkPriority, "")));
 
     if (language.code() == "fi")
         playername = finnish_name(maxPlayerNameLength);

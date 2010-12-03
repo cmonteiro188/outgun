@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2010 - Niko Ritari
  */
 
 /*
@@ -114,6 +114,9 @@ public:
     virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () = 0;
 
     virtual Network::Address get_client_address(int client_id) const throw () = 0;
+
+    virtual int reserveClientId() throw () = 0;
+    virtual void returnClientId(int reservedId) throw () = 0;
 };
 
 

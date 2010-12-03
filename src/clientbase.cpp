@@ -148,7 +148,7 @@ ClientBase::~ClientBase() throw () {
     log("Exiting client: destructor exiting");
 }
 
-void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
+void ClientBase::startBase(ControlledPtr<client_c> networkProvider) throw () {
     clFrameSent = clFrameWorld = 0;
     fx.frame = -1;
     #ifndef DEDICATED_SERVER_ONLY
@@ -171,7 +171,7 @@ void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
 
     connected = false;
 
-    client = new_client_c(extConfig.networkPriority, leetnetLogPostfix);
+    client = networkProvider;
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);

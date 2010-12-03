@@ -32,6 +32,7 @@
 #include "function_utility.h"
 
 class Client;
+class LocalConnection;
 class ServerExternalSettings;
 class Log;
 class MemoryLog;
@@ -76,7 +77,7 @@ protected:
     BotInterface() throw () { }
 
 public:
-    static BotInterface* newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    static BotInterface* newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw ();
 
     virtual ~BotInterface() throw () { }
 
