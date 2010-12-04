@@ -1419,9 +1419,12 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         }
 
         Area* const a = area(pos);
-        const int distance = a->distance[Table_Main];
+        int distance = a->distance[Table_Main];
         if (distance == -1)
             continue;
+
+        if (state == 1 && team != 2 && distance <= roomToRoomBaseDistance * 3 / 2)
+            distance = 0; // prioritize nearby dropped team flags over other targets
 
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
