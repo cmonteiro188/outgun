@@ -1135,17 +1135,35 @@ bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) thr
     }
 
     const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
-    if (!limitInterest || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
+    const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam();
+    if (!limitInterest && !droppedEnemyFlag || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
         return false;
 
     const WorldCoords pos = flag.carried() ? fx.player[flag.carrier()].pos : flag.position();
     BuildDistanceTable(area(pos), 0., Table_Def);
+    const int myDistance = myArea()->distance[Table_Def];
+
+    if (droppedEnemyFlag) {
+        if (myDistance < 2 * roomToRoomBaseDistance)
+            return false;
+        int nearEnemyDistance = myDistance, nearFriendDistance = myDistance;
+        for (int i = 0; i < maxplayers; ++i) {
+            const ClientPlayer& player = fx.player[i];
+            if (!player.used || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h || player.posUpdated < fx.frame - FADEOUT)
+                continue;
+            const int distance = area(player)->distance[Table_Def];
+            if (myTeam(player))
+                nearFriendDistance = min(nearFriendDistance, distance);
+            else
+                nearEnemyDistance = min(nearEnemyDistance, distance);
+        }
+        return nearFriendDistance >= 2 * roomToRoomBaseDistance && nearEnemyDistance < nearFriendDistance - roomToRoomBaseDistance * 3 / 2;
+    }
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
     const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
                                           : GetPlayers(myTeam()) / nAllFlags;
 
-    const int myDistance = myArea()->distance[Table_Def];
     int nearNum = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
