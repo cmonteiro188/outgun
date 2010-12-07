@@ -3541,7 +3541,7 @@ void ServerWorld::team_gets_carrying_point(int team, bool forRanking) throw () {
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                              ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw () {
+                              const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw () {
     frame = source.frame;
 
     if (source.skipped) {
@@ -3580,7 +3580,7 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
     frame += subFrameAfter;
 }
 
-void ClientWorld::extrapolateSinglePlayerPosition(ClientPlayer& pl, ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw () {
+void ClientWorld::extrapolateSinglePlayerPosition(ClientPlayer& pl, const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw () {
     nAssert(!skipped);
     // following partly shared with extrapolate:
     static const double playerPosAccuracy = plw / double(0xFFF) / 2.; // used to counter problems in bouncing caused by inaccurate positions over network

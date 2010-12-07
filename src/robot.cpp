@@ -546,53 +546,42 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
     return make_pair(bestDir != -1, bestDir);
 }
 
-ClientControls Robot::EscapeRocket(int mrock) const throw () {
-    const Rocket& rocket = fx.rock[mrock];
-    const Vec sd = predictPos(rocket) - myPos.local();
-
-    ClientControls ctrl;
-    ctrl.setStrafe();
-    ctrl.setRun();
-
-    switch (rocket.direction.to8way()) {
-        case 0: // r -> d or up
-        case 4: // l -> u or d
-            if (sd.y > 0)
-                ctrl.setUp();
-            else
-                ctrl.setDown();
-            break;
-        case 2: // d - > l or r
-        case 6: // u -> l or r
-            if (sd.x > 0)
-                ctrl.setLeft();
-            else
-                ctrl.setRight();
-            break;
-        case 1: // rd -> ru | ld  "\"
-        case 5: // lu -> ru | ld
-            if (sd.y > sd.x) {
-                ctrl.setUp();
-                ctrl.setRight();
-            }
-            else {
-                ctrl.setDown();
-                ctrl.setLeft();
+double Robot::predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw () {
+    const int maxPredictionFrames = 10;
+    rocket.move(averageLag);
+    ClientPlayer player = futureMe;
+    int frames;
+    for (frames = 0; frames < maxPredictionFrames; ++frames) {
+        if (player.room() != rocket.room())
+            return plw + plh - frames; // subtract frames as an easy way to prefer a faster exit
+        const Vec diff = player.pos.local() - rocket.pos.local();
+        const Vec dVel = rocket.vel - player.vel;
+        const double timeToPlane = dot(dVel, diff) / dVel.mag2();
+        if (timeToPlane <= 1.) {
+            if (timeToPlane > 0.) {
+                rocket.move(timeToPlane);
+                fx.extrapolateSinglePlayerPosition(player, &ctrl, 0, 0, timeToPlane);
             }
             break;
-        case 3: // ld -> rd | lu "/"
-        case 7: // ur -> lu | rd
-            if (sd.y > -sd.x) {
-                ctrl.setUp();
-                ctrl.setLeft();
-            }
-            else {
-                ctrl.setDown();
-                ctrl.setRight();
-            }
-            break;
+        }
+        rocket.move(1.);
+        fx.extrapolateSinglePlayerPosition(player, &ctrl, 0, 0, 1.);
     }
-    return ctrl;
+    return player.room() == rocket.room() ? mag(player.pos.local() - rocket.pos.local()) : plw + plh - frames - 1;
+}
+
+ClientControls Robot::EscapeRocket(int mrock) const throw () {
+    double bestDistance = 0;
+    ClientControls bestControls;
+    for (int dir = 0; dir < 8; ++dir) {
+        const ClientControls ctrl = ClientControls().fromDirection(dir).setStrafe().setRun();
+        const double dist = predictDistanceFromRocket(fx.rock[mrock], ctrl);
+        if (dist > bestDistance) {
+            bestDistance = dist;
+            bestControls = ctrl;
+        }
+    }
+    return bestControls;
 }
 
 ClientControls Robot::EscapeExplosion() const throw () {
@@ -1778,7 +1767,7 @@ ClientControls Robot::RobotMain() throw () {
         return ClientControls();
     }
 
-    ClientPlayer futureMe = fx.player[me];
+    futureMe = fx.player[me];
     const uint8_t nControlFrames = clFrameSent - clFrameWorld;
     averageLag = nControlFrames + .5;
     if (nControlFrames)

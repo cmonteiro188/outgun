@@ -81,7 +81,8 @@ class Robot : public ClientBase, public BotInterface {
     bool        enemiesInRoom;
     int         last_seen;
     int         myGundir;
-    WorldCoords myPos; // extrapolated
+    ClientPlayer futureMe; // extrapolated by averageLag
+    WorldCoords myPos; // shortcut to futureMe.pos
 
     std::vector<bool> flagsIgnored[3];
 
@@ -119,6 +120,7 @@ class Robot : public ClientBase, public BotInterface {
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
 
+    double      predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw ();
     const DeathbringerExplosion* explosionInRoom(const RoomCoords& room) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
     bool        imminentExplosionHere() const throw ();
     class AlreadyInRoom { }; // exception
