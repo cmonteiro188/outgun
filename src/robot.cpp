@@ -1999,7 +1999,7 @@ void Robot::bot_loop() throw () {
     #endif
     nAssert(me >= 0 && me < maxplayers);
     if (me / TSIZE != desiredTeam) {
-        if (fx.frame >= 100) {
+        if (clFrameSent >= 100) {
             disconnect_command();
             return;
         }
