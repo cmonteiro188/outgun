@@ -30,8 +30,8 @@
 #include <list>
 #include <vector>
 
-#include "colour.h"
 #include "incalleg.h"
+#include "colour.h"
 #include "mutex.h"
 #include "utility.h"
 #include "world.h"

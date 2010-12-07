@@ -31,9 +31,9 @@
 #include <string>
 #include <vector>
 
+#include "incalleg.h"
 #include "client_interface.h"
 #include "function_utility.h"
-#include "incalleg.h"
 #include "language.h"
 #include "names.h"
 #include "nassert.h"
