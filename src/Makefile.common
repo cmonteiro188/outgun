@@ -82,12 +82,12 @@ ifdef LINUX
  PNG_LIBS := -lz -lpng
  PNG_CFLAGS := -DWITH_PNG
  PLATFORM_OBJ_NAMES := platform_unix.o
- OUTGUN_LDFLAGS := -pthread
- BUILDTOOL_LDFLAGS :=
- MON_LDFLAGS := -pthread
- RELAY_LDFLAGS := -pthread
- WATCHSERVER_LDFLAGS :=
- TEST_LDFLAGS := -pthread
+ OUTGUN_LDFLAGS := $(LDFLAGS) -pthread
+ BUILDTOOL_LDFLAGS := $(LDFLAGS)
+ MON_LDFLAGS := $(LDFLAGS) -pthread
+ RELAY_LDFLAGS := $(LDFLAGS) -pthread
+ WATCHSERVER_LDFLAGS := $(LDFLAGS)
+ TEST_LDFLAGS := $(LDFLAGS) -pthread
 
 else
 
@@ -106,12 +106,12 @@ else
  ALLEG_CFLAGS :=
  PLATFORM_OBJ_NAMES := platform_win.o
  OUTGUN_COMMON_OBJ_NAMES += icon.res
- OUTGUN_LDFLAGS := -mwindows -mthreads
- BUILDTOOL_LDFLAGS := -mconsole
- MON_LDFLAGS := -mconsole -mthreads
- RELAY_LDFLAGS := -mconsole -mthreads
- WATCHSERVER_LDFLAGS := -mconsole
- TEST_LDFLAGS := -mconsole -mthreads
+ OUTGUN_LDFLAGS := $(LDFLAGS) -mwindows -mthreads
+ BUILDTOOL_LDFLAGS := $(LDFLAGS) -mconsole
+ MON_LDFLAGS := $(LDFLAGS) -mconsole -mthreads
+ RELAY_LDFLAGS := $(LDFLAGS) -mconsole -mthreads
+ WATCHSERVER_LDFLAGS := $(LDFLAGS) -mconsole
+ TEST_LDFLAGS := $(LDFLAGS) -mconsole -mthreads
 
  $(OBJDIR)/gui/%.res: %.rc
 	$(WINDRES) -i $< -O coff -o $@
