@@ -131,6 +131,7 @@ private:
 
     public:
         LocalClient(ServerNetworking& host, LocalConnection& conn_) throw () : servNet(host), conn(conn_) { }
+        ~LocalClient() throw ();
 
         virtual void disconnect(int timeout, Disconnect_reason reason) throw ();
             

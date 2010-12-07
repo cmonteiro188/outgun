@@ -3346,6 +3346,10 @@ void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, in
         sn->threadLockMutex.unlock();
 }
 
+ServerNetworking::LocalClient::~LocalClient() throw () {
+    conn.sc.disconnect();
+}
+
 void ServerNetworking::LocalClient::disconnect(int timeout, Disconnect_reason reason) throw () {
     (void)(timeout && reason);
     conn.sc.disconnect();
