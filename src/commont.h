@@ -86,6 +86,8 @@ public:
     ClientControls& setRun   () throw () { data |= run;    return *this; }
     ClientControls& setStrafe() throw () { data |= strafe; return *this; }
 
+    void clearUp   () throw () { data &= ~up; }
+    void clearDown () throw () { data &= ~down; }
     void clearLeft () throw () { data &= ~left; }
     void clearRight() throw () { data &= ~right; }
 

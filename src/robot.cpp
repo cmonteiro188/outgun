@@ -690,9 +690,7 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
 
     sd /= n;
 
-    ClientControls ctrl;
-    ctrl.setRun();
-    ctrl.setStrafe();
+    ClientControls ctrl = ClientControls().fromDirection(dir).setRun().setStrafe();
 
     switch (dir) {
         case 0:
@@ -711,27 +709,27 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
             break;
         case 1:
             if (sd.y < sd.x)
-                ctrl.setDown();
+                ctrl.clearRight();
             else
-                ctrl.setRight();
+                ctrl.clearDown();
             break;
         case 5:
             if (sd.y < sd.x)
-                ctrl.setLeft();
+                ctrl.clearUp();
             else
-                ctrl.setUp();
+                ctrl.clearLeft();
             break;
         case 3:
             if (sd.y > -sd.x)
-                ctrl.setLeft();
+                ctrl.clearDown();
             else
-                ctrl.setDown();
+                ctrl.clearLeft();
             break;
         case 7:
             if (sd.y > -sd.x)
-                ctrl.setUp();
+                ctrl.clearRight();
             else
-                ctrl.setRight();
+                ctrl.clearUp();
             break;
     }
     return ctrl;
