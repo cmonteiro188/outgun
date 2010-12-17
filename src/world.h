@@ -1030,6 +1030,7 @@ public:
     bool lock_wild_flags;
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
+    bool carry_own_team_flag;
 
     bool always_send_flag_location; /// false: only send flag location when seen or on the ground; true: always send the location
 
@@ -1081,7 +1082,7 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
-    void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
+    bool player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 
     bool all_kind_of_flags_exist() const throw ();
