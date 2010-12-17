@@ -56,10 +56,10 @@ DataBlock ClientServerLocalConnection::connect(ConstDataBlockRef data) throw () 
     return DataBlock(ConstDataBlockRef(res.customData, res.customDataLength));
 }
 
-void ClientServerLocalConnection::disconnect() throw () {
+void ClientServerLocalConnection::disconnect(bool calledFromServer) throw () {
     if (!connected)
         return;
-    ServerNetworking::sfunc_client_disconnected(&server, cid, false);
+    ServerNetworking::sfunc_client_disconnected(&server, cid, calledFromServer);
     connected = false;
 }
 

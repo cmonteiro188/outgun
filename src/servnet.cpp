@@ -3353,6 +3353,7 @@ ServerNetworking::LocalClient::~LocalClient() throw () {
 void ServerNetworking::LocalClient::disconnect(int timeout, Disconnect_reason reason) throw () {
     (void)(timeout && reason);
     conn.sc.disconnect();
+    conn.cs.disconnect(true);
 }
 
 Network::Address ServerNetworking::LocalClient::get_client_address() const throw () {

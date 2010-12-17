@@ -44,7 +44,8 @@ public:
     void sendMessage(ConstDataBlockRef data) throw ();
     void sendFrame(ConstDataBlockRef data) throw ();
     DataBlock connect(ConstDataBlockRef data) throw ();
-    void disconnect() throw ();
+
+    void disconnect(bool calledFromServer = false) throw ();
 
     // interface to server
     ConstDataBlockRef openMessage() throw (); // messages remain locked until call to closeMessage, if anything was returned
