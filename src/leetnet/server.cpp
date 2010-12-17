@@ -149,6 +149,8 @@ public:
     // client structures - one for each client
     client_t                    client[MAX_CLIENTS];
 
+    Mutex clientReservationMutex;
+
     //server is stopping
     volatile bool           server_stopped;
 
@@ -523,18 +525,17 @@ public:
     }
 
     virtual int reserveClientId() throw () {
-        for (int i = 0; i < MAX_CLIENTS; ++i) {
-            Lock ml(client[i].station_mutex);
+        Lock ml(clientReservationMutex);
+        for (int i = 0; i < MAX_CLIENTS; ++i)
             if (!client[i].used && !client[i].disabled) {
                 client[i].disabled = true;
                 return i;
             }
-        }
         return -1;
     }
 
     virtual void returnClientId(int reservedId) throw () {
-        Lock ml(client[reservedId].station_mutex);
+        Lock ml(clientReservationMutex);
         nAssert(client[reservedId].disabled);
         client[reservedId].disabled = false;
     }
@@ -721,14 +722,15 @@ public:
             return 1;
         }
 
+        Lock ml(clientReservationMutex);
+
         //server com espaco, aloca um cara pra ele
         for (i=0;i<MAX_CLIENTS;i++)
         {
-            //lock client
-            client[i].station_mutex.lock();
-
             if (!client[i].used && !client[i].disabled)
             {
+                Lock cml(client[i].station_mutex);
+
                 //zero'ing state
                 client[i].id = i;                   // the client's id (index on the array)
                 client[i].ping_start_time = Time(0, 0);     //time of last ping request from gameserver
@@ -760,7 +762,6 @@ public:
                 //client[i].station->set_remote_address(adrstr);
                 if (client[i].station->set_remote_address(client[i].addr, minLocalPort, maxLocalPort) == 0) {
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
-                    client[i].station_mutex.unlock();
                     return 1;       //abort connection
                 }
 
@@ -780,13 +781,8 @@ public:
                 // agora ta valido p/ outras threads
                 client[i].used = true;
 
-                //ok - unlock client
-                client[i].station_mutex.unlock();
                 return 1;
             }
-
-            //unlock client
-            client[i].station_mutex.unlock();
         }
 
         //WEIRD WEIRD fail: num_clients esta mentindo para baixo
@@ -1137,7 +1133,8 @@ public:
         datalogMutex("server_ci::datalogMutex"),
         #endif
         minLocalPort(minLocalPort_),
-        maxLocalPort(maxLocalPort_)
+        maxLocalPort(maxLocalPort_),
+        clientReservationMutex("server_ci::clientReservationMutex")
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
