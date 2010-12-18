@@ -1077,6 +1077,9 @@ class ServerWorld : public WorldBase {
     void drop_powerup(const ServerPlayer& player) throw ();
     void drop_worst_powerup(ServerPlayer& player) throw ();
 
+    void simulatePlayerPrePhysics(ServerPlayer& pl) throw ();
+    void simulatePlayerPostPhysics(ServerPlayer& pl) throw ();
+
     void regenerateHealthOrEnergy(ServerPlayer& pl) throw ();
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
@@ -1084,6 +1087,7 @@ class ServerWorld : public WorldBase {
     void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 
+    bool extra_time_and_sudden_death() const throw ();
     bool all_kind_of_flags_exist() const throw ();
 
 public:
