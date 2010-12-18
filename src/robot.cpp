@@ -27,9 +27,11 @@
 
 #include <iomanip>
 #include <queue>
+#include <set>
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
+#include "localconnection.h"
 #include "nassert.h"
 #include "network.h"
 #include "protocol.h"
@@ -46,21 +48,21 @@ typedef Robot Robot1;
 #define Robot Robot2 // both for include, and the rest of this file
 #include "robot2.h"
 
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () {
     static bool turn = false;
     turn = !turn;
     if (turn)
-        return new Robot2(config, clientLog, externalErrorLog_);
+        return new Robot2(config, clientLog, externalErrorLog_, conn);
     else
-        return new Robot1(config, clientLog, externalErrorLog_);
+        return new Robot1(config, clientLog, externalErrorLog_, conn);
 }
 
 #endif
 
 #else
 
-BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () {
-    return new Robot(config, clientLog, externalErrorLog_);
+BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () {
+    return new Robot(config, clientLog, externalErrorLog_, conn);
 }
 
 #endif
@@ -70,6 +72,7 @@ using std::make_pair;
 using std::max;
 using std::min;
 using std::pair;
+using std::set;
 using std::string;
 using std::priority_queue;
 using std::vector;
@@ -106,9 +109,9 @@ bool Robot::imminentExplosionHere() const throw () {
     return false;
 }
 
-double Robot::distanceFromDoor(const Area::Neighbor& n) const throw () {
+double Robot::distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw () {
     try {
-        return (nearestDoor(n, myPos.local()) - myPos.local()).mag();
+        return (nearestDoor(n, pos) - pos).mag();
     } catch (AlreadyInRoom) {
         return 0;
     }
@@ -124,12 +127,12 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const t
 }
 
 bool Robot::moreDefensive(const ClientPlayer& player) const throw () {
-    if (HaveFlag(player.id))
+    if (HaveFlag(player.pid))
         return true;
-    if (player.item_turbo != fx.player[me].item_turbo)
+    if (here(player, true) && player.item_turbo != fx.player[me].item_turbo)
         return !player.item_turbo;
     if (player.name.substr(0, 4) == "BOT ")
-        return player.id < me;
+        return player.pid < me;
     else
         return player.defending;
 }
@@ -146,6 +149,10 @@ bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFrom
 }
 
 double Robot::ScanDir(GunDirection dir) const throw () {
+    return WallHitPosition(dir, PLAYER_RADIUS).first;
+}
+
+pair<double, Coords> Robot::WallHitPosition(GunDirection dir, double radius) const throw () {
     const double deg = dir.toRad();
     const Vec d(cos(deg), sin(deg));
     const Room& room = fx.map[myPos.room];
@@ -154,7 +161,8 @@ double Robot::ScanDir(GunDirection dir) const throw () {
         maxDist = min(maxDist, (d.x > 0 ? S_W - myPos.x : -myPos.x) / d.x);
     if (d.y != 0)
         maxDist = min(maxDist, (d.y > 0 ? S_H - myPos.y : -myPos.y) / d.y);
-    return min(maxDist, room.genGetTimeTillWall(myPos.local(), d, PLAYER_RADIUS, maxDist).first);
+    const double dist = min(maxDist, room.genGetTimeTillWall(myPos.local(), d, radius, maxDist).first);
+    return make_pair(dist, Coords(myPos.local() + d * dist));
 }
 
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
@@ -437,12 +445,76 @@ pair<bool, GunDirection> Robot::NeedShootFreeTurning(const GunDirection& default
     return aimLastSeen; // aim at last_seen if no one is actually shootable
 }
 
+pair<bool, int> Robot::ShootAtDoorTradTurning() throw () {
+    // if we've just arrived at a new room and don't yet know if there are enemies, don't shoot at doors
+    if (myPos.room != fx.player[me].room())
+        return make_pair(false, -1);
+
+    // if we're about to go to a new room, don't shoot at doors
+    const Coords futurePos = Coords(myPos.local() + 5 * fx.player[me].vel);
+    if (futurePos.x < 0 || futurePos.x > S_W || futurePos.y < 0 || futurePos.y > S_H)
+        return make_pair(false, -1);
+
+    set<const Area*> enemyAreas;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& pl = fx.player[i];
+        if (!pl.used || myTeam(pl) || pl.dead || pl.posUpdated < fx.frame - FADEOUT)
+            continue;
+        enemyAreas.insert(area(pl));
+    }
+
+    const Area* const here = myArea();
+
+    // if an enemy can appear near to us, don't shoot at any doors
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        if (fx.map[ni->area->room].enemies_seen_frame >= fx.frame - 5 && !enemyAreas.count(ni->area)) // nothing to fear from there
+            continue;
+        const double dist = distanceFromDoor(*ni, myPos.local());
+        if (dist < S_H / 2)
+            return make_pair(false, -1);
+    }
+
+    pair<double, Coords> hitPos[8];
+    for (int dir = 0; dir < 8; ++dir)
+        hitPos[dir] = WallHitPosition(GunDirection().from8way(dir), ROCKET_RADIUS);
+
+    double bestDist = 1e99;
+    int bestDir = -1;
+    bool knownEnemyTargeted = false;
+    for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
+        const bool roomSeen = fx.map[ni->area->room].enemies_seen_frame >= fx.frame - 5;
+        const bool knownEnemy = enemyAreas.count(ni->area);
+        const bool nearRespawn = ni->area->respawnValue[!myTeam()] >= .25;
+        if (!knownEnemy && (roomSeen || !nearRespawn))
+            continue;
+        for (int dir = 0; dir < 8; ++dir) {
+            if (hitPos[dir].first < S_H / 2) // only bother shooting speculatively if there's a long lifetime for the rocket
+                continue;
+            const double dist = distanceFromDoor(*ni, hitPos[dir].second);
+            if (dist < bestDist && knownEnemy == knownEnemyTargeted || knownEnemy && !knownEnemyTargeted) {
+                bestDist = dist;
+                bestDir = dir;
+                knownEnemyTargeted = knownEnemy;
+                if (dist < 1. && knownEnemy)
+                    return make_pair(true, dir);
+            }
+        }
+    }
+
+    if (bestDist > 4 * PLAYER_RADIUS)
+        return make_pair(false, -1);
+    else
+        return make_pair(true, bestDir);
+}
+
 pair<bool, int> Robot::NeedShootTradTurning() throw () {
     vector< pair<bool, double> > dirDistances(8, make_pair(false, 0)); // if there's someone to shoot in the direction, first = true, second = time to hit
+    bool anyInRoom = false;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
         if (!pl.used || myTeam(pl) || pl.dead || !here(pl, true))
             continue;
+        anyInRoom = true;
 
         const pair<AimLevel, int> aim = TryAimTradTurning(i);
         if (aim.first != AL_Full)
@@ -453,6 +525,9 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
         if (!dirDistances[aim.second].first || hitTime < dirDistances[aim.second].second)
             dirDistances[aim.second] = make_pair(true, hitTime);
     }
+    if (!anyInRoom)
+        return ShootAtDoorTradTurning();
+
     int bestDir = -1;
     double bestValue = 1e99;
     for (int dir = 0; dir < 8; ++dir) {
@@ -471,53 +546,42 @@ pair<bool, int> Robot::NeedShootTradTurning() throw () {
     return make_pair(bestDir != -1, bestDir);
 }
 
-ClientControls Robot::EscapeRocket(int mrock) const throw () {
-    const Rocket& rocket = fx.rock[mrock];
-    const Vec sd = predictPos(rocket) - myPos.local();
-
-    ClientControls ctrl;
-    ctrl.setStrafe();
-    ctrl.setRun();
-
-    switch (rocket.direction.to8way()) {
-        case 0: // r -> d or up
-        case 4: // l -> u or d
-            if (sd.y > 0)
-                ctrl.setUp();
-            else
-                ctrl.setDown();
-            break;
-        case 2: // d - > l or r
-        case 6: // u -> l or r
-            if (sd.x > 0)
-                ctrl.setLeft();
-            else
-                ctrl.setRight();
-            break;
-        case 1: // rd -> ru | ld  "\"
-        case 5: // lu -> ru | ld
-            if (sd.y > sd.x) {
-                ctrl.setUp();
-                ctrl.setRight();
-            }
-            else {
-                ctrl.setDown();
-                ctrl.setLeft();
+double Robot::predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw () {
+    const int maxPredictionFrames = 10;
+    rocket.move(averageLag);
+    ClientPlayer player = futureMe;
+    int frames;
+    for (frames = 0; frames < maxPredictionFrames; ++frames) {
+        if (player.room() != rocket.room())
+            return plw + plh - frames; // subtract frames as an easy way to prefer a faster exit
+        const Vec diff = player.pos.local() - rocket.pos.local();
+        const Vec dVel = rocket.vel - player.vel;
+        const double timeToPlane = dot(dVel, diff) / dVel.mag2();
+        if (timeToPlane <= 1.) {
+            if (timeToPlane > 0.) {
+                rocket.move(timeToPlane);
+                fx.extrapolateSinglePlayerPosition(player, &ctrl, 0, 0, timeToPlane);
             }
             break;
-        case 3: // ld -> rd | lu "/"
-        case 7: // ur -> lu | rd
-            if (sd.y > -sd.x) {
-                ctrl.setUp();
-                ctrl.setLeft();
-            }
-            else {
-                ctrl.setDown();
-                ctrl.setRight();
-            }
-            break;
+        }
+        rocket.move(1.);
+        fx.extrapolateSinglePlayerPosition(player, &ctrl, 0, 0, 1.);
     }
-    return ctrl;
+    return player.room() == rocket.room() ? mag(player.pos.local() - rocket.pos.local()) : plw + plh - frames - 1;
+}
+
+ClientControls Robot::EscapeRocket(int mrock) const throw () {
+    double bestDistance = 0;
+    ClientControls bestControls;
+    for (int dir = 0; dir < 8; ++dir) {
+        const ClientControls ctrl = ClientControls().fromDirection(dir).setStrafe().setRun();
+        const double dist = predictDistanceFromRocket(fx.rock[mrock], ctrl);
+        if (dist > bestDistance) {
+            bestDistance = dist;
+            bestControls = ctrl;
+        }
+    }
+    return bestControls;
 }
 
 ClientControls Robot::EscapeExplosion() const throw () {
@@ -626,9 +690,7 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
 
     sd /= n;
 
-    ClientControls ctrl;
-    ctrl.setRun();
-    ctrl.setStrafe();
+    ClientControls ctrl = ClientControls().fromDirection(dir).setRun().setStrafe();
 
     switch (dir) {
         case 0:
@@ -647,27 +709,27 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
             break;
         case 1:
             if (sd.y < sd.x)
-                ctrl.setDown();
+                ctrl.clearRight();
             else
-                ctrl.setRight();
+                ctrl.clearDown();
             break;
         case 5:
             if (sd.y < sd.x)
-                ctrl.setLeft();
+                ctrl.clearUp();
             else
-                ctrl.setUp();
+                ctrl.clearLeft();
             break;
         case 3:
             if (sd.y > -sd.x)
-                ctrl.setLeft();
+                ctrl.clearDown();
             else
-                ctrl.setDown();
+                ctrl.clearLeft();
             break;
         case 7:
             if (sd.y > -sd.x)
-                ctrl.setUp();
+                ctrl.clearRight();
             else
-                ctrl.setRight();
+                ctrl.clearUp();
             break;
     }
     return ctrl;
@@ -677,12 +739,18 @@ ClientControls Robot::MoveDir(int dir) const throw () {
     return ClientControls().fromDirection(dir).setRun();
 }
 
-ClientControls Robot::FreeWalk() const throw () {
+ClientControls Robot::FreeWalk() throw () {
+    for (int tries = 0; tries < 20; ++tries) {
+        if (freeWalkTarget.x >= 0 && !IsBehindWall(freeWalkTarget - myPos.local(), PLAYER_RADIUS, PLAYER_RADIUS) && mag(freeWalkTarget - myPos.local()) > 3 * PLAYER_RADIUS)
+            return MoveToNoAggregate(freeWalkTarget - myPos.local(), PLAYER_RADIUS);
+        freeWalkTarget = Coords(rand() % S_W, rand() % S_H);
+    }
+    freeWalkTarget.x = -1;
     return MoveDirNoAggregate(FreeDir());
 }
 
 ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw () {
-    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) { //walking
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) {
         const int mdir = FreeDir();
         return MoveDir(mdir);
     }
@@ -695,7 +763,7 @@ ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFrom
 
 ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw () {
     int mdir;
-    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))//walking
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
         mdir = FreeDir();
     else
         mdir = GetDir(delta).to8way();
@@ -851,6 +919,7 @@ ClientControls Robot::FollowFlag() const throw () {
 }
 
 void Robot::BuildMap() throw () {
+    enemiesInRoom = false;
     last_seen = -1;
     myGundir = -1;
 
@@ -865,6 +934,8 @@ void Robot::BuildMap() throw () {
 
     destinationType = Dest_None;
     destination = 0;
+    immediateDestination = 0;
+    freeWalkTarget.x = -1;
 }
 
 void Robot::BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw () {
@@ -1041,34 +1112,54 @@ int Robot::GetPlayers(int team) const throw () {
     return npl;
 }
 
-bool Robot::IsDefender() throw () {
-    // get flag base
-    const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
+bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw () {
+    bool atBase;
+    if (flag.carried() || flag.position().room != base.room)
+        atBase = false;
+    else {
+        const Vec dist = base.local() - flag.position().local();
+        atBase = fabs(dist.x) <= 5. && fabs(dist.y) <= 5.;
+    }
 
-    if (tflags.empty())
+    const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
+    const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam();
+    if (!limitInterest && !droppedEnemyFlag || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
         return false;
 
-    const int npl = GetPlayers(myTeam());
-    const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int defNum = npl / nAllFlags; // split players evenly between all flags of all teams, rounding down the number of defenders per flag
+    const WorldCoords pos = flag.carried() ? fx.player[flag.carrier()].pos : flag.position();
+    BuildDistanceTable(area(pos), 0., Table_Def);
+    const int myDistance = myArea()->distance[Table_Def];
 
-    const Area* const here = myArea();
-
-    // for all bases
-    for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
-        BuildDistanceTable(area(*pi), 0., Table_Def); //#opt: reserve enough distance tables to avoid building them here every frame in case of multiple flags
-        const int m_distance = here->distance[Table_Def];
-        int nearNum = 0;
+    if (droppedEnemyFlag) {
+        if (myDistance < 2 * roomToRoomBaseDistance)
+            return false;
+        int nearEnemyDistance = myDistance, nearFriendDistance = myDistance;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+            if (!player.used || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h || player.posUpdated < fx.frame - FADEOUT)
                 continue;
             const int distance = area(player)->distance[Table_Def];
-            if (distance < m_distance || distance == m_distance && moreDefensive(player))
-                nearNum++;
+            if (myTeam(player))
+                nearFriendDistance = min(nearFriendDistance, distance);
+            else
+                nearEnemyDistance = min(nearEnemyDistance, distance);
         }
-        if (nearNum < defNum)
-            return true;
+        return nearFriendDistance >= 2 * roomToRoomBaseDistance && nearEnemyDistance < nearFriendDistance - roomToRoomBaseDistance * 3 / 2;
+    }
+
+    const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
+    const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
+                                          : GetPlayers(myTeam()) / nAllFlags;
+
+    int nearNum = 0;
+    for (int i = 0; i < maxplayers; ++i) {
+        const ClientPlayer& player = fx.player[i];
+        if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+            continue;
+        const int distance = area(player)->distance[Table_Def];
+        if (distance < myDistance || distance == myDistance && moreDefensive(player))
+            if (++nearNum >= maxPlayers)
+                return true;
     }
     return false;
 }
@@ -1096,40 +1187,31 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
     destinationType = Dest_None;
 
     if (!flag) {
-        const bool at_bases = IsFlagsAtBases(myTeam()); // are own flags safe?
-
         const bool sef = !lock_team_flags_in_effect; // try to steal enemy flags?
         const bool swf = !lock_wild_flags_in_effect; // try to steal wild flags?
 
-        bool efc = !IsCarriersDef(1 - myTeam()); // try to defend carriers of enemy flags?
-        bool wfc = !IsCarriersDef(2); // try to defend carriers of wild flags?
-        bool mfb = sef && IsDefender(); // try to defend own flags at bases? (!sef means the enemy won't try our flags either, so nothing to defend)
-
-        if (at_bases && !efc && !wfc && !mfb) { // all flags are safe and nothing to support
-            TargetNearest(sef, sef,   0,
-                            0,   0,   0,
-                          swf, swf,   0,   0,
-                            0,   0,
-                            0,   0,   0);
-            if (destinationType == Dest_None) { // we are in control of all flags -> always defend
-                efc = wfc = 1;
-                mfb = sef; // still no point in defending the base if the flag can't be taken - resources better spent defending carriers
-            }
-        }
+        const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
+        TargetNearest(sef, sef,   1,
+                      sef,   1,   1,
+                      swf, swf,   1,   1,
+                        0,   0,
+                      deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
         if (destinationType == Dest_None) {
-            const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
-            TargetNearest(sef, sef, efc,
-                          mfb,   1,   1,
-                          swf, swf,   1, wfc,
+            for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
+                for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
+                    *fii = false;
+            TargetNearest(sef, sef,   1,
+                          sef,   1,   1,
+                          swf, swf,   1,   1,
                             0,   0,
-                          deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
+                          sef,   0, swf); // any flag that makes sense (with ignores relaxed), or an empty base (hopefully getting its flag returned when captured soon)
         }
         if (destinationType == Dest_None) {
             TargetNearest(  0,   0,   0,
                             0,   0,   0,
                             0,   0,   0,   0,
                             1,   0,
-                          sef,   0,   0);  // ..., or enemy, or enemy base
+                            0,   0,   0);  // if nothing else, target an enemy
         }
         if (destinationType == Dest_None || destinationType == Dest_Base) {
             if (destinationType == Dest_Base) {
@@ -1274,36 +1356,6 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
     }
 }
 
-bool Robot::IsCarriersDef(int team) throw () {
-    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
-
-    vector<Area*> carrierAreas;
-
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-        if (fi->carried())
-            carrierAreas.push_back(area(fx.player[fi->carrier()]));
-
-    if (carrierAreas.empty()) // nothing to defend
-        return true;
-
-    BuildDistanceTable(carrierAreas, 0., Table_Def);
-
-    int teammates = 0, nearer = 0;
-    const int myDist = myArea()->distance[Table_Def];
-    for (int pi = 0; pi < maxplayers; ++pi) {
-        const ClientPlayer& pl = fx.player[pi];
-        if (!pl.used || !myTeam(pl))
-            continue;
-        ++teammates;
-        if (pl.dead)
-            continue;
-        const int dist = area(pl)->distance[Table_Def];
-        if (dist < myDist || dist == myDist && moreDefensive(pl))
-            ++nearer;
-    }
-    return nearer >= teammates / 2;
-}
-
 bool Robot::IsHome(const Area* a) const throw () {
     const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
     // our bases
@@ -1329,8 +1381,9 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
 
     const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
 
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-        if (fi->carried() != wantCarried)
+    int index = 0;
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++index) {
+        if (fi->carried() != wantCarried || flagsIgnored[team][index])
             continue;
 
         WorldCoords pos;
@@ -1353,9 +1406,12 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         }
 
         Area* const a = area(pos);
-        const int distance = a->distance[Table_Main];
+        int distance = a->distance[Table_Main];
         if (distance == -1)
             continue;
+
+        if (state == 1 && team != 2 && distance <= roomToRoomBaseDistance * 3 / 2)
+            distance = 0; // prioritize nearby dropped team flags over other targets
 
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
@@ -1526,11 +1582,11 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
         #ifdef BOTDEBUG
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Guessing %s moved to %d,%d (%d,%d) %.1f s ago - last seen at %d,%d/%d,%d %.1f s ago, verified away %.1f s ago\n", pl.name.c_str(),
-                posGuess.px, posGuess.py, (int)posGuess.x, (int)posGuess.y,
+                posGuess.room.x, posGuess.room.y, (int)posGuess.x, (int)posGuess.y,
                 (fx.frame - timeGuess) / 10.,
                 pl.room().x, pl.room().y, (int)pl.pos.x, (int)pl.pos.y,
                 (fx.frame - pl.posUpdated) / 10.,
-                (fx.frame - fx.map.room[pl.room().x][pl.room().y].enemies_seen_frame) / 10.);
+                (fx.frame - fx.map[pl.room()].enemies_seen_frame) / 10.);
         #endif
         pl.setPosition(posGuess, timeGuess); // leaves no mark about the position being a guess, but that isn't terrible
     }
@@ -1559,10 +1615,29 @@ ClientControls Robot::getRobotControls() throw () {
         }
     }
 
+    bool enemiesInRoomNow = false;
     for (int pi = 0; pi < maxplayers; ++pi) {
         ClientPlayer& p = fx.player[pi];
-        if (p.used && !p.dead && !myTeam(p))
-            updateUnknownPosition(p);
+        if (p.used && !p.dead && !myTeam(p)) {
+            if (here(p, true))
+                enemiesInRoomNow = true;
+            else
+                updateUnknownPosition(p);
+        }
+    }
+
+    if (!enemiesInRoomNow && enemiesInRoom) { // randomize movement when the last enemy observer is lost
+        freeWalkTarget.x = -1;
+        immediateDestination = 0;
+    }
+    enemiesInRoom = enemiesInRoomNow;
+
+    for (int team = 0; team <= 2; ++team) {
+        flagsIgnored[team].clear();
+        const vector<WorldCoords>& bases = team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags;
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (int fi = 0; fi < (int)flags.size(); ++fi)
+            flagsIgnored[team].push_back(flagIgnored(flags[fi], bases[fi], team));
     }
 
     if (last_seen != -1) {
@@ -1680,6 +1755,7 @@ ClientControls Robot::RobotMain() throw () {
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
                     fx.player[me].room().x >= fx.map.w || fx.player[me].room().y >= fx.map.h) {
         myGundir = -1;
+        freeWalkTarget.x = -1;
         if (botPrevFire) {
             BinaryBuffer<16> msg;
             msg.U8(data_fire_off);
@@ -1689,7 +1765,7 @@ ClientControls Robot::RobotMain() throw () {
         return ClientControls();
     }
 
-    ClientPlayer futureMe = fx.player[me];
+    futureMe = fx.player[me];
     const uint8_t nControlFrames = clFrameSent - clFrameWorld;
     averageLag = nControlFrames + .5;
     if (nControlFrames)
@@ -1759,12 +1835,19 @@ ClientControls Robot::RobotMain() throw () {
     return ctrl;
 }
 
-Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw () :
+Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw () :
     ClientBase(config, clientLog, externalErrorLog_),
+    connection(conn),
+    connectionWrapper(0),
+    connectQueued(false),
     sharedDataHandle(g_botSharedDataStorage),
     finished(false),
     botPrevFire(false)
 { }
+
+Robot::~Robot() throw () {
+    delete connection;
+}
 
 void Robot::bot_start(const Network::Address& addr, int ping, const string& name, int bot_id) throw () {
     Lock ml(frameMutex);
@@ -1774,7 +1857,8 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
     botId = bot_id;
     serverIP = addr;
 
-    startBase("_bot" + itoa(botId));
+    connectionWrapper = new ClientLocalConnection(*connection);
+    startBase(give_control(connectionWrapper));
 
     playername = name;
 
@@ -1782,13 +1866,11 @@ void Robot::bot_start(const Network::Address& addr, int ping, const string& name
 
     set_ping(ping);
 
-    connect_command();
+    connectQueued = true;
 }
 
 void Robot::set_ping(int ping) throw () {
-    while (client->decreasePacketDelay()) { }
-    for (int i = 0; i < ping / 10; ++i)
-        client->increasePacketDelay();
+    connection->sc.setPing(ping);
 }
 
 void Robot::client_connected(ConstDataBlockRef data) throw () { // call with frameMutex locked
@@ -1872,7 +1954,34 @@ void Robot::bot_send_frame(ClientControls controls) throw () {
     client->send_frame(msg);
 }
 
+void Robot::pollConnection() throw () {
+    if (!connected) {
+        nAssert(connectionWrapper);
+        if (connectQueued) {
+            connectQueued = false;
+            Lock ml(frameMutex);
+            connect_command();
+        }
+        if (connectionWrapper->readHelloReply().data()) {
+            cfunc_connection_update(this, 0, connectionWrapper->readHelloReply());
+            connectionWrapper->clearHelloReply();
+        }
+        return;
+    }
+    if (!connection->sc.connected()) {
+        BinaryBuffer<1> data;
+        data.U8(disconnect_kick);
+        cfunc_connection_update(this, 1, data);
+        return;
+    }
+    const ConstDataBlockRef frame = connectionWrapper->receive_frame();
+    if (frame.data())
+        cfunc_server_data(this, frame);
+}
+
 void Robot::bot_loop() throw () {
+    pollConnection();
+
     Lock ml(frameMutex);
 
     handlePendingThreadMessages();
@@ -1888,7 +1997,7 @@ void Robot::bot_loop() throw () {
     #endif
     nAssert(me >= 0 && me < maxplayers);
     if (me / TSIZE != desiredTeam) {
-        if (fx.frame >= 100) {
+        if (clFrameSent >= 100) {
             disconnect_command();
             return;
         }

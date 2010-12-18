@@ -1,7 +1,7 @@
 /*
  *  function_utility.h
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -26,39 +26,43 @@
 
 // function_utility.h : template classes to wrap different kinds of function objects
 
-// HookFunctionBase# provides a common interface for storing and accessing function references
-// HookFunctionHolder# manages a pointer to HookFunctionBase and behaves just like a regular function pointer would
-// Hook# is a HookFunctionHolder#-like object that can be unbound and provides a different (more explicit) call syntax
+// Function# provides a common interface for storing and accessing function references
+// FunctionHolder# manages a pointer to Function and behaves just like a regular function pointer would
+// Hook# is a FunctionHolder#-like object that provides a different (more explicit) call syntax
 // Hookable# is a base class to allow easy inclusion of a Hook# in a class (use with care)
 
-// RedirectToFun# (deriving from HookFunctionBase#) is a helper giving a regular function pointer the interface of HookFunctionBase#
-// RedirectToMemFun# (deriving from HookFunctionBase#) is a helper allowing function objects bound to a member function of an object
+// Fun# (deriving from Function#) is a helper giving a regular function pointer the interface of Function#
+// MemFun# (deriving from Function#) is a helper allowing function objects bound to a member function of an object
 
 // generating new versions with different amounts of arguments should be easy when needed; shame creating them can't be circumvented
 
 
-// 0-argument HookFunctionBase#, Hook#, Hookable# :
+// 0-argument Function#, Hook#, Hookable# :
 
 template<class RetT>
-class HookFunctionBase0 {
+class Function0 {
 public:
-    virtual ~HookFunctionBase0() throw () { }
+    virtual ~Function0() throw () { }
     virtual RetT operator()() const throw () = 0;
-    virtual HookFunctionBase0* clone() const throw () = 0;
+    virtual Function0* clone() const throw () = 0;
 };
 
 template<class RetT>
-class HookFunctionHolder0 {
+class FunctionHolder0 {
 public:
-    typedef HookFunctionHolder0 ThisT;
-    typedef HookFunctionBase0<RetT> FunctionT;
+    typedef FunctionHolder0 ThisT;
+    typedef Function0<RetT> FunctionT;
 
-    HookFunctionHolder0(FunctionT* fn) throw () : hookFn(fn) { }
-    HookFunctionHolder0(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
-    ~HookFunctionHolder0() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    FunctionHolder0(FunctionT* fn) throw () : hookFn(fn) { }
+    FunctionHolder0(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
+    ~FunctionHolder0() throw () { delete hookFn; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()() const throw () { return (*hookFn)(); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -67,18 +71,15 @@ private:
 template<class RetT>
 class Hook0 {
 public:
-    typedef HookFunctionBase0<RetT> FunctionT;
+    typedef Function0<RetT> FunctionT;
 
-    Hook0() throw () : hookFn(0) { }
-    ~Hook0() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call() const throw () { if (hookFn) return (*hookFn)(); else return RetT(); }
+    Hook0() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call() const throw () { return holder ? holder() : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    FunctionHolder0<RetT> holder;
 };
 
 template<class RetT>
@@ -97,28 +98,32 @@ private:
     Hook0<RetT> hook;
 };
 
-// 1-argument HookFunctionBase#, Hook#, Hookable# :
+// 1-argument Function#, Hook#, Hookable# :
 
 template<class RetT, class Arg1T>
-class HookFunctionBase1 {
+class Function1 {
 public:
-    virtual ~HookFunctionBase1() throw () { }
+    virtual ~Function1() throw () { }
     virtual RetT operator()(Arg1T) const throw () = 0;
-    virtual HookFunctionBase1* clone() const throw () = 0;
+    virtual Function1* clone() const throw () = 0;
 };
 
 template<class RetT, class Arg1T>
-class HookFunctionHolder1 {
+class FunctionHolder1 {
 public:
-    typedef HookFunctionHolder1 ThisT;
-    typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
+    typedef FunctionHolder1 ThisT;
+    typedef Function1<RetT, Arg1T> FunctionT;
 
-    HookFunctionHolder1(FunctionT* fn) throw () : hookFn(fn) { }
-    HookFunctionHolder1(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
-    ~HookFunctionHolder1() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    FunctionHolder1(FunctionT* fn) throw () : hookFn(fn) { }
+    FunctionHolder1(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
+    ~FunctionHolder1() throw () { delete hookFn; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1) const throw () { return (*hookFn)(a1); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -127,18 +132,15 @@ private:
 template<class RetT, class Arg1T>
 class Hook1 {
 public:
-    typedef HookFunctionBase1<RetT, Arg1T> FunctionT;
+    typedef Function1<RetT, Arg1T> FunctionT;
 
-    Hook1() throw () : hookFn(0) { }
-    ~Hook1() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1) const throw () { if (hookFn) return (*hookFn)(a1); else return RetT(); }
+    Hook1() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1) const throw () { return holder ? holder(a1) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    FunctionHolder1<RetT, Arg1T> holder;
 };
 
 template<class RetT, class Arg1T>
@@ -157,28 +159,32 @@ private:
     Hook1<RetT, Arg1T> hook;
 };
 
-// 2-argument HookFunctionBase#, Hook#, Hookable# :
+// 2-argument Function#, Hook#, Hookable# :
 
 template<class RetT, class Arg1T, class Arg2T>
-class HookFunctionBase2 {
+class Function2 {
 public:
-    virtual ~HookFunctionBase2() throw () { }
+    virtual ~Function2() throw () { }
     virtual RetT operator()(Arg1T, Arg2T) const throw () = 0;
-    virtual HookFunctionBase2* clone() const throw () = 0;
+    virtual Function2* clone() const throw () = 0;
 };
 
 template<class RetT, class Arg1T, class Arg2T>
-class HookFunctionHolder2 {
+class FunctionHolder2 {
 public:
-    typedef HookFunctionHolder2 ThisT;
-    typedef HookFunctionBase2<RetT, Arg1T, Arg2T> FunctionT;
+    typedef FunctionHolder2 ThisT;
+    typedef Function2<RetT, Arg1T, Arg2T> FunctionT;
 
-    HookFunctionHolder2(FunctionT* fn) throw () : hookFn(fn) { }
-    HookFunctionHolder2(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
-    ~HookFunctionHolder2() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    FunctionHolder2(FunctionT* fn) throw () : hookFn(fn) { }
+    FunctionHolder2(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
+    ~FunctionHolder2() throw () { delete hookFn; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2) const throw () { return (*hookFn)(a1, a2); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -187,18 +193,15 @@ private:
 template<class RetT, class Arg1T, class Arg2T>
 class Hook2 {
 public:
-    typedef HookFunctionBase2<RetT, Arg1T, Arg2T> FunctionT;
+    typedef Function2<RetT, Arg1T, Arg2T> FunctionT;
 
-    Hook2() throw () : hookFn(0) { }
-    ~Hook2() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1, Arg2T a2) const throw () { if (hookFn) return (*hookFn)(a1, a2); else return RetT(); }
+    Hook2() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1, Arg2T a2) const throw () { return holder ? holder(a1, a2) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    FunctionHolder2<RetT, Arg1T, Arg2T> holder;
 };
 
 template<class RetT, class Arg1T, class Arg2T>
@@ -217,28 +220,32 @@ private:
     Hook2<RetT, Arg1T, Arg2T> hook;
 };
 
-// 3-argument HookFunctionBase#, Hook#, Hookable# :
+// 3-argument Function#, Hook#, Hookable# :
 
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
-class HookFunctionBase3 {
+class Function3 {
 public:
-    virtual ~HookFunctionBase3() throw () { }
+    virtual ~Function3() throw () { }
     virtual RetT operator()(Arg1T, Arg2T, Arg3T) const throw () = 0;
-    virtual HookFunctionBase3* clone() const throw () = 0;
+    virtual Function3* clone() const throw () = 0;
 };
 
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
-class HookFunctionHolder3 {
+class FunctionHolder3 {
 public:
-    typedef HookFunctionHolder3 ThisT;
-    typedef HookFunctionBase3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
+    typedef FunctionHolder3 ThisT;
+    typedef Function3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
 
-    HookFunctionHolder3(FunctionT* fn) throw () : hookFn(fn) { }
-    HookFunctionHolder3(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
-    ~HookFunctionHolder3() throw () { delete hookFn; }
-    void operator=(const ThisT& o) throw () { delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
+    FunctionHolder3(FunctionT* fn) throw () : hookFn(fn) { }
+    FunctionHolder3(const ThisT& o) throw () : hookFn(o.hookFn ? o.hookFn->clone() : 0) { }
+    ~FunctionHolder3() throw () { delete hookFn; }
+    void operator=(FunctionT* fn) throw () { delete hookFn; hookFn = fn; }
+    void operator=(const ThisT& o) throw () { if (&o == this) return; delete hookFn; hookFn = o.hookFn ? o.hookFn->clone() : 0; }
 
     RetT operator()(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { return (*hookFn)(a1, a2, a3); }
+
+    operator const void*() const throw () { return hookFn ? this : 0; }
+    bool operator!() const throw () { return !hookFn; }
 
 private:
     FunctionT* hookFn;
@@ -247,18 +254,15 @@ private:
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
 class Hook3 {
 public:
-    typedef HookFunctionBase3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
+    typedef Function3<RetT, Arg1T, Arg2T, Arg3T> FunctionT;
 
-    Hook3() throw () : hookFn(0) { }
-    ~Hook3() throw () { free(); }
-    void set(FunctionT* fn) throw () { free(); hookFn = fn; }    // the ownership is transferred
-    bool active() const throw () { return hookFn != 0; }
-    RetT call(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { if (hookFn) return (*hookFn)(a1, a2, a3); else return RetT(); }
+    Hook3() throw () : holder(0) { }
+    void set(FunctionT* fn) throw () { holder = fn; }    // the ownership is transferred
+    bool active() const throw () { return holder; }
+    RetT call(Arg1T a1, Arg2T a2, Arg3T a3) const throw () { return holder ? holder(a1, a2, a3) : RetT(); }
 
 private:
-    void free() throw () { if (hookFn) delete hookFn; }
-
-    FunctionT* hookFn;
+    FunctionHolder3<RetT, Arg1T, Arg2T, Arg3T> holder;
 };
 
 template<class RetT, class Arg1T, class Arg2T, class Arg3T>
@@ -277,142 +281,142 @@ private:
     Hook3<RetT, Arg1T, Arg2T, Arg3T> hook;
 };
 
-// 0-argument RedirectToMemFun
+// 0-argument MemFun, ConstMemFun, Fun
 
 template<class HostClass, class ReturnT>
-class RedirectToMemFun0 : public HookFunctionBase0<ReturnT> {
+class MemFun0 : public Function0<ReturnT> {
     HostClass* host;
     ReturnT (HostClass::*function)() throw ();
 
 public:
-    RedirectToMemFun0(HostClass* h, ReturnT (HostClass::*memFun)() throw ()) throw () : host(h), function(memFun) { }
+    MemFun0(HostClass* h, ReturnT (HostClass::*memFun)() throw ()) throw () : host(h), function(memFun) { }
     ReturnT operator()() const throw () { return (host->*function)(); }
-    RedirectToMemFun0* clone() const throw () { return new RedirectToMemFun0(host, function); }
+    MemFun0* clone() const throw () { return new MemFun0(host, function); }
 };
 
 template<class HostClass, class ReturnT>
-class RedirectToConstMemFun0 : public HookFunctionBase0<ReturnT> {
+class ConstMemFun0 : public Function0<ReturnT> {
     const HostClass* host;
     ReturnT (HostClass::*function)() const throw ();
 
 public:
-    RedirectToConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const throw ()) throw () : host(h), function(memFun) { }
+    ConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const throw ()) throw () : host(h), function(memFun) { }
     ReturnT operator()() const throw () { return (host->*function)(); }
-    RedirectToConstMemFun0* clone() const throw () { return new RedirectToConstMemFun0(host, function); }
+    ConstMemFun0* clone() const throw () { return new ConstMemFun0(host, function); }
 };
 
 template<class ReturnT>
-class RedirectToFun0 : public HookFunctionBase0<ReturnT> {
+class Fun0 : public Function0<ReturnT> {
     ReturnT (*function)() throw ();
 
 public:
-    RedirectToFun0(ReturnT (*fun)() throw ()) throw () : function(fun) { }
+    Fun0(ReturnT (*fun)() throw ()) throw () : function(fun) { }
     ReturnT operator()() const throw () { return (*function)(); }
-    RedirectToFun0* clone() const throw () { return new RedirectToFun0(function); }
+    Fun0* clone() const throw () { return new Fun0(function); }
 };
 
 template<class HostClass, class ReturnT>
-RedirectToMemFun0<HostClass, ReturnT>* newRedirectToMemFun0(HostClass* h, ReturnT (HostClass::*memFun)() throw ()) throw () { return new RedirectToMemFun0<HostClass, ReturnT>(h, memFun); }
+MemFun0<HostClass, ReturnT>* newMemFun0(HostClass* h, ReturnT (HostClass::*memFun)() throw ()) throw () { return new MemFun0<HostClass, ReturnT>(h, memFun); }
 
 template<class HostClass, class ReturnT>
-RedirectToConstMemFun0<HostClass, ReturnT>* newRedirectToConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const throw ()) throw () { return new RedirectToConstMemFun0<HostClass, ReturnT>(h, memFun); }
+ConstMemFun0<HostClass, ReturnT>* newConstMemFun0(const HostClass* h, ReturnT (HostClass::*memFun)() const throw ()) throw () { return new ConstMemFun0<HostClass, ReturnT>(h, memFun); }
 
 template<class ReturnT>
-RedirectToFun0<ReturnT>* newRedirectToFun0(ReturnT (*function)() throw ()) throw () { return new RedirectToFun0<ReturnT>(function); }
+Fun0<ReturnT>* newFun0(ReturnT (*function)() throw ()) throw () { return new Fun0<ReturnT>(function); }
 
-// 1-argument RedirectToMemFun
+// 1-argument MemFun, ConstMemFun, Fun
 
 template<class HostClass, class ReturnT, class Arg1T>
-class RedirectToMemFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
+class MemFun1 : public Function1<ReturnT, Arg1T> {
     HostClass* host;
     ReturnT (HostClass::*function)(Arg1T) throw ();
 
 public:
-    RedirectToMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () : host(h), function(memFun) { }
+    MemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () : host(h), function(memFun) { }
     ReturnT operator()(Arg1T arg) const throw () { return (host->*function)(arg); }
-    RedirectToMemFun1* clone() const throw () { return new RedirectToMemFun1(host, function); }
+    MemFun1* clone() const throw () { return new MemFun1(host, function); }
 };
 
 template<class HostClass, class ReturnT, class Arg1T>
-class RedirectToConstMemFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
+class ConstMemFun1 : public Function1<ReturnT, Arg1T> {
     const HostClass* host;
     ReturnT (HostClass::*function)(Arg1T) const throw ();
 
 public:
-    RedirectToConstMemFun1(const HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) const throw ()) throw () : host(h), function(memFun) { }
+    ConstMemFun1(const HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) const throw ()) throw () : host(h), function(memFun) { }
     ReturnT operator()(Arg1T arg) const throw () { return (host->*function)(arg); }
-    RedirectToConstMemFun1* clone() const throw () { return new RedirectToConstMemFun1(host, function); }
+    ConstMemFun1* clone() const throw () { return new ConstMemFun1(host, function); }
 };
 
 template<class ReturnT, class Arg1T>
-class RedirectToFun1 : public HookFunctionBase1<ReturnT, Arg1T> {
+class Fun1 : public Function1<ReturnT, Arg1T> {
     ReturnT (*function)(Arg1T) throw ();
 
 public:
-    RedirectToFun1(ReturnT (*fun)(Arg1T) throw ()) throw () : function(fun) { }
+    Fun1(ReturnT (*fun)(Arg1T) throw ()) throw () : function(fun) { }
     ReturnT operator()(Arg1T arg) const throw () { return (*function)(arg); }
-    RedirectToFun1* clone() const throw () { return new RedirectToFun1(function); }
+    Fun1* clone() const throw () { return new Fun1(function); }
 };
 
 template<class HostClass, class ReturnT, class Arg1T>
-RedirectToMemFun1<HostClass, ReturnT, Arg1T>* newRedirectToMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () { return new RedirectToMemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
+MemFun1<HostClass, ReturnT, Arg1T>* newMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () { return new MemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
 
 template<class HostClass, class ReturnT, class Arg1T>
-RedirectToConstMemFun1<HostClass, ReturnT, Arg1T>* newRedirectToConstMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () { return new RedirectToConstMemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
+ConstMemFun1<HostClass, ReturnT, Arg1T>* newConstMemFun1(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T) throw ()) throw () { return new ConstMemFun1<HostClass, ReturnT, Arg1T>(h, memFun); }
 
 template<class ReturnT, class Arg1T>
-RedirectToFun1<ReturnT, Arg1T>* newRedirectToFun1(ReturnT (*function)(Arg1T) throw ()) throw () { return new RedirectToFun1<ReturnT, Arg1T>(function); }
+Fun1<ReturnT, Arg1T>* newFun1(ReturnT (*function)(Arg1T) throw ()) throw () { return new Fun1<ReturnT, Arg1T>(function); }
 
-// 2-argument RedirectToMemFun
+// 2-argument MemFun, Fun
 
 template<class HostClass, class ReturnT, class Arg1T, class Arg2T>
-class RedirectToMemFun2 : public HookFunctionBase2<ReturnT, Arg1T, Arg2T> {
+class MemFun2 : public Function2<ReturnT, Arg1T, Arg2T> {
     HostClass* host;
     ReturnT (HostClass::*function)(Arg1T, Arg2T) throw ();
 
 public:
-    RedirectToMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T) throw ()) throw () : host(h), function(memFun) { }
+    MemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T) throw ()) throw () : host(h), function(memFun) { }
     ReturnT operator()(Arg1T arg1, Arg2T arg2) const throw () { return (host->*function)(arg1, arg2); }
 };
 
 template<class ReturnT, class Arg1T, class Arg2T>
-class RedirectToFun2 : public HookFunctionBase2<ReturnT, Arg1T, Arg2T> {
+class Fun2 : public Function2<ReturnT, Arg1T, Arg2T> {
     ReturnT (*function)(Arg1T, Arg2T) throw ();
 
 public:
-    RedirectToFun2(ReturnT (*fun)(Arg1T, Arg2T) throw ()) : function(fun) { }
+    Fun2(ReturnT (*fun)(Arg1T, Arg2T) throw ()) : function(fun) { }
     ReturnT operator()(Arg1T arg1, Arg2T arg2) const throw () { return (*function)(arg1, arg2); }
-    RedirectToFun2* clone() const throw () { return new RedirectToFun2(function); }
+    Fun2* clone() const throw () { return new Fun2(function); }
 };
 
 template<class HostClass, class ReturnT, class Arg1T, class Arg2T>
-HookFunctionBase2<ReturnT, Arg1T, Arg2T>* newRedirectToMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T) throw ()) throw () { return new RedirectToMemFun2<HostClass, ReturnT, Arg1T, Arg2T>(h, memFun); }
+Function2<ReturnT, Arg1T, Arg2T>* newMemFun2(HostClass* h, ReturnT (HostClass::*memFun)(Arg1T, Arg2T) throw ()) throw () { return new MemFun2<HostClass, ReturnT, Arg1T, Arg2T>(h, memFun); }
 
 template<class ReturnT, class Arg1T, class Arg2T>
-RedirectToFun2<ReturnT, Arg1T, Arg2T>* newRedirectToFun2(ReturnT (*function)(Arg1T, Arg2T) throw ()) throw () { return new RedirectToFun2<ReturnT, Arg1T, Arg2T>(function); }
+Fun2<ReturnT, Arg1T, Arg2T>* newFun2(ReturnT (*function)(Arg1T, Arg2T) throw ()) throw () { return new Fun2<ReturnT, Arg1T, Arg2T>(function); }
 
-// 0-argument HookFnStripConstRef0
+// 0-argument StripConstRef0
 
 template<class RetT>
-class HookFnStripConstRef0 : public HookFunctionBase0<RetT> {
-    HookFunctionBase0<const RetT&>& base;
+class StripConstRef0 : public Function0<RetT> {
+    Function0<const RetT&>& base;
 
 public:
-    HookFnStripConstRef0(HookFunctionBase0<const RetT&>& base_) throw () : base(base_) { }
+    StripConstRef0(Function0<const RetT&>& base_) throw () : base(base_) { }
     RetT operator()() const throw () { return base(); }
-    HookFnStripConstRef0* clone() const throw () { return new HookFnStripConstRef0(base); }
+    StripConstRef0* clone() const throw () { return new StripConstRef0(base); }
 };
 
 template<class RetT>
-HookFnStripConstRef0<RetT>* newHookFnStripConstRef0(HookFunctionBase0<const RetT&>& base_) throw () { return new HookFnStripConstRef0<RetT>(base_); }
+StripConstRef0<RetT>* newStripConstRef0(Function0<const RetT&>& base_) throw () { return new StripConstRef0<RetT>(base_); }
 
 // simple utility classes that utilize hook functions
 
 class AtScopeExit {
-    HookFunctionHolder0<void> action;
+    FunctionHolder0<void> action;
 
 public:
-    AtScopeExit(HookFunctionBase0<void>* action_) throw () : action(action_) { }
+    AtScopeExit(Function0<void>* action_) throw () : action(action_) { }
     ~AtScopeExit() throw () { action(); }
 };
 

@@ -30,9 +30,16 @@
 #include "clientbase.h"
 #include "client_interface.h"
 
+class LocalConnection;
+class ClientLocalConnection;
+
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : public ClientBase, public BotInterface {
+    LocalConnection* connection; // owned
+    ClientLocalConnection* connectionWrapper; // given to ClientBase to replace leetnet client
+    bool connectQueued;
+
     enum DestinationType {
         Dest_None,
         Dest_Flag,
@@ -68,10 +75,16 @@ class Robot : public ClientBase, public BotInterface {
     const Area*     destination;
     mutable const Area::Neighbor* immediateDestination; // one of the neighboring rooms
 
+    Coords      freeWalkTarget;
+
     bool        botPrevFire;
+    bool        enemiesInRoom;
     int         last_seen;
     int         myGundir;
-    WorldCoords myPos; // extrapolated
+    ClientPlayer futureMe; // extrapolated by averageLag
+    WorldCoords myPos; // shortcut to futureMe.pos
+
+    std::vector<bool> flagsIgnored[3];
 
     struct TeamCounts {
         int enemies, friends;
@@ -107,18 +120,18 @@ class Robot : public ClientBase, public BotInterface {
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
 
+    double      predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw ();
     const DeathbringerExplosion* explosionInRoom(const RoomCoords& room) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
     bool        imminentExplosionHere() const throw ();
     class AlreadyInRoom { }; // exception
     Coords      nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) const throw (AlreadyInRoom);
-    double      distanceFromDoor(const Area::Neighbor& n) const throw ();
+    double      distanceFromDoor(const Area::Neighbor& n, const Coords& pos) const throw ();
+    double      distanceFromDoor(const Area::Neighbor& n) const throw () { return distanceFromDoor(n, myPos.local()); }
     bool        dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const throw ();
     bool        moreDefensive(const ClientPlayer& player) const throw ();
 
     void        updateUnknownPosition(ClientPlayer& pl) throw ();
 
-    bool        IsDefender() throw (); // am i defender? (role)
-    bool        IsCarriersDef(int team) throw (); // are flags of team that we carry safe?
     bool        IsFlagsAtBases(int team) const throw (); // are flags of team at bases?
     bool        EnemyHasUnseenFlags(bool wild) const throw ();
     int         GetPlayers(int team) const throw (); // get num of players
@@ -138,9 +151,11 @@ class Robot : public ClientBase, public BotInterface {
     double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
     bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
-    double      ScanDir(GunDirection dir) const throw (); // return length to wall
+    double      ScanDir(GunDirection dir) const throw (); // return length to wall (or room border) in dir
+    std::pair<double, Coords> WallHitPosition(GunDirection dir, double radius) const throw (); // return length to wall (or room border) in dir, and the hit position
     std::pair<bool, GunDirection> NeedShootFreeTurning(const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
-    std::pair<bool, int> NeedShootTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
+    std::pair<bool, int> ShootAtDoorTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
+    std::pair<bool, int> NeedShootTradTurning() throw ();   // to shoot or not to shoot, and the direction if shooting
     GunDirection GetDir(const Vec& delta) const throw (); // 0 - 0, 2 - Pi/2, 3 - Pi...
     int         GetDangerousRocket() const throw (); // get danger rocket index
     int         GetDangerousEnemy() const throw (); // same for enemy
@@ -159,7 +174,7 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw ();
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape() const throw ();
-    ClientControls FreeWalk() const throw ();
+    ClientControls FreeWalk() throw ();
     ClientControls MoveToDestination() const throw ();
 
     void BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw (); // build distance table from single point
@@ -184,6 +199,8 @@ class Robot : public ClientBase, public BotInterface {
 
     ClientControls RobotMain() throw ();
 
+    bool flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw ();
+
     bool firstBotInTeam() const throw ();
 
     void net_text_message(Message_type type, int sender_team, const std::string& text) throw ();
@@ -195,11 +212,13 @@ class Robot : public ClientBase, public BotInterface {
 
     void bot_send_frame(ClientControls controls) throw ();
 
+    void pollConnection() throw ();
+
     std::string getPlayerPassword() const throw () { return std::string(); }
 
 public:
-    Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
-    ~Robot() throw () { }
+    Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw ();
+    ~Robot() throw ();
 
     void bot_start(const Network::Address& addr, int ping, const std::string& name, int botId) throw ();
     void stop() throw ();

@@ -41,6 +41,7 @@
 #include "debugconfig.h"    // for LOG_MESSAGE_TRAFFIC
 #include "function_utility.h"
 #include "language.h"
+#include "localconnection.h"
 #include "nassert.h"
 #include "platform.h"
 #include "protocol.h"
@@ -98,14 +99,18 @@ ServerNetworking::ServerNetworking(Server* hostp, const Settings& settings_, Ser
     playerSlotReservationTime(get_time()),
     reservedPlayerSlots(0)
 {
-    server = 0;
+    leetServer = 0;
+    for (int i = 0; i < MAX_CLIENTS; ++i)
+        clientConnection[i] = 0;
     frameSentTime = 0;  // no meaning
 }
 
 ServerNetworking::~ServerNetworking() throw () {
-    if (server) {
-        delete server;
-        server = 0;
+    delete leetServer;
+    leetServer = 0;
+    for (int i = 0; i < MAX_CLIENTS; ++i) {
+        nAssert(clientConnection[i] == 0);
+        delete clientConnection[i];
     }
 }
 
@@ -130,28 +135,28 @@ bool ServerNetworking::writeToAdminShell(ConstDataBlockRef data) const throw () 
     return false;
 }
 
-void ServerNetworking::upload_next_file_chunk(int i) throw () {
+void ServerNetworking::upload_next_file_chunk(int cid) throw () {
     const int max_chunksize = 128;      // the max chunk size in bytes
 
     //actual size sent
-    int chunksize = fileTransfer[i].data.size() - fileTransfer[i].dp;     //attempt to send remaining...
+    int chunksize = fileTransfer[cid].data.size() - fileTransfer[cid].dp;     //attempt to send remaining...
     if (chunksize > max_chunksize)                          //...but there is the maximum
         chunksize = max_chunksize;
 
-    const uint8_t islast = fileTransfer[i].dp + chunksize == fileTransfer[i].data.size();
+    const uint8_t islast = fileTransfer[cid].dp + chunksize == fileTransfer[cid].data.size();
 
     BinaryBuffer<256> msg;
     msg.U8(data_file_download);
     msg.U16(chunksize);
     msg.U8(islast);
-    msg.block(ConstDataBlockRef(fileTransfer[i].data.data() + fileTransfer[i].dp, chunksize));
-    server->send_message(i, msg);
+    msg.block(ConstDataBlockRef(fileTransfer[cid].data.data() + fileTransfer[cid].dp, chunksize));
+    send_message(cid, msg);
 
     //save old dp for the ack
-    fileTransfer[i].old_dp = fileTransfer[i].dp;
+    fileTransfer[cid].old_dp = fileTransfer[cid].dp;
 
     //inc dp
-    fileTransfer[i].dp += chunksize;
+    fileTransfer[cid].dp += chunksize;
 }
 
 string ServerNetworking::get_download_file(const string& ftype, const string& fname) throw () {
@@ -200,13 +205,13 @@ void ServerNetworking::record_message(ConstDataBlockRef data) const throw () {
 void ServerNetworking::broadcast_message(ConstDataBlockRef data) const throw () {
     for (int i = 0; i < maxplayers; ++i)
         if (world.player[i].used)
-            server->send_message(world.player[i].cid, data);
+            send_message(world.player[i].cid, data);
 }
 
 void ServerNetworking::send_simple_message(Network_data_code code, int pid) const throw () {
     BinaryBuffer<1> msg;
     msg.U8(code);
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcast_simple_message(Network_data_code code) const throw () {
@@ -225,7 +230,7 @@ void ServerNetworking::send_me_packet(int pid) const throw () {
     const bool e = world.player[pid].protocolExtensionsLevel >= 0;
     msg.U32dyn8orU8(world.teams[0].score(), e); // team 0 current score
     msg.U32dyn8orU8(world.teams[1].score(), e); // team 1 current score
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 // send a player name update to a client (cid = pid_all: to all clients; pid_record: record only)
@@ -253,7 +258,7 @@ void ServerNetworking::send_player_name_update(int cid, int pid) const throw () 
         }
     }
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 void ServerNetworking::broadcast_player_name(int pid) const throw () {
@@ -291,7 +296,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
         broadcast_message(msg);
     }
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 void ServerNetworking::broadcast_player_crap(int pid) throw () {
@@ -303,11 +308,11 @@ void ServerNetworking::send_acceleration_modes(int pid) const throw () {
     msg.U8(data_acceleration_modes);
     msg.U32(accelerationModeMask);
     if (pid != pid_all)
-        server->send_message(world.player[pid].cid, msg);
+        send_message(world.player[pid].cid, msg);
     else {
         for (int i = 0; i < maxplayers; ++i)
             if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, msg);
+                send_message(world.player[i].cid, msg);
         record_message(msg);
     }
 }
@@ -317,11 +322,11 @@ void ServerNetworking::send_flag_modes(int pid) const throw () {
     msg.U8(data_flag_modes);
     msg.U8(flagModeMask);
     if (pid != pid_all)
-        server->send_message(world.player[pid].cid, msg);
+        send_message(world.player[pid].cid, msg);
     else {
         for (int i = 0; i < maxplayers; ++i)
             if (world.player[i].used && world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, msg);
+                send_message(world.player[i].cid, msg);
         record_message(msg);
     }
 }
@@ -376,7 +381,7 @@ void ServerNetworking::broadcast_screen_power_collision(int p) const throw () {
 //send current flag status (cid == pid_all : broadcast)
 void ServerNetworking::ctf_net_flag_status(int cid, int team) const throw () {
     //just resetting server state -- no update needed
-    if (!server)
+    if (!leetServer)
         return;
 
     BinaryBuffer<256> msg;
@@ -412,7 +417,7 @@ void ServerNetworking::ctf_net_flag_status(int cid, int team) const throw () {
         record_message(msg);
     }
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 //update team scores
@@ -426,7 +431,7 @@ void ServerNetworking::ctf_update_teamscore(int t) const throw () {
     for (int i = 0; i < maxplayers; i++) {
         const ServerPlayer& player = world.player[i];
         if (player.used)
-            server->send_message(player.cid, player.protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+            send_message(player.cid, player.protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
     }
     record_message(ext_msg);
 }
@@ -479,7 +484,7 @@ void ServerNetworking::broadcast_normal_time_out(bool sudden_death) const throw 
 void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_team, int assistant_pid) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_capture);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     if (assistant_pid != -1)
         msg.S8(assistant_pid);
     broadcast_message(msg);
@@ -495,7 +500,7 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
 void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_take);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(msg);
     record_message(msg);
 }
@@ -503,7 +508,7 @@ void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_return);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -512,7 +517,7 @@ void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const t
 void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_flag_drop);
-    msg.U8(player.id | (flag_team == 2 ? 0x80 : 0x00));
+    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
     broadcast_message(msg);
     record_message(msg);
 }
@@ -522,7 +527,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     BinaryBuffer<64> msg;
     msg.U8(data_kill);
     // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
-    uint8_t attacker_info = attacker.id;
+    uint8_t attacker_info = attacker.pid;
     if (cause == DT_deathbringer)
         attacker_info |= 0x80;
     if (carrier_defended)
@@ -530,7 +535,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     if (flag_defended)
         attacker_info |= 0x20;
     // second byte: flag bit, wild flag bit, collision bit, and target id
-    uint8_t tar_flag = target.id;
+    uint8_t tar_flag = target.pid;
     if (flag)
         tar_flag |= 0x80;
     if (wild_flag)
@@ -558,7 +563,7 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
 void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_suicide);
-    uint8_t id_flag = player.id;
+    uint8_t id_flag = player.pid;
     if (flag)
         id_flag |= 0x80;
     if (wild_flag)
@@ -581,13 +586,13 @@ void ServerNetworking::send_waiting_time(const ServerPlayer& player) const throw
     BinaryBuffer<64> msg;
     msg.U8(data_waiting_time);
     msg.U32dyn8(player.frames_to_respawn);
-    server->send_message(player.cid, msg);
+    send_message(player.cid, msg);
 }
 
 void ServerNetworking::broadcast_new_player(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_new_player);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -607,7 +612,7 @@ void ServerNetworking::new_player_to_admin_shell(int pid) const throw () {
 void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_player_left);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -615,7 +620,7 @@ void ServerNetworking::broadcast_player_left(const ServerPlayer& player) const t
 void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_spawn);
-    msg.U8(player.id);
+    msg.U8(player.pid);
     broadcast_message(msg);
     record_message(msg);
 }
@@ -624,7 +629,7 @@ void ServerNetworking::broadcast_spawn(const ServerPlayer& player) const throw (
 void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player) const throw () {
     BinaryBuffer<64> ext_msg;
     ext_msg.U8(data_movements_shots);
-    ext_msg.U8(player.id);
+    ext_msg.U8(player.pid);
     const Statistics& stats = player.stats();
     ext_msg.U32(static_cast<unsigned>(stats.movement()));
     BinaryBuffer<64> old_msg = ext_msg;
@@ -636,7 +641,7 @@ void ServerNetworking::broadcast_movements_and_shots(const ServerPlayer& player)
     ext_msg.U32dyn16(stats.shots_taken());
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used)
-            server->send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+            send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
     record_message(ext_msg);
 }
 
@@ -658,7 +663,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player) const throw () {
 void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const throw () {
     BinaryBuffer<64> msg;
     msg.U8(data_stats);
-    msg.U8(player.id | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
+    msg.U8(player.pid | (player.stats().has_flag() ? 0x80 : 0x00) | (player.stats().has_wild_flag() ? 0x40 : 0x00) | (player.dead ? 0x20 : 0x00));
     const Statistics& stats = player.stats();
     const bool e = cid == pid_record || world.player[ctop[cid]].protocolExtensionsLevel >= 0;
     msg.U32dyn8orU8(stats.kills(), e);
@@ -679,7 +684,7 @@ void ServerNetworking::send_stats(const ServerPlayer& player, int cid) const thr
     if (cid == pid_record)
         record_message(msg);
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
@@ -696,7 +701,7 @@ void ServerNetworking::send_team_movements_and_shots(int cid) const throw () {
     if (cid == pid_record)
         record_message(msg);
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw () {
@@ -712,7 +717,7 @@ void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw (
         msg.U32dyn8orU8(team.flags_dropped(), e);
         msg.U32dyn8orU8(team.flags_returned(), e);
     }
-    server->send_message(player.cid, msg);
+    send_message(player.cid, msg);
 }
 
 void ServerNetworking::send_map_info(const ServerPlayer& player) const throw () {
@@ -726,14 +731,14 @@ void ServerNetworking::send_map_info(const ServerPlayer& player) const throw () 
     msg.U8(map.votes);
     if (map.random)
         msg.U8(map.random);
-    server->send_message(player.cid, msg);
+    send_message(player.cid, msg);
 }
 
 void ServerNetworking::send_map_vote(const ServerPlayer& player) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_map_vote);
     msg.S8(player.mapVote);
-    server->send_message(player.cid, msg);
+    send_message(player.cid, msg);
 }
 
 void ServerNetworking::broadcast_map_votes_update() throw () {
@@ -782,7 +787,7 @@ void ServerNetworking::send_map_time(int cid) const throw () {
         record_message(msg);
     }
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 void ServerNetworking::send_server_settings(const ServerPlayer& player) const throw () {
@@ -839,15 +844,15 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     if (cid == pid_record)
         record_message(msg);
     else
-        server->send_message(cid, msg);
+        send_message(cid, msg);
 }
 
 //enqueue a job to the master server to update a client's delta score
-void ServerNetworking::client_report_status(int id) throw () {
+void ServerNetworking::client_report_status(int cid) throw () {
     if (!host->rankingLoginSet())
         return;
 
-    ClientData& clid = host->getClientData(id);
+    ClientData& clid = host->getClientData(cid);
 
     if (!clid.token_have || !clid.token_valid)
         return;
@@ -856,21 +861,21 @@ void ServerNetworking::client_report_status(int id) throw () {
 
     //submit-- create job
     MasterQuery* job = new MasterQuery();
-    job->cid = id;
+    job->cid = cid;
     job->code = MasterQuery::JT_score;
     job->request = build_http_request(true, g_masterSettings.rankHost(), g_masterSettings.rankDataScript(),
                                       "serial=" + url_encode(host->getRankingID()) +
                                       "&password=" + url_encode(host->getRankingPassword()) +
                                       "&dscp=" + itoa(clid.delta_score) +
                                       "&dscn=" + itoa(clid.neg_delta_score) +
-                                      "&name=" + url_encode(world.player[ctop[id]].name) +
+                                      "&name=" + url_encode(world.player[ctop[cid]].name) +
                                       "&token=" + url_encode(clid.token));
 
     {
         Lock ml(mjob_mutex);
         mjob_count++;
     }
-    RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+    MemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
     Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
                                        rmf, job,
                                        settings.lowerPriority());
@@ -894,9 +899,9 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && i / TSIZE == team)  // only to teammates
             if (world.player[i].protocolExtensionsLevel >= 0)
-                server->send_message(world.player[i].cid, msg);
+                send_message(world.player[i].cid, msg);
             else
-                server->send_message(world.player[i].cid, oldProtocolMsg);
+                send_message(world.player[i].cid, oldProtocolMsg);
 
     record_message(msg);
 
@@ -914,7 +919,7 @@ void ServerNetworking::broadcast_team_message(int team, const string& text) cons
 void ServerNetworking::broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw () {
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && world.player[i].room() == RoomCoords(px, py))
-            server->send_message(world.player[i].cid, msg);
+            send_message(world.player[i].cid, msg);
 
     if (host->recording_active()) {
         BinaryWriter& writer = host->recordMessageWriter();
@@ -971,15 +976,15 @@ void ServerNetworking::player_message(int pid, Message_type type, const string& 
             for (int i = 0; i < maxplayers; ++i)
                 if (world.player[i].used)
                     if (world.player[i].protocolExtensionsLevel >= 0)
-                        server->send_message(world.player[i].cid, msg);
+                        send_message(world.player[i].cid, msg);
                     else
-                        server->send_message(world.player[i].cid, oldProtocolMsg); // don't send the possible team info
+                        send_message(world.player[i].cid, oldProtocolMsg); // don't send the possible team info
             record_message(msg);
         }
         else if (world.player[pid].protocolExtensionsLevel >= 0)
-            server->send_message(world.player[pid].cid, msg);
+            send_message(world.player[pid].cid, msg);
         else
-            server->send_message(world.player[pid].cid, oldProtocolMsg);
+            send_message(world.player[pid].cid, oldProtocolMsg);
     }
     else {
         vector<string> lines = split_to_lines(text, 79, 4); // this makes more sense than splitting to max_chat_message_length and letting it get split again on the client end
@@ -1020,11 +1025,11 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         else if (pid == pid_all) {
             for (int i = 0; i < maxplayers; i++)
                 if (world.player[i].used)
-                    server->send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+                    send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
             record_message(ext_msg);
         }
         else
-            server->send_message(world.player[pid].cid, world.player[pid].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+            send_message(world.player[pid].cid, world.player[pid].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
     }
 
     BinaryBuffer<256> msg;
@@ -1060,7 +1065,7 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         }
     }
     else
-        server->send_message(world.player[pid].cid, msg);
+        send_message(world.player[pid].cid, msg);
 
     //VERY IMPORTANT: flags the player as "awaiting map load" - client must confirm map to proceed
     if (pid == pid_all) {
@@ -1106,7 +1111,7 @@ void ServerNetworking::broadcast_mute_message(int pid, int mode, const string& a
 
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && (inform_target || i != pid))
-            server->send_message(world.player[i].cid, msg);
+            send_message(world.player[i].cid, msg);
 }
 
 void ServerNetworking::broadcast_kick_message(int pid, int minutes, const string& admin) const throw () {
@@ -1125,14 +1130,14 @@ void ServerNetworking::send_idlekick_warning(int pid, int seconds) const throw (
     BinaryBuffer<256> msg;
     msg.U8(data_idlekick_warning);
     msg.U8(seconds);
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::send_disconnecting_message(int pid, int seconds) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_disconnecting);
     msg.U8(seconds);
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcast_broken_map() const throw () {
@@ -1174,7 +1179,7 @@ void ServerNetworking::send_relay_data(ConstDataBlockRef data) throw () {
 bool ServerNetworking::start() throw () {
     file_threads_quit = false;
 
-    for (int i = 0; i < 256; ++i)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
         ctop[i] = -1;
     player_count = 0;
     bot_count = 0;
@@ -1182,26 +1187,26 @@ bool ServerNetworking::start() throw () {
     max_world_rank = 0;
 
     ping_send_client = 0;
-    for (int i = 0; i < MAX_PLAYERS; ++i)
+    for (int i = 0; i < MAX_CLIENTS; ++i)
         fileTransfer[i].reset();
 
     server_identification = itoa(abs(rand()));
 
-    // start server
-    server = new_server_c(settings.networkPriority(), settings.minLocalPort(), settings.maxLocalPort());
+    // start leetnet
+    leetServer = new_server_c(settings.networkPriority(), settings.minLocalPort(), settings.maxLocalPort());
 
-    server->setHelloCallback(sfunc_client_hello);
-    server->setConnectedCallback(sfunc_client_connected);
-    server->setDisconnectedCallback(sfunc_client_disconnected);
-    server->setDataCallback(sfunc_client_data);
-    server->setLagStatusCallback(sfunc_client_lag_status);
-    server->setPingResultCallback(sfunc_client_ping_result);
+    leetServer->setHelloCallback(sfunc_client_hello);
+    leetServer->setConnectedCallback(sfunc_leetnet_client_connected);
+    leetServer->setDisconnectedCallback(sfunc_client_disconnected);
+    leetServer->setDataCallback(sfunc_client_data);
+    leetServer->setLagStatusCallback(sfunc_client_lag_status);
+    leetServer->setPingResultCallback(sfunc_client_ping_result);
 
-    server->setCallbackCustomPointer(this);
+    leetServer->setCallbackCustomPointer(this);
 
-    server->set_client_timeout(5, 10);
+    leetServer->set_client_timeout(5, 10);
 
-    if (!server->start(settings.get_port())) {
+    if (!leetServer->start(settings.get_port())) {
         log.error(_("Can't start network server on port $1.", itoa(settings.get_port())));
         return false;
     }
@@ -1213,17 +1218,17 @@ bool ServerNetworking::start() throw () {
 
     //start TCP shell master thread in the port number 500 less than server UDP port
     shellmthread.start_assert("ServerNetworking::run_shellmaster_thread",
-                              RedirectToMemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
+                              MemFun1<ServerNetworking, void, int>(this, &ServerNetworking::run_shellmaster_thread), settings.get_srvmonit_port(),
                               settings.lowerPriority());
 
     //start TCP thread for talking with master server
     mthread.start_assert("ServerNetworking::run_mastertalker_thread",
-                         RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread),
+                         MemFun0<ServerNetworking, void>(this, &ServerNetworking::run_mastertalker_thread),
                          settings.lowerPriority());
 
     //start website thread
     webthread.start_assert("ServerNetworking::run_website_thread",
-                           RedirectToMemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread),
+                           MemFun0<ServerNetworking, void>(this, &ServerNetworking::run_website_thread),
                            settings.lowerPriority());
 
     relayThread.start(settings.lowerPriority());
@@ -1248,11 +1253,18 @@ void ServerNetworking::update_serverinfo() throw () {
     else
         info << "  ";
     info << setw(2) << get_human_count() << '/' << setw(2) << std::left << maxplayers << std::right << ' ' << setw(7) << getVersionString(true, 7, 8, true) << ' ' << settings.get_hostname();
-    server->set_server_info(info.str().c_str());
+    leetServer->set_server_info(info.str().c_str());
 }
 
-int ServerNetworking::client_connected(int id, int customStoredData) throw () {
+int ServerNetworking::client_connected(int cid, int customStoredData) throw () {
+    nAssert(cid >= 0 && cid < MAX_CLIENTS);
+
     addPlayerMutex.lock();
+
+    if (player_count >= maxplayers) {
+        host->remove_bot();
+        nAssert(player_count == maxplayers - 1);
+    }
 
     //2TEAM: check wich team to put player
     int t1 = 0;     //red team count
@@ -1308,7 +1320,6 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
         }
 
     nAssert(myself != -1);
-    const int cid = id;
     ctop[cid] = myself;
 
     // send players_present before "myself" is present, so new_player can be broadcast to "myself" too
@@ -1319,7 +1330,7 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     BinaryBuffer<8> msg;
     msg.U8(data_players_present);
     msg.U32(players_present);
-    server->send_message(cid, msg);
+    send_message(cid, msg);
 
     unsigned uniqueId;
     if (!freedUniqueIds.empty() && freedUniqueIds.front().second < get_time()) {
@@ -1341,7 +1352,7 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     if (world.player[myself].localIP)
         ++localPlayers;
     else {
-        Network::Address ip = get_client_address(id);
+        Network::Address ip = get_client_address(cid);
         ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi != distinctRemotePlayers.end(); ++pi)
@@ -1369,7 +1380,7 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     world.player[myself].respawn_to_base = true;    // New players always spawn in the base.
     // don't actually spawn until the client has loaded the map and is in the game
 
-    host->resetClient(id);
+    host->resetClient(cid);
     world.player[myself].stats().set_lifetime(0);
 
     //first update the ADMIN SHELL
@@ -1393,9 +1404,9 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     }
 
     // - world ctf flags information
-    ctf_net_flag_status(id, 0);
-    ctf_net_flag_status(id, 1);
-    ctf_net_flag_status(id, 2);
+    ctf_net_flag_status(cid, 0);
+    ctf_net_flag_status(cid, 1);
+    ctf_net_flag_status(cid, 2);
 
     // - all other players' names
     // - all other players' frags
@@ -1406,20 +1417,20 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
         if (i == myself)
             continue;
 
-        send_player_name_update(id, i);
+        send_player_name_update(cid, i);
 
         //frags update
         BinaryBuffer<256> msg;
         msg.U8(data_frags_update);
         msg.U8(i);       // what player id
         msg.U32(world.player[i].stats().frags());
-        server->send_message(id, msg);
+        send_message(cid, msg);
 
-        send_player_crap_update(id, i);
+        send_player_crap_update(cid, i);
     }
 
     send_server_settings(world.player[myself]);
-    send_map_time(id);
+    send_map_time(cid);
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
 
@@ -1437,12 +1448,12 @@ int ServerNetworking::client_connected(int id, int customStoredData) throw () {
     return myself;
 }
 
-void ServerNetworking::client_disconnected(int id) throw () {
-    if (ctop[id] == -1)
+void ServerNetworking::client_disconnected(int cid) throw () {
+    if (ctop[cid] == -1)
         return;
 
     //what player
-    const int pid = ctop[id];
+    const int pid = ctop[cid];
 
     const bool was_bot = world.player[pid].is_bot();
 
@@ -1455,12 +1466,12 @@ void ServerNetworking::client_disconnected(int id) throw () {
     }
 
     //report the latest player achievements to the master server
-    client_report_status(id);
+    client_report_status(cid);
 
     if (world.player[pid].localIP)
         --localPlayers;
     else {
-        Network::Address ip = get_client_address(id);
+        Network::Address ip = get_client_address(cid);
         ip.setPort(0);
         vector< pair<Network::Address, int> >::iterator pi;
         for (pi = distinctRemotePlayers.begin(); pi->first != ip; ++pi)
@@ -1472,11 +1483,15 @@ void ServerNetworking::client_disconnected(int id) throw () {
 
     freedUniqueIds.push(make_pair(world.player[pid].uniqueId, get_time() + 5 * 60.));
 
-    fileTransfer[id].reset();
+    fileTransfer[cid].reset();
     host->game_remove_player(pid, true);
     --player_count;
     if (was_bot)
         --bot_count;
+
+    nAssert(clientConnection[cid]);
+    delete clientConnection[cid];
+    clientConnection[cid] = 0;
 
     broadcast_player_left(world.player[pid]);
 
@@ -1637,7 +1652,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
                 mjob_count++;
             }
 
-            RedirectToMemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
+            MemFun1<ServerNetworking, void, MasterQuery*> rmf(this, &ServerNetworking::run_masterjob_thread);
             Thread::startDetachedThread_assert("ServerNetworking::run_masterjob_thread",
                                                rmf, job,
                                                settings.lowerPriority());
@@ -1715,11 +1730,11 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
 }
 
 //process incoming client data (callback function)
-void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) throw () {
-    if (ctop[id] == -1)
+void ServerNetworking::incoming_client_data(int cid, ConstDataBlockRef data) throw () {
+    if (ctop[cid] == -1)
         return;
 
-    int pid = ctop[id];
+    int pid = ctop[cid];
 
     //1. process client's frame data
 
@@ -1781,15 +1796,17 @@ void ServerNetworking::incoming_client_data(int id, ConstDataBlockRef data) thro
 
     //2. process messages
     for (;;) {
-        ConstDataBlockRef msg = server->receive_message(id);
+        ConstDataBlockRef msg = clientConnection[cid]->receive_message();
         if (msg.data() == 0)
             break;
-        if (!processMessage(pid, msg)) {
+        const bool ok = processMessage(pid, msg);
+        clientConnection[cid]->received_message_read();
+        if (!ok) {
             log("Kicked player %d for client misbehavior.", pid);
             host->disconnectPlayer(pid, disconnect_client_misbehavior);
             break;
         }
-        pid = ctop[id]; // the message might have affected the pid
+        pid = ctop[cid]; // the message might have affected the pid
     }
     if (!world.player[pid].attackOnce) // if the player started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
         world.player[pid].attackGunDir = world.player[pid].gundir;
@@ -1800,7 +1817,7 @@ void ServerNetworking::removePlayer(int pid) throw () {  // call only when movin
 }
 
 void ServerNetworking::disconnect_client(int cid, int timeout, Disconnect_reason reason) throw () {
-    server->disconnect_client(cid, timeout, reason);
+    clientConnection[cid]->disconnect(timeout, reason);
 }
 
 void ServerNetworking::sendWorldReset() const throw () {
@@ -2153,7 +2170,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
         }
 
         //send the packet
-        server->send_frame(recipient.cid, frame);
+        clientConnection[recipient.cid]->send_frame(frame);
 
         //send server map list if not sent yet
         if (recipient.current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
@@ -2181,14 +2198,14 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     if (ping_send_client >= maxplayers)
         ping_send_client = 0;
     if (world.player[ping_send_client].used)
-        server->ping_client(world.player[ping_send_client].cid);
+        clientConnection[world.player[ping_send_client].cid]->ping();
 
     g_timeCounter.refresh(); // we prefer an exact time here
     frameSentTime = get_time();
 }
 
 double ServerNetworking::getTraffic() const throw () {
-    return server->get_socket_stat(Network::Socket::Stat_AvgBytesReceived) + server->get_socket_stat(Network::Socket::Stat_AvgBytesSent);
+    return leetServer->get_socket_stat(Network::Socket::Stat_AvgBytesReceived) + leetServer->get_socket_stat(Network::Socket::Stat_AvgBytesSent);
 }
 
 void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
@@ -2245,7 +2262,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 BinaryBuffer<128> msg;
                 msg.U8(data_registration_response);
                 msg.U8(1); // registration ok
-                server->send_message(job->cid, msg);
+                send_message(job->cid, msg);
                 clid.token_valid = true;
             }
             else if (job->code == MasterQuery::JT_score)
@@ -2296,7 +2313,7 @@ void ServerNetworking::run_masterjob_thread(MasterQuery* job) throw () {
                 BinaryBuffer<128> msg;
                 msg.U8(data_registration_response);
                 msg.U8(0); // registration failed
-                server->send_message(job->cid, msg);
+                send_message(job->cid, msg);
                 host->getClientData(job->cid).token_have = false;
                 broadcast_player_crap(pid);
             }
@@ -2655,7 +2672,7 @@ void ServerNetworking::handleNewAdminShell(Thread& slaveThread, volatile bool& s
         slaveThread.join();
     slaveRunning = true;    // slave will set it false when exiting
     slaveThread.start("ServerNetworking::run_shellslave_thread",
-                      RedirectToMemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
+                      MemFun1<ServerNetworking, void, volatile bool*>(this, &ServerNetworking::run_shellslave_thread), &slaveRunning,
                       settings.lowerPriority());
 }
 
@@ -2887,7 +2904,7 @@ ServerNetworking::RelayThread::RelayThread(LogSet logs, volatile bool& quitFlag_
 
 void ServerNetworking::RelayThread::start(int priority) throw () {
     thread.start_assert("ServerNetworking::RelayThread::threadMain",
-                        RedirectToMemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain),
+                        MemFun0<ServerNetworking::RelayThread, void>(this, &ServerNetworking::RelayThread::threadMain),
                         priority);
 }
 
@@ -2951,13 +2968,12 @@ void ServerNetworking::stop() throw () {
 
     settings.statusOutput()(_("Shutdown: net server"));
 
-    if (server)
-        server->stop(3);
+    if (leetServer)
+        leetServer->stop(3);
     else
         nAssert(0);
 
-    //reset client_c struct (closes files...)
-    for (int i = 0; i < MAX_PLAYERS; i++)
+    for (int i = 0; i < MAX_CLIENTS; i++)
         fileTransfer[i].reset();
 
     file_threads_quit = true;   // flag so threads will quit themselves
@@ -2995,7 +3011,7 @@ void ServerNetworking::sendWeaponPower(int pid) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_weapon_change);
     msg.U8(world.player[pid].weapon);
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, uint8_t* sid, int pid, bool power,
@@ -3025,7 +3041,7 @@ void ServerNetworking::sendRocketMessage(int shots, GunDirection gundir, uint8_t
 
         for (int i = 0; i < maxplayers; i++)
             if ((vislist & (1 << i)) && ((iProto == 0) == (world.player[i].protocolExtensionsLevel == -1)))
-                server->send_message(world.player[i].cid, msg);
+                send_message(world.player[i].cid, msg);
 
         if (iProto == 1)
             record_message(msg);
@@ -3052,7 +3068,7 @@ void ServerNetworking::sendOldRocketVisible(int pid, int rid, const Rocket& rock
     msg.S16(static_cast<int>(rocket.pos.x));
     msg.S16(static_cast<int>(rocket.pos.y));
 
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::sendRocketDeletion(uint32_t plymask, int rid, int16_t hitx, int16_t hity, int targ) const throw () {
@@ -3068,7 +3084,7 @@ void ServerNetworking::sendRocketDeletion(uint32_t plymask, int rid, int16_t hit
     //send message to players that received the rocket
     for (int i = 0; i < maxplayers; i++)
         if (world.player[i].used && (plymask & (1 << i)))
-            server->send_message(world.player[i].cid, msg);
+            send_message(world.player[i].cid, msg);
 
     record_message(msg);
 }
@@ -3093,7 +3109,7 @@ void ServerNetworking::sendPowerupVisible(int pid, int pup_id, const Powerup& it
     if (pid == pid_record)
         record_message(msg);
     else
-        server->send_message(world.player[pid].cid, msg);
+        send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::broadcastPowerupPicked(int roomx, int roomy, int pup_id) const throw () {
@@ -3108,7 +3124,7 @@ void ServerNetworking::sendPupTime(int pid, uint8_t pupType, double timeLeft) co
     msg.U8(data_pup_timer);
     msg.U8(pupType);
     msg.U16(static_cast<unsigned>(timeLeft));
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 void ServerNetworking::sendFragUpdate(int pid, uint32_t frags) const throw () {
@@ -3123,16 +3139,15 @@ void ServerNetworking::sendFragUpdate(int pid, uint32_t frags) const throw () {
 void ServerNetworking::sendNameAuthorizationRequest(int pid) const throw () {
     BinaryBuffer<256> msg;
     msg.U8(data_name_authorization_request);
-    server->send_message(world.player[pid].cid, msg);
+    send_message(world.player[pid].cid, msg);
 }
 
 Network::Address ServerNetworking::get_client_address(int cid) const throw () {
-    return server->get_client_address(cid);
+    return clientConnection[cid]->get_client_address();
 }
 
-void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw () {
     BinaryDataBlockReader msg(data);
-    BinaryWriter reply(res->customData, sizeof(res->customData));
 
     // free reservedPlayerSlots that have been left unused, they might be needed now
     if (playerSlotReservationTime < get_time() - 60.) // in 60 seconds Leetnet should drop the client
@@ -3141,138 +3156,159 @@ void ServerNetworking::clientHello(int client_id, ConstDataBlockRef data, Server
     const string gameStr = msg.str();
     if (gameStr != GAME_STRING) {
         log("Rejected a client because game strings don't match: Server '%s' and player '%s'.", GAME_STRING.c_str(), gameStr.c_str());
-        res->accepted = false;      // not accepted
         reply.str("This game is " + GAME_STRING);
+        return false;
     }
-    else {
-        string protoStr = msg.str();
-        const time_t tt = time(0);
-        const tm* tmb = gmtime(&tt);
-        const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
-        const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
-        if (protoStr != GAME_PROTOCOL) {
-            log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), protoStr.c_str());
-            res->accepted = false;
+    string protoStr = msg.str();
+    const time_t tt = time(0);
+    const tm* tmb = gmtime(&tt);
+    const int seconds = tmb->tm_hour * 3600 + tmb->tm_min * 60 + tmb->tm_sec;
+    const int join_start = settings.get_join_start(), join_end = settings.get_join_end();
+    if (protoStr != GAME_PROTOCOL) {
+        log("Rejected a client because protocol strings don't match: Server '%s' and player '%s'.", GAME_PROTOCOL.c_str(), protoStr.c_str());
 
-            if (protoStr.length() > 50)
-                protoStr = "<unknown>";
-            reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
-        }
-        else if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
-                                            join_start > join_end && (seconds < join_start && seconds > join_end))) {
-            log("Rejected a client because the server is not open at this time.");
-            res->accepted = false;
+        if (protoStr.length() > 50)
+            protoStr = "<unknown>";
+        reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
+        return false;
+    }
+    if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+                                   join_start > join_end && (seconds < join_start && seconds > join_end))) {
+        log("Rejected a client because the server is not open at this time.");
 
-            ostringstream temp;
-            temp << "This server is open from ";
-            temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
-            temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
-            const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
-            temp << "Come again in ";
-            if (wait >= 3600)
-                temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
-            else if (wait >= 120)
-                temp << wait / 60 << " minutes.";
-            else
-                temp << "a minute.";
-            if (!settings.get_join_limit_message().empty())
-                temp << ' ' << settings.get_join_limit_message();
-            reply.str(temp.str());
-        }
-        else if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
-            log("Rejected a client because the server is full.");
-            res->accepted = false;
-            reply.U8(reject_server_full);
-        }
-        else if (host->isBanned(client_id)) {
-            log("Rejected a client because their IP is banned (%s).", get_client_address(client_id).toString().c_str());
-            res->accepted = false;
-            reply.U8(reject_banned);
-        }
+        ostringstream temp;
+        temp << "This server is open from ";
+        temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
+        temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
+        const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
+        temp << "Come again in ";
+        if (wait >= 3600)
+            temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
+        else if (wait >= 120)
+            temp << wait / 60 << " minutes.";
+        else
+            temp << "a minute.";
+        if (!settings.get_join_limit_message().empty())
+            temp << ' ' << settings.get_join_limit_message();
+        reply.str(temp.str());
+        return false;
+    }
+    if (player_count + reservedPlayerSlots - bot_count >= maxplayers) {
+        log("Rejected a client because the server is full.");
+        reply.U8(reject_server_full);
+        return false;
+    }
+    if (host->isBanned(address)) {
+        log("Rejected a client because their IP is banned (%s).", address.toString().c_str());
+        reply.U8(reject_banned);
+        return false;
+    }
+    const string name = msg.str();
+    const string password = msg.str();
+    if (!check_name(name))
+        return false; // no need to explain, the client must not allow this
+    if (password != settings.get_server_password()) {
+        if (password.empty())
+            reply.U8(reject_server_password_needed);
         else {
-            const string name = msg.str();
-            const string password = msg.str();
-            if (!check_name(name)) {
-                res->accepted = false;
-                // no need to explain, the client must not allow this
-            }
-            else if (password == settings.get_server_password()) {
-                const string player_password = msg.str();
-                if (host->check_name_password(name, player_password)) {
-                    if (player_count + reservedPlayerSlots >= maxplayers)
-                        host->remove_bot();
-                    ++reservedPlayerSlots;
-                    playerSlotReservationTime = get_time();
-                    res->accepted = true;
-                    reply.U8(maxplayers);
-                    reply.str(settings.get_hostname());
-                    if (msg.hasMore()) {
-                        res->customStoredData = msg.U8(); // store client protocol extensions level
-                        reply.U8(PROTOCOL_EXTENSIONS_VERSION);
-                    }
-                    else
-                        res->customStoredData = -1;
-                    while (msg.hasMore()) {
-                        const uint32_t extensionId = msg.U32();
-                        if (extensionId == 0)
-                            break;
-                        BinaryDataBlockReader extData(msg.block(msg.U8()));
-                        switch (extensionId) {
-                            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
-                             * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
-                             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
-                             *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
-                             *    reply.U32(EXAMPLE_IDENTIFIER);
-                             *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this
-                             *    reply.U8(EXAMPLE_VERSION); // or whatever else you want to send
-                             */
-                        };
-                    }
-                    if (msg.hasMore() && res->customStoredData <= PROTOCOL_EXTENSIONS_VERSION) { // check that unofficial extensions behave: if client has a known protocol extensions level, it doesn't send anything after the unofficials
-                        res->accepted = false;
-                        reply.clear();
-                    }
-                }
-                else {
-                    res->accepted = false;
-                    if (player_password.empty())
-                        reply.U8(reject_player_password_needed);
-                    else {
-                        log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                                     name.c_str(), player_password.c_str(), get_client_address(client_id).toString().c_str());
-                        reply.U8(reject_wrong_player_password);
-                    }
-                }
-            }
-            else {
-                res->accepted = false;
-                if (password.empty())
-                    reply.U8(reject_server_password_needed);
-                else {
-                    log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
-                                 password.c_str(), get_client_address(client_id).toString().c_str(), name.c_str());
-                    reply.U8(reject_wrong_server_password);
-                }
-            }
+            log.security("Wrong server password. Password \"%s\" tried from %s, using name \"%s\".",
+                         password.c_str(), address.toString().c_str(), name.c_str());
+            reply.U8(reject_wrong_server_password);
         }
+        return false;
     }
-    res->customDataLength = reply.size();
+    const string player_password = msg.str();
+    if (!host->check_name_password(name, player_password)) {
+        if (player_password.empty())
+            reply.U8(reject_player_password_needed);
+        else {
+            log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
+                         name.c_str(), player_password.c_str(), address.toString().c_str());
+            reply.U8(reject_wrong_player_password);
+        }
+        return false;
+    }
+    ++reservedPlayerSlots;
+    playerSlotReservationTime = get_time();
+    reply.U8(maxplayers);
+    reply.str(settings.get_hostname());
+    if (msg.hasMore()) {
+        customStoredData = msg.U8(); // store client protocol extensions level
+        reply.U8(PROTOCOL_EXTENSIONS_VERSION);
+    }
+    else
+        customStoredData = -1;
+    while (msg.hasMore()) {
+        const uint32_t extensionId = msg.U32();
+        if (extensionId == 0)
+            break;
+        BinaryDataBlockReader extData(msg.block(msg.U8()));
+        switch (extensionId) {
+            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+             * break; case EXAMPLE_IDENTIFIER: // define this somewhere to a random (to avoid clashes with other extensions) 32-bit constant you've picked
+             *    res->storedExampleLevel = extData.U8(); // or whatever else you sent in clientbase.cpp; also remember to flag the extension disabled before this "while (msg.hasMore())"
+             *    // elsewhere, copy the mechanism that handles customStoredData for storedExampleLevel
+             *    reply.U32(EXAMPLE_IDENTIFIER);
+             *    reply.U8(1); // the number of bytes of what is added to the reply by this extension after this
+             *    reply.U8(EXAMPLE_VERSION); // or whatever else you want to send
+             */
+        };
+    }
+    if (msg.hasMore() && customStoredData <= PROTOCOL_EXTENSIONS_VERSION) { // check that unofficial extensions behave: if client has a known protocol extensions level, it doesn't send anything after the unofficials
+        reply.clear();
+        return false;
+    }
+    return true;
 }
 
-void ServerNetworking::sfunc_client_hello(void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw () {
-    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+    ServerNetworking* const sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->clientHello(client_id, data, res);
+
+    BinaryWriter reply(res->customData, sizeof(res->customData));
+    res->accepted = sn->clientHello(address, data, reply, res->customStoredData);
+    res->customDataLength = reply.size();
+
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }
 
-void ServerNetworking::sfunc_client_connected(void* customp, int client_id, int customStoredData) throw () {
+ControlledPtr<LocalConnection> ServerNetworking::newLocalConnection() throw () {
+    const int cid = leetServer->reserveClientId();
+    if (cid < 0)
+        return ControlledPtr<LocalConnection>(0);
+    LocalConnection* const conn = new LocalConnection(*this, cid);
+    nAssert(!clientConnection[cid]);
+    clientConnection[cid] = new LocalClient(*this, *conn);
+    return give_control(conn);
+}
+
+void ServerNetworking::leetnet_client_connected(int client_id, int customStoredData) throw () {
+    nAssert(!clientConnection[client_id]);
+    clientConnection[client_id] = new LeetnetClient(leetServer, client_id);
+    client_connected(client_id, customStoredData);
+}
+
+void ServerNetworking::sfunc_leetnet_client_connected(void* customp, int client_id, int customStoredData) throw () {
     ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
-    sn->client_connected(client_id, customStoredData);
+    sn->leetnet_client_connected(client_id, customStoredData);
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
+}
+
+void ServerNetworking::local_client_connected(int client_id, int customStoredData) throw () {
+    nAssert(clientConnection[client_id]); // set up at newLocalConnection
+    client_connected(client_id, customStoredData);
+}
+
+void ServerNetworking::sfunc_local_client_connected(void* customp, int client_id, int customStoredData) throw () {
+    ServerNetworking* sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    sn->local_client_connected(client_id, customStoredData);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
 }
@@ -3308,4 +3344,38 @@ void ServerNetworking::sfunc_client_ping_result(void* customp, int client_id, in
     sn->ping_result(client_id, pingtime);
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
+}
+
+ServerNetworking::LocalClient::~LocalClient() throw () {
+    conn.sc.disconnect();
+}
+
+void ServerNetworking::LocalClient::disconnect(int timeout, Disconnect_reason reason) throw () {
+    (void)(timeout && reason);
+    conn.sc.disconnect();
+    conn.cs.disconnect(true);
+}
+
+Network::Address ServerNetworking::LocalClient::get_client_address() const throw () {
+    return Network::Address("127.0.0.1");
+}
+
+void ServerNetworking::LocalClient::ping() throw () {
+    conn.cs.reportPing(conn.sc.getPing());
+}
+
+void ServerNetworking::LocalClient::send_frame(ConstDataBlockRef data) throw () {
+    conn.sc.sendFrame(data);
+}
+
+void ServerNetworking::LocalClient::send_message(ConstDataBlockRef data) throw () {
+    conn.sc.sendMessage(data);
+}
+
+ConstDataBlockRef ServerNetworking::LocalClient::receive_message() throw () {
+    return conn.cs.openMessage();
+}
+
+void ServerNetworking::LocalClient::received_message_read() throw () {
+    conn.cs.closeMessage();
 }

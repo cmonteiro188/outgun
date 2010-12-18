@@ -29,6 +29,7 @@
 #include "../incalleg.h"
 #include "../admshell.h"
 #include "../binaryaccess.h"
+#include "../commont.h"
 #include "../function_utility.h"
 #include "../nassert.h"
 #include "../network.h"
@@ -317,7 +318,7 @@ void dualprintf(const char* fmt, ...) throw () {
     }
 }
 
-string plyNames[32];
+string plyNames[MAX_CLIENTS];
 const char* plyName(int idx) throw () {
     static char buf[50];
     platSnprintf(buf, 50, "%s (%d)", encode(plyNames[idx]).c_str(), idx);
@@ -406,7 +407,7 @@ bool runMonitor(int port, bool messageBoxes) throw () {
 int main(int argc, const char* argv[]) {
     check_utf8_mode();
     initKeyboard();
-    AtScopeExit autoResetKeyboard(newRedirectToFun0(resetKeyboard));
+    AtScopeExit autoResetKeyboard(newFun0(resetKeyboard));
     int port = 24500;
     bool messageBoxes = true;
     if (argc > 1) {
@@ -429,7 +430,7 @@ int main(int argc, const char* argv[]) {
         printf("%s\n", e.str().c_str());
         return 1;
     }
-    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+    AtScopeExit autoShutdownNetwork(newFun0(Network::shutdown));
 
     outfile = fopen("srvmonit.log", "at");
     if (!outfile) {

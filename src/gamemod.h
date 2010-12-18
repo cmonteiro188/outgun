@@ -86,15 +86,15 @@ private:
 template<class ValT>
 class GS_ForwardIntT : public GS_IntT<ValT> {
 public:
-    GS_ForwardIntT(const std::string& name, HookFunctionBase1<void, int>& setFn_, HookFunctionBase0<int>& getFn_, ValT min_ = std::numeric_limits<ValT>::min(),
+    GS_ForwardIntT(const std::string& name, Function1<void, int>& setFn_, Function0<int>& getFn_, ValT min_ = std::numeric_limits<ValT>::min(),
                    ValT max_ = std::numeric_limits<ValT>::max(), int mul_ = 1, int add_ = 0, bool allow0 = false) throw ()
             : GS_IntT<ValT>(name, &internalVal, min_, max_, mul_, add_, allow0), setFn(setFn_), getFn(getFn_) { }
     bool set(LogSet& log, const std::string& value) throw ();
     std::string get() throw ();
 
 private:
-    HookFunctionBase1<void, int>& setFn;
-    HookFunctionBase0<int>& getFn;
+    Function1<void, int>& setFn;
+    Function0<int>& getFn;
     ValT internalVal;
 };
 
@@ -158,7 +158,7 @@ private:
 
 class GS_ForwardStr : public GamemodSetting {
 public:
-    GS_ForwardStr(const std::string& name, HookFunctionBase1<void, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_) throw ()
+    GS_ForwardStr(const std::string& name, Function1<void, const std::string&>& setFn_, Function0<std::string>& getFn_) throw ()
             : GamemodSetting(name), setFn(setFn_), getFn(getFn_) { }
     bool set(LogSet&, const std::string& value) throw () {
         setFn(value);
@@ -167,14 +167,14 @@ public:
     std::string get() throw () { return getFn(); }
 
 private:
-    HookFunctionBase1<void, const std::string&>& setFn;
-    HookFunctionBase0<std::string>& getFn;
+    Function1<void, const std::string&>& setFn;
+    Function0<std::string>& getFn;
 };
 
 class GS_CheckForwardStr : public GamemodSetting {
 public:
-    GS_CheckForwardStr(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, const std::string&>& check_,
-                       HookFunctionBase1<bool, const std::string&>& setFn_, HookFunctionBase0<std::string>& getFn_) throw ()
+    GS_CheckForwardStr(const std::string& name, const std::string& expect_, Function1<bool, const std::string&>& check_,
+                       Function1<bool, const std::string&>& setFn_, Function0<std::string>& getFn_) throw ()
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
     ~GS_CheckForwardStr() throw () { }
     bool set(LogSet& log, const std::string& value) throw () {
@@ -186,15 +186,15 @@ public:
 
 private:
     const std::string expect;
-    HookFunctionBase1<bool, const std::string&>& checkValue;
-    HookFunctionBase1<bool, const std::string&>& setFn;
-    HookFunctionBase0<std::string>& getFn;
+    Function1<bool, const std::string&>& checkValue;
+    Function1<bool, const std::string&>& setFn;
+    Function0<std::string>& getFn;
 };
 
 class GS_CheckForwardInt : public GamemodSetting {
 public:
-    GS_CheckForwardInt(const std::string& name, const std::string& expect_, HookFunctionBase1<bool, int>& check_,
-                       HookFunctionBase1<bool, int>& setFn_, HookFunctionBase0<int>& getFn_) throw ()
+    GS_CheckForwardInt(const std::string& name, const std::string& expect_, Function1<bool, int>& check_,
+                       Function1<bool, int>& setFn_, Function0<int>& getFn_) throw ()
             : GamemodSetting(name), expect(expect_), checkValue(check_), setFn(setFn_), getFn(getFn_) { }
     ~GS_CheckForwardInt() throw () { }
     bool set(LogSet& log, const std::string& value) throw ();
@@ -202,9 +202,9 @@ public:
 
 private:
     const std::string expect;
-    HookFunctionBase1<bool, int>& checkValue;
-    HookFunctionBase1<bool, int>& setFn;
-    HookFunctionBase0<int>& getFn;
+    Function1<bool, int>& checkValue;
+    Function1<bool, int>& setFn;
+    Function0<int>& getFn;
 };
 
 // specific settings that require special handling

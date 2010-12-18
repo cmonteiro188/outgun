@@ -102,7 +102,7 @@ class Server : private NoCopying {
     double          team_smul[2];
     uint32_t         next_vote_announce_frame;
     int             last_vote_announce_votes, last_vote_announce_needed;
-    ClientData      client[MAX_PLAYERS];
+    ClientData      client[MAX_CLIENTS];
     std::vector<bool> fav_colors[2];
 
     Thread          botthread;
@@ -124,7 +124,7 @@ class Server : private NoCopying {
     // world
     ServerWorld     world;
     bool            gameover;
-    double          gameover_time;      //timeout for gameover plaque
+    double          gameoverEndTime, gameoverExtendedEndTime;
     int             maxplayers;
 
     // networking
@@ -148,7 +148,7 @@ class Server : private NoCopying {
 
         PowerupSettings pupConfig;
         WorldSettings   worldConfig;
-        int             game_end_delay;
+        int             game_end_delay, game_end_delay_extension;
         int             vote_block_time;    // how long a mapchange can't be voted (except unanimously), in frames (in gamemod, it is minutes)
         bool            require_specific_map_vote;
         std::vector<std::string> welcome_message;   // welcome message line by line
@@ -269,6 +269,7 @@ class Server : private NoCopying {
         int minimapSendLimit() const throw () { return minimap_send_limit; }
 
         int  get_game_end_delay() const throw () { return game_end_delay; }
+        int  get_game_end_delay_extension() const throw () { return game_end_delay_extension; }
         int  get_vote_block_time() const throw () { return vote_block_time; }
         bool get_require_specific_map_vote() const throw () { return require_specific_map_vote; }
 
@@ -367,7 +368,7 @@ public:
     void mutePlayer(int pid, int mode, int admin) throw ();
     void kickPlayer(int pid, int admin) throw ();
     void banPlayer(int pid, int admin, int minutes) throw ();
-    bool isBanned(int cid) const throw () { return authorizations.isBanned(network.get_client_address(cid)); }
+    bool isBanned(const Network::Address& address) const throw () { return authorizations.isBanned(address); }
     bool check_name_password(const std::string& name, const std::string& password) const throw ();
     void disconnectPlayer(int pid, Disconnect_reason reason) throw ();
     void sendMessage(int pid, Message_type type, const std::string& msg) throw ();
@@ -388,12 +389,12 @@ public:
     void check_fav_colors(int pid) throw ();
     void set_fav_colors(int pid, const std::vector<char>& colors) throw ();
 
-    void nameChange(int id, int pid, std::string name, const std::string& password) throw ();
+    void nameChange(int cid, int pid, std::string name, const std::string& password) throw ();
     void chat(int pid, const std::string& sbuf) throw ();   //#fix: separate console handling
 
     const ClientData& getClientData(int cid) const throw () { return client[cid]; }
           ClientData& getClientData(int cid) throw ()       { return client[cid]; }
-    bool changeRegistration(int id, const std::string& token) throw ();  // returns true if the token is different from before and non-empty
+    bool changeRegistration(int cid, const std::string& token) throw ();  // returns true if the token is different from before and non-empty
     void resetClient(int cid) throw () { client[cid].reset(); }
     void refresh_team_score_modifiers() throw ();
     void check_map_exit() throw ();

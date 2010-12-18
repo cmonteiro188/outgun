@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2010 - Niko Ritari
  */
 
 /*
@@ -43,7 +43,7 @@ public:
     virtual ~server_c() throw () { }
 
     // the callbacks should not throw (but we can't say that in a typedef)
-    typedef void helloCallbackT         (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res);
+    typedef void helloCallbackT         (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res);
     typedef void connectedCallbackT     (void* customp, int client_id, int customStoredData);
     typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is a user one
     typedef void dataCallbackT          (void* customp, int client_id, ConstDataBlockRef data);
@@ -114,6 +114,9 @@ public:
     virtual int get_socket_stat(Network::Socket::StatisticType stat) throw () = 0;
 
     virtual Network::Address get_client_address(int client_id) const throw () = 0;
+
+    virtual int reserveClientId() throw () = 0;
+    virtual void returnClientId(int reservedId) throw () = 0;
 };
 
 

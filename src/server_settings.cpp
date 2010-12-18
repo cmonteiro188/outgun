@@ -112,19 +112,19 @@ void Server::SettingManager::build(bool reload) throw () {
     typedef SettingManager This;
     typedef ServerNetworking Network;
 
-    #define    FUN0            RedirectToFun0
-    #define   NFUN0         newRedirectToFun0
-    #define    FUN1            RedirectToFun1
-    #define   NFUN1         newRedirectToFun1
+    #define    FUN0            Fun0
+    #define   NFUN0         newFun0
+    #define    FUN1            Fun1
+    #define   NFUN1         newFun1
 
-    #define   MFUN1         RedirectToMemFun1
-    #define  NMFUN1      newRedirectToMemFun1
+    #define   MFUN1         MemFun1
+    #define  NMFUN1      newMemFun1
 
-    #define  CMFUN0    RedirectToConstMemFun0
-    #define NCMFUN0 newRedirectToConstMemFun0
+    #define  CMFUN0    ConstMemFun0
+    #define NCMFUN0 newConstMemFun0
 
-    #define  STCSR0      HookFnStripConstRef0
-    #define NSTCSR0   newHookFnStripConstRef0
+    #define  STCSR0    StripConstRef0
+    #define NSTCSR0 newStripConstRef0
 
     // checkers
     FUN1 <         bool, CSR> &checkForceIP        = *addFn(NFUN1  (          &         checkForceIpValue     ));
@@ -241,6 +241,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_IntT<unsigned>("extra_time_periods",      &worldConfig.extra_time_periods, 1, 255));
     cat.add(new GS_Boolean   ("sudden_death",                &worldConfig.sudden_death));
     cat.add(new GS_Int       ("game_end_delay",              &game_end_delay, 0));
+    cat.add(new GS_Int       ("game_end_delay_extension",    &game_end_delay_extension, 0));
     cat.add(new GS_Double    ("flag_return_delay",           &worldConfig.flag_return_delay, 0));
     cat.add(new GS_Double    ("min_capture_time",            &worldConfig.min_capture_time, 0));
     cat.add(new GS_Int       ("carrying_score_time",         &worldConfig.carrying_score_time, 0));
@@ -319,6 +320,13 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Int       ("pup_start_power",             &pupConfig.start_power, 0, 999));
     cat.add(new GS_Int       ("pup_start_weapon",            &pupConfig.start_weapon, 1, 9));
     cat.add(new GS_Boolean   ("pup_start_deathbringer",      &pupConfig.start_deathbringer));
+    cat.add(new GS_Boolean   ("pup_team_shield",             &pupConfig.team_shield));
+    cat.add(new GS_Boolean   ("pup_team_turbo",              &pupConfig.team_turbo));
+    cat.add(new GS_Boolean   ("pup_team_shadow",             &pupConfig.team_shadow));
+    cat.add(new GS_Boolean   ("pup_team_power",              &pupConfig.team_power));
+    cat.add(new GS_Boolean   ("pup_team_weapon",             &pupConfig.team_weapon));
+    cat.add(new GS_Boolean   ("pup_team_health",             &pupConfig.team_health));
+    cat.add(new GS_Boolean   ("pup_team_deathbringer",       &pupConfig.team_deathbringer));
     categories.push_back(cat);
 
     cat = Category("physics" , "Physics");
@@ -435,6 +443,7 @@ void Server::SettingManager::reset() throw () {
     srvmonit_port = -1;
 
     game_end_delay = 5;
+    game_end_delay_extension = 15;
 
     vote_block_time = 0;    // no limit
     require_specific_map_vote = false;

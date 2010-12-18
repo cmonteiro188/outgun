@@ -48,17 +48,8 @@ public:
 
     virtual void setCallbackCustomPointer(void* ptr) throw () = 0;
 
-    //set the server's address. call before connect()
-    virtual void set_server_address(const char *address) throw () = 0;
-
-    //set the custom data sent with every connection packet
-    //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(ConstDataBlockRef data) throw () = 0;
-
-    //set connection status. if set to TRUE, engine will try to estabilish connection
-    //with the server. if set to FALSE, will stop trying to connect or will disconnect
-    //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () = 0;
+    virtual void connect(const char *address, ConstDataBlockRef data, int minLocalPort, int maxLocalPort) throw () = 0;
+    virtual void disconnect() throw () = 0;
 
     //send reliable message
     virtual void send_message(ConstDataBlockRef data) throw () = 0;

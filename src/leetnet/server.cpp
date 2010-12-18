@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  */
 
 /*
@@ -52,15 +52,12 @@
 #include "../timer.h" // for platSleep
 using namespace GNE;
 
-// max (absolute) clients that can connect to a server
-// change this to meet your needs
-#define  MAX_CLIENTS 32
-
 class server_ci;
 
 // client record struct for server
 struct client_t {
     volatile bool       used;               // "true" if there is a client connected in this slot
+    bool disabled; // blocked from being used (only set when !used)
 
     int                         id;                 // the client's id (index on the array)
 
@@ -152,6 +149,8 @@ public:
     // client structures - one for each client
     client_t                    client[MAX_CLIENTS];
 
+    Mutex clientReservationMutex;
+
     //server is stopping
     volatile bool           server_stopped;
 
@@ -229,6 +228,7 @@ public:
         for (int i=0;i<MAX_CLIENTS;i++) {
 
             client[i].used = false;             // free player slot
+            client[i].disabled = false;
             client[i].id = i;                           // id (for thread)
             client[i].server = this;            // server (for thread)
 
@@ -524,6 +524,22 @@ public:
         return thestat;
     }
 
+    virtual int reserveClientId() throw () {
+        Lock ml(clientReservationMutex);
+        for (int i = 0; i < MAX_CLIENTS; ++i)
+            if (!client[i].used && !client[i].disabled) {
+                client[i].disabled = true;
+                return i;
+            }
+        return -1;
+    }
+
+    virtual void returnClientId(int reservedId) throw () {
+        Lock ml(clientReservationMutex);
+        nAssert(client[reservedId].disabled);
+        client[reservedId].disabled = false;
+    }
+
     //------------------------
     // server slave-disconnector thread API (temp thread that sends disconnection packets to the client
     //------------------------
@@ -706,14 +722,15 @@ public:
             return 1;
         }
 
+        Lock ml(clientReservationMutex);
+
         //server com espaco, aloca um cara pra ele
         for (i=0;i<MAX_CLIENTS;i++)
         {
-            //lock client
-            client[i].station_mutex.lock();
-
-            if (!client[i].used)
+            if (!client[i].used && !client[i].disabled)
             {
+                Lock cml(client[i].station_mutex);
+
                 //zero'ing state
                 client[i].id = i;                   // the client's id (index on the array)
                 client[i].ping_start_time = Time(0, 0);     //time of last ping request from gameserver
@@ -745,7 +762,6 @@ public:
                 //client[i].station->set_remote_address(adrstr);
                 if (client[i].station->set_remote_address(client[i].addr, minLocalPort, maxLocalPort) == 0) {
                     log("process_incoming_datagram() ERROR: SET_REMOTE_ADDRESS RETURNED == 0!!!");
-                    client[i].station_mutex.unlock();
                     return 1;       //abort connection
                 }
 
@@ -765,13 +781,8 @@ public:
                 // agora ta valido p/ outras threads
                 client[i].used = true;
 
-                //ok - unlock client
-                client[i].station_mutex.unlock();
                 return 1;
             }
-
-            //unlock client
-            client[i].station_mutex.unlock();
         }
 
         //WEIRD WEIRD fail: num_clients esta mentindo para baixo
@@ -904,7 +915,7 @@ public:
                     ServerHelloResult res;
                     res.accepted = false;
                     res.customDataLength = 0;
-                    helloCallback(customp, cid, ConstDataBlockRef(&data[16], len-16), &res);
+                    helloCallback(customp, get_client_address(cid), ConstDataBlockRef(&data[16], len-16), &res);
                     log("client %i CONNECTION (II)", cid);
                     if (res.accepted) {
                         //connected!
@@ -1122,7 +1133,8 @@ public:
         datalogMutex("server_ci::datalogMutex"),
         #endif
         minLocalPort(minLocalPort_),
-        maxLocalPort(maxLocalPort_)
+        maxLocalPort(maxLocalPort_),
+        clientReservationMutex("server_ci::clientReservationMutex")
     {
         #ifdef LEETNET_DATA_LOG
         if (g_leetnetDataLog)
@@ -1196,7 +1208,7 @@ void thread_master_f(server_ci* server) throw ()
 
         // if no data, keep reading
         if (result.length == 0) {
-            quickSleep();
+            platSleep(2);
             continue;
         }
 

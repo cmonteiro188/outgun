@@ -42,7 +42,7 @@ public:
         FileError(const std::string& d) throw () : description(d) { }
     };
 
-    typedef HookFunctionBase1<bool, const std::string&> SettingChecker;
+    typedef Function1<bool, const std::string&> SettingChecker;
 
     void load(SettingChecker& validityChecker) throw (FileError);
     void save() const throw (FileError);

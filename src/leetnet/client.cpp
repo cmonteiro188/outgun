@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin <fcecin@inf.ufrgs.br>
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2006 - Jani Rivinoja
  */
 
@@ -123,6 +123,9 @@ public:
     //the server address
     Network::Address       serveraddr;
 
+    int serverSendingPort;
+    int framesSinceKeepalive;
+
     //client station
     station_c       *station;
 
@@ -165,73 +168,67 @@ public:
 
     virtual void setCallbackCustomPointer(void* ptr) throw () { customp = ptr; }
 
-    //set the server's address. call before connect()
-    virtual void set_server_address(const char *address) throw () {
+    virtual void connect(const char *address, ConstDataBlockRef data, int minLocalPort, int maxLocalPort) throw () {
+        if (want_connect)
+            return;
+
+        want_connect = true;
+
+        serverSendingPort = -1;
+        log("connecting; constatus=%i", connect_status);
+
         serveraddr.fromIP(address);
-    }
-
-    //set the custom data sent with every connection packet
-    //gameserver will interpret it by server_c's SFUNC_CLIENT_HELLO callback
-    virtual void set_connect_data(ConstDataBlockRef data) throw () {
         connect_data = data;
+
+        if (connect_status == 0) {
+            log("starting connect sequence.");
+
+            //start connection sequence
+            start_connect(minLocalPort, maxLocalPort);
+        }
+        else if (connect_status == 1) {
+            log("wil star connect sequence.");
+
+            //trying disconnection -- wait until after it's done
+            //this is just a hack
+            while (connect_status == 1)
+                platSleep(500);  // *** NO CPU PROBLEM HERE ***
+
+            log("starting connect sequence.");
+
+            //now connect normally
+            start_connect(minLocalPort, maxLocalPort);
+        }
     }
 
-    //set connection status. if set to TRUE, engine will try to estabilish connection
-    //with the server. if set to FALSE, will stop trying to connect or will disconnect
-    //results are returned in the CFUNC_CONNENCTION_UPDATE callback
-    virtual void connect(bool yes, int minLocalPort = 0, int maxLocalPort = 0) throw () {
-        log("connect now=%i  set to=%i   constatus=%i", want_connect, yes, connect_status);
+    virtual void disconnect() throw () {
+        if (!want_connect)
+            return;
 
-        //noop
-        if (want_connect == yes) return;
+        want_connect = false;
 
-        //changed
-        want_connect = yes;
+        serverSendingPort = -1;
+        log("disconnecting; constatus=%i", connect_status);
 
-        //want to connect
-        if (want_connect) {
-            if (connect_status == 0) {
-                log("starting connect sequence.");
+        if (connect_status == 3) {
+            log("starting disconnect seq...");
 
-                //start connection sequence
-                start_connect(minLocalPort, maxLocalPort);
-            }
-            else if (connect_status == 1) {
-                log("wil star connect sequence.");
+            //start disconnecting
+            start_disconnect();
 
-                //trying disconnection -- wait until after it's done
-                //this is just a hack
-                while (connect_status == 1)
-                    platSleep(500);  // *** NO CPU PROBLEM HERE ***
+            //join with disconnector thread
+            log("joining disconnect thread...");
+            thread_disconnect.join();
+            log("disconnect thread joined.");
 
-                log("starting connect sequence.");
-
-                //now connect normally
-                start_connect(minLocalPort, maxLocalPort);
-            }
+            //REVIEW: additional cleanup, must enable
+            //        new connections later ? FIXME
         }
-        //want to disconnect
-        else {
-            if (connect_status == 3) {
-                log("starting disconnect seq...");
+        else if (connect_status == 2) {
+            log("stop_connect() - gave up connecting..");
 
-                //start disconnecting
-                start_disconnect();
-
-                //join with disconnector thread
-                log("joining disconnect thread...");
-                thread_disconnect.join();
-                log("disconnect thread joined.");
-
-                //REVIEW: additional cleanup, must enable
-                //        new connections later ? FIXME
-            }
-            else if (connect_status == 2) {
-                log("stop_connect() - gave up connecting..");
-
-                //trying connection - just stop trying. if it gets accepted, we will reply again telling to disconnect
-                stop_connect();
-            }
+            //trying connection - just stop trying. if it gets accepted, we will reply again telling to disconnect
+            stop_connect();
         }
     }
 
@@ -310,6 +307,11 @@ public:
             doSendFrame(data);
         else
             queueSend(new QSendFrame(data));
+        if (++framesSinceKeepalive == 10 * 60 && serverSendingPort > 0 && serverSendingPort < 65536) {
+            BinaryBuffer<32> msg;
+            sendRawPacketToPort(msg, serverSendingPort);
+            framesSinceKeepalive = 0;
+        }
     }
 
     void doSendFrame(ConstDataBlockRef data) throw () {
@@ -606,11 +608,12 @@ DLOG_Scope s("CPIDg");
 
                 // check if callback called already
                 if (connect_status != 3) {
-                    const uint32_t port = read.U32();
-                    if (port > 0 && port < 65536) {
+                    framesSinceKeepalive = 0;
+                    serverSendingPort = read.U32();
+                    if (serverSendingPort > 0 && serverSendingPort < 65536) {
                         // send a dummy packet to the server port in order to get the local firewall open and/or NAT tunnel active (may not work if the server is also behind a NAT)
                         BinaryBuffer<32> msg;
-                        sendRawPacketToPort(msg, port);
+                        sendRawPacketToPort(msg, serverSendingPort);
                     }
 
                     //connection callback w/ status = 0  (connected)
@@ -757,8 +760,7 @@ DLOG_Scope s("CPIDg");
 
     //dtor
     virtual ~client_ci() throw () {
-        //disconnect if connected
-        connect(false);
+        disconnect();
 
         while (connect_threads_running) // added thread safety thing
             platSleep(100);

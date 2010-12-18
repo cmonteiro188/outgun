@@ -97,7 +97,7 @@ void ServerThreadOwner::start(int port, const ServerExternalSettings& config) th
     runPort = port;
     quitFlag = false;
     threadFlag = true;
-    RedirectToMemFun1<ServerThreadOwner, void, const ServerExternalSettings&> rmf(this, &ServerThreadOwner::threadFn);
+    MemFun1<ServerThreadOwner, void, const ServerExternalSettings&> rmf(this, &ServerThreadOwner::threadFn);
     serverThread.start_assert("ServerThreadOwner::threadFn", rmf, config, config.priority);
 }
 
@@ -111,7 +111,7 @@ void ServerThreadOwner::stop() throw () {
 void RankingPasswordManager::start() throw () {
     quitThread = false;
     thread.start_assert("RankingPasswordManager::threadFn",
-                        RedirectToMemFun0<RankingPasswordManager, void>(this, &RankingPasswordManager::threadFn),
+                        MemFun0<RankingPasswordManager, void>(this, &RankingPasswordManager::threadFn),
                         priority);
 }
 
@@ -390,7 +390,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     ClientBase(config, clientLog, externalErrorLog_),
     listenServer(log),
     downloadMutex("GuiClient::downloadMutex"),
-    rankingPassword(log, new RedirectToMemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
+    rankingPassword(log, new MemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
@@ -429,7 +429,7 @@ bool GuiClient::start() throw () {
 
     framecount = 0;
 
-    startBase();
+    startBase(give_control(new_client_c(extConfig.networkPriority, "")));
 
     if (language.code() == "fi")
         playername = finnish_name(maxPlayerNameLength);
@@ -4498,7 +4498,7 @@ void GuiClient::MCF_updateServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
         Thread::startDetachedThread_assert("GuiClient::getServerListThread",
-                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::getServerListThread),
+                                           MemFun0<GuiClient, void>(this, &GuiClient::getServerListThread),
                                            extConfig.lowerPriority);
     }
 }
@@ -4507,7 +4507,7 @@ void GuiClient::MCF_refreshServers() throw () {
     if (refreshStatus == RS_none || refreshStatus == RS_failed) {
         refreshStatus = RS_running;
         Thread::startDetachedThread_assert("GuiClient::refreshThread",
-                                           RedirectToMemFun0<GuiClient, void>(this, &GuiClient::refreshThread),
+                                           MemFun0<GuiClient, void>(this, &GuiClient::refreshThread),
                                            extConfig.lowerPriority);
     }
 }
@@ -4563,7 +4563,7 @@ string GuiClient::replayCacheFile() const throw () {
 }
 
 GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
-    ifstream in(replayCacheFile().c_str());
+    ifstream in(replayCacheFile().c_str(), ios::binary);
     if (!in)
         return ReplayCache();
     BinaryStreamReader read(in);
@@ -4583,7 +4583,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
 }
 
 void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
-    ofstream out(replayCacheFile().c_str());
+    ofstream out(replayCacheFile().c_str(), ios::binary);
     if (!out) {
         log("Can't write to %s", replayCacheFile().c_str());
         return;

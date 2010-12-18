@@ -230,7 +230,7 @@ protected:
 
     virtual std::string getPlayerPassword() const throw () = 0;
 
-    void startBase(const std::string& leetnetLogPostfix = std::string()) throw ();
+    void startBase(ControlledPtr<client_c> networkProvider) throw ();
     virtual void stop() throw ();
 
 public:

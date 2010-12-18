@@ -148,7 +148,7 @@ ClientBase::~ClientBase() throw () {
     log("Exiting client: destructor exiting");
 }
 
-void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
+void ClientBase::startBase(ControlledPtr<client_c> networkProvider) throw () {
     clFrameSent = clFrameWorld = 0;
     fx.frame = -1;
     #ifndef DEDICATED_SERVER_ONLY
@@ -171,7 +171,7 @@ void ClientBase::startBase(const string& leetnetLogPostfix) throw () {
 
     connected = false;
 
-    client = new_client_c(extConfig.networkPriority, leetnetLogPostfix);
+    client = networkProvider;
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
@@ -241,7 +241,7 @@ void ClientBase::sendMinimapBandwidthAny(int players) throw () {
 
 void ClientBase::disconnect_command() throw () { // do not call from a network thread
     //disconnect the client here if was connected, else does nothing
-    client->connect(false);
+    client->disconnect();
 }
 
 void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call with frameMutex locked
@@ -340,8 +340,7 @@ void ClientBase::disconnected_base(ConstDataBlockRef data) throw () {
 void ClientBase::prepareForConnect() throw () {   // call with frameMutex locked
     const bool alreadyConnected = connected;
 
-    // disconnect
-    client->connect(false);
+    client->disconnect();
 
     if (alreadyConnected)   // very basic and ugly hack to let the disconnection take place at least semi-reliably; this is needed because Leetnet sucks
         platSleep(500);
@@ -350,10 +349,6 @@ void ClientBase::prepareForConnect() throw () {   // call with frameMutex locked
 }
 
 void ClientBase::connect(const string& serverAddress, const string& serverPassword, const string& playerPassword) throw () {   // call with frameMutex locked
-    // start connecting to specified IP/port
-    // connection results will come through the CFUNC_CONNECTION_UPDATE callback
-    client->set_server_address(serverAddress.c_str());
-
     //set connect-data (goes in every connect packet): outgun game name and protocol strings
     BinaryBuffer<256> msg;
     msg.str(GAME_STRING);
@@ -367,8 +362,7 @@ void ClientBase::connect(const string& serverAddress, const string& serverPasswo
      * msg.U8(1); // the number of bytes of what is added to msg by this extension after this
      * msg.U8(EXAMPLE_VERSION); // or whatever else you want to send (here's a possible idea: send the value of data_example_first this client wants to use with the extension, to make it changeable if necessary for mixing extensions)
      */
-    client->set_connect_data(msg);
-    client->connect(true, extConfig.minLocalPort, extConfig.maxLocalPort);
+    client->connect(serverAddress.c_str(), msg, extConfig.minLocalPort, extConfig.maxLocalPort);
 }
 
 void ClientBase::issue_change_name_command() throw () {
@@ -1174,8 +1168,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
         if (swap) {
             std::swap(fx.player[from], fx.player[to]);
-            fx.player[from].id = from;
-            fx.player[to  ].id =   to;
+            fx.player[from].pid = from;
+            fx.player[to  ].pid =   to;
             fx.player[from].set_team(from / TSIZE);
             fx.player[to  ].set_team(  to / TSIZE);
             // both players already exist in players_sb -> no changes except resorting
@@ -1186,7 +1180,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         else {
             fx.player[to] = fx.player[from];
             fx.player[from].used = false;
-            fx.player[to].id = to;
+            fx.player[to].pid = to;
             fx.player[to].set_team(to / TSIZE);
             #ifndef DEDICATED_SERVER_ONLY
             const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);

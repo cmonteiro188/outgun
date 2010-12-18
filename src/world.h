@@ -283,7 +283,7 @@ public:
     void set_shots(int n) throw () { total_shots = n; }
     void set_hits(int n) throw () { total_hits = n; }
     void set_shots_taken(int n) throw () { total_shots_taken = n; }
-    void set_movement(double amount) throw () { total_movement = amount; }
+    void set_movement(double amount) throw () { total_movement = amount; } // physical units
     void set_spawn_time(double time) throw () { last_spawn_time = time; }
     void set_start_time(double time) throw () { starttime = time; }
     void set_lifetime(double time) throw () { total_lifetime = time; }
@@ -308,7 +308,7 @@ public:
     void add_shot() throw () { ++total_shots; }
     void add_hit() throw () { ++total_hits; }
     void add_shot_take() throw () { ++total_shots_taken; }
-    void add_movement(double amount) throw () { total_movement += amount; }
+    void add_movement(double amount) throw () { total_movement += amount; } // physical units
 
     void finish_stats(double time) throw ();
 
@@ -336,9 +336,10 @@ public:
     double lifetime(double time) const throw ();         // in seconds
     double average_lifetime(double time) const throw (); // in seconds
     double playtime(double time) const throw ();         // in seconds
-    double movement() const throw ();                    // in Outgun units
+    double movement() const throw ();                    // in physical units
+    double movement_outgun_units() const throw () { return movement() / (2 * PLAYER_RADIUS); }
     double speed(double time) const throw ();            // in Outgun units per second
-    double old_speed() const throw () { return saved_speed; }
+    double old_speed() const throw () { return saved_speed; } // in Outgun units per second
     double start_time() const throw () { return starttime; }
     double flag_carrying_time(double time) const throw ();
     double flag_take_time() const throw () { return flag_taking_time; }
@@ -367,7 +368,7 @@ private:
     int total_shots_taken;
     double last_spawn_time;
     double total_lifetime;
-    double total_movement;
+    double total_movement; // in physical units
     double saved_speed;
     double starttime;
     bool dead;
@@ -439,7 +440,7 @@ public:
 
 // get rid of (or move elsewhere)
     bool used;
-    int id; // as in pid
+    int pid;
     std::string name, clanTag;
     int ping;
     //int frags;
@@ -719,6 +720,7 @@ public:
     int hits() const throw () { return total_hits; }
     int shots_taken() const throw () { return total_shots_taken; }
     double movement() const throw () { return total_movement; }
+    double movement_outgun_units() const throw () { return total_movement / (2 * PLAYER_RADIUS); }
     double accuracy() const throw ();
     double power() const throw () { return ranking_power; }
 
@@ -783,7 +785,7 @@ class DeathbringerExplosion {
 
 public:
     DeathbringerExplosion(double explosionFrame, const PlayerBase& owner) throw ()
-            : frame0(explosionFrame), pos(owner.pos), ownerPid(owner.id), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
+            : frame0(explosionFrame), pos(owner.pos), ownerPid(owner.pid), ownerTeam(owner.team()), playersOutsideMask(~0u) { }
     DeathbringerExplosion(double explosionFrame, const WorldCoords& position, int team) throw ()
             : frame0(explosionFrame), pos(position), ownerPid(-1), ownerTeam(team), playersOutsideMask(~0u) { }
 
@@ -987,6 +989,8 @@ public:
     int start_weapon;
     bool start_deathbringer;
 
+    bool team_shield, team_turbo, team_shadow, team_power, team_weapon, team_health, team_deathbringer;
+
     void reset() throw ();
 
     Powerup::Pup_type choose_powerup_kind() const throw ();
@@ -1073,6 +1077,9 @@ class ServerWorld : public WorldBase {
     void drop_powerup(const ServerPlayer& player) throw ();
     void drop_worst_powerup(ServerPlayer& player) throw ();
 
+    void simulatePlayerPrePhysics(ServerPlayer& pl) throw ();
+    void simulatePlayerPostPhysics(ServerPlayer& pl) throw ();
+
     void regenerateHealthOrEnergy(ServerPlayer& pl) throw ();
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
@@ -1080,6 +1087,7 @@ class ServerWorld : public WorldBase {
     void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 
+    bool extra_time_and_sudden_death() const throw ();
     bool all_kind_of_flags_exist() const throw ();
 
 public:
@@ -1127,7 +1135,7 @@ public:
     void suicide(int pid) throw ();
     void respawn_powerup(int p) throw ();
     void check_powerup_creation(bool instant) throw ();
-    void game_touch_powerup(int p, int pk) throw ();
+    void game_touch_powerup(int p, int pk, bool teammateTouched = false) throw ();
     bool check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw ();
     void game_player_screen_change(int p) throw ();
 
@@ -1170,8 +1178,8 @@ public:
     double get_frame() const throw () { return frame; }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                     ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw ();
-    void extrapolateSinglePlayerPosition(ClientPlayer& pl, ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw ();
+                     const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw ();
+    void extrapolateSinglePlayerPosition(ClientPlayer& pl, const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw ();
 
     /*void save_stats(const std::string& dir, const Team* teams,
                 const std::vector<ClientPlayer*>& players, const std::string& map_name) const throw ();*/

@@ -99,7 +99,7 @@ public:
 
 class RankingPasswordManager {
 public:
-    typedef HookFunctionHolder1<void, std::string> TokenCallbackT;  // an empty string is given to indicate no token
+    typedef FunctionHolder1<void, std::string> TokenCallbackT;  // an empty string is given to indicate no token
 
     enum PasswordStatus {
         PS_noPassword,

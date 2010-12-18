@@ -107,10 +107,6 @@ void AuthorizationDatabase::clear() throw () {
 
 void AuthorizationDatabase::load(SettingChecker& validityChecker) throw (FileError) {
     clear();
-    const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
-    ifstream in(filename.c_str());
-    if (!in)
-        throw FileError(_("Can't read '$1'.", filename));
 
     classes["user"] = AccessDescriptor(false, false);
     classes["local"] = classes["shell"] = AccessDescriptor(true, true);
@@ -119,6 +115,11 @@ void AuthorizationDatabase::load(SettingChecker& validityChecker) throw (FileErr
         defaultAdminAccess.gamemod.addLine(true, "bots");
         classes["admin"] = defaultAdminAccess;
     }
+
+    const string filename = wheregamedir + "config" + directory_separator + "auth.txt";
+    ifstream in(filename.c_str());
+    if (!in)
+        throw FileError(_("Can't read '$1'.", filename));
 
     bool bansChanged = false;
     for (;;) {

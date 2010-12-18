@@ -31,9 +31,9 @@
 #include <string>
 #include <vector>
 
+#include "incalleg.h"
 #include "client_interface.h"
 #include "function_utility.h"
-#include "incalleg.h"
 #include "language.h"
 #include "names.h"
 #include "nassert.h"
@@ -47,6 +47,7 @@
 
 const int minimum_positive_score_for_ranking = 100;
 const int voteAnnounceInterval = 5; // in seconds, how often a changing voting status will be announced
+const std::string ongoing_record_file_extension = ".ongoing";
 
 using std::endl;
 using std::find;
@@ -126,11 +127,11 @@ void Server::kickPlayer(int pid, int admin) throw () {
 
 bool Server::loadAuthorizations() throw () {
     try {
-        RedirectToMemFun1<SettingManager, bool, const string&> commandTest(&settings, &SettingManager::isGamemodCommandOrCategory);
+        MemFun1<SettingManager, bool, const string&> commandTest(&settings, &SettingManager::isGamemodCommandOrCategory);
         authorizations.load(commandTest);
         return true;
     } catch (const AuthorizationDatabase::FileError& e) {
-        log.error(e.description);
+        log(e.description);
         return false;
     }
 }
@@ -337,7 +338,7 @@ void Server::move_player(int f, int t) throw () {
     //remove f
     game_remove_player(f, false);
 
-    world.player[t].id = t;
+    world.player[t].pid = t;
     world.player[t].set_team(t / TSIZE);
 
     //I really don't want to change teams anymore.
@@ -371,8 +372,8 @@ void Server::swap_players(int a, int b) throw () {
     swap(world.player[a], world.player[b]);
     world.swapEmbeddedPids(a, b);
 
-    world.player[a].id = a;
-    world.player[b].id = b;
+    world.player[a].pid = a;
+    world.player[b].pid = b;
     world.player[a].set_team(a / TSIZE);
     world.player[b].set_team(b / TSIZE);
 
@@ -634,7 +635,8 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
 
     // Server is showing gameover plaque. Nobody should move or receive world frames.
     gameover = true;
-    gameover_time = get_time() + settings.get_game_end_delay();        // timeout for gameover plaque
+    gameoverEndTime = get_time() + settings.get_game_end_delay();
+    gameoverExtendedEndTime = gameoverEndTime + settings.get_game_end_delay_extension();
 
     ctf_game_restart();
 
@@ -667,12 +669,13 @@ void Server::start_recording() throw () {
         char time_str[time_w + 1];
         strftime(time_str, time_w, "%Y-%m-%d_%H%M%S", tmb);
         record_filename = wheregamedir + "replay" + directory_separator + time_str + ".replay";
+        const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
         record.clear();
-        record.open(record_filename.c_str(), ios::binary);
+        record.open(ongoing_record_filename.c_str(), ios::binary);
         if (record)
-            log("Recording started to %s.", record_filename.c_str());
+            log("Recording started to %s.", ongoing_record_filename.c_str());
         else
-            log("Could not create record file %s.", record_filename.c_str());
+            log("Could not create record file %s.", ongoing_record_filename.c_str());
 
         record << data;
     }
@@ -704,6 +707,9 @@ void Server::stop_recording() throw () {
             }
             record.close();
             record.clear();
+            const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
+            if (rename(ongoing_record_filename.c_str(), record_filename.c_str()))
+                log("Could not rename the replay file to %s", ongoing_record_filename.c_str());
         }
         else
             delete_recording();
@@ -713,10 +719,11 @@ void Server::stop_recording() throw () {
 void Server::delete_recording() throw () {
     record.close();
     record.clear();
-    if (remove(record_filename.c_str()))
-        log("Could not delete the replay file: %s", record_filename.c_str());
+    const string ongoing_record_filename = record_filename + ongoing_record_file_extension;
+    if (remove(ongoing_record_filename.c_str()))
+        log("Could not delete the replay file: %s", ongoing_record_filename.c_str());
     else
-        log("Deleted the replay file: %s", record_filename.c_str());
+        log("Deleted the replay file: %s", ongoing_record_filename.c_str());
 }
 
 void Server::record_init_data() throw () {
@@ -876,7 +883,15 @@ void Server::init_bots() throw () {
     address.fromValidIP("127.0.0.1:" + itoa(settings.get_port()));
     static int botId = 1;
     while (bots.size() < static_cast<unsigned>(needed_bots)) {
-        BotInterface* bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog);
+        const ControlledPtr<LocalConnection> conn = network.newLocalConnection();
+        if (!conn) {
+            log("Can't reserve player slot for needed bot.");
+            #ifdef EXTRA_DEBUG
+            nAssert(0);
+            #endif
+            break;
+        }
+        BotInterface* const bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog, conn);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
@@ -964,7 +979,7 @@ bool Server::start(int target_maxplayers) throw () {
     setMaxPlayers(target_maxplayers);
 
     //reset client_c struct (closes files...)
-    for (int i = 0; i < MAX_PLAYERS; i++)
+    for (int i = 0; i < MAX_CLIENTS; i++)
         client[i].reset();
 
     gameover = false;
@@ -996,7 +1011,7 @@ bool Server::start(int target_maxplayers) throw () {
 
     //start bot thread
     botthread.start_assert("Server::run_bot_thread",
-                           RedirectToMemFun0<Server, void>(this, &Server::run_bot_thread),
+                           MemFun0<Server, void>(this, &Server::run_bot_thread),
                            settings.lowerPriority());
 
     return true;
@@ -1028,7 +1043,7 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) throw () {
     network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void Server::nameChange(int id, int pid, string name, const string& password) throw () {
+void Server::nameChange(int cid, int pid, string name, const string& password) throw () {
     replace_all_in_place(name, '\xA0', ' '); // 'normalize' any no-break space
 
     if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' '))
@@ -1042,11 +1057,11 @@ void Server::nameChange(int id, int pid, string name, const string& password) th
         return;
 
     //FLUSH PENDING REPORTS TO MASTER IF token_have/token_valid !!!
-    network.client_report_status(id);
+    network.client_report_status(cid);
 
     //name changed -- this means that the player is NOT REGISTERED
     //  anymore for recording statistics
-    client[id].token_have = false;
+    client[cid].token_have = false;
 
     world.player[pid].clanTag = string();
 
@@ -1072,7 +1087,7 @@ void Server::nameChange(int id, int pid, string name, const string& password) th
         else {
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
-                             name.c_str(), password.c_str(), network.get_client_address(id).toString().c_str());
+                             name.c_str(), password.c_str(), network.get_client_address(cid).toString().c_str());
             network.sendNameAuthorizationRequest(pid);
             return;
         }
@@ -1486,39 +1501,45 @@ void Server::chat(int pid, const string& message) throw () {
     }
 }
 
-bool Server::changeRegistration(int id, const string& token) throw () {
+bool Server::changeRegistration(int cid, const string& token) throw () {
     const int intoken = atoi(token.c_str());
-    if (intoken == client[id].intoken)
+    if (intoken == client[cid].intoken)
         return false;
 
     // v0.4.9 FIX : IF HAD previous token have/valid, then FLUSH his stats
-    network.client_report_status(id);
+    network.client_report_status(cid);
 
-    client[id].token = token;
-    client[id].intoken = intoken;
+    client[cid].token = token;
+    client[cid].intoken = intoken;
 
     // NEW (or first) REGISTRATION -- reset player report / stop reporting his old ID
-    client[id].neg_delta_score = 0;
-    client[id].delta_score = 0;
-    client[id].fdp = 0.0;
-    client[id].fdn = 0.0;
-    client[id].score = 0;
-    client[id].neg_score = 0;
-    client[id].rank = 0;
+    client[cid].neg_delta_score = 0;
+    client[cid].delta_score = 0;
+    client[cid].fdp = 0.0;
+    client[cid].fdn = 0.0;
+    client[cid].score = 0;
+    client[cid].neg_score = 0;
+    client[cid].rank = 0;
 
-    client[id].token_have = !token.empty(); //token set
-    client[id].token_valid = false; //BUT not validated yet
+    client[cid].token_have = !token.empty(); //token set
+    client[cid].token_valid = false; //BUT not validated yet
 
-    network.broadcast_player_crap(network.getPid(id));
+    network.broadcast_player_crap(network.getPid(cid));
 
-    return client[id].token_have;
+    return client[cid].token_have;
 }
 
 void Server::simulate_and_broadcast_frame() throw () {
     //check end of gameover plaque
     bool recordFrameNumber = false;
-    if (gameover)
-        if (gameover_time < get_time()) {
+    if (gameover && get_time() >= gameoverEndTime) {
+        bool extend = false;
+        for (int i = 0; i < maxplayers; ++i)
+            if (world.player[i].used && world.player[i].awaiting_client_readies) {
+                extend = true;
+                break;
+            }
+        if (!extend || get_time() >= gameoverExtendedEndTime) {
             stop_recording();
             gameover = false;
             start_recording();
@@ -1526,6 +1547,7 @@ void Server::simulate_and_broadcast_frame() throw () {
             network.sendStartGame();
             recordFrameNumber = true;
         }
+    }
     if (!gameover)
         world.simulateFrame();
 
@@ -1924,12 +1946,11 @@ void Server::run_bot_thread() throw () {
             }
         }
         if (botTestMode) {
-            sched_yield();
             nAssert(settings.get_bot_ping() % 100 == 0); // this is a user (not code) error, but bot test mode is a dev feature
             const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
             bool upToDate = true;
             for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
-                if (bi->bot_reacted_frame() != currentFrame || uint8_t(bi->bot_sent_frame() - settings.get_bot_ping() / 100) != world.player[bi->bot_player_id()].lastClientFrame) {
+                if (bi->bot_reacted_frame() != currentFrame - settings.get_bot_ping() / 100 || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
                     //log("bot %d (%d): %f %d %d %d", int(bi - bots.begin()), bi->bot_player_id(), bi->bot_reacted_frame(), currentFrame, bi->bot_sent_frame(), world.player[bi->bot_player_id()].lastClientFrame);
                     upToDate = false;
                 }

@@ -496,7 +496,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
         log.error(e.str());
         return;
     }
-    AtScopeExit autoShutdownNetwork(newRedirectToFun0(Network::shutdown));
+    AtScopeExit autoShutdownNetwork(newFun0(Network::shutdown));
 
     if (serverCfg.ipAddress.empty())
         serverCfg.ipAddress = getPublicIP(log, false);
@@ -589,13 +589,13 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
     // run dedicated server
     if (serverCfg.dedserver) {
         #ifdef DEDICATED_SERVER_ONLY
-        serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
+        serverCfg.statusOutput = newFun1(statusOutputText);
         #else
         bool withGraphics = false;
         if (textserver || !set_shitty_mode(log)) // if 320×240 mode can't be set, use textserver
-            serverCfg.statusOutput = newRedirectToFun1(statusOutputText);
+            serverCfg.statusOutput = newFun1(statusOutputText);
         else {
-            serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+            serverCfg.statusOutput = newFun1(statusOutputWindow);
             serverCfg.ownScreen = true;
             withGraphics = true;
         }
@@ -647,8 +647,8 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
             return;
 
         // run client
-        clientCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
-        serverCfg.statusOutput = newRedirectToFun1(statusOutputWindow);
+        clientCfg.statusOutput = newFun1(statusOutputWindow);
+        serverCfg.statusOutput = newFun1(statusOutputWindow);
         log("See clientlog.txt for client's log messages");
         FileLog clientLog(wheregamedir + "log" + directory_separator + "clientlog.txt", true);
         if (!language_loaded) {

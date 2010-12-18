@@ -2,7 +2,7 @@
  *  servnet.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -29,13 +29,17 @@
 #include <map>
 #include <queue>
 
+#include "commont.h"
+#include "function_utility.h"
 #include "mutex.h"
 #include "network.h"    // for NetworkResult
 #include "protocol.h"
 #include "thread.h"
 #include "utility.h"
 
+class BinaryWriter;
 class GunDirection;
+class LocalConnection;
 class MasterQuery;
 class Powerup;
 class Server;
@@ -49,12 +53,14 @@ class WorldCoords;
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
 class ServerNetworking {
+    friend class ClientServerLocalConnection;
+
 public:
     class Settings {
     public:
         virtual ~Settings() throw () { }
 
-        typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+        typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
         virtual StatusOutputFnT statusOutput() const throw () = 0;
         virtual bool showErrorCount() const throw () = 0;
         virtual int lowerPriority() const throw () = 0;
@@ -86,6 +92,59 @@ public:
     };
 
 private:
+    class ClientConnection {
+    public:
+        virtual ~ClientConnection() throw () { }
+
+        virtual void disconnect(int timeout, Disconnect_reason reason) throw () = 0;
+        virtual Network::Address get_client_address() const throw () = 0;
+
+        virtual void ping() throw () = 0;
+
+        virtual void send_frame(ConstDataBlockRef data) throw () = 0;
+        virtual void send_message(ConstDataBlockRef data) throw () = 0;
+        virtual ConstDataBlockRef receive_message() throw () = 0;
+        virtual void received_message_read() throw () = 0;
+    };
+
+    class LeetnetClient : public ClientConnection {
+        server_c* leetServer;
+        int cid;
+
+    public:
+        LeetnetClient(server_c* server, int clientId) throw () : leetServer(server), cid(clientId) { }
+
+        virtual void disconnect(int timeout, Disconnect_reason reason) throw () { leetServer->disconnect_client(cid, timeout, reason); }
+        virtual Network::Address get_client_address() const throw () { return leetServer->get_client_address(cid); }
+
+        virtual void ping() throw () { leetServer->ping_client(cid); }
+
+        virtual void send_frame(ConstDataBlockRef data) throw () { leetServer->send_frame(cid, data); }
+        virtual void send_message(ConstDataBlockRef data) throw () { leetServer->send_message(cid, data); }
+        virtual ConstDataBlockRef receive_message() throw () { return leetServer->receive_message(cid); }
+        virtual void received_message_read() throw () { }
+    };
+
+    class LocalClient : public ClientConnection {
+        ServerNetworking& servNet;
+        LocalConnection& conn;
+
+    public:
+        LocalClient(ServerNetworking& host, LocalConnection& conn_) throw () : servNet(host), conn(conn_) { }
+        ~LocalClient() throw ();
+
+        virtual void disconnect(int timeout, Disconnect_reason reason) throw ();
+            
+        virtual Network::Address get_client_address() const throw ();
+
+        virtual void ping() throw ();
+
+        virtual void send_frame(ConstDataBlockRef data) throw ();
+        virtual void send_message(ConstDataBlockRef data) throw ();
+        virtual ConstDataBlockRef receive_message() throw ();
+        virtual void received_message_read() throw ();
+    };
+
     class ClientTransferData {
     public:
         bool        serving_udp_file;
@@ -103,12 +162,13 @@ private:
     };
 
     // server callbacks
-    static void sfunc_client_hello          (void* customp, int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
-    static void sfunc_client_connected      (void* customp, int client_id, int customStoredData) throw ();
-    static void sfunc_client_disconnected   (void* customp, int client_id, bool reentrant) throw ();
-    static void sfunc_client_data           (void* customp, int client_id, ConstDataBlockRef data) throw ();
-    static void sfunc_client_lag_status     (void* customp, int client_id, int status) throw ();
-    static void sfunc_client_ping_result    (void* customp, int client_id, int pingtime) throw ();
+    static void sfunc_client_hello            (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
+    static void sfunc_leetnet_client_connected(void* customp, int client_id, int customStoredData) throw ();
+    static void sfunc_local_client_connected  (void* customp, int client_id, int customStoredData) throw ();
+    static void sfunc_client_disconnected     (void* customp, int client_id, bool reentrant) throw ();
+    static void sfunc_client_data             (void* customp, int client_id, ConstDataBlockRef data) throw ();
+    static void sfunc_client_lag_status       (void* customp, int client_id, int status) throw ();
+    static void sfunc_client_ping_result      (void* customp, int client_id, int pingtime) throw ();
 
     const bool threadLock;    // if true, all concurrency is eliminated; its benefits are lost but there are many opportunities for bad timing to trigger problems
     Mutex& threadLockMutex;    // used to implement threadLock, if it is enabled; the mutex is external
@@ -122,7 +182,8 @@ private:
     ServerWorld&    world;
     int             maxplayers;
 
-    server_c*       server;
+    server_c*       leetServer;
+    ClientConnection* clientConnection[MAX_CLIENTS];
 
     mutable LogSet  log;
 
@@ -135,7 +196,7 @@ private:
 
     int             max_world_rank;
 
-    ClientTransferData fileTransfer[MAX_PLAYERS];
+    ClientTransferData fileTransfer[MAX_CLIENTS];
     volatile bool   file_threads_quit;      //#fix: this is used by all kinds of threads even though file threads no longer exist
 
     mutable Network::TCPSocket shellssock; // if open, admin shell messages are sent to this socket
@@ -146,7 +207,7 @@ private:
 
     std::string     server_identification;
     int             ping_send_client;
-    int             ctop[256];          // client id-to-player id index
+    int             ctop[MAX_CLIENTS];          // client id-to-player id index
     int             player_count;       // number of players including bots
     int             bot_count;
     std::vector< std::pair<Network::Address, int> > distinctRemotePlayers;
@@ -207,12 +268,14 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
-    void clientHello(int client_id, ConstDataBlockRef data, ServerHelloResult* res) throw ();
-    int  client_connected(int id, int customStoredData) throw ();
-    void client_disconnected(int id) throw ();
+    bool clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw ();
+    void leetnet_client_connected(int client_id, int customStoredData) throw ();
+    void local_client_connected(int client_id, int customStoredData) throw ();
+    int  client_connected(int cid, int customStoredData) throw ();
+    void client_disconnected(int cid) throw ();
     void ping_result(int client_id, int ping_time) throw ();
     bool processMessage(int pid, ConstDataBlockRef data) throw ();
-    void incoming_client_data(int id, ConstDataBlockRef data) throw ();
+    void incoming_client_data(int cid, ConstDataBlockRef data) throw ();
 
     void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
 
@@ -236,6 +299,8 @@ private:
     void send_simple_message(Network_data_code code, int pid) const throw ();
     void broadcast_simple_message(Network_data_code code) const throw ();
     void broadcast_screen_message(int px, int py, ConstDataBlockRef msg) const throw ();
+
+    void send_message(int cid, ConstDataBlockRef data) const throw () { clientConnection[cid]->send_message(data); }
 
     void record_message(ConstDataBlockRef data) const throw ();
 
@@ -317,7 +382,7 @@ public:
     void ctf_net_flag_status(int cid, int team) const throw ();
     void ctf_update_teamscore(int t) const throw ();
     void move_update_player(int a) throw (); // call after moving, a = pid after move
-    void client_report_status(int id) throw ();
+    void client_report_status(int cid) throw ();
     void sendWorldReset() const throw ();
     void sendStartGame() const throw ();
     void sendWeaponPower(int pid) const throw ();
@@ -357,6 +422,8 @@ public:
     int get_human_count() const throw () { return player_count - bot_count; }
     int get_bot_count() const throw () { return bot_count; }
     int numDistinctClients() const throw () { return distinctRemotePlayers.size() + (localPlayers > 0 ? 1 : 0); }
+
+    ControlledPtr<LocalConnection> newLocalConnection() throw ();
 };
 
 #endif

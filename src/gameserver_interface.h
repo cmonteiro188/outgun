@@ -51,7 +51,7 @@ public:
     bool threadLock;    // disable all concurrency?
     bool botTestMode;
 
-    typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+    typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;  // must be set properly (non-null) when used
     bool showErrorCount;
     bool ownScreen;

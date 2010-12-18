@@ -1966,7 +1966,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots());
         textout_centre_ex(drawbuf, stfont, _("$1%", fcvt(100. * team.accuracy(), 0)), x, y1 + line++ * line_height, teamlcol[t], -1);
         textprintf_centre_ex(drawbuf, stfont, x, y1 + line++ * line_height, teamlcol[t], -1, "%d", team.shots_taken());
-        textout_centre_ex(drawbuf, stfont, fcvt(team.movement() / (2 * PLAYER_RADIUS), 0), x, y1 + line++ * line_height, teamlcol[t], -1);
+        textout_centre_ex(drawbuf, stfont, fcvt(team.movement_outgun_units(), 0), x, y1 + line++ * line_height, teamlcol[t], -1);
         //textout_centre_ex(drawbuf, stfont, fcvt(team.power(), 2), x, y1 + line++ * line_height, teamlcol[t], -1);
     }
 
@@ -2138,7 +2138,7 @@ void Graphics::draw_player_statistics(const FONT* stfont, const ClientPlayer& pl
             stats << setw(5) << st.shots()
                   << setw(6) << _("$1%", fcvt(100. * st.accuracy(), 0))
                   << setw(5) << st.shots_taken()
-                  << setw(8) << static_cast<int>(st.movement()) / (2 * PLAYER_RADIUS) << " u"
+                  << setw(8) << static_cast<int>(st.movement_outgun_units()) << " u"
                   << setw(7) << fcvt(st.old_speed(), 2) << " u/s";
         break; case 3:
             //            Average         Ranking

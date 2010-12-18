@@ -32,6 +32,7 @@
 #include "function_utility.h"
 
 class Client;
+class LocalConnection;
 class ServerExternalSettings;
 class Log;
 class MemoryLog;
@@ -50,7 +51,7 @@ public:
     std::string autoReplay;
     std::string autoSpectate;
 
-    typedef HookFunctionHolder1<void, const std::string&> StatusOutputFnT;
+    typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;
 
     ClientExternalSettings() throw () : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
@@ -76,7 +77,7 @@ protected:
     BotInterface() throw () { }
 
 public:
-    static BotInterface* newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_) throw ();
+    static BotInterface* newBot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& externalErrorLog_, ControlledPtr<LocalConnection> conn) throw ();
 
     virtual ~BotInterface() throw () { }
 
