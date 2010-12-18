@@ -3087,6 +3087,245 @@ static bool sortByExtraFramesToRespawn(ServerPlayer* p1, ServerPlayer* p2) throw
         || p1->extra_frames_to_respawn == p2->extra_frames_to_respawn && p1->frames_to_respawn < p2->frames_to_respawn;
 }
 
+void ServerWorld::simulatePlayerPrePhysics(ServerPlayer& pl) throw () {
+    if (!pl.used)
+        return;
+
+    //dec talk flood protect counter
+    pl.talk_temp -= 0.1;
+    if (pl.talk_temp < 0.0)
+        pl.talk_temp = 0.0;
+    pl.talk_hotness -= 0.1;
+    if (pl.talk_hotness < 1.0)
+        pl.talk_hotness = 1.0;
+
+    // check powerups expired
+    if (pl.item_turbo)
+        if (get_time() > pl.item_turbo_time) {
+            pl.item_turbo = false;
+            pl.record_powerups = true;
+            net->broadcast_screen_sample(pl.pid, SAMPLE_TURBO_OFF);
+        }
+    if (pl.item_power)
+        if (get_time() > pl.item_power_time) {
+            pl.item_power = false;
+            pl.record_powerups = true;
+            net->broadcast_screen_sample(pl.pid, SAMPLE_POWER_OFF);
+        }
+    if (pl.item_shadow())
+        if (get_time() > pl.item_shadow_time) {
+            pl.set_visibility(255);
+            net->broadcast_screen_sample(pl.pid, SAMPLE_SHADOW_OFF);
+        }
+
+    // shadow alpha down
+    if (pl.item_shadow()) {
+        int visibility = pl.visibility - 10;   // slowly fades....
+        if (visibility < config.getShadowMinimum())
+            visibility = config.getShadowMinimum();
+        pl.set_visibility(visibility);
+    }
+
+    // check deathbringer effect
+    if (pl.deathbringer_end > get_time()) {
+        //check if still alive
+        if (!pl.dead) {
+            //has shield: do big damage to it, in order to remove the shield
+            if (pl.item_shield)
+                damagePlayer(pl.pid, pl.deathbringer_attacker, 12, DT_deathbringer);
+            else
+                damagePlayer(pl.pid, pl.deathbringer_attacker, 3, DT_deathbringer); // 30 / s, 150 / 5 s
+        }
+    }
+    else if (get_time() - pl.deathbringer_end < 0.2) // deathbringer effect has just ended
+        pl.record_powerups = true;
+}
+
+void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
+    if (!pl.used || pl.dead)
+        return;
+
+    // check for player weapons fire time
+    if ((pl.attack || pl.attackOnce) && !pl.dead && frame >= pl.next_shoot_frame) {
+        int numshots = 1;
+        pl.energy -= config.shooting_energy_base;
+        if (pl.energy < 0)
+            pl.energy = 0;
+        else {
+            for (int k = 1; k < pl.weapon && pl.energy >= config.shooting_energy_per_extra_rocket; k++) {
+                pl.energy -= config.shooting_energy_per_extra_rocket;
+                ++numshots;
+            }
+        }
+
+        pl.next_shoot_frame = frame + (pl.energy > 0 ? config.get_shoot_interval_with_energy_frames() : config.get_shoot_interval_frames());
+
+        //show shadow
+        if (pl.item_shadow())
+            pl.set_visibility(maximum_shadow_visibility);
+
+        shootRockets(pl.pid, numshots);
+    }
+    pl.attackOnce = false;
+
+    // adjust health and energy for carrying deathbringer, running, and plain time passing
+    if (pl.deathbringer_end < get_time())
+        regenerateHealthOrEnergy(pl);
+    if (pl.controls.isRun())
+        degradeHealthOrEnergyForRunning(pl);
+    if (pl.item_deathbringer && pl.health > pupConfig.deathbringer_health_limit)
+        pl.health = max<double>(pupConfig.deathbringer_health_limit, pl.health - pupConfig.deathbringer_health_degradation / 10.);
+    if (pl.item_deathbringer && pl.energy > pupConfig.deathbringer_energy_limit)
+        pl.energy = max<double>(pupConfig.deathbringer_energy_limit, pl.energy - pupConfig.deathbringer_energy_degradation / 10.);
+    //megahealth bonus:
+    if (pl.megabonus > 0)
+        for (int mh = 0; mh < 5; mh++) {
+            if (pl.megabonus > 0 && pl.health < config.health_max) {
+                pl.health++;
+                pl.megabonus--;
+            }
+            if (pl.megabonus > 0 && pl.energy < config.energy_max) {
+                pl.energy++;
+                pl.megabonus--;
+            }
+        }
+    // new limit - don't store megabonuses
+    if (pl.health == config.health_max && pl.energy == config.energy_max)
+        pl.megabonus = 0;
+
+    //---------------------------------
+    // check game object collisions
+    //---------------------------------
+
+    const int myteam = pl.team();
+    const int enemyteam = 1 - myteam;
+
+    // --> ITEM POWERUP
+    const int touchRadius = POWERUP_RADIUS + PLAYER_RADIUS;
+
+    // Players under deathbringer effect can not take powerups.
+    if (!pl.under_deathbringer_effect(get_time()))
+        for (int k = 0; k < MAX_POWERUPS; k++)
+            if (item[k].kind <= Powerup::pup_last_real && item[k].room() == pl.room() && (item[k].pos.local() - pl.pos.local()).mag2() < sqr(touchRadius))
+                game_touch_powerup(pl.pid, k);
+
+    // limit health and energy (after powerups because they might have an effect)
+    nAssert(pl.health > 0);
+    if (pl.health > config.health_max)
+        pl.health = config.health_max;
+    if (pl.energy < 0)
+        pl.energy = 0;
+    else if (pl.energy > config.energy_max)
+        pl.energy = config.energy_max;
+
+    // Players under deathbringer effect can not take, capture, drop or return flags.
+    if (pl.under_deathbringer_effect(get_time()))
+        return;
+
+    // Flag steal - touch other team's flag or wild flag
+    // ft = 0 => Touch enemy flag
+    // ft = 1 => Touch wild flag
+    // ft = 2 => Touch own team flag
+    bool touches_flag = false;
+    for (int ft = 0; ft < 3; ft++) {
+        if (pl.stats().has_flag())
+            break;
+        if ((ft == 0 || ft == 2) && lock_team_flags_in_effect())
+            continue;
+        if (ft == 1 && lock_wild_flags_in_effect())
+            continue;
+        const vector<Flag>* flags;
+        int flag_team;
+        if (ft == 0) {
+            flag_team = enemyteam;
+            flags = &teams[enemyteam].flags();
+        }
+        else if (ft == 1) {
+            flag_team = 2;
+            flags = &wild_flags;
+        }
+        else {
+            if (!config.carry_own_team_flag)
+                continue;
+            flag_team = myteam;
+            flags = &teams[myteam].flags();
+        }
+        int f = 0;
+        for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
+            if (!fi->carried() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
+                touches_flag = true;
+                // Has player just dropped the flag or not?
+                if (!pl.dropped_flag && !pl.drop_key) {
+                    player_steals_flag(pl.pid, flag_team, f);
+                    break;  // only take one flag
+                }
+            }
+    }
+    if (!pl.drop_key && !touches_flag)  // Player who dropped the flag has now moved outside it.
+        pl.dropped_flag = false;
+
+    // Flag return - wild flags can't be returned
+    if (!config.carry_own_team_flag) {
+        int f = 0;
+        for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
+                frame / 10. >= fi->drop_time() + config.flag_return_delay)
+            {
+                //FLAG RETURNED!
+                host->score_frag(pl.pid, 1); // just add some frags
+                pl.stats().add_flag_return();
+                teams[myteam].add_flag_return();
+                net->broadcast_flag_return(pl);
+                returnFlag(myteam, f);  //flag returned
+            }
+    }
+
+    // Flag captures
+    // ft = 0 => Take enemy or wild flag to own flag
+    // ft = 1 => Take enemy or wild flag to wild flag
+    // TODO: ft = 2 => Take own flag to enemy or wild flag
+    for (int ft = 0; ft < 2; ft++) {
+        if (ft == 0 && !capture_on_team_flags_in_effect())
+            continue;
+        if (ft == 1 && !capture_on_wild_flags_in_effect())
+            continue;
+        const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
+        int my_flag_id = 0;
+        for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy, ++my_flag_id) {
+            if (!config.carry_own_team_flag && !fmy->at_base() /*|| config.carry_own_team_flag && fmy->carried() && fmy->carrier() / TSIZE != myteam*/)
+                continue;
+            for (int t = 0; t < 2; ++t) {
+                const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
+                const int flagTeam = t == 0 ? enemyteam : 2;
+                int f = 0;
+                for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
+                    if (fi->carrier() == pl.pid && check_flag_touch(*fmy, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
+                        int ass_pid = fi->prev_carrier();
+                        if (fmy->carried())
+                            ass_pid = fmy->carrier();
+                        if (!player_captures_flag(pl.pid, flagTeam, f, ass_pid))
+                            continue;
+                        if (fmy->carried())
+                            dropFlagIfAny(ass_pid, true); // to keep the game compatible with previous client versions
+                        if (!fmy->at_base())
+                            returnFlag(myteam, my_flag_id);
+                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+                            teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
+                            extra_time_and_sudden_death())
+                        {
+                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+                            return;
+                        }
+                    }
+            }
+        }
+    }
+}
+
+bool ServerWorld::extra_time_and_sudden_death() const throw () {
+    return config.suddenDeath() && getTimeLeft() < 0;
+}
+
 void ServerWorld::simulateFrame() throw () {
     // (-1) check powerup respawn
     for (int i = 0; i < MAX_POWERUPS; i++)
@@ -3094,59 +3333,8 @@ void ServerWorld::simulateFrame() throw () {
             respawn_powerup(i);
 
     // (0) do stuff for every player
-    for (int i = 0; i < maxplayers; i++) {
-        if (!player[i].used)
-            continue;
-
-        //dec talk flood protect counter
-        player[i].talk_temp -= 0.1;
-        if (player[i].talk_temp < 0.0)
-            player[i].talk_temp = 0.0;
-        player[i].talk_hotness -= 0.1;
-        if (player[i].talk_hotness < 1.0)
-            player[i].talk_hotness = 1.0;
-
-        // check powerups expired
-        if (player[i].item_turbo)
-            if (get_time() > player[i].item_turbo_time) {
-                player[i].item_turbo = false;
-                player[i].record_powerups = true;
-                net->broadcast_screen_sample(i, SAMPLE_TURBO_OFF);
-            }
-        if (player[i].item_power)
-            if (get_time() > player[i].item_power_time) {
-                player[i].item_power = false;
-                player[i].record_powerups = true;
-                net->broadcast_screen_sample(i, SAMPLE_POWER_OFF);
-            }
-        if (player[i].item_shadow())
-            if (get_time() > player[i].item_shadow_time) {
-                player[i].set_visibility(255);
-                net->broadcast_screen_sample(i, SAMPLE_SHADOW_OFF);
-            }
-
-        // shadow alpha down
-        if (player[i].item_shadow()) {
-            int visibility = player[i].visibility - 10;   // slowly fades....
-            if (visibility < config.getShadowMinimum())
-                visibility = config.getShadowMinimum();
-            player[i].set_visibility(visibility);
-        }
-
-        // check deathbringer effect
-        if (player[i].deathbringer_end > get_time()) {
-            //check if still alive
-            if (!player[i].dead) {
-                //has shield: do big damage to it, in order to remove the shield
-                if (player[i].item_shield)
-                    damagePlayer(i, player[i].deathbringer_attacker, 12, DT_deathbringer);
-                else
-                    damagePlayer(i, player[i].deathbringer_attacker, 3, DT_deathbringer); // 30 / s, 150 / 5 s
-            }
-        }
-        else if (get_time() - player[i].deathbringer_end < 0.2) // deathbringer effect has just ended
-            player[i].record_powerups = true;
-    }
+    for (int i = 0; i < maxplayers; i++)
+        simulatePlayerPrePhysics(player[i]);
 
     cleanOldDeathbringerExplosions();
 
@@ -3199,8 +3387,6 @@ void ServerWorld::simulateFrame() throw () {
     ServerPhysicsCallbacks cb(*this);
     applyPhysics(cb, PLAYER_RADIUS, 1.);    // 1. means apply the whole frame at once
 
-    const bool extra_time_and_sudden_death = config.suddenDeath() && getTimeLeft() < 0;
-
     // check player respawn
     vector<ServerPlayer*> respawners[2];
     for (int i = 0; i < maxplayers; ++i) {
@@ -3237,185 +3423,8 @@ void ServerWorld::simulateFrame() throw () {
     }
 
     // for each player, do misc stuff
-    for (int i = 0; i < maxplayers; i++) {
-        ServerPlayer& pl = player[i];
-        if (!pl.used || pl.dead)
-            continue;
-
-        // check for player weapons fire time
-        if ((player[i].attack || player[i].attackOnce) && !player[i].dead && frame >= player[i].next_shoot_frame) {
-            int numshots = 1;
-            player[i].energy -= config.shooting_energy_base;
-            if (player[i].energy < 0)
-                player[i].energy = 0;
-            else {
-                for (int k = 1; k < player[i].weapon && player[i].energy >= config.shooting_energy_per_extra_rocket; k++) {
-                    player[i].energy -= config.shooting_energy_per_extra_rocket;
-                    ++numshots;
-                }
-            }
-
-            player[i].next_shoot_frame = frame + (player[i].energy > 0 ? config.get_shoot_interval_with_energy_frames() : config.get_shoot_interval_frames());
-
-            //show shadow
-            if (player[i].item_shadow())
-                player[i].set_visibility(maximum_shadow_visibility);
-
-            shootRockets(i, numshots);
-        }
-        player[i].attackOnce = false;
-
-        // adjust health and energy for carrying deathbringer, running, and plain time passing
-        if (pl.deathbringer_end < get_time())
-            regenerateHealthOrEnergy(pl);
-        if (pl.controls.isRun())
-            degradeHealthOrEnergyForRunning(pl);
-        if (pl.item_deathbringer && pl.health > pupConfig.deathbringer_health_limit)
-            pl.health = max<double>(pupConfig.deathbringer_health_limit, pl.health - pupConfig.deathbringer_health_degradation / 10.);
-        if (pl.item_deathbringer && pl.energy > pupConfig.deathbringer_energy_limit)
-            pl.energy = max<double>(pupConfig.deathbringer_energy_limit, pl.energy - pupConfig.deathbringer_energy_degradation / 10.);
-        //megahealth bonus:
-        if (pl.megabonus > 0)
-            for (int mh = 0; mh < 5; mh++) {
-                if (pl.megabonus > 0 && pl.health < config.health_max) {
-                    pl.health++;
-                    pl.megabonus--;
-                }
-                if (pl.megabonus > 0 && pl.energy < config.energy_max) {
-                    pl.energy++;
-                    pl.megabonus--;
-                }
-            }
-        // new limit - don't store megabonuses
-        if (pl.health == config.health_max && pl.energy == config.energy_max)
-            pl.megabonus = 0;
-
-        //---------------------------------
-        // check game object collisions
-        //---------------------------------
-
-        const int myteam = i / TSIZE;
-        const int enemyteam = 1 - myteam;
-
-        // --> ITEM POWERUP
-        const int touchRadius = POWERUP_RADIUS + PLAYER_RADIUS;
-
-        // Players under deathbringer effect can not take powerups.
-        if (!pl.under_deathbringer_effect(get_time()))
-            for (int k = 0; k < MAX_POWERUPS; k++)
-                if (item[k].kind <= Powerup::pup_last_real && item[k].room() == pl.room() && (item[k].pos.local() - pl.pos.local()).mag2() < sqr(touchRadius))
-                    game_touch_powerup(i, k);
-
-        // limit health and energy (after powerups because they might have an effect)
-        nAssert(pl.health > 0);
-        if (pl.health > config.health_max)
-            pl.health = config.health_max;
-        if (pl.energy < 0)
-            pl.energy = 0;
-        else if (pl.energy > config.energy_max)
-            pl.energy = config.energy_max;
-
-        // Players under deathbringer effect can not take, capture, drop or return flags.
-        if (pl.under_deathbringer_effect(get_time()))
-            continue;
-
-        // Flag steal - touch other team's flag or wild flag
-        // ft = 0 => Touch enemy flag
-        // ft = 1 => Touch wild flag
-        // ft = 2 => Touch own team flag
-        bool touches_flag = false;
-        for (int ft = 0; ft < 3; ft++) {
-            if (pl.stats().has_flag())
-                break;
-            if ((ft == 0 || ft == 2) && lock_team_flags_in_effect())
-                continue;
-            if (ft == 1 && lock_wild_flags_in_effect())
-                continue;
-            const vector<Flag>* flags;
-            int flag_team;
-            if (ft == 0) {
-                flag_team = enemyteam;
-                flags = &teams[enemyteam].flags();
-            }
-            else if (ft == 1) {
-                flag_team = 2;
-                flags = &wild_flags;
-            }
-            else {
-                if (!config.carry_own_team_flag)
-                    continue;
-                flag_team = myteam;
-                flags = &teams[myteam].flags();
-            }
-            int f = 0;
-            for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-                if (!fi->carried() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
-                    touches_flag = true;
-                    // Has player just dropped the flag or not?
-                    if (!pl.dropped_flag && !pl.drop_key) {
-                        player_steals_flag(i, flag_team, f);
-                        break;  // only take one flag
-                    }
-                }
-        }
-        if (!pl.drop_key && !touches_flag)  // Player who dropped the flag has now moved outside it.
-            pl.dropped_flag = false;
-
-        // Flag return - wild flags can't be returned
-        if (!config.carry_own_team_flag) {
-            int f = 0;
-            for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-                if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
-                                 frame / 10. >= fi->drop_time() + config.flag_return_delay) {
-                    //FLAG RETURNED!
-                    host->score_frag(i, 1); // just add some frags
-                    pl.stats().add_flag_return();
-                    teams[myteam].add_flag_return();
-                    net->broadcast_flag_return(pl);
-                    returnFlag(myteam, f);  //flag returned
-                }
-        }
-
-        // Flag captures
-        // ft = 0 => Take enemy or wild flag to own flag
-        // ft = 1 => Take enemy or wild flag to wild flag
-        // TODO: ft = 2 => Take own flag to enemy or wild flag
-        for (int ft = 0; ft < 2; ft++) {
-            if (ft == 0 && !capture_on_team_flags_in_effect())
-                continue;
-            if (ft == 1 && !capture_on_wild_flags_in_effect())
-                continue;
-            const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
-            int my_flag_id = 0;
-            for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy, ++my_flag_id) {
-                if (!config.carry_own_team_flag && !fmy->at_base() /*|| config.carry_own_team_flag && fmy->carried() && fmy->carrier() / TSIZE != myteam*/)
-                    continue;
-                for (int t = 0; t < 2; ++t) {
-                    const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
-                    const int flagTeam = t == 0 ? enemyteam : 2;
-                    int f = 0;
-                    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
-                        if (fi->carrier() == i && check_flag_touch(*fmy, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
-                            int ass_pid = fi->prev_carrier();
-                            if (fmy->carried())
-                                ass_pid = fmy->carrier();
-                            if (!player_captures_flag(i, flagTeam, f, ass_pid))
-                                continue;
-                            if (fmy->carried())
-                                dropFlagIfAny(ass_pid, true); // to keep the game compatible with previous client versions
-                            if (!fmy->at_base())
-                                returnFlag(myteam, my_flag_id);
-                            if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
-                                        teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
-                                        extra_time_and_sudden_death) {
-                                host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                                return;
-                            }
-                        }
-                }
-            }
-        }
-    }
+    for (int i = 0; i < maxplayers; i++)
+        simulatePlayerPostPhysics(player[i]);
 
     // check for score for carrying a wild flag
     if (config.carrying_score_time > 0 && teams[0].flags().empty() && teams[1].flags().empty()) {
@@ -3428,7 +3437,7 @@ void ServerWorld::simulateFrame() throw () {
                     team_gets_carrying_point(team, true);
                     if (teams[team].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                                 teams[team].score() - teams[1 - team].score() >= config.getWinScoreDifference() ||
-                                extra_time_and_sudden_death) {
+                                extra_time_and_sudden_death()) {
                         host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
                         return;
                     }
