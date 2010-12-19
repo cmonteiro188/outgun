@@ -4552,8 +4552,9 @@ void GuiClient::MCF_stopServer() throw () {
         listenServer.stop();
 }
 
-void GuiClient::MCF_replay(Textarea& target) throw () {
-    const string& replay_name = menu.replays.getFile(target);
+void GuiClient::MCF_replay(TreeItem& target) throw () {
+    //const string& replay_name = menu.replays.getFile(target.key());
+    const string& replay_name = target.key();
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
@@ -4601,14 +4602,14 @@ void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
 }
 
 void GuiClient::MCF_prepareReplayMenu() throw () {
-    menu.replays.reset();
-    const ReplayCache cache = loadReplayCache();
+    ReplayCache cache = loadReplayCache();
     ReplayList replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
     while (replay_files->hasNext()) {
         const string name = FileName(replay_files->next()).getBaseName();
-        ReplayCache::const_iterator iCache = cache.find(name);
+        ReplayCache::iterator iCache = cache.find(name);
         if (iCache != cache.end()) {
+            iCache->second.confirmed = true;
             replays.push_back(*iCache);
             continue;
         }
@@ -4644,12 +4645,17 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
     sort(replays.begin(), replays.end());
+    for (ReplayCache::const_iterator ri = cache.begin(); ri != cache.end(); ri++)
+        if (!ri->second.confirmed)
+            menu.replays.remove(ri->first);
+
     for (ReplayList::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second.description);
 
     typedef MenuCallback<GuiClient> MCB;
-    typedef MenuKeyCallback<GuiClient> MKC;
-    menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
+    menu.replays.addHooks(new MCB::A<TreeItem, &GuiClient::MCF_replay>(this));
+
+    menu.replays.expandLatest();
 
     saveReplayCache(replays);
 }

@@ -424,6 +424,90 @@ private:
     mutable int old_linew;
 };
 
+class TreeItem : public MenuHookable<TreeItem> {
+public:
+    TreeItem(const std::string& val = "") throw () : value_(val), opened(), selected_() { }
+    TreeItem(const std::string& key_, const std::string& val) throw () : itemKey(key_), value_(val), opened(), selected_() { }
+    ~TreeItem() throw () { }
+
+    typedef std::vector<TreeItem> Container;
+
+    void clear() throw () { childItems.clear(); }
+
+    void setKey(const std::string& key_) throw () { itemKey = key_; }
+    void setValue(const std::string& val) throw () { value_ = val; }
+
+    void open() throw () { opened = true; }
+    void close() throw () { opened = false; }
+    void select() throw () { selected_ = true; }
+    void deselect() throw () { selected_ = false; }
+
+    void addChild(const TreeItem& child) throw () { childItems.push_back(child); }
+
+    const std::string& key() const throw() { return itemKey; }
+    const std::string& value() const throw() { return value_; }
+
+    bool isOpen() const throw () { return opened && hasChildren(); }
+    bool selected() const throw () { return selected_; }
+
+    bool hasChildren() const throw () { return !childItems.empty(); }
+    const Container& children() const throw () { return childItems; }
+    Container& children() throw () { return childItems; }
+
+    std::size_t deepCount() const throw ();
+    std::size_t deepCountOpenItems() const throw ();
+    std::size_t deepCountLowestLevelItems() const throw ();
+
+    const TreeItem* findDeep(const std::string& itemKey) const throw ();
+    TreeItem* findDeep(const std::string& itemKey) throw ();
+    bool removeDeep(const std::string& itemKey) throw ();
+
+    TreeItem* getByOpenIndex(std::size_t index) throw ();
+
+    int width(int level = 0) const throw ();
+    int height() const throw ();
+
+    bool handleKey(char scan, unsigned char chr) throw ();
+
+private:
+    Container childItems;
+    std::string itemKey;
+    std::string value_;
+    bool opened;
+    bool selected_;
+};
+
+class TextTree : public Component {
+public:
+    TextTree(const std::string& caption_ = "") throw ();
+    ~TextTree() throw () { }
+
+    void clear() throw () { root().clear(); selectItem(0); }
+
+    const TreeItem& root() const throw () { return rootItem; }
+    TreeItem& root() throw () { return rootItem; }
+
+    void previous() throw ();
+    void next() throw ();
+
+    // inherited interface
+    int width() const throw ();
+    int height() const throw ();
+    int minHeight() const throw ();
+    void draw(BITMAP* buffer, int x, int y, int height, bool active, const Colour_manager& col) const throw ();
+    bool handleKey(char scan, unsigned char chr) throw ();
+
+private:
+    void selectItem(int index) throw ();
+
+    void drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw ();
+
+    TreeItem rootItem;
+    int selectedIndex;
+    TreeItem* selectedItem;
+    mutable int start;     // this may change in drawing
+};
+
 // this template does the necessary wrapping of member function references to be given to Components as callbacks
 // MenuCallback<UserClass>::A<ComponentType, &UserClass::handlerFunction>(userClassInstance)
 //      calls void userClassInstance.handlerFunction(ComponentType&)

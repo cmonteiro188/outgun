@@ -1008,3 +1008,233 @@ bool Textobject::handleKey(char scan, unsigned char chr) throw () {
         return false;
     return true;
 }
+
+
+size_t TreeItem::deepCount() const throw () {
+    size_t count = childItems.size();
+    for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+        count += item->deepCount();
+    return count;
+}
+
+size_t TreeItem::deepCountOpenItems() const throw () {
+    if (!isOpen())
+        return 0;
+    size_t count = childItems.size();
+    for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+        count += item->deepCountOpenItems();
+    return count;
+}
+
+size_t TreeItem::deepCountLowestLevelItems() const throw () {
+    size_t count = hasChildren() ? 0 : 1;
+    for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+        count += item->deepCountLowestLevelItems();
+    return count;
+}
+
+const TreeItem* TreeItem::findDeep(const string& itemKey) const throw () {
+    if (key() == itemKey)
+        return this;
+    for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+        if (const TreeItem* found = item->findDeep(itemKey))
+            return found;
+    return 0;
+}
+
+TreeItem* TreeItem::findDeep(const string& itemKey) throw () {
+    if (key() == itemKey)
+        return this;
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); item++)
+        if (TreeItem* found = item->findDeep(itemKey))
+            return found;
+    return 0;
+}
+
+bool TreeItem::removeDeep(const string& itemKey) throw () {
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); item++)
+        if (item->key() == itemKey) {
+            childItems.erase(item);
+            return true;
+        }
+        else if (item->removeDeep(itemKey))
+            return true;
+    return false;
+}
+
+TreeItem* TreeItem::getByOpenIndex(size_t index) throw () {
+    if (index == 0)
+        return this;
+    if (!isOpen())
+        return 0;
+    for (Container::iterator child = children().begin(); child != children().end(); child++) {
+        index--;
+        if (index == 0)
+            return &(*child);
+        size_t count = child->deepCountOpenItems();
+        if (count >= index) {
+            TreeItem* item = child->getByOpenIndex(index);
+            if (item)
+                return item;
+        }
+        else
+            index -= count;
+    }
+    return 0;
+}
+
+int TreeItem::width(int level) const throw () {
+    // The width is maximum width of the item and its open child items + indentation + scrollbar.
+    int w = text_length(font, string(level * 2, ' ') + value()) + 2 * char_w();
+    if (isOpen())
+        for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+            w = max(w, item->width(level + 1));
+    return w;
+}
+
+int TreeItem::height() const throw () {
+    // Sum of the height of the item and its open child items.
+    int h = line_h();
+    if (isOpen())
+        for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
+            h += item->height();
+    return h;
+}
+
+bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
+    if (!selected()) {
+        if (isOpen() && hasChildren())
+            for (TreeItem::Container::iterator item = children().begin(); item != children().end(); item++)
+                if (item->handleKey(scan, chr))
+                    return true;
+        return false;
+    }
+    if (scan == KEY_ENTER || scan == KEY_ENTER_PAD || scan == KEY_SPACE) {
+        if (isHooked())
+            callHook(*this);
+        else if (isOpen())
+            close();
+        else
+            open();
+        return true;
+    }
+    else if (scan == KEY_LEFT) {
+        close();
+        return true;
+    }
+    else if (scan == KEY_RIGHT) {
+        open();
+        return true;
+    }
+    return false;
+}
+
+
+TextTree::TextTree(const string& caption_) throw () :
+    Component(caption_),
+    start()
+{
+    root().setValue(caption_);
+    selectItem(0);
+}
+
+void TextTree::previous() throw () {
+    if (selectedIndex == 0)
+        return;
+    selectItem(selectedIndex - 1);
+}
+
+void TextTree::next() throw () {
+    selectItem(selectedIndex + 1);
+}
+
+int TextTree::width() const throw () {
+    return root().width();
+}
+
+int TextTree::height() const throw () {
+    return root().height();
+}
+
+int TextTree::minHeight() const throw () {
+    return line_h();
+}
+
+void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
+    TemporaryClipRect clip(buffer, x, y, buffer->w, y + h, true);
+    const int y0 = y;
+    const int h0 = h;
+    const int totalCount = root().deepCountOpenItems() + 1;
+    const int visible_lines = h / line_h();
+
+    if (start > totalCount - h / line_h())
+        start = totalCount - h / line_h();
+    if (start > selectedIndex)
+        start = selectedIndex;
+    if (start < selectedIndex - h / line_h() + 1)
+        start = selectedIndex - h / line_h() + 1;
+    if (start < 0)
+        start = 0;
+    y -= start * line_h();
+    h += start * line_h();
+    drawItem(root(), 0, buffer, x, y, h, active, col);
+
+    // draw scrollbar if everything didn't fit
+    if (visible_lines != totalCount) {
+        const int sbx = min(x + width() + char_w(), buffer->w - 12);
+        const int bar_y = static_cast<int>(static_cast<double>(h0 * start) / totalCount + 0.5);
+        const int bar_h = static_cast<int>(static_cast<double>(h0 * visible_lines) / totalCount + 0.5);
+        scrollbar(buffer, sbx, y0, h0, bar_y, bar_h, col[Colour::scrollbar], col[Colour::scrollbar_bg]);
+    }
+}
+
+void TextTree::drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw () {
+    if (h < minHeight())
+        return;
+    string text(level * 2, ' ');
+    if (!item.hasChildren())
+        text += "  ";
+    else if (item.isOpen())
+        text += "- ";
+    else
+        text += "+ ";
+    text += item.value();
+    if (item.hasChildren())
+        text += " (" + itoa(item.deepCountLowestLevelItems()) + ')';
+    textout_ex(buffer, font, text, x, y, captionColor(active && item.selected(), col), -1);
+    y += line_h();
+    h -= line_h();
+    // Draw the child items recursively.
+    if (item.isOpen())
+        for (TreeItem::Container::const_iterator child = item.children().begin(); child != item.children().end(); child++) {
+            drawItem(*child, level + 1, buffer, x, y, h, active, col);
+            const int childHeight = child->height();
+            y += childHeight;
+            h -= childHeight;
+        }
+}
+
+bool TextTree::handleKey(char scan, unsigned char chr) throw () {
+    if (scan == KEY_UP) {
+        previous();
+        return true;
+    }
+    else if (scan == KEY_DOWN) {
+        next();
+        return true;
+    }
+    else
+        return root().handleKey(scan, chr);
+}
+
+void TextTree::selectItem(int index) throw () {
+    TreeItem* newItem = root().getByOpenIndex(index);
+    if (newItem) {
+        if (selectedItem)
+            selectedItem->deselect();
+        selectedIndex = index;
+        selectedItem = newItem;
+        selectedItem->select();
+    }
+}
+

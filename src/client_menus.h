@@ -462,18 +462,22 @@ private:
 
 class Menu_replays {
 public:
-    std::vector<std::pair<std::string, Textarea> > items;
     Textarea        caption;
+    TextTree        items;
 
     Menu menu;
 
     Menu_replays() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void add(const std::string& replay, const std::string& text) throw ();
+    void add(const std::string& replayFile, const std::string& text) throw ();
+    void remove(const std::string& replayFile) throw ();
     void reset() throw ();
-    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw ();
-    const std::string& getFile(const Textarea& target) throw ();
+    void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
+    void expandLatest() throw ();
+
+private:
+    void addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
 };
 
 class Menu_main {
