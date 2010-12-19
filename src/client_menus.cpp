@@ -731,12 +731,12 @@ void Menu_quickMessages::loadMessages(const vector<string>& newMessages) throw (
 Menu_options::Menu_options() throw () :
     player    (),
     game      (),
+    quickMessages(),
     controls  (),
     screenMode(),
     theme     (),
     graphics  (),
     sounds    (),
-    quickMessages(),
     language  (),
     bugReports(),
 
@@ -747,17 +747,19 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     menu.setHook(opener);
     player    .initialize(opener->clone(), collector);
     game      .initialize(opener->clone(), collector);
+    quickMessages.initialize(opener->clone(), collector);
     controls  .initialize(opener->clone(), collector);
     screenMode.initialize(opener->clone(), collector);
     theme     .initialize(opener->clone(), collector);
     graphics  .initialize(opener->clone(), collector);
     sounds    .initialize(opener->clone(), collector);
-    quickMessages.initialize(opener->clone(), collector);
     language  .initialize(opener->clone(), collector);
     bugReports.initialize(opener->clone(), collector);
     DualComponentAdder add(menu, collector);
     add(&player.menu);
+    add.space();
     add(&game.menu);
+    add(&quickMessages.menu);
     add(&controls.menu);
     add.space();
     add(&screenMode.menu);
@@ -765,7 +767,6 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     add(&graphics.menu);
     add.space();
     add(&sounds.menu);
-    add(&quickMessages.menu);
     add.space();
     add(&language.menu);
     add(&bugReports.menu);

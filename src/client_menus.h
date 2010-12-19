@@ -407,12 +407,12 @@ class Menu_options {
 public:
     Menu_player          player;
     Menu_game            game;
+    Menu_quickMessages   quickMessages;
     Menu_controls        controls;
     Menu_screenMode      screenMode;
     Menu_theme           theme;
     Menu_graphics        graphics;
     Menu_sounds          sounds;
-    Menu_quickMessages   quickMessages;
     Menu_language        language;
     Menu_bugReportPolicy bugReports;
 
