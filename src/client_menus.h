@@ -102,6 +102,8 @@ enum ClientCfgSetting {
     CCS_UseThemeColours,
     CCS_SaveReplayStats,
     CCS_RandomColour,
+    CCS_QuickMessagesEnabled,
+    CCS_SendQuickMessageImmediately,
     CCS_EndOfCommands
 };
 
@@ -385,10 +387,27 @@ public:
     void addLine(const std::string& line) throw ();
 };
 
+class Menu_quickMessages {
+public:
+    static const int numberOfMessages = 10;
+
+    StaticText  guide;
+    Checkbox    enabled;
+    Checkbox    sendImmediately;
+    std::vector<Textfield> messages;
+
+    Menu menu;
+
+    Menu_quickMessages() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+    void loadMessages(const std::vector<std::string>& newMessages) throw ();
+};
+
 class Menu_options {
 public:
     Menu_player          player;
     Menu_game            game;
+    Menu_quickMessages   quickMessages;
     Menu_controls        controls;
     Menu_screenMode      screenMode;
     Menu_theme           theme;

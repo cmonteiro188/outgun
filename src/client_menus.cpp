@@ -694,9 +694,44 @@ void Menu_bugReportPolicy::init() throw () {
     add(&policy);
 }
 
+Menu_quickMessages::Menu_quickMessages() throw () :
+    guide           (_("Note that team messages start with a dot (.).")),
+
+    enabled         (_("Enable quick messages")),
+    sendImmediately (_("Send message immediately")),
+
+    menu            (_("Quick messages"), true)
+{
+    for (int i = 0; i < numberOfMessages; i++) {
+        const int key = (i + 1) % 10; // More than ten messages is unusable (but ten should already be enough).
+        const string caption = _("Alt+$1", itoa(key));
+        messages.push_back(Textfield(caption, "", 30));
+    }
+}
+
+void Menu_quickMessages::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
+    menu.setHook(opener);
+    DualComponentAdder add(menu, collector);
+    add(&guide);
+    add(&enabled, CCS_QuickMessagesEnabled);
+    add(&sendImmediately, CCS_SendQuickMessageImmediately);
+    int i = 0;
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++, i++)
+        add(&(*mi));
+}
+
+void Menu_quickMessages::loadMessages(const vector<string>& newMessages) throw () {
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++)
+        mi->set("");
+    unsigned i = 0;
+    for (vector<string>::const_iterator msg = newMessages.begin(); msg != newMessages.end() && i < messages.size(); msg++, i++)
+        messages[i].set(*msg);
+}
+
 Menu_options::Menu_options() throw () :
     player    (),
     game      (),
+    quickMessages(),
     controls  (),
     screenMode(),
     theme     (),
@@ -712,6 +747,7 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     menu.setHook(opener);
     player    .initialize(opener->clone(), collector);
     game      .initialize(opener->clone(), collector);
+    quickMessages.initialize(opener->clone(), collector);
     controls  .initialize(opener->clone(), collector);
     screenMode.initialize(opener->clone(), collector);
     theme     .initialize(opener->clone(), collector);
@@ -721,7 +757,9 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     bugReports.initialize(opener->clone(), collector);
     DualComponentAdder add(menu, collector);
     add(&player.menu);
+    add.space();
     add(&game.menu);
+    add(&quickMessages.menu);
     add(&controls.menu);
     add.space();
     add(&screenMode.menu);

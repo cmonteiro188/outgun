@@ -405,6 +405,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     serverListMutex("GuiClient::serverListMutex"),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
+    quickMessageFile(wheregamedir + "config" + directory_separator + "quickmessages.txt"),
     graphics(log),
     screenshot(false),
     visible_rooms(1),
@@ -532,6 +533,8 @@ bool GuiClient::start() throw () {
         }
     }
     cfg.close();
+
+    loadQuickMessages();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
     ifstream fav(fileName.c_str());
@@ -2442,6 +2445,22 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         return;
     }
 
+    // Quick messages
+    if (!replaying && ch == 0 && sc >= KEY_0 && sc <= KEY_9 && menu.options.quickMessages.enabled() && talkbuffer.empty()) {
+        int messageIndex = sc - KEY_1;
+        if (messageIndex == -1)
+            messageIndex = 9;
+        const string& message = menu.options.quickMessages.messages[messageIndex]();
+        if (!message.empty()) {
+            talkbuffer = message;
+            talkbuffer_cursor = message.length();
+            if (menu.options.quickMessages.sendImmediately())
+                sc = KEY_ENTER; // send the message
+            else
+                return;
+        }
+    }
+
     switch (sc) {   // Allow these keys to be used also for typing text.
     /*break;*/ case KEY_MINUS_PAD:
         if (!replaying && !withControl)
@@ -3186,6 +3205,8 @@ void GuiClient::stop() throw () {
             fav << spy->addressString() << '\n';
         fav.close();
     }
+
+    saveQuickMessages();
 
     //save client's password
     log("Saving password file...");
@@ -4649,6 +4670,22 @@ void GuiClient::load_fav_maps() throw () {
     string line;
     while (getline_skip_comments(in, line))
         fav_maps.insert(toupper(trim(line)));
+}
+
+void GuiClient::loadQuickMessages() throw () {
+    vector<string> messages;
+    ifstream in(quickMessageFile.c_str());
+    string line;
+    while (getline_skip_comments(in, line))
+        messages.push_back(trim(line));
+    menu.options.quickMessages.loadMessages(messages);
+}
+
+void GuiClient::saveQuickMessages() const throw () {
+    ofstream out(quickMessageFile.c_str());
+    const vector<Textfield>& messages = menu.options.quickMessages.messages;
+    for (vector<Textfield>::const_iterator field = messages.begin(); field != messages.end(); field++)
+        out << (*field)() + " " << '\n'; // Save at least one space so that the line is not skipped when loading.
 }
 
 void GuiClient::apply_fav_maps() throw () {
