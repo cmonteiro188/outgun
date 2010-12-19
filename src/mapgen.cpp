@@ -507,7 +507,15 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 out << "X " << *wi << ' ' << x << ' ' << y << '\n';
             if (current.respawn != -1) {
                 out << "V respawn " << current.respawn << ' ' << x << ' ' << y << "\n";
-                const int floor = current.respawn == 2 ? rand() % 2 + 1 : current.respawn + 3; // 1 and 2 alternative floors, 3 red floor, 4 blue floor
+                int floor;
+                if (current.respawn == 2) {
+                    // 1 and 2 alternative floors, 5 ice, 6 sand, 7 mud
+                    floor = rand() % 5 + 1;
+                    if (floor > 2)
+                        floor += 2;
+                }
+                else
+                    floor = current.respawn + 3; // 3 red floor, 4 blue floor
                 out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
             }
         }
