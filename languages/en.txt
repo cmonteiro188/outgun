@@ -165,6 +165,12 @@ Underline master-authenticated players
 Underline server-authenticated players
 Get server list at startup
 
+Quick messages
+Note that team messages start with a dot (.).
+Enable quick messages
+Send message immediately
+Alt+$1
+
 Controls
 Keyboard layout
 Use keypad for moving
