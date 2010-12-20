@@ -485,6 +485,11 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
     out << "S 16 12" << '\n';
     out << "X room 0 0 " << width() - 1 << ' ' << height() - 1 << '\n';
     int flag_team = rand() % 2;
+    // For clarity, use a single floor texture for all shared respawn rooms.
+    // 1 and 2 alternative floors, 5 ice, 6 sand, 7 mud
+    int common_respawn_texture = rand() % 5 + 1;
+    if (common_respawn_texture > 2)
+        common_respawn_texture += 2;
     for (int y = 0; y < height(); y++)
         for (int x = 0; x < width(); x++) {
             const SimpleRoom& current = room[x][y];
@@ -507,15 +512,7 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 out << "X " << *wi << ' ' << x << ' ' << y << '\n';
             if (current.respawn != -1) {
                 out << "V respawn " << current.respawn << ' ' << x << ' ' << y << "\n";
-                int floor;
-                if (current.respawn == 2) {
-                    // 1 and 2 alternative floors, 5 ice, 6 sand, 7 mud
-                    floor = rand() % 5 + 1;
-                    if (floor > 2)
-                        floor += 2;
-                }
-                else
-                    floor = current.respawn + 3; // 3 red floor, 4 blue floor
+                const int floor = current.respawn == 2 ? common_respawn_texture : current.respawn + 3; // 3 red floor, 4 blue floor
                 out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
             }
         }
