@@ -102,6 +102,8 @@ enum ClientCfgSetting {
     CCS_UseThemeColours,
     CCS_SaveReplayStats,
     CCS_RandomColour,
+    CCS_QuickMessagesEnabled,
+    CCS_SendQuickMessageImmediately,
     CCS_EndOfCommands
 };
 
@@ -385,10 +387,27 @@ public:
     void addLine(const std::string& line) throw ();
 };
 
+class Menu_quickMessages {
+public:
+    static const int numberOfMessages = 10;
+
+    StaticText  guide;
+    Checkbox    enabled;
+    Checkbox    sendImmediately;
+    std::vector<Textfield> messages;
+
+    Menu menu;
+
+    Menu_quickMessages() throw ();
+    void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
+    void loadMessages(const std::vector<std::string>& newMessages) throw ();
+};
+
 class Menu_options {
 public:
     Menu_player          player;
     Menu_game            game;
+    Menu_quickMessages   quickMessages;
     Menu_controls        controls;
     Menu_screenMode      screenMode;
     Menu_theme           theme;
@@ -443,18 +462,22 @@ private:
 
 class Menu_replays {
 public:
-    std::vector<std::pair<std::string, Textarea> > items;
     Textarea        caption;
+    TextTree        items;
 
     Menu menu;
 
     Menu_replays() throw ();
     void initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw ();
 
-    void add(const std::string& replay, const std::string& text) throw ();
+    void add(const std::string& replayFile, const std::string& text) throw ();
+    void remove(const std::string& replayFile) throw ();
     void reset() throw ();
-    void addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw ();
-    const std::string& getFile(const Textarea& target) throw ();
+    void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
+    void expandLatest() throw ();
+
+private:
+    void addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
 };
 
 class Menu_main {

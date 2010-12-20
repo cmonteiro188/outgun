@@ -230,6 +230,8 @@ class GuiClient : public ClientBase, public ClientInterface {
     bool show_all_messages;
     std::vector<std::string> highlight_text;
 
+    const std::string quickMessageFile;
+
     Graphics graphics;
     bool screenshot;
     std::ifstream replay;
@@ -298,8 +300,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     struct ReplayDescriptor {
         std::string description;
         bool final;
+        bool confirmed; // confirmed that the file exists
 
-        ReplayDescriptor(const std::string& desc, bool final_) throw () : description(desc), final(final_) { }
+        ReplayDescriptor(const std::string& desc, bool final_) throw () : description(desc), final(final_), confirmed() { }
 
         bool operator<(const ReplayDescriptor&) const throw () { return false; }
     };
@@ -319,7 +322,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void MCF_cancelConnect() throw ();
     void MCF_disconnect() throw ();
     void MCF_exitOutgun() throw ();
-    void MCF_replay(Textarea& target) throw ();
+    void MCF_replay(TreeItem& target) throw ();
     void MCF_prepareReplayMenu() throw ();
     void MCF_prepareMainMenu() throw ();
     void MCF_preparePlayerMenu() throw ();
@@ -375,6 +378,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     void load_highlight_texts() throw ();
     void load_fav_maps() throw ();
     void apply_fav_maps() throw ();
+
+    void loadQuickMessages() throw ();
+    void saveQuickMessages() const throw ();
 
     void loadHelp() throw ();
     void addSplashLine(std::string line) throw (); // internal to loadSplashScreen

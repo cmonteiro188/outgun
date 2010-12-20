@@ -694,9 +694,44 @@ void Menu_bugReportPolicy::init() throw () {
     add(&policy);
 }
 
+Menu_quickMessages::Menu_quickMessages() throw () :
+    guide           (_("Note that team messages start with a dot (.).")),
+
+    enabled         (_("Enable quick messages")),
+    sendImmediately (_("Send message immediately")),
+
+    menu            (_("Quick messages"), true)
+{
+    for (int i = 0; i < numberOfMessages; i++) {
+        const int key = (i + 1) % 10; // More than ten messages is unusable (but ten should already be enough).
+        const string caption = _("Alt+$1", itoa(key));
+        messages.push_back(Textfield(caption, "", 30));
+    }
+}
+
+void Menu_quickMessages::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
+    menu.setHook(opener);
+    DualComponentAdder add(menu, collector);
+    add(&guide);
+    add(&enabled, CCS_QuickMessagesEnabled);
+    add(&sendImmediately, CCS_SendQuickMessageImmediately);
+    int i = 0;
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++, i++)
+        add(&(*mi));
+}
+
+void Menu_quickMessages::loadMessages(const vector<string>& newMessages) throw () {
+    for (vector<Textfield>::iterator mi = messages.begin(); mi != messages.end(); mi++)
+        mi->set("");
+    unsigned i = 0;
+    for (vector<string>::const_iterator msg = newMessages.begin(); msg != newMessages.end() && i < messages.size(); msg++, i++)
+        messages[i].set(*msg);
+}
+
 Menu_options::Menu_options() throw () :
     player    (),
     game      (),
+    quickMessages(),
     controls  (),
     screenMode(),
     theme     (),
@@ -712,6 +747,7 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     menu.setHook(opener);
     player    .initialize(opener->clone(), collector);
     game      .initialize(opener->clone(), collector);
+    quickMessages.initialize(opener->clone(), collector);
     controls  .initialize(opener->clone(), collector);
     screenMode.initialize(opener->clone(), collector);
     theme     .initialize(opener->clone(), collector);
@@ -721,7 +757,9 @@ void Menu_options::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     bugReports.initialize(opener->clone(), collector);
     DualComponentAdder add(menu, collector);
     add(&player.menu);
+    add.space();
     add(&game.menu);
+    add(&quickMessages.menu);
     add(&controls.menu);
     add.space();
     add(&screenMode.menu);
@@ -801,6 +839,7 @@ void Menu_ownServer::refreshEnables(bool serverRunning, bool connected) throw ()
 
 Menu_replays::Menu_replays() throw () :
     caption (_("Date - Server - Map")),
+    items   (_("Replays")),
 
     menu    (_("Replays"), false)
 {
@@ -812,8 +851,47 @@ void Menu_replays::initialize(MenuHookable<Menu>::HookFunctionT* opener, Setting
     (void)collector;
 }
 
-void Menu_replays::add(const string& replay, const string& text) throw () {
-    items.push_back(pair<string, Textarea>(replay, Textarea(text)));
+void Menu_replays::add(const string& replayFile, const string& text) throw () {
+    string date = text.substr(0, 10);
+    string year = date.substr(0, 4);
+    string yearMonth = date.substr(0, 7);
+    string yearMonthDay = date.substr(0, 10);
+    string time = text.substr(11, 6);
+    // TODO: If date could not be parsed, add to "others" category.
+
+    TreeItem* yearItem = items.root().findDeep(year);
+    if (!yearItem) {
+        TreeItem item(year, year);
+        items.root().addChild(item);
+        yearItem = items.root().findDeep(year);
+    }
+    nAssert(yearItem);
+
+    TreeItem* monthItem = yearItem->findDeep(yearMonth);
+    if (!monthItem) {
+        TreeItem item(yearMonth, yearMonth); // TODO: format caption as "2010 November";
+        yearItem->addChild(item);
+        monthItem = yearItem->findDeep(yearMonth);
+    }
+    nAssert(monthItem);
+
+    TreeItem* dayItem = monthItem->findDeep(yearMonthDay);
+    if (!dayItem) {
+        TreeItem item(yearMonthDay, yearMonthDay);
+        monthItem->addChild(item);
+        dayItem = monthItem->findDeep(yearMonthDay);
+    }
+    nAssert(dayItem);
+
+    TreeItem* replayItem = dayItem->findDeep(replayFile);
+    if (!replayItem) {
+        TreeItem item(replayFile, text);
+        dayItem->addChild(item);
+    }
+}
+
+void Menu_replays::remove(const string& replayFile) throw () {
+    items.root().removeDeep(replayFile);
 }
 
 void Menu_replays::reset() throw () {
@@ -821,24 +899,28 @@ void Menu_replays::reset() throw () {
     items.clear();
     BasicComponentAdder add(menu);
     add(&caption);
+    add(&items);
 }
 
-void Menu_replays::addHooks(MenuHookable<Textarea>::HookFunctionT* hook) throw () {
-    BasicComponentAdder add(menu);
-    for (vector<pair<string, Textarea> >::iterator item = items.begin(); item != items.end(); ++item) {
-        item->second.setHook(hook->clone());
-        add(&item->second);
-    }
-    delete hook;
+void Menu_replays::addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
+    addHooksRecursively(items.root(), hook);
 }
 
-const string& Menu_replays::getFile(const Textarea& target) throw () {
-    for (vector<pair<string, Textarea> >::const_iterator item = items.begin(); item != items.end(); ++item) {
-        if (&item->second == &target)
-            return item->first;
+void Menu_replays::expandLatest() throw () {
+    TreeItem* item = &items.root();
+    while (item->hasChildren()) {
+        item->open();
+        item = &item->children()[0];
     }
-    nAssert(0);
-    return items.front().first;
+}
+
+void Menu_replays::addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
+    // Add hooks only to the replay items, which have no children.
+    if (!item.hasChildren())
+        item.setHook(hook->clone());
+    else
+        for (TreeItem::Container::iterator child = item.children().begin(); child != item.children().end(); child++)
+            addHooksRecursively(*child, hook);
 }
 
 Menu_main::Menu_main() throw () :

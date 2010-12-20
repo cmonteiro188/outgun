@@ -126,6 +126,7 @@ Admin shell: sending response failed. Reason: $1##Ylläpitoyhteys: vastauksen läh
 Admin shell: unprintable characters, message ignored.##Ylläpitoyhteys: virheellisiä merkkejä, viesti ohitettu.
 Allow parts of map to repeat on screen##Salli kentän osien toistua näytölla
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alfakuvien täytyy olla 8-bittisiä harmaasävykuvia; $1 on $2-bittinen.
+Alt+$1##Alt+$1
 Alternative page flipping method##Vaihtoehtoinen page flipping -tapa
 Antialiasing##Reunanpehmennys
 Apply changes##Vaihda tähän tilaan
@@ -210,6 +211,7 @@ ERRORS:$1##VIRHEET:$1
 ET##JA
 EXIT##VAIHDA
 Enable joystick control##Käytä peliohjainta
+Enable quick messages##Ota pikaviestit käyttöön
 Energy##Energia
 English##suomi
 Error connecting to "$1": $2##Virhe yhdistäessä osoitteeseen "$1": $2
@@ -348,6 +350,7 @@ No reason given.##Ei selitystä.
 No response##Ei vastausta
 No response from server.##Palvelin ei vastannut.
 Norway##Norja
+Note that team messages start with a dot (.).##Huomaa, että joukkueviestit alkavat pisteellä (.).
 OK##Selvä
 One hit shield##Kertakäyttösuoja
 Options##Asetukset
@@ -376,6 +379,7 @@ Prefer main theme background##Käytä ensisijaisesti pääteeman taustakuvaa
 Prefer main theme colours##Käytä ensisijaisesti pääteeman värejä
 Preferrably aim with##Tähtäys ensisijaisesti
 Protocol mismatch. Server: $1, client: $2.##Protokolla ei täsmää. Palvelin: $1, asiakas: $2.
+Quick messages##Pikaviestit
 RED TEAM WINS##PUNAINEN JOUKKUE VOITTI
 Ranking password##Turnauksen salasana
 Ranking server rejected the server id/password. No more ranking transactions will be attempted until ranking_password is set again.##Turnauspalvelin ei hyväksynyt palvelimen id:tä/salasanaa. Turnaus on pois käytöstä kunnes ranking_password on korjattu.
@@ -411,6 +415,7 @@ Screen mode##Näyttötila
 Screen size##Ruudun koko
 Scrolling##Vieritys
 See the 'log' directory for more information.##Lisätietoja saattaa löytyä lokitiedostoista (hakemisto "log").
+Send message immediately##Lähetä viestit heti
 Sending login...##Lähetän tiedot...
 Sensitivity##Herkkyys
 Server list##Palvelinlista

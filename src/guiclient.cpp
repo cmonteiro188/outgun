@@ -405,6 +405,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     serverListMutex("GuiClient::serverListMutex"),
     refreshStatus(RS_none),
     password_file(wheregamedir + "config" + directory_separator + "passwd"),
+    quickMessageFile(wheregamedir + "config" + directory_separator + "quickmessages.txt"),
     graphics(log),
     screenshot(false),
     visible_rooms(1),
@@ -532,6 +533,8 @@ bool GuiClient::start() throw () {
         }
     }
     cfg.close();
+
+    loadQuickMessages();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
     ifstream fav(fileName.c_str());
@@ -2442,6 +2445,22 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         return;
     }
 
+    // Quick messages
+    if (!replaying && ch == 0 && sc >= KEY_0 && sc <= KEY_9 && menu.options.quickMessages.enabled() && talkbuffer.empty()) {
+        int messageIndex = sc - KEY_1;
+        if (messageIndex == -1)
+            messageIndex = 9;
+        const string& message = menu.options.quickMessages.messages[messageIndex]();
+        if (!message.empty()) {
+            talkbuffer = message;
+            talkbuffer_cursor = message.length();
+            if (menu.options.quickMessages.sendImmediately())
+                sc = KEY_ENTER; // send the message
+            else
+                return;
+        }
+    }
+
     switch (sc) {   // Allow these keys to be used also for typing text.
     /*break;*/ case KEY_MINUS_PAD:
         if (!replaying && !withControl)
@@ -3186,6 +3205,8 @@ void GuiClient::stop() throw () {
             fav << spy->addressString() << '\n';
         fav.close();
     }
+
+    saveQuickMessages();
 
     //save client's password
     log("Saving password file...");
@@ -4531,8 +4552,9 @@ void GuiClient::MCF_stopServer() throw () {
         listenServer.stop();
 }
 
-void GuiClient::MCF_replay(Textarea& target) throw () {
-    const string& replay_name = menu.replays.getFile(target);
+void GuiClient::MCF_replay(TreeItem& target) throw () {
+    //const string& replay_name = menu.replays.getFile(target.key());
+    const string& replay_name = target.key();
     const string filename = wheregamedir + "replay" + directory_separator + replay_name + ".replay";
     start_replay(filename);
 }
@@ -4580,14 +4602,14 @@ void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
 }
 
 void GuiClient::MCF_prepareReplayMenu() throw () {
-    menu.replays.reset();
-    const ReplayCache cache = loadReplayCache();
+    ReplayCache cache = loadReplayCache();
     ReplayList replays;
     FileFinder* replay_files = platMakeFileFinder(wheregamedir + "replay", ".replay", false);
     while (replay_files->hasNext()) {
         const string name = FileName(replay_files->next()).getBaseName();
-        ReplayCache::const_iterator iCache = cache.find(name);
+        ReplayCache::iterator iCache = cache.find(name);
         if (iCache != cache.end()) {
+            iCache->second.confirmed = true;
             replays.push_back(*iCache);
             continue;
         }
@@ -4623,12 +4645,17 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
     sort(replays.begin(), replays.end());
+    for (ReplayCache::const_iterator ri = cache.begin(); ri != cache.end(); ri++)
+        if (!ri->second.confirmed)
+            menu.replays.remove(ri->first);
+
     for (ReplayList::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second.description);
 
     typedef MenuCallback<GuiClient> MCB;
-    typedef MenuKeyCallback<GuiClient> MKC;
-    menu.replays.addHooks(new MCB::A<Textarea, &GuiClient::MCF_replay>(this));
+    menu.replays.addHooks(new MCB::A<TreeItem, &GuiClient::MCF_replay>(this));
+
+    menu.replays.expandLatest();
 
     saveReplayCache(replays);
 }
@@ -4649,6 +4676,22 @@ void GuiClient::load_fav_maps() throw () {
     string line;
     while (getline_skip_comments(in, line))
         fav_maps.insert(toupper(trim(line)));
+}
+
+void GuiClient::loadQuickMessages() throw () {
+    vector<string> messages;
+    ifstream in(quickMessageFile.c_str());
+    string line;
+    while (getline_skip_comments(in, line))
+        messages.push_back(trim(line));
+    menu.options.quickMessages.loadMessages(messages);
+}
+
+void GuiClient::saveQuickMessages() const throw () {
+    ofstream out(quickMessageFile.c_str());
+    const vector<Textfield>& messages = menu.options.quickMessages.messages;
+    for (vector<Textfield>::const_iterator field = messages.begin(); field != messages.end(); field++)
+        out << (*field)() + " " << '\n'; // Save at least one space so that the line is not skipped when loading.
 }
 
 void GuiClient::apply_fav_maps() throw () {
