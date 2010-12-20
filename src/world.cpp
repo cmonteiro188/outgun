@@ -3292,7 +3292,7 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
         const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
         int my_flag_id = 0;
         for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy, ++my_flag_id) {
-            if (!config.carry_own_team_flag && !fmy->at_base() /*|| config.carry_own_team_flag && fmy->carried() && fmy->carrier() / TSIZE != myteam*/)
+            if (!config.carry_own_team_flag && !fmy->at_base() || config.carry_own_team_flag && fmy->carried() && fmy->carrier() / TSIZE != myteam)
                 continue;
             for (int t = 0; t < 2; ++t) {
                 const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
