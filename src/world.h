@@ -1085,6 +1085,7 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
+    bool try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam) throw ();
     bool player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
 

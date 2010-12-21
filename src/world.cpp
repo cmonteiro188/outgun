@@ -3280,46 +3280,91 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
             }
     }
 
-    // Flag captures
-    // ft = 0 => Take enemy or wild flag to own flag
-    // ft = 1 => Take enemy or wild flag to wild flag
-    // TODO: ft = 2 => Take own flag to enemy or wild flag
-    for (int ft = 0; ft < 2; ft++) {
-        if (ft == 0 && !capture_on_team_flags_in_effect())
-            continue;
-        if (ft == 1 && !capture_on_wild_flags_in_effect())
-            continue;
-        const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
-        int my_flag_id = 0;
-        for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy, ++my_flag_id) {
-            if (!config.carry_own_team_flag && !fmy->at_base() || config.carry_own_team_flag && fmy->carried() && fmy->carrier() / TSIZE != myteam)
-                continue;
-            for (int t = 0; t < 2; ++t) {
-                const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
-                const int flagTeam = t == 0 ? enemyteam : 2;
-                int f = 0;
-                for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
-                    if (fi->carrier() == pl.pid && check_flag_touch(*fmy, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
-                        int ass_pid = fi->prev_carrier();
-                        if (fmy->carried())
-                            ass_pid = fmy->carrier();
-                        if (!player_captures_flag(pl.pid, flagTeam, f, ass_pid))
-                            continue;
-                        if (fmy->carried())
-                            dropFlagIfAny(ass_pid, true); // to keep the game compatible with previous client versions
-                        if (!fmy->at_base())
-                            returnFlag(myteam, my_flag_id);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
-                            teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
-                            extra_time_and_sudden_death())
-                        {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
-                        }
-                    }
+    if (!pl.stats().has_flag())
+        return; // The captures are for flag carriers only.
+
+    int flagTeam = -1;
+    int flagID = -1;
+    for (int ft = 0; ft < 3; ft++) {
+        const vector<Flag>& flags = ft == 2 ? wild_flags : teams[ft].flags();
+        int f = 0;
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); fi++, f++)
+            if (fi->carrier() == pl.pid) {
+                flagTeam = ft;
+                flagID = f;
+                break;
             }
+        if (flagTeam != -1)
+            break;
+    }
+
+    nAssert(flagTeam != -1 && flagID != -1);
+
+    if (flagTeam == 2) {
+        try_capture(    pl, flagTeam, flagID, myteam) ||
+            try_capture(pl, flagTeam, flagID, enemyteam) ||
+            try_capture(pl, flagTeam, flagID, 2);
+    }
+    else {
+        const int targetFlagTeam = flagTeam == myteam ? enemyteam : myteam;
+        try_capture(    pl, flagTeam, flagID, targetFlagTeam) ||
+            try_capture(pl, flagTeam, flagID, 2);
+    }
+}
+
+bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam) throw () {
+    nAssert(carriedFlagTeam != -1 && carriedFlagID != -1 && targetFlagTeam != -1);
+
+    const int enemyTeam = 1 - carrier.team();
+
+    if (!capture_on_team_flags_in_effect() && targetFlagTeam != 2 && (!config.carry_own_team_flag || carriedFlagTeam != 2))
+        return false;
+    else if (!capture_on_wild_flags_in_effect() && targetFlagTeam == 2 && (!config.carry_own_team_flag || carriedFlagTeam == 2))
+        return false;
+    else if (targetFlagTeam == enemyTeam && carriedFlagTeam == 2 && (!config.carry_own_team_flag || !capture_on_wild_flags_in_effect()))
+        return false;
+
+    const Flag& carriedFlag = carriedFlagTeam == 2 ? wild_flags[carriedFlagID] : teams[carriedFlagTeam].flag(carriedFlagID);
+    const vector<Flag>& targetFlags = targetFlagTeam == 2 ? wild_flags : teams[targetFlagTeam].flags();
+    int targetFlagID = 0;
+    for (vector<Flag>::const_iterator targetf = targetFlags.begin(); targetf != targetFlags.end(); targetf++, targetFlagID++) {
+        if (!config.carry_own_team_flag && !targetf->at_base() || config.carry_own_team_flag && targetf->carried() && targetf->carrier() / TSIZE != carrier.team())
+            continue;
+        else if (carriedFlagTeam == targetFlagTeam && carriedFlagID == targetFlagID) // flag can not be captured on itself
+            continue;
+        else if (carriedFlagTeam == carrier.team() && targetf->carried()) // carrier of enemy or wild flag shall be the capturer
+            continue;
+        else if (carriedFlagTeam == 2 && targetFlagTeam == enemyTeam && targetf->carried()) // carrier of enemy flag shall be the capturer
+            continue;
+        else if (!check_flag_touch(*targetf, carrier.room().x, carrier.room().y, carrier.pos.x, carrier.pos.y))
+            continue;
+
+        // Assistant is a teammate of the capturer who is
+        //   1. the carrier of the target flag,
+        //   2. the previous carrier of the flag being carried now,
+        //   3. the previous carrier of the target flag.
+        int assPid = carriedFlag.prev_carrier();
+        if (targetf->carried())
+            assPid = targetf->carrier();
+        else if ((assPid == -1 || assPid / TSIZE != carrier.team()) && targetf->prev_carrier() != carrier.pid)
+            assPid = targetf->prev_carrier();
+        if (!player_captures_flag(carrier.pid, carriedFlagTeam, carriedFlagID, assPid))
+            continue;
+        if (targetf->carried()) {
+            dropFlagIfAny(assPid, true); // to keep the game compatible with previous client versions
+            host->score_frag(assPid, 1); // give back one frag lost by "dropping" the flag
+        }
+        if (!targetf->at_base())
+            returnFlag(targetFlagTeam, targetFlagID);
+        if (teams[carrier.team()].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+            teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
+            extra_time_and_sudden_death())
+        {
+            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+            return true;
         }
     }
+    return false;
 }
 
 bool ServerWorld::extra_time_and_sudden_death() const throw () {
