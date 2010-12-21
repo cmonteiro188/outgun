@@ -3357,12 +3357,10 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
         if (!targetf->at_base())
             returnFlag(targetFlagTeam, targetFlagID);
         if (teams[carrier.team()].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
-            teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
-            extra_time_and_sudden_death())
-        {
+                teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
+                extra_time_and_sudden_death())
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-            return true;
-        }
+        return true;
     }
     return false;
 }
