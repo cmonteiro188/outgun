@@ -679,10 +679,11 @@ void Server::start_recording() throw () {
         record << data;
     }
 
+    record_init_data();
+
     if (!network.is_relay_used())
         return;
 
-    record_init_data();
     data.U32(settings.get_spectating_delay());
     network.send_first_relay_data(data);
 
