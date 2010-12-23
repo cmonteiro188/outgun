@@ -280,6 +280,8 @@ public:
 
     //send reliable message
     virtual void send_message(ConstDataBlockRef data) throw () {
+        if (connect_status != 3)
+            return;
         if (packetDelay < .001)
             station->writer(data);
         else
@@ -303,6 +305,8 @@ public:
     //dispatches the packet with the given frame (unreliable data) and all the
     //protocol overload (reliable messages, acks...)
     virtual void send_frame(ConstDataBlockRef data) throw () {
+        if (connect_status != 3)
+            return;
         if (packetDelay < .001)
             doSendFrame(data);
         else
