@@ -1878,8 +1878,7 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw () {
     const WorldCoords pos = flag.carried() ? player[flag.carrier()].position() : flag.position();
 
-    // carried without the specific setting on and in different screen can't be touched
-    if (!config.carry_own_team_flag && flag.carried() || pos.room != RoomCoords(px, py))
+    if (pos.room != RoomCoords(px, py))
         return false;
 
     // TODO: If collisions are on, carriers shall only need to touch each other.
