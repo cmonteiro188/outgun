@@ -1570,6 +1570,7 @@ void WorldSettings::reset() throw () {
     lock_wild_flags = false;
     capture_on_team_flag = true;
     capture_on_wild_flag = false;
+    capture_away_from_base = false;
     carry_own_team_flag = false;
 
     always_send_flag_location = false;
@@ -3300,35 +3301,58 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
 
     nAssert(flagTeam != -1 && flagID != -1);
 
+    /* Which capture types are real and which not (anything not listed here is not real)
+       (If capture_away_from_base is on, there is no base restriction.)
+     yes  enemy flag to own   flag on own   base
+      no  enemy flag to own   flag on enemy base
+     yes  enemy flag to wild  flag on wild  base
+      no  enemy flag to wild  flag on enemy base
+     yes  own   flag to enemy flag on own   base ; reverse capture
+      no  own   flag to enemy flag on enemy base
+     yes  own   flag to wild  flag on own   base ; reverse capture; * currently wrong message
+      no  own   flag to wild  flag on wild  base
+     yes  wild  flag to own   flag on own   base
+      no  wild  flag to own   flag on wild  base
+     yes  wild  flag to enemy flag on wild  base ; reverse capture; * currently wrong message
+      no  wild  flag to enemy flag on enemy base
+     yes  wild  flag to wild  flag on wild  base
+    */
+
     if (flagTeam == 2) {
-        try_capture(    pl, flagTeam, flagID, myteam) ||
-            try_capture(pl, flagTeam, flagID, enemyteam) ||
-            try_capture(pl, flagTeam, flagID, 2);
+        try_capture(    pl, flagTeam, flagID, myteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, enemyteam, 2) ||
+            try_capture(pl, flagTeam, flagID, 2, 2);
     }
-    else {
-        const int targetFlagTeam = flagTeam == myteam ? enemyteam : myteam;
-        try_capture(    pl, flagTeam, flagID, targetFlagTeam) ||
-            try_capture(pl, flagTeam, flagID, 2);
+    else if (flagTeam == enemyteam) {
+        try_capture(    pl, flagTeam, flagID, myteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, 2, 2);
+    }
+    else { // myteam
+        try_capture(    pl, flagTeam, flagID, enemyteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, 2, myteam);
     }
 }
 
-bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam) throw () {
+bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam, int targetBase) throw () {
     nAssert(carriedFlagTeam != -1 && carriedFlagID != -1 && targetFlagTeam != -1);
 
     const int enemyTeam = 1 - carrier.team();
 
-    if (!capture_on_team_flags_in_effect() && targetFlagTeam != 2 && (!config.carry_own_team_flag || carriedFlagTeam != 2))
-        return false;
-    else if (!capture_on_wild_flags_in_effect() && targetFlagTeam == 2 && (!config.carry_own_team_flag || carriedFlagTeam == 2))
-        return false;
-    else if (targetFlagTeam == enemyTeam && carriedFlagTeam == 2 && (!config.carry_own_team_flag || !capture_on_wild_flags_in_effect()))
+    if (capture_on_team_flags_in_effect() && targetBase == carrier.team() && (targetFlagTeam == carrier.team() || carriedFlagTeam == carrier.team()))
+        ; // ok
+    else if (capture_on_wild_flags_in_effect() && targetBase == 2 && (targetFlagTeam == 2 || carriedFlagTeam == 2))
+        ; // ok
+    else
         return false;
 
     const Flag& carriedFlag = carriedFlagTeam == 2 ? wild_flags[carriedFlagID] : teams[carriedFlagTeam].flag(carriedFlagID);
     const vector<Flag>& targetFlags = targetFlagTeam == 2 ? wild_flags : teams[targetFlagTeam].flags();
     int targetFlagID = 0;
     for (vector<Flag>::const_iterator targetf = targetFlags.begin(); targetf != targetFlags.end(); targetf++, targetFlagID++) {
-        if (!config.carry_own_team_flag && !targetf->at_base() || config.carry_own_team_flag && targetf->carried() && targetf->carrier() / TSIZE != carrier.team())
+        const bool nearBase = config.capture_away_from_base || is_near_base_for_capture(*targetf, targetBase);
+        if (!nearBase)
+            continue;
+        else if (targetf->carried() && targetf->carrier() / TSIZE != carrier.team()) // carried by enemy
             continue;
         else if (carriedFlagTeam == targetFlagTeam && carriedFlagID == targetFlagID) // flag can not be captured on itself
             continue;
@@ -3354,13 +3378,30 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             dropFlagIfAny(assPid, true); // to keep the game compatible with previous client versions
             host->score_frag(assPid, 1); // give back one frag lost by "dropping" the flag
         }
-        if (!targetf->at_base())
+        if (!targetf->at_base()) // TODO: No need to return?
             returnFlag(targetFlagTeam, targetFlagID);
         if (teams[carrier.team()].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                 teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
                 extra_time_and_sudden_death())
             host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
         return true;
+    }
+    return false;
+}
+
+bool ServerWorld::is_near_base_for_capture(const Flag& flag, int team) const throw () {
+    if (!config.carry_own_team_flag && team != 2)
+        return flag.at_base();
+    // flag.at_base() can not be used as quick check because the team argument can be different than the flag team.
+    const WorldCoords flagPos = flag.carried() ? player[flag.carrier()].position() : flag.position();
+    const Vec flagVec = flagPos.local();
+    const vector<Flag>& flags = team == 2 ? wild_flags : teams[team].flags();
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); fi++) {
+        if (flagPos.room != fi->home_position().room)
+            continue;
+        const Vec baseVec = fi->home_position().local();
+        if ((flagVec - baseVec).mag2() <= FLAG_RADIUS * FLAG_RADIUS)
+            return true;
     }
     return false;
 }

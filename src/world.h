@@ -638,7 +638,7 @@ public:
     double return_time() const throw () { return return_t; }
 
     const WorldCoords& position() const throw () { return pos; }
-    //const WorldCoords& home_position() const throw () { return home_pos; }
+    const WorldCoords& home_position() const throw () { return home_pos; }
 
     int carrying_team() const throw () { return cteam; }
     int carrying_time() const throw () { return ctime; }
@@ -1030,6 +1030,7 @@ public:
     bool lock_wild_flags;
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
+    bool capture_away_from_base;
     bool carry_own_team_flag;
 
     bool always_send_flag_location; /// false: only send flag location when seen or on the ground; true: always send the location
@@ -1085,9 +1086,11 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
-    bool try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam) throw ();
+    bool try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam, int targetBase) throw ();
     bool player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
+
+    bool is_near_base_for_capture(const Flag& flag, int team) const throw ();
 
     bool extra_time_and_sudden_death() const throw ();
     bool all_kind_of_flags_exist() const throw ();
