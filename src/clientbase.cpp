@@ -321,6 +321,8 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     fx.skipped = true;
     fx.physics = PhysicalSettings(); // to be filled later by a message
 
+    carry_own_team_flag = false;
+    capture_away_from_base = false;
     lock_team_flags_in_effect = false;
     lock_wild_flags_in_effect = false;
     capture_on_team_flags_in_effect = true;
@@ -1465,6 +1467,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
     break; case data_flag_modes: {
         const uint8_t mask = read.U8();
+        carry_own_team_flag = mask & 0x20;
+        capture_away_from_base = mask & 0x10;
         lock_team_flags_in_effect = mask & 8;
         lock_wild_flags_in_effect = mask & 4;
         capture_on_team_flags_in_effect = mask & 2;

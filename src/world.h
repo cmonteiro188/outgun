@@ -1162,6 +1162,8 @@ public:
     void rocketOutOfBoundsCallback(int rid) throw ();
     bool shouldApplyPhysicsToPlayerCallback(int pid) throw ();
 
+    bool carry_own_team_flag() const throw () { return config.carry_own_team_flag; }
+    bool capture_away_from_base() const throw () { return config.capture_away_from_base; }
     bool lock_team_flags_in_effect() const throw ();
     bool lock_wild_flags_in_effect() const throw ();
     bool capture_on_team_flags_in_effect() const throw ();

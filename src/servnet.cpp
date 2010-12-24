@@ -1854,7 +1854,12 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     }
     {
         // check if flag lock/capture settings have changed
-        const uint8_t newMask = world.lock_team_flags_in_effect() << 3 | world.lock_wild_flags_in_effect() << 2 | world.capture_on_team_flags_in_effect() << 1 | world.capture_on_wild_flags_in_effect();
+        const uint8_t newMask = world.carry_own_team_flag()             << 5 |
+                                world.capture_away_from_base()          << 4 |
+                                world.      lock_team_flags_in_effect() << 3 |
+                                world.      lock_wild_flags_in_effect() << 2 |
+                                world.capture_on_team_flags_in_effect() << 1 |
+                                world.capture_on_wild_flags_in_effect();
         if (newMask != flagModeMask) {
             flagModeMask = newMask;
             send_flag_modes(pid_all);

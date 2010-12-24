@@ -114,6 +114,8 @@ protected:
     bool extra_time_running;
     #endif
     int8_t remove_flags;
+    bool carry_own_team_flag;
+    bool capture_away_from_base;
     bool lock_team_flags_in_effect;
     bool lock_wild_flags_in_effect;
     bool capture_on_team_flags_in_effect;
