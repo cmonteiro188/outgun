@@ -3308,11 +3308,11 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
       no  enemy flag to wild  flag on enemy base
      yes  own   flag to enemy flag on own   base ; reverse capture
       no  own   flag to enemy flag on enemy base
-     yes  own   flag to wild  flag on own   base ; reverse capture; * currently wrong message
+     yes  own   flag to wild  flag on own   base ; reverse capture
       no  own   flag to wild  flag on wild  base
      yes  wild  flag to own   flag on own   base
       no  wild  flag to own   flag on wild  base
-     yes  wild  flag to enemy flag on wild  base ; reverse capture; * currently wrong message
+     yes  wild  flag to enemy flag on wild  base ; reverse capture
       no  wild  flag to enemy flag on enemy base
      yes  wild  flag to wild  flag on wild  base
     */
@@ -3344,6 +3344,8 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
     else
         return false;
 
+    const bool reverseCapture = targetFlagTeam != targetBase; // the target flag is about to be captured
+
     const Flag& carriedFlag = carriedFlagTeam == 2 ? wild_flags[carriedFlagID] : teams[carriedFlagTeam].flag(carriedFlagID);
     const vector<Flag>& targetFlags = targetFlagTeam == 2 ? wild_flags : teams[targetFlagTeam].flags();
     int targetFlagID = 0;
@@ -3371,14 +3373,16 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             assPid = targetf->carrier();
         else if ((assPid == -1 || assPid / TSIZE != carrier.team()) && targetf->prev_carrier() != carrier.pid)
             assPid = targetf->prev_carrier();
-        if (!player_captures_flag(carrier.pid, carriedFlagTeam, carriedFlagID, assPid))
+        if (!player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid))
             continue;
         if (targetf->carried()) {
             dropFlagIfAny(assPid, true); // to keep the game compatible with previous client versions
             host->score_frag(assPid, 1); // give back one frag lost by "dropping" the flag
         }
-        if (!targetf->at_base()) // TODO: No need to return?
+        if (!reverseCapture && !targetf->at_base()) // TODO: No need to return?
             returnFlag(targetFlagTeam, targetFlagID);
+        else if (reverseCapture)
+            returnFlag(carriedFlagTeam, carriedFlagID);
         if (teams[carrier.team()].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
                 teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
                 extra_time_and_sudden_death())
