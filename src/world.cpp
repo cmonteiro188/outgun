@@ -3363,7 +3363,7 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             continue;
         else if (!check_flag_touch(*targetf, carrier.room().x, carrier.room().y, carrier.pos.x, carrier.pos.y))
             continue;
-        else if (get_time() < carriedFlag.grab_time() + config.get_min_capture_time())
+        else if (get_time() < carriedFlag.grab_time() + config.get_min_capture_time() && (targetf->at_base() || get_time() < targetf->grab_time() + config.get_min_capture_time()))
             continue;
 
         // Assistant is a teammate of the capturer who is
