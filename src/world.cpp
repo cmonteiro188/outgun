@@ -3363,6 +3363,8 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             continue;
         else if (!check_flag_touch(*targetf, carrier.room().x, carrier.room().y, carrier.pos.x, carrier.pos.y))
             continue;
+        else if (get_time() < carriedFlag.grab_time() + config.get_min_capture_time())
+            continue;
 
         // Assistant is a teammate of the capturer who is
         //   1. the carrier of the target flag,
@@ -3373,8 +3375,7 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             assPid = targetf->carrier();
         else if ((assPid == -1 || assPid / TSIZE != carrier.team()) && targetf->prev_carrier() != carrier.pid)
             assPid = targetf->prev_carrier();
-        if (!player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid))
-            continue;
+        player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid);
         if (targetf->carried()) {
             dropFlagIfAny(assPid, true); // to keep the game compatible with previous client versions
             host->score_frag(assPid, 1); // give back one frag lost by "dropping" the flag
@@ -3603,14 +3604,10 @@ void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
         player[pid].set_visibility(maximum_shadow_visibility);
 }
 
-bool ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {
-    const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
+void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {
     const int myteam = pid / TSIZE;
     if (ass_pid / TSIZE != myteam)
         ass_pid = -1; // only teammate can be assistant for a capture
-    const double timeDiff = get_time() - capt_flag.grab_time();
-    if (timeDiff <= config.get_min_capture_time()) // can't capture yet
-        return false;
     // add frags to all players of the team and
     // penalise every player of the other team
     for (int i = 0; i < MAX_PLAYERS; i++)
@@ -3639,8 +3636,6 @@ bool ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid)
     if (config.respawn_on_capture)
         for (int i = 0; i < maxplayers; ++i)
             player[i].frames_to_respawn = player[i].extra_frames_to_respawn = 0; // will respawn on next frame (only relevant for dead players, obviously)
-
-    return true;
 }
 
 void ServerWorld::team_gets_carrying_point(int team, bool forRanking) throw () {
