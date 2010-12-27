@@ -327,7 +327,6 @@ class Server : private NoCopying {
     AuthorizationDatabase authorizations;
 
     // recording
-    bool recording_started;
     std::string record_filename;
     mutable std::ofstream record;
     mutable ExpandingBinaryBuffer record_messages;

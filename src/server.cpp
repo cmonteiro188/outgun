@@ -85,7 +85,6 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     network(this, settings, world, log, threadLock, threadLockMutex),
     settings(*this, config),
     authorizations(log),
-    recording_started(false),
     end_game_human_count(0),
     recorded_players_present(0)
 {
@@ -680,19 +679,18 @@ void Server::start_recording() throw () {
         record << data;
     }
 
+    record_init_data();
+
     if (!network.is_relay_used())
         return;
 
-    record_init_data();
     data.U32(settings.get_spectating_delay());
     network.send_first_relay_data(data);
 
-    recording_started = true;
     log("First data %u bytes.", data.size());
 }
 
 void Server::stop_recording() throw () {
-    recording_started = false;
     if (record) {
         if (gameover && end_game_human_count >= settings.get_recording() ||
             !gameover && network.get_human_count() >= settings.get_recording() ||
