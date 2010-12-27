@@ -802,8 +802,10 @@ ClientControls Robot::captureOnFlag(bool carried) const throw () {
             const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
             if (area(pos) != myArea())
                 continue;
-            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
-                return MoveTo(pos.local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
+                const Coords lPos = fi->carried() ? predictPos(fx.player[fi->carrier()]) : pos.local();
+                return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+            }
             if (!capture_away_from_base && carried)
                 for (int baseType = 0; baseType <= 1; ++baseType) {
                     const int baseTeam = baseType == 0 ? myTeam() : 2;
