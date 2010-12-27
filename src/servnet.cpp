@@ -1910,9 +1910,17 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     }
             }
             else if (world.getPupConfig().shadow_see_shadow || !world.player[i].item_shadow() || world.player[i].stats().has_flag())
-                shadowView[t] += static_cast<uint32_t>(1 << i);
+                shadowView[t] |= 1 << i;
         }
         shadowView[t] |= normalView[t];
+    }
+
+    for (int t = 0; t < 2; ++t) {
+        for (vector<Flag>::const_iterator fi = world.teams[t].flags().begin(); fi != world.teams[t].flags().end(); ++fi)
+            if (fi->carried()) {
+                normalView[!t] |= 1 << fi->carrier();
+                shadowView[!t] |= 1 << fi->carrier();
+            }
     }
 
     // send 2 players' coordinates each frame; pick those two for each team both with and without shadow
