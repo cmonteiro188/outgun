@@ -1150,6 +1150,8 @@ bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) thr
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
     const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
                                           : GetPlayers(myTeam()) / nAllFlags;
+    if (maxPlayers == 0)
+        return true;
 
     int nearNum = 0;
     for (int i = 0; i < maxplayers; ++i) {
