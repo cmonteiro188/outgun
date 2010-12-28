@@ -1265,9 +1265,9 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
         const bool ctf = capture_on_team_flags_in_effect;
         const bool cwfe = capture_on_wild_flags_in_effect;
 
-        const bool cwf = flag != 3 && cwfe; // capture on wild flag?
+        const bool cwf = flag != 3 && cwfe || flag == 3 && ctf && capture_away_from_base; // (normal or reverse) capture on wild flag?
         const bool cof = flag != 3 && ctf; // capture on own flag?
-        const bool cmwf = capture_away_from_base && (cwf || flag == 3 && ctf); // (normal or reverse) capture on moved wild flag?
+        const bool cmwf = capture_away_from_base && cwf; // (normal or reverse) capture on moved wild flag?
         const bool cmof = capture_away_from_base && cof; // capture on moved own flag?
         const bool cef  = capture_away_from_base && (flag == 3 && ctf || flag == 2 && cwfe); // (reverse) capture on enemy flag?
         //#fix: when to follow carriers when !capture_away_from_base
