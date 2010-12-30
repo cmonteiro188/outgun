@@ -95,8 +95,10 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     fav_colors[0].resize(MAX_PLAYERS / 2, false);
     fav_colors[1].resize(MAX_PLAYERS / 2, false);
     Thread::setCallerPriority(config.priority);
-    if (botTestMode)
+    if (botTestMode) {
+        std::cout << "Running bot test\n";
         removeQuickSleepDelay();
+    }
 }
 
 Server::~Server() throw () { }
