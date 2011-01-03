@@ -1,7 +1,7 @@
 /*
  *  utility.h
  *
- *  Copyright (C) 2003, 2004, 2006, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -41,6 +41,8 @@
 #else
 #define PRINTF_FORMAT(a, b)
 #endif
+
+class FormattedText;
 
 // to be used as a base class when a class is needed to not have a copy constructor or copy assignment operator available
 class NoCopying {
@@ -468,6 +470,7 @@ std::string formatForLogging(const std::string& str) throw ();
 
 /// Split string to lines, but only at whitespaces.
 std::vector<std::string> split_to_lines(const std::string& source, int lineLength, int indent = 0, bool keep_spaces = false) throw ();
+std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength, int indent = 0, bool keep_spaces = false) throw ();
 
 /// Get random non-empty line from a file.
 std::string random_line(const std::string& file);
@@ -543,6 +546,53 @@ public:
     std::pair<int, int> operator()() const throw () { return std::pair<int, int>(val1, val2); } // only valid after next() returning true
     int i1() const throw () { return val1; }
     int i2() const throw () { return val2; }
+};
+
+class FormattedText {
+public:
+    enum Color { DefaultColor, Red, Green, Blue };
+
+    struct Formatting {
+        Color color;
+
+        Formatting() throw () : color(DefaultColor) { }
+        Formatting(const Formatting& f, Color c) throw () : color(c) { (void)f; }
+
+        bool operator==(const Formatting& o) const throw () { return color == o.color; }
+        bool operator!=(const Formatting& o) const throw () { return !(*this == o); }
+    };
+
+    struct Snippet {
+        std::string text;
+        Formatting format;
+
+        Snippet(const std::string& t, const Formatting& f) throw () : text(t), format(f) { }
+        Snippet(const std::string& t) throw () : text(t) { }
+        Snippet(const Formatting& f) throw () : format(f) { }
+
+        size_t length() const throw () { return text.length(); }
+    };
+
+    FormattedText() throw () { }
+    FormattedText(const std::string& s) throw ();
+    FormattedText(const char* s) throw ();
+
+    void clear() throw () { snips.clear(); }
+
+    bool empty() const throw () { return snips.empty(); }
+
+    const std::vector<Snippet>& parts() const throw () { return snips; }
+
+    std::string code() const throw ();
+    std::string unformatted() const throw ();
+
+    static std::string escape(std::string s) throw ();
+    static FormattedText parse(const std::string& code) throw ();
+
+private:
+    std::vector<Snippet> snips;
+
+    friend std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength, int indent, bool keep_spaces) throw ();
 };
 
 uint16_t CRC16(const void* buf, unsigned size) throw (); // implemented in network.cpp because HawkNL is used

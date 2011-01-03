@@ -94,20 +94,20 @@ enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Autho
 
 class Message {
 public:
-    Message(Message_type type_, const std::string& txt, int time_, int team_ = -1) throw ()
+    Message(Message_type type_, const FormattedText& txt, int time_, int team_ = -1) throw ()
         : msg_type(type_), msg_text(txt), msg_time(time_), sender_team(team_), is_highlighted(false) { }
 
     void highlight() throw () { is_highlighted = true; }
 
     Message_type type() const throw () { return msg_type; }
-    const std::string& text() const throw () { return msg_text; }
+    const FormattedText& text() const throw () { return msg_text; }
     int time() const throw () { return msg_time; }
     int team() const throw () { return sender_team; }
     bool highlighted() const throw () { return is_highlighted; }
 
 private:
     Message_type msg_type;
-    std::string msg_text;
+    FormattedText msg_text;
     int msg_time;
     int sender_team; // -1 for non-team messages or unknown team
     bool is_highlighted;
@@ -308,7 +308,7 @@ private:
     void draw_scoreboard_name(const FONT* sbfont, const std::string& name, int x, int y, int pcol, bool underline) throw ();
     void draw_scoreboard_points(const FONT* sbfont, int points, int x, int y, int team) throw ();
 
-    void print_chat_message(Message_type type, const std::string& message, int team, int x, int y, bool highlight = false) throw ();
+    void print_chat_message(Message_type type, const FormattedText& message, int team, int x, int y, bool highlight = false) throw ();
     void print_chat_input(const std::string& message, int x, int y, int cursor) throw ();
 
     void print_text(const std::string& text, int x, int y, int textcol, int bgcol) throw ();

@@ -2,7 +2,7 @@
  *  graphics.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -2492,7 +2492,7 @@ void Graphics::print_chat_messages(list<Message>::const_iterator msg, const list
     }
 }
 
-void Graphics::print_chat_message(Message_type type, const string& message, int team, int x, int y, bool highlight) throw () {
+void Graphics::print_chat_message(Message_type type, const FormattedText& message, int team, int x, int y, bool highlight) throw () {
     int c;
     switch (type) {
         /*break;*/ case msg_warning: c = colour[Colour::message_warning];
@@ -2505,11 +2505,20 @@ void Graphics::print_chat_message(Message_type type, const string& message, int 
     }
     if (highlight && type != msg_team)
         c = colour[Colour::message_highlight];
-    // Check if the border is needed.
-    if (!bg_texture && y + text_height(font) < playfield_y)
-        textout_ex(drawbuf, font, message.c_str(), x, y, c, -1);
-    else
-        print_text_border(message, x, y, c, colour[Colour::text_border], -1);
+    for (vector<FormattedText::Snippet>::const_iterator pi = message.parts().begin(); pi != message.parts().end(); ++pi) {
+        int partCol;
+        switch (pi->format.color) {
+            break; case FormattedText::DefaultColor: partCol = c;
+            break; case FormattedText::Red:          partCol = colour[Colour::message_red];
+            break; case FormattedText::Green:        partCol = colour[Colour::message_green];
+            break; case FormattedText::Blue:         partCol = colour[Colour::message_blue];
+        }
+        if (!bg_texture && y + text_height(font) < playfield_y) // Check if the border is needed.
+            textout_ex(drawbuf, font, pi->text.c_str(), x, y, partCol, -1);
+        else
+            print_text_border(pi->text, x, y, partCol, colour[Colour::text_border], -1);
+        x += text_length(font, pi->text);
+    }
 }
 
 void Graphics::print_chat_input(const string& message, int x, int y, int cursor) throw () {

@@ -2,6 +2,7 @@
  *  language.h
  *
  *  Copyright (C) 2004, 2006 - Jani Rivinoja
+ *  Copyright (C) 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -26,6 +27,8 @@
 
 #include <string>
 #include <map>
+
+#include "utility.h" // for FormattedText
 
 class LogSet;
 
@@ -57,5 +60,12 @@ std::string _(std::string text, const std::string& t1,
                                 const std::string& t3 = "$3",
                                 const std::string& t4 = "$4",
                                 const std::string& t5 = "$5") throw ();
+
+// translate formatted: Get translation, parse as FormattedText, and replace $1..$5 with t1..t5.
+FormattedText tf(const std::string& text, const FormattedText& t1,
+                                          const FormattedText& t2 = "$2",
+                                          const FormattedText& t3 = "$3",
+                                          const FormattedText& t4 = "$4",
+                                          const FormattedText& t5 = "$5") throw ();
 
 #endif

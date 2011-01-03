@@ -8,4 +8,4 @@ else
     CONTEXT="--context=$2"
 fi    
 
-grep $CONTEXT "\(_\|get_text\)(\"$1\"" *.cpp *.h
+grep $CONTEXT "\(_\|get_text\|tf\)(\"$1\"" *.cpp *.h

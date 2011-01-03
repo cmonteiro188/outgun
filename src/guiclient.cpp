@@ -2,7 +2,7 @@
  *  guiclient.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1628,11 +1628,11 @@ void GuiClient::netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, in
     red_final_score = redScore;
     blue_final_score = blueScore;
 
-    string msg = _("CTF GAME OVER - FINAL SCORE: RED $1 - BLUE $2", itoa(red_final_score), itoa(blue_final_score));
+    FormattedText msg = tf("CTF GAME OVER - FINAL SCORE: $RRED $1$> - $BBLUE $2$>", itoa(red_final_score), itoa(blue_final_score));
     addThreadMessage(new TM_Text(msg_info, msg));
     addThreadMessage(new TM_Sound(SAMPLE_CTF_GAMEOVER));
     if (!(replaying && !spectating)) { // avoid text related to the next game at the end of a single game replay
-        msg.clear();
+        string msg;
         if (caplimit > 0)
             msg = _("CAPTURE $1 FLAGS TO WIN THE GAME.", itoa(caplimit));
         if (timelimit > 0) {
@@ -1691,35 +1691,35 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
     const bool same_team = (attacker_team == target_team);
     const bool known_attacker = fx.player[attacker].used;
 
-    string msg;
+    FormattedText msg;
     if (cause == DT_deathbringer) {
         if (!known_attacker)
-            msg = _("$1 was choked.", fx.player[target].name);
+            msg = tf("$1 was choked.", formatName(target));
         else if (same_team)
-            msg = _("$1 was choked by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 was choked by teammate $2.", formatName(target), formatName(attacker));
         else
-            msg = _("$1 was choked by $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 was choked by $2.", formatName(target), formatName(attacker));
         if (player_on_screen_exact(target))
             addThreadMessage(new TM_Sound(SAMPLE_DIEDEATHBRINGER));
     }
     else if (cause == DT_collision) {
         if (!known_attacker)    // this should never happen with the current code, probably not in the future either, but it's still here...
-            msg = _("$1 received a mortal blow.", fx.player[target].name);
+            msg = tf("$1 received a mortal blow.", formatName(target));
         else if (same_team) // this shouldn't happen with the current special collisions either, but we're ready for changes
-            msg = _("$1 received a mortal blow from teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 received a mortal blow from teammate $2.", formatName(target), formatName(attacker));
         else
-            msg = _("$1 received a mortal blow from $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 received a mortal blow from $2.", formatName(target), formatName(attacker));
         if (player_on_screen_exact(target))
             addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
     }
     else {
         nAssert(cause == DT_rocket);
         if (!known_attacker)    // this should never happen with the current code, but it's here for future
-            msg = _("$1 was nailed.", fx.player[target].name);
+            msg = tf("$1 was nailed.", formatName(target));
         else if (same_team)
-            msg = _("$1 was nailed by teammate $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 was nailed by teammate $2.", formatName(target), formatName(attacker));
         else
-            msg = _("$1 was nailed by $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1 was nailed by $2.", formatName(target), formatName(attacker));
         if (player_on_screen_exact(target))
             addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
     }
@@ -1729,16 +1729,16 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
     #ifdef DEFENDING_MESSAGES
     if (carrier_defended && known_attacker) {
         if (attacker_team == 0)
-            msg = _("$1 defends the red carrier.", fx.player[attacker].name);
+            msg = tf("$1 defends the red carrier.", formatName(attacker));
         else
-            msg = _("$1 defends the blue carrier.", fx.player[attacker].name);
+            msg = tf("$1 defends the blue carrier.", formatName(attacker));
         addThreadMessage(new TM_Text(msg_info, msg));
     }
     if (flag_defended && known_attacker) {
         if (attacker_team == 0)
-            msg = _("$1 defends the red flag.", fx.player[attacker].name);
+            msg = tf("$1 defends the red flag.", formatName(attacker));
         else
-            msg = _("$1 defends the blue flag.", fx.player[attacker].name);
+            msg = tf("$1 defends the blue flag.", formatName(attacker));
         addThreadMessage(new TM_Text(msg_info, msg));
     }
     #else
@@ -1746,20 +1746,20 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
     #endif // DEFENDING_MESSAGES
     if (spree_ended) {
         if (!known_attacker)
-            msg = _("$1's killing spree was ended.", fx.player[target].name);
+            msg = tf("$1's killing spree was ended.", formatName(target));
         else
-            msg = _("$1's killing spree was ended by $2.", fx.player[target].name, fx.player[attacker].name);
+            msg = tf("$1's killing spree was ended by $2.", formatName(target), formatName(attacker));
         if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
     }
 
     if (flag) {
         if (wild_flag)
-            msg = _("$1 LOST THE WILD FLAG!", fx.player[target].name);
+            msg = tf("$1 LOST THE $GWILD FLAG$>!", formatName(target));
         else if (1 - target_team == 0)
-            msg = _("$1 LOST THE RED FLAG!", fx.player[target].name);
+            msg = tf("$1 LOST THE $RRED FLAG$>!", formatName(target));
         else
-            msg = _("$1 LOST THE BLUE FLAG!", fx.player[target].name);
+            msg = tf("$1 LOST THE $BBLUE FLAG$>!", formatName(target));
         if (menu.options.game.showFlagMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
         addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
@@ -1767,7 +1767,7 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
     if (spree_started) {
         if (attacker == me)
             addThreadMessage(new TM_Sound(SAMPLE_KILLING_SPREE));
-        msg = _("$1 is on a killing spree!", fx.player[attacker].name);
+        msg = tf("$1 is on a killing spree!", formatName(attacker));
         if (menu.options.game.showKillMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
     }
@@ -1779,15 +1779,15 @@ void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended)
 
     const int team = pid / TSIZE;
     if (spree_ended && menu.options.game.showKillMessages())
-        addThreadMessage(new TM_Text(msg_info, _("$1's killing spree was ended.", fx.player[pid].name)));
+        addThreadMessage(new TM_Text(msg_info, tf("$1's killing spree was ended.", formatName(pid))));
     if (flag) {
-        string msg;
+        FormattedText msg;
         if (wild_flag)
-            msg = _("$1 LOST THE WILD FLAG!", fx.player[pid].name);
+            msg = tf("$1 LOST THE $GWILD FLAG$>!", formatName(pid));
         else if (1 - team == 0)
-            msg = _("$1 LOST THE RED FLAG!", fx.player[pid].name);
+            msg = tf("$1 LOST THE $RRED FLAG$>!", formatName(pid));
         else
-            msg = _("$1 LOST THE BLUE FLAG!", fx.player[pid].name);
+            msg = tf("$1 LOST THE $BBLUE FLAG$>!", formatName(pid));
         if (menu.options.game.showFlagMessages())
             addThreadMessage(new TM_Text(msg_info, msg));
         addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
@@ -1798,23 +1798,23 @@ void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended)
 
 void GuiClient::netFlagTake(int pid, bool wild_flag) throw () {
     const int team = pid / TSIZE;
-    string msg;
+    FormattedText msg;
     if (wild_flag)
-        msg = _("$1 GOT THE WILD FLAG!", fx.player[pid].name);
+        msg = tf("$1 GOT THE $GWILD FLAG$>!", formatName(pid));
     else if (1 - team == 0)
-        msg = _("$1 GOT THE RED FLAG!", fx.player[pid].name);
+        msg = tf("$1 GOT THE $RRED FLAG$>!", formatName(pid));
     else
-        msg = _("$1 GOT THE BLUE FLAG!", fx.player[pid].name);
+        msg = tf("$1 GOT THE $BBLUE FLAG$>!", formatName(pid));
     if (menu.options.game.showFlagMessages())
         addThreadMessage(new TM_Text(msg_info, msg));
 }
 
 void GuiClient::netFlagReturn(int pid) throw () {
-    string msg;
+    FormattedText msg;
     if (pid / TSIZE == 0)
-        msg = _("$1 RETURNED THE RED FLAG!", fx.player[pid].name);
+        msg = tf("$1 RETURNED THE $RRED FLAG$>!", formatName(pid));
     else
-        msg = _("$1 RETURNED THE BLUE FLAG!", fx.player[pid].name);
+        msg = tf("$1 RETURNED THE $BBLUE FLAG$>!", formatName(pid));
     if (menu.options.game.showFlagMessages())
         addThreadMessage(new TM_Text(msg_info, msg));
     addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
@@ -1822,13 +1822,13 @@ void GuiClient::netFlagReturn(int pid) throw () {
 
 void GuiClient::netFlagDrop(int pid, bool wild_flag) throw () {
     const int team = pid / TSIZE;
-    string msg;
+    FormattedText msg;
     if (wild_flag)
-        msg = _("$1 DROPPED THE WILD FLAG!", fx.player[pid].name);
+        msg = tf("$1 DROPPED THE $GWILD FLAG$>!", formatName(pid));
     else if (1 - team == 0)
-        msg = _("$1 DROPPED THE RED FLAG!", fx.player[pid].name);
+        msg = tf("$1 DROPPED THE $RRED FLAG$>!", formatName(pid));
     else
-        msg = _("$1 DROPPED THE BLUE FLAG!", fx.player[pid].name);
+        msg = tf("$1 DROPPED THE $BBLUE FLAG$>!", formatName(pid));
     if (menu.options.game.showFlagMessages())
         addThreadMessage(new TM_Text(msg_info, msg));
     addThreadMessage(new TM_Sound(SAMPLE_CTF_LOST));
@@ -1840,13 +1840,13 @@ void GuiClient::netTeamChange(int pl1, int pl2) throw () {
         deadAfterHighlighted = true;
     }
 
-    string msg;
+    FormattedText msg;
     if (pl2 != -1)
-        msg = _("$1 and $2 swapped teams.", fx.player[pl1].name, fx.player[pl2].name);
+        msg = tf("$1 and $2 swapped teams.", formatName(pl1), formatName(pl2));
     else if (pl1 / TSIZE == 1)
-        msg = _("$1 moved to red team.", fx.player[pl1].name);
+        msg = tf("$1 moved to red team.", formatName(pl1));
     else
-        msg = _("$1 moved to blue team.", fx.player[pl1].name);
+        msg = tf("$1 moved to blue team.", formatName(pl1));
     addThreadMessage(new TM_Text(msg_info, msg));
     addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
 }
@@ -1876,25 +1876,25 @@ void GuiClient::send_chat(const string& text) throw () {
 }
 
 //print message to "console"
-void GuiClient::print_message(Message_type type, const string& msg, int sender_team) throw () {
+void GuiClient::print_message(Message_type type, const FormattedText& msg, int sender_team) throw () {
     if (menu.options.game.messageLogging() != Menu_game::ML_none && !replaying) {
         if (menu.options.game.messageLogging() == Menu_game::ML_full || type == msg_normal || type == msg_team)
-            message_log << date_and_time() << "  " << msg << endl;
+            message_log << date_and_time() << "  " << msg.unformatted() << endl;
     }
 
     bool highlight = false;
     if (type == msg_normal || type == msg_team) {
-        const string uppercase = toupper(msg);
+        const string uppercase = toupper(msg.unformatted());
         for (vector<string>::const_iterator hi = highlight_text.begin(); hi != highlight_text.end(); ++hi)
             if (uppercase.find(*hi) != string::npos) {
                 highlight = true;
                 break;
             }
     }
-    const vector<string> lines = split_to_lines(msg, 79, 4);
+    const vector<FormattedText> lines = split_to_lines(msg, 79, 4);
     while (chatbuffer.size() > graphics.chat_max_lines() + lines.size())
         chatbuffer.pop_front();
-    for (vector<string>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
+    for (vector<FormattedText>::const_iterator li = lines.begin(); li != lines.end(); ++li) {
         Message message(type, *li, static_cast<int>(fx.frame / 10), sender_team);
         if (highlight)
             message.highlight();

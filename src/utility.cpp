@@ -1,7 +1,7 @@
 /*
  *  utility.cpp
  *
- *  Copyright (C) 2003, 2004, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -28,6 +28,7 @@
 #include <limits>
 #include <locale>
 #include <sstream>
+#include <stack>
 
 #include <cmath>
 #include <cstdarg>
@@ -54,6 +55,7 @@ using std::ostringstream;
 using std::setfill;
 using std::setprecision;
 using std::setw;
+using std::stack;
 using std::string;
 using std::vector;
 
@@ -318,6 +320,7 @@ string formatForLogging(const string& str) throw () {
 
 // Split string to lines, but only at whitespaces.
 vector<string> split_to_lines(const string& source, int lineLength, int indent, bool keep_spaces) throw () {
+    nAssert(indent >= 0 && lineLength > indent);
     vector<string> lines;
     if (source.empty())
         return lines;
@@ -343,6 +346,92 @@ vector<string> split_to_lines(const string& source, int lineLength, int indent, 
         start = keep_spaces ? end : source.find_first_not_of(" \t", end);
     } while (start != string::npos);
     return lines;
+}
+
+vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength, int indent, bool keep_spaces) throw () {
+    typedef FormattedText::Snippet Snippet;
+
+    nAssert(indent >= 0 && lineLength > indent);
+    vector<FormattedText> lines;
+    if (source.empty())
+        return lines;
+    vector<Snippet>::const_iterator iSnip = source.snips.begin(), iSnipAtLastSpace = iSnip;
+    size_t snipPos = 0, snipPosAtLastSpace = 0;
+    for (;;) {
+        FormattedText line;
+        vector<Snippet>& snips = line.snips;
+        size_t lineSnipsAtLastSpace = 0, lineSnipPosAtLastSpace = 0;
+
+        if (!lines.empty() && indent) {
+            if (lines.size() == 1)
+                lineLength -= indent; // lines after the first one are shorter because of the indent
+            snips.push_back(Snippet(string(indent, ' '))); // default formatting regardless of surrounding format
+        }
+
+        int lineLen = 0;
+        for (;;) {
+            if (iSnip == source.snips.end()) {
+                lines.push_back(line);
+                return lines;
+            }
+            const size_t spacePos = iSnip->text.find_last_of(" \t", snipPos + lineLength - lineLen);
+            if (spacePos != string::npos && spacePos >= snipPos) {
+                iSnipAtLastSpace = iSnip;
+                snipPosAtLastSpace = spacePos;
+                if (spacePos == snipPos) {
+                    lineSnipsAtLastSpace = snips.size();
+                    lineSnipPosAtLastSpace = snips.empty() ? 0 : snips.back().length();
+                }
+                else {
+                    lineSnipsAtLastSpace = snips.size() + 1;
+                    lineSnipPosAtLastSpace = spacePos - snipPos;
+                }
+            }
+
+            if (lineLen + iSnip->length() - snipPos > (unsigned)lineLength) {
+                if (lineLen != lineLength) {
+                    snips.push_back(Snippet(iSnip->text.substr(snipPos, lineLength - lineLen), iSnip->format));
+                    snipPos += lineLength - lineLen;
+                }
+                break;
+            }
+            if (snipPos == 0)
+                snips.push_back(*iSnip);
+            else {
+                nAssert(snipPos < iSnip->length());
+                snips.push_back(Snippet(iSnip->text.substr(snipPos), iSnip->format));
+            }
+            lineLen += snips.back().length();
+            ++iSnip;
+            snipPos = 0;
+        }
+        if (lineSnipsAtLastSpace == 0) { // no spaces on the line at all
+            lines.push_back(line);
+            continue;
+        }
+        iSnip = iSnipAtLastSpace;
+        snipPos = snipPosAtLastSpace;
+        nAssert(lineSnipsAtLastSpace <= snips.size());
+        snips.erase(snips.begin() + lineSnipsAtLastSpace, snips.end());
+        snips.back().text.erase(lineSnipPosAtLastSpace);
+
+        // deal with the spaces: skip or stick to the end
+        for (;;) {
+            const size_t endSpaces = iSnip->text.find_first_not_of(" \t", snipPos);
+            if (keep_spaces && endSpaces != snipPos)
+                snips.push_back(Snippet(iSnip->text.substr(snipPos, endSpaces == string::npos ? string::npos : endSpaces - snipPos), iSnip->format));
+            if (endSpaces != string::npos) {
+                snipPos = endSpaces;
+                break;
+            }
+            if (++iSnip == source.snips.end()) {
+                lines.push_back(line);
+                return lines;
+            }
+            snipPos = 0;
+        }
+        lines.push_back(line);
+    }
 }
 
 string random_line(const string& file) {
@@ -467,6 +556,89 @@ FileName::FileName(const string& fullName) throw () {
 
 string FileName::getFull() const throw () {
     return path + directory_separator + base + ext;
+}
+
+FormattedText::FormattedText(const std::string& s) throw () {
+    snips.push_back(Snippet(s));
+}
+
+FormattedText::FormattedText(const char* s) throw () {
+    snips.push_back(Snippet(s));
+}
+
+string FormattedText::code() const throw () {
+    string result;
+    for (vector<Snippet>::const_iterator si = snips.begin(); si != snips.end(); ++si) {
+        if (si->format.color != DefaultColor) {
+            result += '$';
+            switch (si->format.color) {
+                break; case Red  : result += 'R';
+                break; case Green: result += 'G';
+                break; case Blue : result += 'B';
+                break; default: nAssert(0);
+            }
+            result += escape(si->text);
+            result += "$>";
+        }
+        else
+            result += escape(si->text);
+    }
+    return result;
+}
+
+string FormattedText::unformatted() const throw () {
+    string result;
+    for (vector<Snippet>::const_iterator si = snips.begin(); si != snips.end(); ++si)
+        result += si->text;
+    return result;
+}
+
+string FormattedText::escape(string s) throw () {
+    replace_all_in_place(s, "$", "$$");
+    return s;
+}
+
+FormattedText FormattedText::parse(const string& code) throw () {
+    FormattedText result;
+    stack<Formatting> formats;
+    formats.push(Formatting());
+    Snippet snip(formats.top());
+    for (size_t pos = 0; pos < code.length(); ++pos) {
+        if (code[pos] != '$' || pos + 1 < code.length() && code[pos + 1] == '$' && ++pos) {
+            if (snip.format != formats.top()) {
+                if (!snip.text.empty())
+                    result.snips.push_back(snip);
+                snip = Snippet(formats.top());
+            }
+            snip.text += code[pos];
+            continue;
+        }
+        // code[pos] == '$'
+        ++pos;
+        nAssert(pos < code.length());
+        if (pos == code.length())
+            return FormattedText();
+        switch (code[pos]) {
+        /*break;*/ case '>':
+                formats.pop();
+                nAssert(!formats.empty()); // the last default formatting can't be popped
+                if (formats.empty())
+                    return FormattedText();
+            break; case 'R':
+                formats.push(Formatting(formats.top(), Red));
+            break; case 'G':
+                formats.push(Formatting(formats.top(), Green));
+            break; case 'B':
+                formats.push(Formatting(formats.top(), Blue));
+            break; default:
+                nAssert(0);
+                return FormattedText();
+        }
+    }
+    nAssert(formats.size() == 1);
+    if (!snip.text.empty())
+        result.snips.push_back(snip);
+    return result;
 }
 
 // definitions for incalleg.h

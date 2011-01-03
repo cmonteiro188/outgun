@@ -2,7 +2,7 @@
  *  clientbase.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -175,6 +175,10 @@ void ClientBase::startBase(ControlledPtr<client_c> networkProvider) throw () {
     client->setCallbackCustomPointer(this);
     client->setConnectionCallback(cfunc_connection_update);
     client->setServerDataCallback(cfunc_server_data);
+}
+
+FormattedText ClientBase::formatName(int pid) const throw () {
+    return FormattedText::parse((fx.player[pid].team() == 0 ? "$R" : "$B") + FormattedText::escape(fx.player[pid].name) + "$>");
 }
 
 //send "client ready" message to server (when map load and/or download completes)
@@ -594,11 +598,12 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const string name = read.str();
         if (check_name(name)) {
             if (fx.player[pid].name.empty()) {
-                addThreadMessage(new TM_Text(msg_info, _("$1 entered the game.", name)));
+                fx.player[pid].name = name;
+                addThreadMessage(new TM_Text(msg_info, tf("$1 entered the game.", formatName(pid))));
                 addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
             }
             else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
-                addThreadMessage(new TM_Text(msg_info, _("$1 changed name to $2.", fx.player[pid].name, name)));
+                addThreadMessage(new TM_Text(msg_info, tf("$1 changed name to $2.", formatName(pid), name)));
             fx.player[pid].name = name;
         }
         else
@@ -1010,13 +1015,13 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         }
         const int team = pid / TSIZE;
         fx.teams[team].add_score(time - map_start_time, capturers);
-        string msg;
+        FormattedText msg;
         if (wild_flag)
-            msg = _("$1 CAPTURED THE WILD FLAG!", fx.player[pid].name);
+            msg = tf("$1 CAPTURED THE $GWILD FLAG$>!", formatName(pid));
         else if (1 - team == 0)
-            msg = _("$1 CAPTURED THE RED FLAG!", fx.player[pid].name);
+            msg = tf("$1 CAPTURED THE $RRED FLAG$>!", formatName(pid));
         else
-            msg = _("$1 CAPTURED THE BLUE FLAG!", fx.player[pid].name);
+            msg = tf("$1 CAPTURED THE $BBLUE FLAG$>!", formatName(pid));
         addThreadMessage(new TM_Text(msg_info, msg));
         addThreadMessage(new TM_Sound(SAMPLE_CTF_CAPTURE));
         #endif
@@ -1147,7 +1152,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_player_left: {
         const uint8_t pid = read.U8(0, maxplayers - 1);
         #ifndef DEDICATED_SERVER_ONLY
-        const string msg = _("$1 left the game with $2 frags.", fx.player[pid].name, itoa(fx.player[pid].stats().frags()));
+        const FormattedText msg = tf("$1 left the game with $2 frags.", formatName(pid), itoa(fx.player[pid].stats().frags()));
         addThreadMessage(new TM_Text(msg_info, msg));
         addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
         const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
@@ -1406,11 +1411,11 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             addThreadMessage(new TM_Text(msg_warning, msg));
         }
         else {
-            string msg;
+            FormattedText msg;
             if (mode == 0)
-                msg = _("$1 has unmuted $2.", admin, fx.player[pid].name);
+                msg = tf("$1 has unmuted $2.", admin, formatName(pid));
             else
-                msg = _("$1 has muted $2.", admin, fx.player[pid].name);
+                msg = tf("$1 has muted $2.", admin, formatName(pid));
             addThreadMessage(new TM_Text(msg_info, msg));
         }
         #endif
@@ -1432,11 +1437,11 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             addThreadMessage(new TM_Text(msg_warning, msg));
         }
         else {
-            string msg;
+            FormattedText msg;
             if (minutes == 0)
-                msg = _("$1 has kicked $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+                msg = tf("$1 has kicked $2 (disconnect in 10 seconds).", admin, formatName(pid));
             else
-                msg = _("$1 has banned $2 (disconnect in 10 seconds).", admin, fx.player[pid].name);
+                msg = tf("$1 has banned $2 (disconnect in 10 seconds).", admin, formatName(pid));
             addThreadMessage(new TM_Text(msg_info, msg));
         }
         #endif

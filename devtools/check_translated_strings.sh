@@ -17,7 +17,7 @@ cat "$LANGFILE" | dos2unix | recode latin1.. | egrep -v --line-regexp ';.*||Engl
     || { echo 'Error extracting phrases.langfile' >&2; exit 1; }
 
 cat "$SOURCEDIR"/*.{h,cpp} | recode latin1.. \
-       | sed 's+\\"+@QUOTEDQ@+g;s+get_text+_+g;s+_("\([^"]*\)"+_("\1"\n_+g' \
+       | sed 's+\\"+@QUOTEDQ@+g;s+get_text+_+g;s+\<tf\>+_+g;s+_("\([^"]*\)"+_("\1"\n_+g' \
        | sed -n 's+.*_("\([^"]*\)".*+\1+p' | sed 's+@QUOTEDQ@+"+g' \
        | sort | uniq > "$WORKDIR/phrases.code" \
     || { echo 'Error extracting phrases.code' >&2; exit 1; }
