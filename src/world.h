@@ -263,6 +263,8 @@ public:
 
 class Statistics {
 public:
+    enum FlagType { flagNone, flagOwn, flagEnemy, flagWild };
+
     Statistics() throw ();
 
     void clear(bool preserveTime) throw ();
@@ -289,7 +291,7 @@ public:
     void set_lifetime(double time) throw () { total_lifetime = time; }
     void set_flag_carrying_time(double time) throw () { total_flag_carrying_time = time; }
     void set_flag_take_time(double time) throw () { flag_taking_time = time; }
-    void set_flag(bool f, bool wild) throw () { nAssert(!wild || f); flag = f; wild_flag = wild; }
+    void set_flag(FlagType type) throw () { carriedFlag = type; }
     void set_dead(bool d) throw () { dead = d; }
 
     void spawn(double time) throw () { set_spawn_time(time); nAssert(dead); dead = false; }
@@ -301,7 +303,7 @@ public:
     void add_suicide(double time) throw ();
     void add_capture(double time) throw ();
     void add_assist() throw () { ++total_assists; }
-    void add_flag_take(double time, bool wild) throw ();
+    void add_flag_take(double time, FlagType type) throw ();
     void add_flag_drop(double time) throw ();
     void add_flag_return() throw () { ++total_flags_returned; }
     void add_carrier_kill() throw () { ++total_flag_carriers_killed; }
@@ -343,8 +345,9 @@ public:
     double start_time() const throw () { return starttime; }
     double flag_carrying_time(double time) const throw ();
     double flag_take_time() const throw () { return flag_taking_time; }
-    bool has_flag() const throw () { return flag; }  // true for both enemy flag and wild flag
-    bool has_wild_flag() const throw () { return wild_flag; }
+    FlagType flag() const throw () { return carriedFlag; }
+    bool has_flag() const throw () { return carriedFlag != flagNone; }
+    bool has_wild_flag() const throw () { return carriedFlag == flagWild; }
 
 private:
     int total_frags;
@@ -372,7 +375,7 @@ private:
     double saved_speed;
     double starttime;
     bool dead;
-    bool flag, wild_flag;
+    FlagType carriedFlag;
     double total_flag_carrying_time;
     double flag_taking_time;
 };

@@ -3596,7 +3596,7 @@ bool ServerWorld::all_kind_of_flags_exist() const throw () {
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
     host->score_frag(pid, 1);
-    player[pid].stats().add_flag_take(get_time(), team == 2);
+    player[pid].stats().add_flag_take(get_time(), team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy);
     teams[pid / TSIZE].add_flag_take();
     net->broadcast_flag_take(player[pid], team);
     stealFlag(team, flag, pid);
@@ -4049,8 +4049,7 @@ Statistics::Statistics() throw () :
     saved_speed(0),
     starttime(0),
     dead(true),
-    flag(false),
-    wild_flag(false),
+    carriedFlag(flagNone),
     total_flag_carrying_time(0),
     flag_taking_time(0)
 { }
@@ -4096,23 +4095,22 @@ void Statistics::add_suicide(double time) throw () {
 }
 
 void Statistics::add_capture(double time) throw () {
-    nAssert(flag);
-    flag = wild_flag = false;
+    nAssert(carriedFlag != flagNone);
+    set_flag(flagNone);
     ++total_captures;
     total_flag_carrying_time += time - flag_taking_time;
 }
 
-void Statistics::add_flag_take(double time, bool wild) throw () {
-    nAssert(!flag);
-    flag = true;
-    wild_flag = wild;
+void Statistics::add_flag_take(double time, FlagType type) throw () {
+    nAssert(carriedFlag == flagNone);
+    set_flag(type);
     ++total_flags_taken;
     flag_taking_time = time;
 }
 
 void Statistics::add_flag_drop(double time) throw () {
-    nAssert(flag);
-    flag = wild_flag = false;
+    nAssert(carriedFlag != flagNone);
+    set_flag(flagNone);
     ++total_flags_dropped;
     total_flag_carrying_time += time - flag_taking_time;
 }
@@ -4122,8 +4120,8 @@ void Statistics::finish_stats(double time) throw () {
         dead = true;
         total_lifetime += time - last_spawn_time;
     }
-    if (flag) {
-        flag = wild_flag = false;
+    if (has_flag()) {
+        set_flag(flagNone);
         total_flag_carrying_time += time - flag_taking_time;
     }
 }
@@ -4162,7 +4160,7 @@ double Statistics::speed(double time) const throw () {
 }
 
 double Statistics::flag_carrying_time(double time) const throw () {
-    if (!flag)
+    if (!has_flag())
         return total_flag_carrying_time;
     else
         return total_flag_carrying_time + (time - flag_taking_time);

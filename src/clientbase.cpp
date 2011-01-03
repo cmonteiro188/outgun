@@ -1068,7 +1068,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         pid &= ~0x80;
         if (pid >= maxplayers)
             return false;
-        fx.player[pid].stats().add_flag_take(time, wild_flag);
+        fx.player[pid].stats().add_flag_take(time, wild_flag ? Statistics::flagWild : Statistics::flagEnemy);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_take();
         netFlagTake(pid, wild_flag);
@@ -1265,7 +1265,17 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         if (pid >= maxplayers)
             return false;
         Statistics& stats = fx.player[pid].stats();
-        stats.set_flag(flag, wild_flag);
+        Statistics::FlagType carriedFlag;
+        if (flag)
+            if (wild_flag)
+                carriedFlag = Statistics::flagWild;
+            else
+                carriedFlag = Statistics::flagEnemy;
+        else if (wild_flag) // TODO: Needs protocol extension
+            carriedFlag = Statistics::flagOwn;
+        else
+            carriedFlag = Statistics::flagNone;
+        stats.set_flag(carriedFlag);
         fx.player[pid].dead = dead;
         stats.set_dead               (dead);
         const bool e = protocolExtensions >= 0;
