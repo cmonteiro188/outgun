@@ -2,7 +2,7 @@
  *  language.cpp
  *
  *  Copyright (C) 2004, 2006 - Jani Rivinoja
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -98,13 +98,19 @@ string _(string text, const string& t1, const string& t2, const string& t3, cons
     const string* const replacement[nReplacements] = { &t1, &t2, &t3, &t4, &t5 };
     string::size_type pos = 0;
     while ((pos = text.find('$', pos)) != string::npos) {
-        if (pos + 1 == string::npos)
+        if (pos + 1 == text.length())
             break;
         const int val = atoi(text.substr(pos + 1, 1)) - 1;
         if (val >= 0 && val < nReplacements) {
             text.replace(pos, 2, *replacement[val]);
             pos += replacement[val]->length();
         }
+        else
+            ++pos;
     }
     return text;
+}
+
+FormattedText tf(const string& text, const FormattedText& t1, const FormattedText& t2, const FormattedText& t3, const FormattedText& t4, const FormattedText& t5) throw () {
+    return FormattedText::parse(_(text, t1.code(), t2.code(), t3.code(), t4.code(), t5.code()));
 }

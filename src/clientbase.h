@@ -158,6 +158,8 @@ protected:
         #endif
     }
 
+    FormattedText formatName(int pid) const throw ();
+
     // world    //#fix: should these be moved to ClientWorld?
     virtual void rocketHitWallCallback(int rid, bool power, const WorldCoords& pos) throw ();
     void rocketOutOfBoundsCallback(int rid) throw ();
@@ -192,7 +194,7 @@ protected:
     static void cfunc_server_data(void* customp, ConstDataBlockRef data) throw ();
 
     // functionality from subclasses; if there is a default implementation (doing nothing), it's used for Robot
-    virtual void print_message(Message_type type, const std::string& msg, int sender_team = -1) throw () { (void)type; (void)msg; (void)sender_team; }
+    virtual void print_message(Message_type type, const FormattedText& msg, int sender_team = -1) throw () { (void)type; (void)msg; (void)sender_team; }
     virtual void play_sound(int sample) throw () { (void)sample; }
     virtual void client_disconnected(ConstDataBlockRef data) throw () = 0;
     virtual void connect_failed_denied(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
@@ -268,11 +270,11 @@ public:
 
 class TM_Text : public ThreadMessage {
     Message_type type;
-    std::string text;
+    FormattedText text;
     int team;   // -1 for non-team messages
 
 public:
-    TM_Text(Message_type type_, const std::string& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
+    TM_Text(Message_type type_, const FormattedText& text_, int team_ = -1) throw () : type(type_), text(text_), team(team_) { }
     ~TM_Text() throw () { }
     void execute(ClientBase* cl) const throw () {
         cl->print_message(type, text, team);

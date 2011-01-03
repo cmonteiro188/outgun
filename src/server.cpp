@@ -95,8 +95,10 @@ Server::Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& exte
     fav_colors[0].resize(MAX_PLAYERS / 2, false);
     fav_colors[1].resize(MAX_PLAYERS / 2, false);
     Thread::setCallerPriority(config.priority);
-    if (botTestMode)
+    if (botTestMode) {
+        std::cout << "Running bot test\n";
         removeQuickSleepDelay();
+    }
 }
 
 Server::~Server() throw () { }
@@ -1294,7 +1296,7 @@ void Server::chat(int pid, const string& message) throw () {
                 network.player_message(pid, msg_server, "/bot remove n    remove n bots, default 1");
                 network.player_message(pid, msg_server, "/bot fill n      set bots_fill to n");
                 network.player_message(pid, msg_server, "/bot balance s   set balance_bot on or off");
-                network.player_message(pid, msg_server, "/bot ping p all  show or set the bot ping");
+                network.player_message(pid, msg_server, "/bot ping p      show or set the bot ping");
                 network.player_message(pid, msg_server, "/bot rename n s  set the name of bot with ID n to s");
                 network.plprintf      (pid, msg_server, "Currently there are %d bots.", network.get_bot_count());
                 network.plprintf      (pid, msg_server, "min_bots %d, bots_fill %d, extra_bots %d, balance_bot %s",
@@ -1377,17 +1379,10 @@ void Server::chat(int pid, const string& message) throw () {
                 ist >> ping;
                 if (!ist && ist.eof())
                     network.plprintf(pid, msg_server, "Current bot ping is %d.", settings.get_bot_ping());
-                else if (ist && ping >= 0 && ping <= 2000) {
-                    string all;
-                    ist >> all;
-                    if (!ist.eof() || (ist && all != "all"))
-                        network.plprintf(pid, msg_warning, "Syntax error. Invalid argument '%s'.", all.c_str());
-                    else {
-                        if (ist && ist.eof() && all == "all")
-                            bot_ping_changed = true;
-                        settings.set_bot_ping(ping);
-                        network.plprintf(pid, msg_server, "Bot ping is now %d.", settings.get_bot_ping());
-                    }
+                else if (ist && ist.eof() && ping >= 0 && ping <= 2000) {
+                    bot_ping_changed = true;
+                    settings.set_bot_ping(ping);
+                    network.plprintf(pid, msg_server, "Bot ping is now %d.", settings.get_bot_ping());
                 }
                 else
                     network.plprintf(pid, msg_warning, "Syntax error. Valid ping range is 0 - 2000.");

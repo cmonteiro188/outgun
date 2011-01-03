@@ -434,7 +434,7 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     // GUI
     void erase_first_message() throw ();
-    void print_message(Message_type type, const std::string& msg, int sender_team = -1) throw ();
+    void print_message(Message_type type, const FormattedText& msg, int sender_team = -1) throw ();
 
     void save_screenshot() throw ();
     void toggle_help() throw ();

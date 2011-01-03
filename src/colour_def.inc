@@ -2,6 +2,7 @@
  *  colour_def.inc
  *
  *  Copyright (C) 2008 - Jani Rivinoja
+ *  Copyright (C) 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -196,6 +197,10 @@ COL(message_server             , 0x00, 0xFF, 0xFF)
 COL(message_warning            , 0xFF, 0x55, 0x44)
 COL(message_highlight          , 0xFF, 0xFF, 0xFF)
 COL(message_input              , 0xFF, 0xFF, 0xFF)
+// specific message colors are mostly shown amidst message_info; default colors aim for limited contrast
+COL(message_red                , 0xA0, 0xC0, 0x00)
+COL(message_green              , 0x00, 0x90, 0x00)
+COL(message_blue               , 0x10, 0xC0, 0x85)
 
 SECTION("Replay")
 COL(replay_text                , 0xFF, 0xFF, 0xFF)
