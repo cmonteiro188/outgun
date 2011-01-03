@@ -1881,8 +1881,15 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
             const int flag = text_length(sbfont, "M") / 2;
             const int pole = 7 * flag / 4;
             const int starty = y + (text_height(sbfont) - pole) / 2;
+            int c;
+            switch (player.stats().flag()) {
+            /*break;*/ case Statistics::flagOwn:   c = teamcol[player.team()];
+                break; case Statistics::flagEnemy: c = teamcol[1 - player.team()];
+                break; case Statistics::flagWild:  c = teamcol[2];
+                break; default: ;
+            }
             vline(drawbuf, x, starty, starty + pole, colour[Colour::flag_pole]);
-            rectfill(drawbuf, x + 1, starty, x + 1 + flag, starty + flag, player.stats().has_wild_flag() ? teamcol[2] : teamcol[1 - player.team()]);
+            rectfill(drawbuf, x + 1, starty, x + 1 + flag, starty + flag, c);
         }
         line[player.team()]++;
     }
