@@ -819,8 +819,10 @@ bool Server::reset_settings(bool reload) throw () {  // set reload if reset_sett
     if (reload) {   // preserve selected map and restore map votes where possible
         network.broadcast_reset_map_list(); // must be before new votes are sent (right below)
         for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used)
+            if (world.player[i].used) {
                 world.player[i].current_map_list_item = 0;
+                world.player[i].sendingQuickMapList = true;
+            }
 
         currmap = -1;   // flag so we know if it has changed or not
         for (int mapi = 0; mapi < (int)maprot.size(); ++mapi) {

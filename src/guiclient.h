@@ -2,7 +2,7 @@
  *  guiclient.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -171,9 +171,13 @@ class GuiClient : public ClientBase, public ClientInterface {
     Mutex mapInfoMutex;
     std::vector<MapInfo> maps;
     std::vector< std::pair<const MapInfo*, int> > sortedMaps;
+    unsigned mapListReadPosition;
 
     MapListSortKey mapListSortKey;
     bool mapListChangedAfterSort;
+
+    typedef std::map<uint16_t, MapInfo> MapInfoCache;
+    MapInfoCache mapInfoCache;
 
     std::set<std::string> fav_maps;
     int current_map;
@@ -309,7 +313,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     typedef std::vector< std::pair<std::string, ReplayDescriptor> > ReplayList;
     typedef std::map<std::string, ReplayDescriptor> ReplayCache;
 
-    static const uint32_t replayCacheVersionIdentifier = 0x56E0FED5;
+    static const uint32_t replayCacheVersionIdentifier = 0x56E0FED5, mapInfoCacheVersionIdentifier = 0x2F4348C9;
 
     std::string replayCacheFile() const throw ();
     ReplayCache loadReplayCache() const throw ();
@@ -381,6 +385,10 @@ class GuiClient : public ClientBase, public ClientInterface {
 
     void loadQuickMessages() throw ();
     void saveQuickMessages() const throw ();
+
+    std::string mapInfoCacheFile() const throw ();
+    void loadMapInfoCache() throw ();
+    void saveMapInfoCache() const throw ();
 
     void loadHelp() throw ();
     void addSplashLine(std::string line) throw (); // internal to loadSplashScreen
@@ -492,6 +500,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void netPowerCollision(int target, double time) throw ();
     void net_data_sound(BinaryReader& read) throw ();
     void net_data_registration_response(BinaryReader& read) throw ();
+    void net_data_quick_map_list(BinaryReader& read) throw ();
     void net_data_map_list(BinaryReader& read) throw ();
     void net_data_crap_update(BinaryReader& read) throw ();
     void net_data_reset_map_list(BinaryReader& read) throw ();

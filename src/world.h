@@ -2,7 +2,7 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -254,10 +254,12 @@ public:
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
     bool highlight;     // for the map list in the client
+    uint16_t infoHash; // taking into account only the static information that is shown in the client
 
     MapInfo() throw ();
     bool load(LogSet& log, const std::string& mapName) throw ();
     void update(const Map& map) throw ();
+    void updateInfoHash() throw ();
     bool operator<(const MapInfo& o) const throw () { return cmp_case_ins(title, o.title); }
 };
 
@@ -490,6 +492,7 @@ public:
     int awaiting_client_readies;
     bool want_map_exit;
 
+    bool sendingQuickMapList;
     size_t current_map_list_item;
     int nextMinimapPlayer, minimapPlayersPerFrame;
 

@@ -360,6 +360,7 @@ public:
     void send_team_movements_and_shots(int cid) const throw ();
     void send_team_stats(const ServerPlayer& player) const throw ();
 
+    void send_quick_map_list(const ServerPlayer& player) const throw ();
     void send_map_info(const ServerPlayer& player) const throw ();
     void send_map_vote(const ServerPlayer& player) const throw ();
     void broadcast_map_votes_update() throw ();

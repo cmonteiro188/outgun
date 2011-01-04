@@ -982,6 +982,9 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_current_map:
         netSetCurrentMap(read.U8());
 
+    break; case data_quick_map_list:
+        net_data_quick_map_list(read);
+
     break; case data_map_list:
         net_data_map_list(read);
 

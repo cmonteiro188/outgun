@@ -2261,8 +2261,10 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
             mapline << "  ";
         const string title = map.random ? _("<Random>") : map.title.substr(0, 20);
         mapline << ' ' << setw(20) << left << title << right << ' ';
-        mapline << setw(2) << map.width << '×' << setw(2) << left << map.height << right << ' ';
-        mapline << map.author.substr(0, 27);
+        if (map.width > 0 && map.height > 0) {
+            mapline << setw(2) << map.width << '×' << setw(2) << left << map.height << right << ' ';
+            mapline << map.author.substr(0, 27);
+        }
         const int y = y1 + 5 * line_height + line_height * (i - map_list_start);
         int c;
         if (mapNumber == current)

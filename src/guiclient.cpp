@@ -44,6 +44,7 @@ using std::istream;
 using std::istringstream;
 using std::left;
 using std::list;
+using std::make_pair;
 using std::max;
 using std::min;
 using std::ofstream;
@@ -392,6 +393,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     downloadMutex("GuiClient::downloadMutex"),
     rankingPassword(log, new MemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
+    mapListReadPosition(0),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
     current_map(-1),
@@ -535,6 +537,7 @@ bool GuiClient::start() throw () {
     cfg.close();
 
     loadQuickMessages();
+    loadMapInfoCache();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
     ifstream fav(fileName.c_str());
@@ -813,6 +816,7 @@ void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call wi
     {
         Lock ml(mapInfoMutex);
         maps.clear();
+        mapListReadPosition = 0;
         mapListChangedAfterSort = true;
     }
 
@@ -1468,6 +1472,44 @@ void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
         rankingPassword.serverRejectsToken();
 }
 
+void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
+    Lock ml(mapInfoMutex);
+    while (read.hasMore()) {
+        const uint16_t hash = read.U16();
+        if (hash & 0x8000) {
+            MapInfo mi;
+            mi.author = "Outgun";
+            mi.width = (hash & 0x7F00) >> 8;
+            mi.height = hash & 0xFF;
+            mi.votes = 0;
+            mi.random = true;
+            mi.highlight = !!fav_maps.count(toupper(mi.title));
+            maps.push_back(mi);
+        }
+        else {
+            const MapInfoCache::const_iterator ci = mapInfoCache.find(hash);
+            if (ci != mapInfoCache.end()) {
+                MapInfo mi = ci->second;
+                nAssert(mi.infoHash == hash);
+                mi.highlight = !!fav_maps.count(toupper(mi.title));
+                maps.push_back(mi);
+            }
+            else {
+                MapInfo mi;
+                mi.title = '?';
+                mi.author = '?';
+                mi.width = mi.height = 0;
+                mi.votes = 0;
+                mi.random = false;
+                mi.highlight = false;
+                maps.push_back(mi);
+            }
+        }
+        mapListChangedAfterSort = true;
+    }
+    mapListReadPosition = 0;
+}
+
 void GuiClient::net_data_map_list(BinaryReader& read) throw () {
     MapInfo mapinfo;
     mapinfo.title = read.str();
@@ -1477,8 +1519,17 @@ void GuiClient::net_data_map_list(BinaryReader& read) throw () {
     mapinfo.votes = read.U8();
     mapinfo.random = read.hasMore() ? read.U8() : false;
     mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+    mapinfo.updateInfoHash();
+
     Lock ml(mapInfoMutex);
-    maps.push_back(mapinfo);
+    if (!mapinfo.random)
+        mapInfoCache[mapinfo.infoHash] = mapinfo;
+    nAssert(mapListReadPosition <= maps.size());
+    if (mapListReadPosition >= maps.size())
+        maps.push_back(mapinfo);
+    else
+        maps[mapListReadPosition] = mapinfo;
+    ++mapListReadPosition;
     mapListChangedAfterSort = true;
 }
 
@@ -1542,6 +1593,7 @@ void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
     (void)read;
     Lock ml(mapInfoMutex);
     maps.clear();
+    mapListReadPosition = 0;
     mapListChangedAfterSort = true;
     map_vote = -1;
 }
@@ -3207,6 +3259,7 @@ void GuiClient::stop() throw () {
     }
 
     saveQuickMessages();
+    saveMapInfoCache();
 
     //save client's password
     log("Saving password file...");
@@ -4569,8 +4622,10 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         return ReplayCache();
     BinaryStreamReader read(in);
     try {
-        if (read.U32() != replayCacheVersionIdentifier)
+        if (read.U32() != replayCacheVersionIdentifier) {
+            log("Replay cache version mismatch. Contents ignored and will be overwritten.");
             return ReplayCache();
+        }
         ReplayCache cache;
         while (read.hasMore()) {
             const string fileName = read.str();
@@ -4579,6 +4634,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         }
         return cache;
     } catch (BinaryReader::ReadOutside) {
+        log("Replay cache file corrupt. Contents ignored and will be overwritten.");
         return ReplayCache();
     }
 }
@@ -4692,6 +4748,60 @@ void GuiClient::saveQuickMessages() const throw () {
     const vector<Textfield>& messages = menu.options.quickMessages.messages;
     for (vector<Textfield>::const_iterator field = messages.begin(); field != messages.end(); field++)
         out << (*field)() + " " << '\n'; // Save at least one space so that the line is not skipped when loading.
+}
+
+std::string GuiClient::mapInfoCacheFile() const throw () {
+    return wheregamedir + "config" + directory_separator + "mapinfocache.bin";
+}
+
+void GuiClient::loadMapInfoCache() throw () {
+    mapInfoCache.clear();
+    ifstream in(mapInfoCacheFile().c_str(), ios::binary);
+    if (!in)
+        return;
+    BinaryStreamReader read(in);
+    try {
+        if (read.U32() != mapInfoCacheVersionIdentifier) {
+            log("Map info cache version mismatch. Contents ignored and will be overwritten.");
+            return;
+        }
+        while (read.hasMore()) {
+            MapInfo mi;
+            mi.infoHash = read.U16();
+            mi.title = read.str();
+            mi.author = read.str();
+            mi.width = read.U32dyn8();
+            mi.height = read.U32dyn8();
+            mi.votes = 0;
+            mi.random = false;
+            mapInfoCache.insert(mapInfoCache.end(), make_pair(mi.infoHash, mi));
+        }
+    } catch (BinaryReader::ReadOutside) {
+        log("Map info cache file corrupt. Contents ignored and will be overwritten.");
+        mapInfoCache.clear();
+    }
+}
+
+void GuiClient::saveMapInfoCache() const throw () {
+    ofstream out(mapInfoCacheFile().c_str(), ios::binary);
+    if (!out) {
+        log("Can't write to %s", mapInfoCacheFile().c_str());
+        return;
+    }
+    ExpandingBinaryBuffer write;
+    write.U32(mapInfoCacheVersionIdentifier);
+    for (MapInfoCache::const_iterator ii = mapInfoCache.begin(); ii != mapInfoCache.end(); ++ii) {
+        const MapInfo& mi = ii->second;
+        nAssert(mi.infoHash == ii->first);
+        write.U16(mi.infoHash);
+        write.str(mi.title);
+        write.str(mi.author);
+        write.U32dyn8(mi.width);
+        write.U32dyn8(mi.height);
+        nAssert(!mi.random);
+        out << write;
+        write.clear();
+    }
 }
 
 void GuiClient::apply_fav_maps() throw () {

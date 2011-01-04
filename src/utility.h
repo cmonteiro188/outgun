@@ -595,6 +595,6 @@ private:
     friend std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength, int indent, bool keep_spaces) throw ();
 };
 
-uint16_t CRC16(const void* buf, unsigned size) throw (); // implemented in network.cpp because HawkNL is used
+uint16_t CRC16(ConstDataBlockRef data) throw (); // implemented in network.cpp because HawkNL is used
 
 #endif

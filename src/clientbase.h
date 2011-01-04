@@ -209,6 +209,7 @@ protected:
     virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
     virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_registration_response(BinaryReader& read) throw () { nAssert(0); (void)read; }
+    virtual void net_data_quick_map_list(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_map_list(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_crap_update(BinaryReader& read) throw () { (void)read; }
     virtual void net_data_reset_map_list(BinaryReader& read) throw () { (void)read; }

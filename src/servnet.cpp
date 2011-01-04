@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -716,6 +716,21 @@ void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw (
         msg.U32dyn8orU8(team.flags_taken(), e);
         msg.U32dyn8orU8(team.flags_dropped(), e);
         msg.U32dyn8orU8(team.flags_returned(), e);
+    }
+    send_message(player.cid, msg);
+}
+
+void ServerNetworking::send_quick_map_list(const ServerPlayer& player) const throw () {
+    BinaryBuffer<256> msg;
+    msg.U8(data_quick_map_list);
+    for (int offset = 0; offset < 20 && player.current_map_list_item + offset < host->maplist().size(); ++offset) {
+        const MapInfo& map = host->maplist()[player.current_map_list_item + offset];
+        if (map.random && map.width < 128 && map.height < 256)
+            msg.U16(0x8000 | map.width << 8 | map.height);
+        else {
+            nAssert(map.infoHash < 0x8000);
+            msg.U16(map.infoHash);
+        }
     }
     send_message(player.cid, msg);
 }
@@ -2174,8 +2189,18 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 
         //send server map list if not sent yet
         if (recipient.current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
-            send_map_info(recipient);
-            ++recipient.current_map_list_item;
+            if (recipient.sendingQuickMapList && recipient.protocolExtensionsLevel >= 1) {
+                send_quick_map_list(recipient);
+                recipient.current_map_list_item += 20;
+                if (recipient.current_map_list_item >= host->maplist().size()) {
+                    recipient.current_map_list_item = 0;
+                    recipient.sendingQuickMapList = false;
+                }
+            }
+            else {
+                send_map_info(recipient);
+                ++recipient.current_map_list_item;
+            }
         }
     }
 
