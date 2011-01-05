@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -904,17 +904,19 @@ void Server::init_bots() throw () {
 
 string Server::create_bot_name() throw () {
     const string bot_prefix = "BOT ";
+
+    // Try to avoid same names.
+    std::set<string> black_list = reservedBotNames;
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (world.player[i].used && world.player[i].is_bot()) {
+            const string& bot_name = world.player[i].name;
+            if (bot_name.substr(0, bot_prefix.length()) == bot_prefix)
+                black_list.insert(bot_name.substr(bot_prefix.length()));
+        }
+
     string name;
     string file = settings.get_bot_name_file();
     if (!file.empty()) {
-        // Try to avoid same names.
-        std::set<string> black_list = reservedBotNames;
-        for (int i = 0; i < MAX_PLAYERS; i++)
-            if (world.player[i].used && world.player[i].is_bot()) {
-                string bot_name = world.player[i].name;
-                if (bot_name.substr(0, bot_prefix.length()) == bot_prefix)
-                    black_list.insert(bot_name.substr(bot_prefix.length()));
-            }
         // Put the game dir before a relative path (that has no '/' or '\' at the beginning and no Windows drive separator)
         if (file[0] != directory_separator && file.find(':') == string::npos)
             file = wheregamedir + "config" + directory_separator + file;
@@ -928,12 +930,13 @@ string Server::create_bot_name() throw () {
         else
             name = loaded_name;
     }
-    if (name.empty()) {
-        if (settings.get_bot_name_lang() == "fi")
-            name = finnish_name(maxPlayerNameLength - bot_prefix.length());
-        else
-            name = RandomName();
-    }
+    if (name.empty())
+        do {
+            if (settings.get_bot_name_lang() == "fi")
+                name = finnish_name(maxPlayerNameLength - bot_prefix.length());
+            else
+                name = RandomName();
+        } while (black_list.count(name));
     reservedBotNames.insert(name);
     name = bot_prefix + name;
     return trim(name.substr(0, maxPlayerNameLength));
