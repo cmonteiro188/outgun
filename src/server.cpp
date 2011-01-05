@@ -907,12 +907,22 @@ string Server::create_bot_name() throw () {
     string name;
     string file = settings.get_bot_name_file();
     if (!file.empty()) {
+        // Try to avoid same names.
+        std::set<string> black_list = reservedBotNames;
+        for (int i = 0; i < MAX_PLAYERS; i++)
+            if (world.player[i].used && world.player[i].is_bot()) {
+                string bot_name = world.player[i].name;
+                if (bot_name.substr(0, bot_prefix.length()) == bot_prefix)
+                    black_list.insert(bot_name.substr(bot_prefix.length()));
+            }
         // Put the game dir before a relative path (that has no '/' or '\' at the beginning and no Windows drive separator)
         if (file[0] != directory_separator && file.find(':') == string::npos)
             file = wheregamedir + "config" + directory_separator + file;
-        const string loaded_name = random_line(file);
-        if (loaded_name.empty())
-            log.error(_("File '$1' contains no bot names.", file));
+        const string loaded_name = random_line(file, black_list);
+        if (loaded_name.empty()) {
+            if (random_line(file).empty())
+                log.error(_("File '$1' contains no bot names.", file));
+        }
         else if (!check_name(loaded_name))
             log.error(_("File '$1' contains invalid name for bot: $2", file, loaded_name));
         else
@@ -924,6 +934,7 @@ string Server::create_bot_name() throw () {
         else
             name = RandomName();
     }
+    reservedBotNames.insert(name);
     name = bot_prefix + name;
     return trim(name.substr(0, maxPlayerNameLength));
 }
@@ -1078,6 +1089,11 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     }
     else {
         if (authorizations.checkNamePassword(name, password)) {
+            if (world.player[pid].is_bot()) {
+                const string bot_prefix = "BOT ";
+                if (name.substr(0, bot_prefix.length()) == bot_prefix)
+                    reservedBotNames.erase(name.substr(bot_prefix.length()));
+            }
             world.player[pid].name = name;
             world.player[pid].waitnametime = get_time() + 1.0;
         }

@@ -52,6 +52,7 @@ using std::numeric_limits;
 using std::ofstream;
 using std::ostream;
 using std::ostringstream;
+using std::set;
 using std::setfill;
 using std::setprecision;
 using std::setw;
@@ -435,11 +436,18 @@ vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength
 }
 
 string random_line(const string& file) {
+    return random_line(file, set<string>());
+}
+
+string random_line(const string& file, const set<string>& black_list) {
     ifstream in(file.c_str());
     string line, selected;
-    for (int lines = 1; getline_smart(in, line); lines++)
-        if (rand() % lines == 0)
-            selected = line;
+    for (int lines = 1; getline_smart(in, line); )
+        if (!black_list.count(line)) {
+            if (rand() % lines == 0)
+                selected = line;
+            lines++;
+        }
     return selected;
 }
 

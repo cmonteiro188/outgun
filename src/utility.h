@@ -26,6 +26,7 @@
 #define UTILITY_H_INC
 
 #include <limits>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -474,6 +475,9 @@ std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineL
 
 /// Get random non-empty line from a file.
 std::string random_line(const std::string& file);
+
+/// Get random non-empty line from a file, avoiding the strings in black_list.
+std::string random_line(const std::string& file, const std::set<std::string>& black_list);
 
 class LineReceiver {
 protected:
