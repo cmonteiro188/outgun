@@ -209,7 +209,6 @@ void Menu::draw(BITMAP* buffer, const Colour_manager& col) throw () {
     for (int ci = 0; ci < start; ++ci)  // find the initial selecti for next loop at compi = start
         if (components[ci]->canBeEnabled())
             ++selecti;
-    const int shortcutColor = components[selected_item]->needsNumberKeys() ? col_shortcutDisabled : col_shortcutEnabled;
     int active_x = 0, active_y = 0, active_h = 0;
     for (int compi = start; compi < static_cast<int>(components.size()); ++compi) {
         Component* component = components[compi];
@@ -217,8 +216,10 @@ void Menu::draw(BITMAP* buffer, const Colour_manager& col) throw () {
             break;
 
         if (components[compi]->canBeEnabled()) {
-            if (selecti <= 10 && shortcuts)
+            if (selecti <= 10 && shortcuts) {
+                const int shortcutColor = !component->isEnabled() || components[selected_item]->needsNumberKeys() ? col_shortcutDisabled : col_shortcutEnabled;
                 textprintf_right_ex(buffer, font, x_start - char_w(), y, shortcutColor, -1, "%d", selecti % 10);
+            }
             ++selecti;
         }
 
