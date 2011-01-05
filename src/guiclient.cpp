@@ -1478,6 +1478,7 @@ void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
         const uint16_t hash = read.U16();
         if (hash & 0x8000) {
             MapInfo mi;
+            mi.title = "<Random>";
             mi.author = "Outgun";
             mi.width = (hash & 0x7F00) >> 8;
             mi.height = hash & 0xFF;
