@@ -1,7 +1,7 @@
 /*
  *  client_menus.h
  *
- *  Copyright (C) 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2005, 2006, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -104,6 +104,7 @@ enum ClientCfgSetting {
     CCS_RandomColour,
     CCS_QuickMessagesEnabled,
     CCS_SendQuickMessageImmediately,
+    CCS_HighlightUnknownMaps,
     CCS_EndOfCommands
 };
 
@@ -326,6 +327,7 @@ public:
     Checkbox            boxRoomsWhenPlaying;
     Select<ViewOverBorderMode> viewOverMapBorder;
     Checkbox            repeatMap;
+    Checkbox            highlightUnknownMaps;
     Slider              statsBgAlpha;
     Slider              fpsLimit;
     Checkbox            mapInfoMode;

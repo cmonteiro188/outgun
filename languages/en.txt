@@ -234,6 +234,7 @@ Markers for nearby players and flags in replay
 Box visible area on map in game
 Let view follow over map border
 Allow parts of map to repeat on screen
+Highlight maps not in maps.txt
 Stats screen alpha
 FPS limit
 Map info mode

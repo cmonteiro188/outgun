@@ -45,6 +45,7 @@ using std::istringstream;
 using std::left;
 using std::list;
 using std::make_pair;
+using std::map;
 using std::max;
 using std::min;
 using std::ofstream;
@@ -1484,7 +1485,7 @@ void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
             mi.height = hash & 0xFF;
             mi.votes = 0;
             mi.random = true;
-            mi.highlight = !!fav_maps.count(toupper(mi.title));
+            updateMapPreference(mi);
             maps.push_back(mi);
         }
         else {
@@ -1492,7 +1493,7 @@ void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
             if (ci != mapInfoCache.end()) {
                 MapInfo mi = ci->second;
                 nAssert(mi.infoHash == hash);
-                mi.highlight = !!fav_maps.count(toupper(mi.title));
+                updateMapPreference(mi);
                 maps.push_back(mi);
             }
             else {
@@ -1502,13 +1503,21 @@ void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
                 mi.width = mi.height = 0;
                 mi.votes = 0;
                 mi.random = false;
-                mi.highlight = false;
+                mi.preference = 0;
                 maps.push_back(mi);
             }
         }
         mapListChangedAfterSort = true;
     }
     mapListReadPosition = 0;
+}
+
+void GuiClient::updateMapPreference(MapInfo& mi) const throw () {
+    const map<string, int>::const_iterator fmi = fav_maps.find(toupper(mi.title));
+    if (fmi != fav_maps.end())
+        mi.preference = fmi->second;
+    else
+        mi.preference = menu.options.graphics.highlightUnknownMaps() ? +1 : 0;
 }
 
 void GuiClient::net_data_map_list(BinaryReader& read) throw () {
@@ -1519,7 +1528,7 @@ void GuiClient::net_data_map_list(BinaryReader& read) throw () {
     mapinfo.height = read.U8();
     mapinfo.votes = read.U8();
     mapinfo.random = read.hasMore() ? read.U8() : false;
-    mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+    updateMapPreference(mapinfo);
     mapinfo.updateInfoHash();
 
     Lock ml(mapInfoMutex);
@@ -3888,7 +3897,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
             return m1s < m2s || m1s == m2s && m1mi.width < m2mi.width;
         }
         break; case MLSK_Author:   return cmp_case_ins(m1mi.author, m2mi.author);
-        break; case MLSK_Favorite: return m1mi.highlight && !m2mi.highlight; // highlighted first
+        break; case MLSK_Favorite: return m1mi.preference > m2mi.preference;
         break; default: nAssert(0);
     }
 }
@@ -4731,8 +4740,16 @@ void GuiClient::load_fav_maps() throw () {
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
     string line;
-    while (getline_skip_comments(in, line))
-        fav_maps.insert(toupper(trim(line)));
+    while (getline_skip_comments(in, line)) {
+        if (line[0] == '-')
+            fav_maps[toupper(trim(line.substr(1)))] = -1;
+        else if (line[0] == '+')
+            fav_maps[toupper(trim(line.substr(1)))] = +1;
+        else if (line[0] == '0' && (line[1] == ' ' || line[1] == '\t'))
+            fav_maps[toupper(trim(line.substr(2)))] =  0;
+        else
+            fav_maps[toupper(trim(line          ))] = +1;
+    }
 }
 
 void GuiClient::loadQuickMessages() throw () {
@@ -4807,7 +4824,7 @@ void GuiClient::saveMapInfoCache() const throw () {
 
 void GuiClient::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
-        mi->highlight = !!fav_maps.count(toupper(mi->title));
+        updateMapPreference(*mi);
     mapListChangedAfterSort = true;
 }
 

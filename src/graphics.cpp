@@ -2269,8 +2269,10 @@ void Graphics::map_list(const vector< pair<const MapInfo*, int> >& maps, MapList
         int c;
         if (mapNumber == current)
             c = colour[Colour::stats_selected];
-        else if (map.highlight)
+        else if (map.preference > 0)
             c = colour[Colour::stats_highlight];
+        else if (map.preference < 0)
+            c = colour[Colour::stats_dimmed];
         else
             c = colour[Colour::stats_text];
         textout_ex(drawbuf, mlfont, mapline.str().c_str(), x_left, y, c, -1);

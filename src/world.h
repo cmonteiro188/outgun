@@ -253,7 +253,7 @@ public:
     bool asymmetric;
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
-    bool highlight;     // for the map list in the client
+    int preference;     // for the map list in the client
     uint16_t infoHash; // taking into account only the static information that is shown in the client
 
     MapInfo() throw ();

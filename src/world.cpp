@@ -765,7 +765,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-MapInfo::MapInfo() throw () : random(false), votes(0), sentVotes(0), last_game(0), highlight(false), infoHash(0) { }
+MapInfo::MapInfo() throw () : random(false), votes(0), sentVotes(0), last_game(0), preference(0), infoHash(0) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) throw () {
     Map map;

@@ -179,7 +179,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     typedef std::map<uint16_t, MapInfo> MapInfoCache;
     MapInfoCache mapInfoCache;
 
-    std::set<std::string> fav_maps;
+    std::map<std::string, int> fav_maps;
     int current_map;
     int map_vote;
     bool want_change_teams;
@@ -382,6 +382,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void load_highlight_texts() throw ();
     void load_fav_maps() throw ();
     void apply_fav_maps() throw ();
+    void updateMapPreference(MapInfo& mi) const throw ();
 
     void loadQuickMessages() throw ();
     void saveQuickMessages() const throw ();

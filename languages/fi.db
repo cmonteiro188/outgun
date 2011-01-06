@@ -264,6 +264,7 @@ Getting server list: receiving...##Haen palvelinlistaa: vastaanotan...
 Graphic options##Grafiikka
 Health##Terveys
 Help##Ohjeita
+Highlight maps not in maps.txt##Korosta maps.txt:stä puuttuvat kartat
 Highlight returned and dropped flags##Korosta palautetut ja pudotetut liput
 Highlight self after spawn##Korosta syntyminen
 Hit accuracy##Osumatarkkuus
