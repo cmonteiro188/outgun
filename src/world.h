@@ -576,7 +576,7 @@ public:
     int alpha;
 
     // for bots:
-    bool defending; // used for human players
+    bool defending, defendingAfterDeath; // used for human players
 
     // get rid of these since they are only known for the local player
     double item_power_time;

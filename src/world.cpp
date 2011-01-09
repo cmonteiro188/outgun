@@ -894,7 +894,7 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     posUpdated = prevMapPosUpdateFrame = -1e10;
     fromMinimapUpdate = false;
 
-    defending = false;
+    defending = defendingAfterDeath = false;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
