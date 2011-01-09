@@ -3900,6 +3900,7 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
         break; case MLSK_Favorite: return m1mi.preference > m2mi.preference;
         break; default: nAssert(0);
     }
+    return false;
 }
 
 //draws the game menu

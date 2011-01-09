@@ -187,10 +187,10 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const Roo
                         (*ai)->respawnFrequency[team] += 1. / respawns.size();
             }
             else {
-                const int ix1 = (ri->x1 + pointDistance / 2) / pointDistance;
-                const int ix2 = (ri->x2 + pointDistance / 2) / pointDistance;
-                const int iy1 = (ri->y1 + pointDistance / 2) / pointDistance;
-                const int iy2 = (ri->y2 + pointDistance / 2) / pointDistance;
+                const int ix1 = static_cast<int>((ri->x1 + pointDistance / 2) / pointDistance);
+                const int ix2 = static_cast<int>((ri->x2 + pointDistance / 2) / pointDistance);
+                const int iy1 = static_cast<int>((ri->y1 + pointDistance / 2) / pointDistance);
+                const int iy2 = static_cast<int>((ri->y2 + pointDistance / 2) / pointDistance);
                 nAssert(ix1 >= 0 && unsigned(ix2) < xPoints && iy1 >= 0 && unsigned(iy2) < yPoints);
                 vector<int> areaPoints(roomAreas.size(), 0);
                 for (int x = ix1; x <= ix2; ++x)

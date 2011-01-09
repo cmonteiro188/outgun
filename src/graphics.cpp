@@ -2516,6 +2516,7 @@ void Graphics::print_chat_message(Message_type type, const FormattedText& messag
             break; case FormattedText::Red:          partCol = colour[Colour::message_red];
             break; case FormattedText::Green:        partCol = colour[Colour::message_green];
             break; case FormattedText::Blue:         partCol = colour[Colour::message_blue];
+            break; default: nAssert(0);
         }
         if (!bg_texture && y + text_height(font) < playfield_y) // Check if the border is needed.
             textout_ex(drawbuf, font, pi->text.c_str(), x, y, partCol, -1);
