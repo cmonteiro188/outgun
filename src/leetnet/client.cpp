@@ -537,6 +537,7 @@ DLOG_Scope s("CPIDg");
 
         //special packet? (connection accepted/rejected , disconnected ...)
         if (special) {
+         try {
             BinaryDataBlockReader read(data, length);
             read.U32(); //discard the "0"
             const uint32_t code = read.U32();
@@ -655,7 +656,9 @@ DLOG_Scope s("CPIDg");
                     //FIXME: error
                 log("WTF!! 777 666 !!!!");
             }
-
+         } catch (BinaryReader::ReadError) {
+             log("packet format error");
+         }
         }
         //a regular packet from the server
         else {

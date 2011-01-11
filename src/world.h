@@ -31,12 +31,10 @@
 #include <string>
 #include <algorithm>
 
+#include "binaryaccess.h"
 #include "commont.h"
 #include "nassert.h"
 #include "utility.h"
-
-class BinaryReader;
-class BinaryWriter;
 
 static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
@@ -816,7 +814,7 @@ public:
 
     PhysicalSettings() throw ();
     void calc_max_run_speed() throw ();
-    void read(BinaryReader& reader) throw ();
+    void read(BinaryReader& reader) throw (BinaryReader::ReadError);
     void write(BinaryWriter& writer) const throw ();
 };
 

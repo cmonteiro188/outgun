@@ -2,7 +2,7 @@
  *  servnet.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -29,6 +29,7 @@
 #include <map>
 #include <queue>
 
+#include "binaryaccess.h"
 #include "commont.h"
 #include "function_utility.h"
 #include "mutex.h"
@@ -37,7 +38,6 @@
 #include "thread.h"
 #include "utility.h"
 
-class BinaryWriter;
 class GunDirection;
 class LocalConnection;
 class MasterQuery;
@@ -54,6 +54,8 @@ static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; /
 
 class ServerNetworking {
     friend class ClientServerLocalConnection;
+
+    class ClientDataError { }; // exception
 
 public:
     class Settings {
@@ -274,7 +276,7 @@ private:
     int  client_connected(int cid, int customStoredData) throw ();
     void client_disconnected(int cid) throw ();
     void ping_result(int client_id, int ping_time) throw ();
-    bool processMessage(int pid, ConstDataBlockRef data) throw ();
+    void processMessage(int pid, ConstDataBlockRef data) throw (ClientDataError);
     void incoming_client_data(int cid, ConstDataBlockRef data) throw ();
 
     void logTCPThreadError(const Network::Error& error, const std::string& text) throw ();
@@ -290,7 +292,7 @@ private:
     void handleNewAdminShell(Thread& slaveThread, volatile bool& slaveRunning) throw (Network::Error);
     void run_shellmaster_thread(int port) throw ();
     void executeAdminCommand(uint32_t code, uint32_t cid, int pid, uint32_t dwArg, BinaryWriter& answer) throw (Network::Error);
-    bool handleAdminCommand() throw (Network::Error);
+    bool handleAdminCommand() throw (Network::Error, BinaryReader::ReadError);
     void run_shellslave_thread(volatile bool* quitFlag) throw ();
 
     void run_website_thread() throw ();

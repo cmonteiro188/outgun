@@ -1886,12 +1886,16 @@ void Robot::client_connected(ConstDataBlockRef data) throw () { // call with fra
 }
 
 void Robot::client_disconnected(ConstDataBlockRef data) throw () {
-    BinaryDataBlockReader read(data);
+    try {
+        BinaryDataBlockReader read(data);
 
-    const uint8_t reason = read.U8();
-    numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
-                                   || reason == server_c::disconnect_timeout || reason == disconnect_kick),
-               data.size(), reason);
+        const uint8_t reason = read.U8();
+        numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
+                                       || reason == server_c::disconnect_timeout || reason == disconnect_kick),
+                   data.size(), reason);
+    } catch (BinaryReader::ReadError) {
+        nAssert(0);
+    }
 
     stop();
 }

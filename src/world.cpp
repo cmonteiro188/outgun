@@ -1420,7 +1420,7 @@ void PhysicalSettings::calc_max_run_speed() throw () {
     max_run_speed = (run_mul * accel - fric) / drag;
 }
 
-void PhysicalSettings::read(BinaryReader& reader) throw () {
+void PhysicalSettings::read(BinaryReader& reader) throw (BinaryReader::ReadError) {
     fric            = reader.flt();
     drag            = reader.flt();
     accel           = reader.flt();

@@ -2,7 +2,7 @@
  *  clientbase.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -26,14 +26,13 @@
 #ifndef CLIENTBASE_H_INC
 #define CLIENTBASE_H_INC
 
+#include "binaryaccess.h"
 #include "client_interface.h"
 #include "function_utility.h"
 #include "log.h"
 #include "map_with_helpers.h"
 #include "mutex.h"
 #include "world.h"
-
-class BinaryReader;
 
 class ClientBase;
 class client_c; // of leetnet
@@ -62,9 +61,11 @@ class ClientBase {
     #endif
     friend class TM_ConnectionUpdate;
 
-    WorldCoords readPosition(BinaryReader& read) const throw ();
+    WorldCoords readPosition(BinaryReader& read) const throw (BinaryReader::ReadError);
 
 protected:
+
+    class ServerDataError { }; // exception; also applies to replay data errors
 
     MemoryLog& externalErrorLog;    // this is emptied to the error dialog as we go; only rare leftovers are left to caller
     DualLog errorLog;
@@ -177,10 +178,11 @@ protected:
     void sendMinimapBandwidthAny(int players) throw ();
     void issue_change_name_command() throw ();
     void send_client_ready() throw ();
-    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw ();
-    bool process_live_frame_data(ConstDataBlockRef data) throw (); // returns false if an error occured that requires disconnecting
-    bool process_message(ConstDataBlockRef data) throw (); // if returns false, discard the server/replay
-    void process_incoming_data(ConstDataBlockRef data) throw ();
+    void readMinimapPlayerPosition(BinaryReader& reader, int pid) throw (BinaryReader::ReadError);
+    void process_live_frame_data(ConstDataBlockRef data) throw (ServerDataError);
+    void process_message(ConstDataBlockRef data) throw (ServerDataError);
+    void process_incoming_data(ConstDataBlockRef data) throw (ServerDataError);
+    void process_server_data(ConstDataBlockRef data) throw ();
 
     void server_map_command(const std::string& mapname, uint16_t server_crc) throw ();
     bool load_map(const std::string& directory, const std::string& mapname, uint16_t server_crc) throw ();
@@ -202,19 +204,19 @@ protected:
     virtual void process_udp_download_chunk(ConstDataBlockRef data, bool last) throw () { nAssert(0); (void)data; (void)last; }
     virtual void processNameAuthorizationRequest() throw () { nAssert(0); }
     virtual void createGunexploEffect(const WorldCoords& pos, int team, double time) throw () { (void)pos; (void)team; (void)time; }
-    virtual void process_replay_packet(ConstDataBlockRef data) throw () { nAssert(0); (void)data; }
+    virtual void process_replay_packet(ConstDataBlockRef data) throw (ServerDataError) { nAssert(0); (void)data; }
 
     virtual void netRocketFired(const WorldCoords& pos, bool power) throw () { (void)pos; (void)power; }
     virtual void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw () { (void)(rockid && rokx && roky && time); }
     virtual void netPowerCollision(int target, double time) throw () { (void)(target && time); }
-    virtual void net_data_sound(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_registration_response(BinaryReader& read) throw () { nAssert(0); (void)read; }
-    virtual void net_data_quick_map_list(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_map_list(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_crap_update(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_reset_map_list(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_map_vote(BinaryReader& read) throw () { (void)read; }
-    virtual void net_data_map_votes_update(BinaryReader& read) throw () { (void)read; }
+    virtual void net_data_sound(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_registration_response(BinaryReader& read) throw (BinaryReader::ReadError) { nAssert(0); (void)read; }
+    virtual void net_data_quick_map_list(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_crap_update(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_reset_map_list(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
+    virtual void net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
     virtual void net_text_message(Message_type type, int sender_team, const std::string& text) throw () = 0;
     virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw (); // empty
     virtual void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () { (void)(pid && flag && wild_flag && spree_ended); }

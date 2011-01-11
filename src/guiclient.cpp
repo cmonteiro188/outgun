@@ -837,8 +837,6 @@ void GuiClient::send_ranking_participation() throw () {
 }
 
 void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
-    BinaryDataBlockReader read(data);
-
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -846,15 +844,18 @@ void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
 
     string description;
     if (data.size() == 1)
-        switch (read.U8()) {
-        /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
-            break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
-            break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
-            break; case disconnect_kick:                       description = _("You were kicked.");
-            break; case disconnect_idlekick:                   description = _("You were kicked for being idle.");
-            break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
-            break; default:;
-        }
+        try {
+            BinaryDataBlockReader read(data);
+            switch (read.U8()) {
+            /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
+                break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
+                break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
+                break; case disconnect_kick:                       description = _("You were kicked.");
+                break; case disconnect_idlekick:                   description = _("You were kicked for being idle.");
+                break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
+                break; default:;
+            }
+        } catch (BinaryReader::ReadError) { nAssert(0); }
 
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("You have been disconnected."));
@@ -878,52 +879,58 @@ void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
 void GuiClient::connect_failed_denied(ConstDataBlockRef data) throw () {
     string message;
     bool userHandled = false;
-    if (data.size() > 1) {
-        BinaryDataBlockReader read(data);
-        message = read.str();
-        const string str1 = "Protocol mismatch: server: ";
-        const string str2 = ", client: " + GAME_PROTOCOL;
-        const string::size_type str2pos = message.length() - str2.length();
-        if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
-            const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
-            message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
+    try {
+        if (data.size() > 1) {
+            BinaryDataBlockReader read(data);
+            message = read.str();
+            const string str1 = "Protocol mismatch: server: ";
+            const string str2 = ", client: " + GAME_PROTOCOL;
+            const string::size_type str2pos = message.length() - str2.length();
+            if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
+                const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
+                message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
+            }
+            // otherwise leave message at its value of whatever the server sent
         }
-        // otherwise leave message at its value of whatever the server sent
-    }
-    else if (data.size() == 1) {
-        BinaryDataBlockReader read(data);
-        const uint8_t rb = read.U8();
-        if (rb > reject_last)
-            message = _("Unknown reason code ($1).", itoa(rb));
-        else {
-            switch (static_cast<Connect_rejection_reason>(rb)) {
-            /*break;*/ case reject_server_full:
-                    message = _("The server is full.");
-                break; case reject_banned:
-                    message = _("You are banned from this server.");
-                break; case reject_player_password_needed:
-                    openMenus.close(&m_connectProgress.menu);
-                    m_playerPassword.setup(playername, false);
-                    showMenu(m_playerPassword);
-                    userHandled = true;
-                    message = "Asking for player password."; // just for logging
-                break; case reject_wrong_player_password:
-                    message = _("Wrong player password.");
-                    remove_player_password(playername, serverIP.toString());
-                break; case reject_server_password_needed:
-                    openMenus.close(&m_connectProgress.menu);
-                    showMenu(m_serverPassword);
-                    userHandled = true;
-                    message = "Asking for server password."; // just for logging
-                break; case reject_wrong_server_password:
-                    message = _("Wrong server password.");
-                    m_serverPassword.password.set("");
-                break; default: nAssert(0);
+        else if (data.size() == 1) {
+            BinaryDataBlockReader read(data);
+            const uint8_t rb = read.U8();
+            if (rb > reject_last)
+                message = _("Unknown reason code ($1).", itoa(rb));
+            else {
+                switch (static_cast<Connect_rejection_reason>(rb)) {
+                /*break;*/ case reject_server_full:
+                        message = _("The server is full.");
+                    break; case reject_banned:
+                        message = _("You are banned from this server.");
+                    break; case reject_player_password_needed:
+                        openMenus.close(&m_connectProgress.menu);
+                        m_playerPassword.setup(playername, false);
+                        showMenu(m_playerPassword);
+                        userHandled = true;
+                        message = "Asking for player password."; // just for logging
+                    break; case reject_wrong_player_password:
+                        message = _("Wrong player password.");
+                        remove_player_password(playername, serverIP.toString());
+                    break; case reject_server_password_needed:
+                        openMenus.close(&m_connectProgress.menu);
+                        showMenu(m_serverPassword);
+                        userHandled = true;
+                        message = "Asking for server password."; // just for logging
+                    break; case reject_wrong_server_password:
+                        message = _("Wrong server password.");
+                        m_serverPassword.password.set("");
+                    break; default: nAssert(0);
+                }
             }
         }
+        else
+            message = _("No reason given.");
+    } catch (BinaryReader::ReadError) {
+        log("Format error in connection denial data.");
+        message.clear();
+        userHandled = false;
     }
-    else
-        message = _("No reason given.");
 
     log("Connecting failed: %s", message.c_str());
 
@@ -1195,7 +1202,7 @@ void GuiClient::refreshGunDir() throw () {
     }
 }
 
-int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw (BinaryReader::ReadError) { // returns number of bytes read - not necessarily all of data
     if (replay_version == 0)
         return process_replay_frame_data_version_0(data);
 
@@ -1283,7 +1290,7 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
     return read.getPosition();
 }
 
-int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw (BinaryReader::ReadError) { // returns number of bytes read - not necessarily all of data
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
@@ -1332,7 +1339,8 @@ int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw
     return read.getPosition();
 }
 
-void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
+void GuiClient::read_replay_controls(ConstDataBlockRef data) throw (ServerDataError) {
+ try {
     BinaryDataBlockReader read(data);
 
     if (replay_version == 0) {
@@ -1395,9 +1403,12 @@ void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
                 read.U8();
         }
     }
+ } catch (BinaryReader::ReadError) {
+    throw ServerDataError();
+ }
 }
 
-void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw () {
+void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw (BinaryReader::ReadError) {
     const uint8_t controlByte = read.U8();
     player.controls.fromNetwork(controlByte, true);
 
@@ -1407,7 +1418,7 @@ void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientP
         player.gundir.fromNetworkShortForm(controlByte >> 5);
 }
 
-void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw () {
+void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw (BinaryReader::ReadError) {
     const uint8_t roomx = read.U8();
     const uint8_t roomy = read.U8();
     double lx, ly, sx, sy;
@@ -1430,11 +1441,11 @@ void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientP
     }
 }
 
-void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw () {
+void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw (BinaryReader::ReadError) {
     read_replay_player_position(read, &player);
 }
 
-void GuiClient::skip_replay_player_position(BinaryDataBlockReader& read) throw () {
+void GuiClient::skip_replay_player_position(BinaryDataBlockReader& read) throw (BinaryReader::ReadError) {
     read_replay_player_position(read, 0);
 }
 
@@ -1455,7 +1466,7 @@ void GuiClient::netPowerCollision(int target, double time) throw () {
         addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
 }
 
-void GuiClient::net_data_sound(BinaryReader& read) throw () {
+void GuiClient::net_data_sound(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t sample = read.U8();
     if (replaying && read.hasMore()) {
         const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
@@ -1466,14 +1477,14 @@ void GuiClient::net_data_sound(BinaryReader& read) throw () {
         addThreadMessage(new TM_Sound(sample));
 }
 
-void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
+void GuiClient::net_data_registration_response(BinaryReader& read) throw (BinaryReader::ReadError) {
     if (read.U8() == 1)  // success
         rankingPassword.serverAcceptsToken();
     else
         rankingPassword.serverRejectsToken();
 }
 
-void GuiClient::net_data_quick_map_list(BinaryReader& read) throw () {
+void GuiClient::net_data_quick_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     Lock ml(mapInfoMutex);
     while (read.hasMore()) {
         const uint16_t hash = read.U16();
@@ -1520,7 +1531,7 @@ void GuiClient::updateMapPreference(MapInfo& mi) const throw () {
         mi.preference = menu.options.graphics.highlightUnknownMaps() ? +1 : 0;
 }
 
-void GuiClient::net_data_map_list(BinaryReader& read) throw () {
+void GuiClient::net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     MapInfo mapinfo;
     mapinfo.title = read.str();
     mapinfo.author = read.str();
@@ -1543,7 +1554,7 @@ void GuiClient::net_data_map_list(BinaryReader& read) throw () {
     mapListChangedAfterSort = true;
 }
 
-void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
+void GuiClient::net_data_crap_update(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t pid = read.U8();
     fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
     ClientLoginStatus ls;
@@ -1599,7 +1610,7 @@ void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
         fx.teams[t].set_power(power[t]);
 }
 
-void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
+void GuiClient::net_data_reset_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     (void)read;
     Lock ml(mapInfoMutex);
     maps.clear();
@@ -1608,11 +1619,11 @@ void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
     map_vote = -1;
 }
 
-void GuiClient::net_data_map_vote(BinaryReader& read) throw () {
+void GuiClient::net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError) {
     map_vote = read.S8();
 }
 
-void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
+void GuiClient::net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t total = read.U8();
     Lock ml(mapInfoMutex);
     for (int i = 0; i < total; i++) {
@@ -1913,17 +1924,17 @@ void GuiClient::netTeamChange(int pl1, int pl2) throw () {
     addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
 }
 
-void GuiClient::process_replay_packet(ConstDataBlockRef data) throw () {
-    const int frameSize = process_replay_frame_data(data);
-    BinaryDataBlockReader read(data);
-    read.block(frameSize);
-    while (read.hasMore()) {
-        const uint32_t size = replay_version == 0 ? read.U32() : read.U32dyn8();
-        if (!process_message(read.block(size))) {
-            log.error(_("Format error in replay file."));
-            stop_replay();
-            return;
+void GuiClient::process_replay_packet(ConstDataBlockRef data) throw (ServerDataError) {
+    try {
+        const int frameSize = process_replay_frame_data(data);
+        BinaryDataBlockReader read(data);
+        read.block(frameSize);
+        while (read.hasMore()) {
+            const uint32_t size = replay_version == 0 ? read.U32() : read.U32dyn8();
+            process_message(read.block(size));
         }
+    } catch (BinaryReader::ReadError) {
+        throw ServerDataError();
     }
 }
 
@@ -2114,32 +2125,34 @@ bool GuiClient::refresh_all_servers() throw () {
                 if (result.length < 10)
                     continue;
 
-                BinaryDataBlockReader msg(buffer, result.length);
+                try {
+                    BinaryDataBlockReader msg(buffer, result.length);
 
-                const uint32_t dw1 = msg.U32(), dw2 = msg.U32();
-                if (dw1 != 0 || dw2 != 200)
-                    continue;
+                    const uint32_t dw1 = msg.U32(), dw2 = msg.U32();
+                    if (dw1 != 0 || dw2 != 200)
+                        continue;
 
-                const uint8_t index = msg.U8(); // entry number echoed by the server
-                const uint8_t pack = msg.U8();  // packet #
+                    const uint8_t index = msg.U8(); // entry number echoed by the server
+                    const uint8_t pack = msg.U8();  // packet #
 
-                if (index >= nServers || pack >= 4 || pack > round)  // don't have to worry about < 0 because they're unsigned
-                    continue;
+                    if (index >= nServers || pack >= 4 || pack > round)  // don't have to worry about < 0 because they're unsigned
+                        continue;
 
-                Lock ml(serverListMutex);
+                    Lock ml(serverListMutex);
 
-                if (result.source != servers[index]->address())
-                    continue;
+                    if (result.source != servers[index]->address())
+                        continue;
 
-                servers[index]->info = msg.str();
+                    servers[index]->info = msg.str();
 
-                if (tempd[index].received() == 0)   // first reply -> server has changed to being valid
-                    pending--;
+                    if (tempd[index].received() == 0)   // first reply -> server has changed to being valid
+                        pending--;
 
-                tempd[index].receive(pack);
-                servers[index]->ping = tempd[index].ping();
+                    tempd[index].receive(pack);
+                    servers[index]->ping = tempd[index].ping();
 
-                servers[index]->noresponse = false;  // set here in advance so that the main thread will already show it
+                    servers[index]->noresponse = false;  // set here in advance so that the main thread will already show it
+                } catch (BinaryReader::ReadError) { }
             }
         }
     }
@@ -2219,9 +2232,13 @@ bool GuiClient::get_local_servers() throw () {
 
             log("Response from %s: '%s'", result.source.toString().c_str(), formatForLogging(buffer).c_str());
 
-            BinaryDataBlockReader read(buffer, result.length);
-            if (read.str() != broadcast_string)
-                continue;   // Not an Outgun server.
+            try {
+                BinaryDataBlockReader read(buffer, result.length);
+                if (read.str() != broadcast_string)
+                    continue;   // Not an Outgun server.
+            } catch (BinaryReader::ReadError) {
+                continue;
+            }
 
             ServerListEntry spy;
             spy.setAddress(result.source);
@@ -2977,35 +2994,40 @@ void GuiClient::start_replay(const std::string& filename) throw () {
 }
 
 bool GuiClient::start_replay(istream& replay) throw () {
-    BinaryStreamReader read(replay);
+    try {
+        BinaryStreamReader read(replay);
 
-    const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
-    log("Replay identification: %s", identification.c_str());
-    if (identification != REPLAY_IDENTIFICATION) {
-        log.error(_("This is not an Outgun replay."));
+        const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
+        log("Replay identification: %s", identification.c_str());
+        if (identification != REPLAY_IDENTIFICATION) {
+            log.error(_("This is not an Outgun replay."));
+            return false;
+        }
+
+        replay_version = read.U32();
+        log("Replay version: %u", replay_version);
+        if (replay_version > REPLAY_VERSION) {   // incompatible replay
+            log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
+            return false;
+        }
+
+        replay_length = read.U32();
+        replay_first_frame_loaded = false;
+
+        hostname = read.str();
+        string caption;
+        if (spectating)
+            caption = _("Spectating on $1", hostname.substr(0, 32));
+        else
+            caption = _("Replay on $1", hostname.substr(0, 32));
+        extConfig.statusOutput(caption);
+
+        setMaxPlayers(read.U32());
+        read.str(); // ignore map name
+    } catch (BinaryReader::ReadError) {
+        log.error(_("Format error in replay file."));
         return false;
     }
-
-    replay_version = read.U32();
-    log("Replay version: %u", replay_version);
-    if (replay_version > REPLAY_VERSION) {   // incompatible replay
-        log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
-        return false;
-    }
-
-    replay_length = read.U32();
-    replay_first_frame_loaded = false;
-
-    hostname = read.str();
-    string caption;
-    if (spectating)
-        caption = _("Spectating on $1", hostname.substr(0, 32));
-    else
-        caption = _("Replay on $1", hostname.substr(0, 32));
-    extConfig.statusOutput(caption);
-
-    setMaxPlayers(read.U32());
-    read.str(); // ignore map name
 
     replaying = true;
     replay_rate = 1;
@@ -3102,6 +3124,9 @@ void GuiClient::continue_replay(istream& in, bool controls) throw () {
             replay_stopped = true;
         else if (replay_rate > 1)
             replay_rate = 1;
+    } catch (ServerDataError) {
+        log.error(_("Format error in replay file."));
+        stop_replay();
     }
 }
 

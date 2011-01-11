@@ -419,9 +419,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     void send_chat(const std::string& msg) throw ();
     void send_frame(bool newFrame, bool forceSend) throw ();
 
-    void process_replay_packet(ConstDataBlockRef data) throw ();
-    int process_replay_frame_data(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
-    int process_replay_frame_data_version_0(ConstDataBlockRef data) throw (); // returns number of bytes read - not necessarily all of data
+    void process_replay_packet(ConstDataBlockRef data) throw (ServerDataError);
+    int process_replay_frame_data(ConstDataBlockRef data) throw (BinaryReader::ReadError); // returns number of bytes read - not necessarily all of data
+    int process_replay_frame_data_version_0(ConstDataBlockRef data) throw (BinaryReader::ReadError); // returns number of bytes read - not necessarily all of data
 
     std::string refreshStatusAsString() const throw ();
     void getServerListThread() throw ();
@@ -488,25 +488,25 @@ class GuiClient : public ClientBase, public ClientInterface {
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
 
-    void read_replay_controls(ConstDataBlockRef data) throw ();
-    static void read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw ();
-    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw ();
-    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw ();
-    void skip_replay_player_position(BinaryDataBlockReader& read) throw ();
+    void read_replay_controls(ConstDataBlockRef data) throw (ServerDataError);
+    static void read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw (BinaryReader::ReadError);
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw (BinaryReader::ReadError);
+    void read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw (BinaryReader::ReadError);
+    void skip_replay_player_position(BinaryDataBlockReader& read) throw (BinaryReader::ReadError);
 
     void createGunexploEffect(const WorldCoords& pos, int team, double time) throw ();
 
     void netRocketFired(const WorldCoords& pos, bool power) throw ();
     void netRocketHitPlayer(int rockid, int rokx, int roky, double time) throw ();
     void netPowerCollision(int target, double time) throw ();
-    void net_data_sound(BinaryReader& read) throw ();
-    void net_data_registration_response(BinaryReader& read) throw ();
-    void net_data_quick_map_list(BinaryReader& read) throw ();
-    void net_data_map_list(BinaryReader& read) throw ();
-    void net_data_crap_update(BinaryReader& read) throw ();
-    void net_data_reset_map_list(BinaryReader& read) throw ();
-    void net_data_map_vote(BinaryReader& read) throw ();
-    void net_data_map_votes_update(BinaryReader& read) throw ();
+    void net_data_sound(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_registration_response(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_quick_map_list(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_crap_update(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_reset_map_list(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError);
+    void net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError);
     void net_text_message(Message_type type, int sender_team, const std::string& text) throw ();
     void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
     void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
