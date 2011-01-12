@@ -1133,6 +1133,7 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
 
 TextTree::TextTree(const string& caption_) throw () :
     Component(caption_),
+    selectedItem(0),
     start()
 {
     root().setValue(caption_);
