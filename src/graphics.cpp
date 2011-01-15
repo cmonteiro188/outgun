@@ -1489,7 +1489,7 @@ void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) 
         int rad = radius;
         //brightening ring
         for (int e = 0; e < pf_scale(30); e++, rad++) {
-            const int mul = 14 + static_cast<int>(8 * e / scr_mul);
+            const int mul = 14 + static_cast<int>(8 * e / pf_scaled(1.));
             const int r = mul * getr(teamcol[db.team()]) / 255;
             const int g = mul * getg(teamcol[db.team()]) / 255;
             const int b = mul * getb(teamcol[db.team()]) / 255;
@@ -1498,7 +1498,7 @@ void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) 
         }
         //darkening ring
         for (int e = 0; e < pf_scale(10); e++, rad++) {
-            const int mul = 255 - static_cast<int>(14 * e / scr_mul);
+            const int mul = 255 - static_cast<int>(14 * e / pf_scaled(1.));
             const int r = mul * getr(teamcol[db.team()]) / 255;
             const int g = mul * getg(teamcol[db.team()]) / 255;
             const int b = mul * getb(teamcol[db.team()]) / 255;
