@@ -177,6 +177,143 @@ void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw
     }
 }
 
+void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) {
+    const bool debug = false;
+
+    int cx0, cy0, cx1, cy1; // clipping limits relative to (xc,yc)
+    get_clip_rect(buf, &cx0, &cy0, &cx1, &cy1);
+    cx0 -= xc; cy0 -= yc;
+    cx1 -= xc; cy1 -= yc;
+
+    nAssert(r >= 0);
+    const int r2 = iround(sqr(r + .5));
+    int x = 0, y = iround(r);
+    int t = y * y - r2; // generally, t = x² + y² - r²; the (filled) circle is where t <= 0
+
+    #define CONST_PUTPIXEL_AND_CLIP(putpixelFn, clipping)               \
+    ({                                                                  \
+        const int miny = clipping ? max(max(cx0, -cx1), max(cy0, -cy1)) : 0; \
+        nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
+        if (clipping && y < miny)                                       \
+            return; /* y only decreases, so it will never reach the proper range */ \
+                                                                        \
+        for (; x <= y; ) {                                              \
+            if (debug) {                                                \
+                nAssert(t <= 0);                                        \
+                nAssert(t == x * x + y * y - r2);                       \
+                nAssert(y >= miny);                                     \
+                nAssert(-y <= -x && -x <= 0 && 0 <= x && x <= y);       \
+                nAssert(cx0 <= y && cy0 <= y && -y <= cx1 && -y <= cy1); /* c0 <= y  &&  -y <= c1 */ \
+            }                                                           \
+            if (!clipping) {                                            \
+                putpixelFn(buf, xc - x, yc - y, col);                   \
+                putpixelFn(buf, xc + x, yc - y, col);                   \
+                putpixelFn(buf, xc - y, yc - x, col);                   \
+                putpixelFn(buf, xc + y, yc - x, col);                   \
+                putpixelFn(buf, xc - y, yc + x, col);                   \
+                putpixelFn(buf, xc + y, yc + x, col);                   \
+                putpixelFn(buf, xc - x, yc + y, col);                   \
+                putpixelFn(buf, xc + x, yc + y, col);                   \
+            }                                                           \
+            else {                                                      \
+                if (x <= cx1) {                                         \
+                    if (x >= cx0) {                                     \
+                        if (y <= cy1)                                   \
+                            putpixelFn(buf, xc + x, yc + y, col); /*  cx0 <=   x  <= cx1  (cy0 <=)  y  <= cy1 */ \
+                        if (-y >= cy0)                                  \
+                            putpixelFn(buf, xc + x, yc - y, col); /*  cx0 <=   x  <= cx1   cy0 <=  -y (<= cy1) */ \
+                    }                                                   \
+                    if (y <= cx1 && x >= cy0 && -x <= cy1) {            \
+                        if (x <= cy1)                                   \
+                            putpixelFn(buf, xc + y, yc + x, col); /* (cx0 <=)  y  <= cx1   cy0 <=   x  <= cy1 */ \
+                        if (-x >= cy0)                                  \
+                            putpixelFn(buf, xc + y, yc - x, col); /* (cx0 <=)  y  <= cx1   cy0 <=  -x  <= cy1 */ \
+                    }                                                   \
+                }                                                       \
+                if (-x >= cx0) {                                        \
+                    if (-x <= cx1) {                                    \
+                        if (y <= cy1)                                   \
+                            putpixelFn(buf, xc - x, yc + y, col); /*  cx0 <=  -x  <= cx1  (cy0 <=)  y  <= cy1 */ \
+                        if (-y >= cy0)                                  \
+                            putpixelFn(buf, xc - x, yc - y, col); /*  cx0 <=  -x  <= cx1   cy0 <=  -y (<= cy1) */ \
+                    }                                                   \
+                    if (-y >= cx0 && x >= cy0 && -x <= cy1) {           \
+                        if (x <= cy1)                                   \
+                            putpixelFn(buf, xc - y, yc + x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=   x  <= cy1 */ \
+                        if (-x >= cy0)                                  \
+                            putpixelFn(buf, xc - y, yc - x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=  -x  <= cy1 */ \
+                    }                                                   \
+                }                                                       \
+            }                                                           \
+            t += 2 * x + 1; /* (x + 1)² - x² */                         \
+            ++x;                                                        \
+            if (t > 0) {                                                \
+                t += 1 - 2 * y; /* (y - 1)² - y² */                     \
+                --y;                                                    \
+                nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
+                if (clipping && y < miny)                               \
+                    break;                                              \
+            }                                                           \
+        }                                                               \
+    })
+
+    const int ir = iround(r);
+    const bool clip = !(-ir >= cx0 && ir <= cx1 && -ir >= cy0 && ir <= cy1);
+
+    #define CONST_PUTPIXEL(putpixelFn)                                  \
+        if (clip)                                                       \
+            CONST_PUTPIXEL_AND_CLIP(putpixelFn, true);                  \
+        else                                                            \
+            CONST_PUTPIXEL_AND_CLIP(putpixelFn, false);
+
+    switch (!inSolidMode ? 0 : bitmap_color_depth(buf)) {
+    /*break;*/ case 15: CONST_PUTPIXEL(_putpixel15);
+        break; case 16: CONST_PUTPIXEL(_putpixel16);
+        break; case 24: CONST_PUTPIXEL(_putpixel24);
+        break; case 32: CONST_PUTPIXEL(_putpixel32);
+        break; default: CONST_PUTPIXEL( putpixel  );
+    }
+
+    #undef CONST_PUTPIXEL
+    #undef CONST_PUTPIXEL_AND_CLIP
+}
+
+void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) {
+    const bool debug = false;
+
+    nAssert(r >= 0);
+    const int r2 = iround(sqr(r + .5));
+    int x = 0, y = iround(r);
+    int t = y * y - r2; // generally, t = x² + y² - r²; the (filled) circle is where t <= 0
+    for (;;) {
+        if (debug) {
+            nAssert(t <= 0);
+            nAssert(t == x * x + y * y - r2);
+        }
+
+        hline(buf, xc - y, yc + x, xc + y, col);
+        if (x)
+            hline(buf, xc - y, yc - x, xc + y, col);
+
+        if (x == y)
+            break;
+
+        t += 2 * x + 1; // (x + 1)² - x²
+        if (t > 0) {
+            // about to move to next y (as well as x): draw the lines at +/- y here (at this point x is at the max so the whole line is covered in one draw)
+            hline(buf, xc - x, yc + y, xc + x, col);
+            hline(buf, xc - x, yc - y, xc + x, col);
+
+            t += 1 - 2 * y; // (y - 1)² - y²
+            --y;
+            nAssert(x <= y);
+            if (x >= y)
+                break;
+        }
+        ++x;
+    }
+}
+
 TemporaryClipRect::TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) throw () : b(bitmap) {
     get_clip_rect(b, &x1, &y1, &x2, &y2);
     if (respectOld) {

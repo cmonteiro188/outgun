@@ -338,6 +338,7 @@ private:
     void load_font(const std::string& file) throw ();
 
     int scale(double value) const throw ();
+    double scaled(double value) const throw ();
     int pf_scale(double value) const throw () { return roomLayout.pf_scale(value); }
     double pf_scaled(double value) const throw () { return roomLayout.pf_scaled(value); }
 
