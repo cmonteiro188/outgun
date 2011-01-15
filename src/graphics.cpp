@@ -1346,45 +1346,6 @@ void Graphics::draw_aim(const Room& room, const WorldCoords& pos, GunDirection g
     }
 }
 
-void Graphics::set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) throw () {
-    set_write_alpha_blender();
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    if (alpha)
-        draw_trans_sprite(bitmap, alpha, 0, 0);
-    else    // maximum alpha level
-        rectfill(bitmap, 0, 0, bitmap->w - 1, bitmap->h - 1, 255);
-    solid_mode();
-}
-
-void Graphics::rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) throw () { // x,y are destination coords of the sprite center
-    nAssert(sprite);
-    nAssert(sprite->w == sprite->h);    // if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
-    // make room so that rotating won't clip the corners off
-    const int size = sprite->h + sprite->h / 2;
-    Bitmap buffer = create_bitmap(size, size);
-    nAssert(buffer);
-    clear_to_color(buffer, bitmap_mask_color(buffer));
-    rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
-    set_trans_mode(alpha);
-    draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
-    solid_mode();
-}
-
-void Graphics::rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) throw () {    // x,y are destination coords of the sprite center
-    nAssert(bitmap_color_depth(sprite) == 32);
-    nAssert(sprite->w == sprite->h);    // if otherwise, would have to use max(sprite->w, sprite->h) below, and use more complex coords in rotate
-    // make room so that rotating won't clip the corners off
-    const int size = sprite->h + sprite->h / 2;
-    Bitmap buffer = create_bitmap_ex(32, size, size);
-    nAssert(buffer);
-    clear_to_color(buffer, bitmap_mask_color(buffer));
-    rotate_sprite(buffer, sprite, sprite->h / 4, sprite->h / 4, angle);
-    drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    set_alpha_blender();
-    draw_trans_sprite(bmp, buffer, x - buffer->w / 2, y - buffer->h / 2);
-    solid_mode();
-}
-
 void Graphics::draw_player_dead(const ClientPlayer& player, double respawn_delay) throw () {
     BITMAP* sprite = dead_sprite[player.team()];
     ScaledCoordSet sc(player.pos, this);
@@ -3220,21 +3181,6 @@ int Graphics::scale(double value) const throw () {
     return iround(scr_mul * value);
 }
 
-TemporaryClipRect::TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) throw () : b(bitmap) {
-    get_clip_rect(b, &x1, &y1, &x2, &y2);
-    if (respectOld) {
-        x1_ = max(x1_, x1);
-        y1_ = max(y1_, y1);
-        x2_ = min(x2_, x2);
-        y2_ = min(y2_, y2);
-    }
-    set_clip_rect(b, x1_, y1_, x2_, y2_);
-}
-
-TemporaryClipRect::~TemporaryClipRect() throw () {
-    set_clip_rect(b, x1, y1, x2, y2);
-}
-
 bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) throw () {
     const double oldScale = playfield_scale;
 
@@ -3399,32 +3345,6 @@ public:
         }
     }
 };
-
-static void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw () {
-    ++x2; ++y2; // makes calculating widths easier
-    const int txs = x1 % tex->w; int ws = tex->w - txs, we = x2 % tex->w, xe = x2 - we;
-    const int tys = y1 % tex->h; int hs = tex->h - tys, he = y2 % tex->h, ye = y2 - he;
-    if (x1 + ws >= x2) {
-        ws = x2 - x1;
-        xe = x1;
-    }
-    if (y1 + hs >= y2) {
-        hs = y2 - y1;
-        ye = y1;
-    }
-    for (int y = y1;;) {
-        const int h = y == y1 ? hs : y == ye ? he : tex->h;
-        const int ty = y % tex->h;
-        blit(tex, target, txs, ty, x1, y, ws, h);
-        for (int x = x1 + ws; x < xe; x += tex->w)
-            blit(tex, target, 0, ty, x, y, tex->w, h);
-        if (we)
-            blit(tex, target, 0, ty, xe, y, we, h);
-        if (y == ye)
-            break;
-        y += h;
-    }
-}
 
 void Graphics::BackgroundManager::draw_background(BITMAP* drawbuf, bool draw_map, bool reserve_playfield) throw () {
     const int pfx0 = g.roomLayout.x0(), pfy0 = g.roomLayout.y0(), pfxm = g.roomLayout.xMax(), pfym = g.roomLayout.yMax();
