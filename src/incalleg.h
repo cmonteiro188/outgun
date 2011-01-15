@@ -63,8 +63,8 @@ int colorTo32(int color) throw (); // convert from active color depth to 32-bit
 
 void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw ();
 
-void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode = true); // draw a circle with floating point radius; if used outside solid_mode, make sure to set inSolidMode = false
-void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col); // draw a filled circle with floating point radius
+void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode = true) throw (); // draw a circle with floating point radius; if used outside solid_mode, make sure to set inSolidMode = false
+void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) throw (); // draw a filled circle with floating point radius
 
 class Bitmap {
     BITMAP* ptr;

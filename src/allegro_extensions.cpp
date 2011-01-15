@@ -177,7 +177,7 @@ void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw
     }
 }
 
-void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) {
+void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) throw () {
     const bool debug = false;
 
     int cx0, cy0, cx1, cy1; // clipping limits relative to (xc,yc)
@@ -278,7 +278,7 @@ void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) {
     #undef CONST_PUTPIXEL_AND_CLIP
 }
 
-void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) {
+void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) throw () {
     const bool debug = false;
 
     nAssert(r >= 0);
