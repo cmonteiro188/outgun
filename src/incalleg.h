@@ -66,6 +66,14 @@ void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw
 void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode = true) throw (); // draw a circle with floating point radius; if used outside solid_mode, make sure to set inSolidMode = false
 void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) throw (); // draw a filled circle with floating point radius
 
+class RadiusColorizer {
+public:
+    virtual ~RadiusColorizer() throw () { }
+    virtual int operator()(int r) const throw () = 0;
+};
+
+void radiusColorizedCircleFill(BITMAP* buf, int xc, int yc, double outRad, double inRad, const RadiusColorizer& col, bool inSolidMode = true) throw (); // draw a filled ring colorized based on local radius; if used outside solid_mode, make sure to set inSolidMode = false
+
 class Bitmap {
     BITMAP* ptr;
 

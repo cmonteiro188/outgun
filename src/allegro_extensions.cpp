@@ -266,12 +266,11 @@ void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) t
         else                                                            \
             CONST_PUTPIXEL_AND_CLIP(putpixelFn, false);
 
-    switch (!inSolidMode ? 0 : bitmap_color_depth(buf)) {
-    /*break;*/ case 15: CONST_PUTPIXEL(_putpixel15);
-        break; case 16: CONST_PUTPIXEL(_putpixel16);
-        break; case 24: CONST_PUTPIXEL(_putpixel24);
-        break; case 32: CONST_PUTPIXEL(_putpixel32);
-        break; default: CONST_PUTPIXEL( putpixel  );
+    switch (!inSolidMode || !is_linear_bitmap(buf) ? 0 : bitmap_color_depth(buf)) {
+    /*break;*/ case 15: case 16: CONST_PUTPIXEL(_putpixel16);
+        break; case 24:          CONST_PUTPIXEL(_putpixel24);
+        break; case 32:          CONST_PUTPIXEL(_putpixel32);
+        break; default:          CONST_PUTPIXEL( putpixel  );
     }
 
     #undef CONST_PUTPIXEL
@@ -303,6 +302,119 @@ void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) throw () {
             // about to move to next y (as well as x): draw the lines at +/- y here (at this point x is at the max so the whole line is covered in one draw)
             hline(buf, xc - x, yc + y, xc + x, col);
             hline(buf, xc - x, yc - y, xc + x, col);
+
+            t += 1 - 2 * y; // (y - 1)² - y²
+            --y;
+            nAssert(x <= y);
+            if (x >= y)
+                break;
+        }
+        ++x;
+    }
+}
+
+static inline void directPutpixel16(BITMAP*, unsigned long lineAddressBase, int x, int, int col) { bmp_write16(lineAddressBase + 2 * x, col); }
+static inline void directPutpixel24(BITMAP*, unsigned long lineAddressBase, int x, int, int col) { bmp_write24(lineAddressBase + 3 * x, col); }
+static inline void directPutpixel32(BITMAP*, unsigned long lineAddressBase, int x, int, int col) { bmp_write32(lineAddressBase + 4 * x, col); }
+static inline void plainPutpixel(BITMAP* buf, unsigned long, int x, int y, int col) { putpixel(buf, x, y, col); }
+
+typedef void (*RCCF_hlineFnT)(BITMAP*, int, int, int, int, int, int, int, const RadiusColorizer&);
+
+#define DEFINE_HLINE_FN(name, putpixelFn, putpixelIsDirect) \
+    static void name(BITMAP* buf, int xc, int y, int dx, int cx0, int cx1, int r2_0, int min_r2, const RadiusColorizer& col) throw () { \
+        const bool debug = false;                                       \
+                                                                        \
+        unsigned long lineAddressBase = 0;                              \
+        if (putpixelIsDirect) {                                         \
+            bmp_select(buf);                                            \
+            lineAddressBase = bmp_write_line(buf, y);                   \
+        }                                                               \
+                                                                        \
+        int r2 = r2_0;                                                  \
+        int ri = static_cast<int>(sqrt(r2));                            \
+        int next_ri_r2 = ri * ri;                                       \
+        int x = dx;                                                     \
+        int riColor = col(ri);                                          \
+        const int minx = max(0, max(cx0, -cx1));                        \
+        nAssert(!debug || (x < minx) == (x < cx0 || -x > cx1));         \
+        while (x >= minx && r2 >= min_r2) {                             \
+            nAssert(!debug || x >= cx0 && -x <= cx1);                   \
+            if (x <= cx1)                                               \
+                putpixelFn(buf, lineAddressBase, xc + x, y, riColor);   \
+            if (-x >= cx0)                                              \
+                putpixelFn(buf, lineAddressBase, xc - x, y, riColor);   \
+            r2 += 1 - 2 * x; /* (x - 1)² - x² */                        \
+            if (r2 < next_ri_r2) {                                      \
+                next_ri_r2 += 1 - 2 * ri;                               \
+                --ri;                                                   \
+                riColor = col(ri);                                      \
+                if (debug) {                                            \
+                    nAssert(next_ri_r2 == ri * ri);                     \
+                    nAssert(r2 >= next_ri_r2);                          \
+                }                                                       \
+            }                                                           \
+            --x;                                                        \
+            nAssert(!debug || x == -1 || (x < minx) == (x < cx0 || -x > cx1)); \
+        }                                                               \
+                                                                        \
+        if (putpixelIsDirect)                                           \
+            bmp_unwrite_line(buf);                                      \
+    }
+
+DEFINE_HLINE_FN(RCCF_hline16,      directPutpixel16, true )
+DEFINE_HLINE_FN(RCCF_hline24,      directPutpixel24, true )
+DEFINE_HLINE_FN(RCCF_hline32,      directPutpixel32, true )
+DEFINE_HLINE_FN(RCCF_hlineGeneric, plainPutpixel,    false)
+
+#undef DEFINE_HLINE_FN
+
+static void RCCF_hlinePair(BITMAP* buf, int xc, int yc, int dx, int dy, int r2_0, int min_r2, const RadiusColorizer& col, RCCF_hlineFnT hlineFn) throw () {
+    int cx0, cy0, cx1, cy1; // clipping limits; x coordinates relative to xc
+    get_clip_rect(buf, &cx0, &cy0, &cx1, &cy1);
+    cx0 -= xc; cx1 -= xc;
+
+    const int y1 = yc - dy, y2 = yc + dy;
+    if (y2 < cy0 || y1 > cy1)
+        return;
+    if (y1 >= cy0)
+        hlineFn(buf, xc, y1, dx, cx0, cx1, r2_0, min_r2, col);
+    if (y2 <= cy1 && y2 != y1)
+        hlineFn(buf, xc, y2, dx, cx0, cx1, r2_0, min_r2, col);
+}
+
+void radiusColorizedCircleFill(BITMAP* buf, int xc, int yc, double outRad, double inRad, const RadiusColorizer& col, bool inSolidMode) throw () {
+    const bool debug = false;
+
+    RCCF_hlineFnT hlineFn;
+    switch (!inSolidMode || !is_linear_bitmap(buf) ? 0 : bitmap_color_depth(buf)) {
+    /*break;*/ case 15: case 16: hlineFn = RCCF_hline16;
+        break; case 24:          hlineFn = RCCF_hline24;
+        break; case 32:          hlineFn = RCCF_hline32;
+        break; default:          hlineFn = RCCF_hlineGeneric;
+    }
+
+    nAssert(outRad >= 0);
+    const int r2 = iround(sqr(outRad + .5));
+    const int inR2 = iround(sqr(inRad + .5));
+    int x = 0, y = iround(outRad);
+    int t = y * y - r2; // generally, t = x² + y² - r²; the (filled) circle is where t <= 0
+    for (;;) {
+        if (debug) {
+            nAssert(t <= 0);
+            nAssert(t == x * x + y * y - r2);
+        }
+
+        const int r2_0 = t + r2;
+
+        RCCF_hlinePair(buf, xc, yc, y, x, r2_0, inR2, col, hlineFn);
+
+        if (x == y)
+            break;
+
+        t += 2 * x + 1; // (x + 1)² - x²
+        if (t > 0) {
+            // about to move to next y (as well as x): draw the lines at +/- y here (at this point x is at the max so the whole line is covered in one draw)
+            RCCF_hlinePair(buf, xc, yc, x, y, r2_0, inR2, col, hlineFn);
 
             t += 1 - 2 * y; // (y - 1)² - y²
             --y;

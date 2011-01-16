@@ -1432,42 +1432,45 @@ void Graphics::draw_deathbringer_smoke(const WorldCoords& pos, double time, doub
     solid_mode();
 }
 
+class DeathbringerColorizer : public RadiusColorizer {
+    int rIn, rMid;
+    int team;
+    double mul1, mul2;
+
+public:
+    DeathbringerColorizer(int inRadius, int team_, double pf_scale) throw () : rIn(inRadius), rMid(static_cast<int>(pf_scale * 30)), team(team_), mul1(8 / pf_scale), mul2(14 / pf_scale) { }
+
+    int operator()(int r) const throw ();
+};
+
+int DeathbringerColorizer::operator()(int r) const throw () {
+    r -= rIn;
+    int brightness;
+    if (r < rMid)
+        brightness = 14 + static_cast<int>(mul1 * r);
+    else
+        brightness = 255 - static_cast<int>(mul2 * (r - rMid));
+    if (team == 0)
+        return makecol(brightness, 0, 0);
+    else
+        return makecol(0, 0, brightness);
+}
+
 void Graphics::draw_deathbringer(const DeathbringerExplosion& db, double frame) throw () {
     const double radius = pf_scaled(db.radius(frame));
     const WorldCoords& pos = db.position();
+    const int lx = pf_scale(pos.x);
+    const int ly = pf_scale(pos.y);
+    const int maxxd = max(lx, pf_scale(plw) - lx);
+    const int maxyd = max(ly, pf_scale(plh) - ly);
+    if (maxxd * maxxd + maxyd * maxyd < radius * radius)
+        return;
     RoomPosSet r(pos.room.x, pos.room.y, this);
     while (r.next()) {
         const int sx1 = r.x(), sy1 = r.y();
         TemporaryClipRect clipRestorer(drawbuf, sx1, sy1, sx1 + pf_scale(plw) - 1, sy1 + pf_scale(plh) - 1, true);
-        const int lx = pf_scale(pos.x);
-        const int ly = pf_scale(pos.y);
-        const int maxxd = max(lx, pf_scale(plw) - lx);
-        const int maxyd = max(ly, pf_scale(plh) - ly);
-        if (maxxd * maxxd + maxyd * maxyd < radius * radius)
-            continue;
-        const int x = r.x() + lx;
-        const int y = r.y() + ly;
-        double rad = radius;
-        //brightening ring
-        for (int e = 0; e < pf_scale(30); e++, rad++) {
-            const int mul = 14 + static_cast<int>(8 * e / pf_scaled(1.));
-            const int r = mul * getr(teamcol[db.team()]) / 255;
-            const int g = mul * getg(teamcol[db.team()]) / 255;
-            const int b = mul * getb(teamcol[db.team()]) / 255;
-            const int co = makecol(r, g, b);
-            dcircle(drawbuf, x, y, rad, co);
-        }
-        //darkening ring
-        for (int e = 0; e < pf_scale(10); e++, rad++) {
-            const int mul = 255 - static_cast<int>(14 * e / pf_scaled(1.));
-            const int r = mul * getr(teamcol[db.team()]) / 255;
-            const int g = mul * getg(teamcol[db.team()]) / 255;
-            const int b = mul * getb(teamcol[db.team()]) / 255;
-            const int co = makecol(r, g, b);
-            dcircle(drawbuf, x    , y    , rad, co);
-            dcircle(drawbuf, x + 1, y    , rad, co);
-            dcircle(drawbuf, x    , y + 1, rad, co);
-        }
+        DeathbringerColorizer dbcol(static_cast<int>(radius), db.team(), pf_scaled(1.));
+        radiusColorizedCircleFill(drawbuf, r.x() + lx, r.y() + ly, radius + pf_scaled(40) - 1, radius - 1, dbcol);
     }
 }
 
