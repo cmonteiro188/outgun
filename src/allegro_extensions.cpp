@@ -191,71 +191,71 @@ void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode) t
     int t = y * y - r2; // generally, t = x² + y² - r²; the (filled) circle is where t <= 0
 
     #define CONST_PUTPIXEL_AND_CLIP(putpixelFn, clipping)               \
-    ({                                                                  \
-        const int miny = clipping ? max(max(cx0, -cx1), max(cy0, -cy1)) : 0; \
-        nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
-        if (clipping && y < miny)                                       \
-            return; /* y only decreases, so it will never reach the proper range */ \
+        do {                                                            \
+            const int miny = clipping ? max(max(cx0, -cx1), max(cy0, -cy1)) : 0; \
+            nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
+            if (clipping && y < miny)                                   \
+                return; /* y only decreases, so it will never reach the proper range */ \
                                                                         \
-        for (; x <= y; ) {                                              \
-            if (debug) {                                                \
-                nAssert(t <= 0);                                        \
-                nAssert(t == x * x + y * y - r2);                       \
-                nAssert(y >= miny);                                     \
-                nAssert(-y <= -x && -x <= 0 && 0 <= x && x <= y);       \
-                nAssert(cx0 <= y && cy0 <= y && -y <= cx1 && -y <= cy1); /* c0 <= y  &&  -y <= c1 */ \
-            }                                                           \
-            if (!clipping) {                                            \
-                putpixelFn(buf, xc - x, yc - y, col);                   \
-                putpixelFn(buf, xc + x, yc - y, col);                   \
-                putpixelFn(buf, xc - y, yc - x, col);                   \
-                putpixelFn(buf, xc + y, yc - x, col);                   \
-                putpixelFn(buf, xc - y, yc + x, col);                   \
-                putpixelFn(buf, xc + y, yc + x, col);                   \
-                putpixelFn(buf, xc - x, yc + y, col);                   \
-                putpixelFn(buf, xc + x, yc + y, col);                   \
-            }                                                           \
-            else {                                                      \
-                if (x <= cx1) {                                         \
-                    if (x >= cx0) {                                     \
-                        if (y <= cy1)                                   \
-                            putpixelFn(buf, xc + x, yc + y, col); /*  cx0 <=   x  <= cx1  (cy0 <=)  y  <= cy1 */ \
-                        if (-y >= cy0)                                  \
-                            putpixelFn(buf, xc + x, yc - y, col); /*  cx0 <=   x  <= cx1   cy0 <=  -y (<= cy1) */ \
+            for (; x <= y; ) {                                          \
+                if (debug) {                                            \
+                    nAssert(t <= 0);                                    \
+                    nAssert(t == x * x + y * y - r2);                   \
+                    nAssert(y >= miny);                                 \
+                    nAssert(-y <= -x && -x <= 0 && 0 <= x && x <= y);   \
+                    nAssert(cx0 <= y && cy0 <= y && -y <= cx1 && -y <= cy1); /* c0 <= y  &&  -y <= c1 */ \
+                }                                                       \
+                if (!clipping) {                                        \
+                    putpixelFn(buf, xc - x, yc - y, col);               \
+                    putpixelFn(buf, xc + x, yc - y, col);               \
+                    putpixelFn(buf, xc - y, yc - x, col);               \
+                    putpixelFn(buf, xc + y, yc - x, col);               \
+                    putpixelFn(buf, xc - y, yc + x, col);               \
+                    putpixelFn(buf, xc + y, yc + x, col);               \
+                    putpixelFn(buf, xc - x, yc + y, col);               \
+                    putpixelFn(buf, xc + x, yc + y, col);               \
+                }                                                       \
+                else {                                                  \
+                    if (x <= cx1) {                                     \
+                        if (x >= cx0) {                                 \
+                            if (y <= cy1)                               \
+                                putpixelFn(buf, xc + x, yc + y, col); /*  cx0 <=   x  <= cx1  (cy0 <=)  y  <= cy1 */ \
+                            if (-y >= cy0)                              \
+                                putpixelFn(buf, xc + x, yc - y, col); /*  cx0 <=   x  <= cx1   cy0 <=  -y (<= cy1) */ \
+                        }                                               \
+                        if (y <= cx1 && x >= cy0 && -x <= cy1) {        \
+                            if (x <= cy1)                               \
+                                putpixelFn(buf, xc + y, yc + x, col); /* (cx0 <=)  y  <= cx1   cy0 <=   x  <= cy1 */ \
+                            if (-x >= cy0)                              \
+                                putpixelFn(buf, xc + y, yc - x, col); /* (cx0 <=)  y  <= cx1   cy0 <=  -x  <= cy1 */ \
+                        }                                               \
                     }                                                   \
-                    if (y <= cx1 && x >= cy0 && -x <= cy1) {            \
-                        if (x <= cy1)                                   \
-                            putpixelFn(buf, xc + y, yc + x, col); /* (cx0 <=)  y  <= cx1   cy0 <=   x  <= cy1 */ \
-                        if (-x >= cy0)                                  \
-                            putpixelFn(buf, xc + y, yc - x, col); /* (cx0 <=)  y  <= cx1   cy0 <=  -x  <= cy1 */ \
+                    if (-x >= cx0) {                                    \
+                        if (-x <= cx1) {                                \
+                            if (y <= cy1)                               \
+                                putpixelFn(buf, xc - x, yc + y, col); /*  cx0 <=  -x  <= cx1  (cy0 <=)  y  <= cy1 */ \
+                            if (-y >= cy0)                              \
+                                putpixelFn(buf, xc - x, yc - y, col); /*  cx0 <=  -x  <= cx1   cy0 <=  -y (<= cy1) */ \
+                        }                                               \
+                        if (-y >= cx0 && x >= cy0 && -x <= cy1) {       \
+                            if (x <= cy1)                               \
+                                putpixelFn(buf, xc - y, yc + x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=   x  <= cy1 */ \
+                            if (-x >= cy0)                              \
+                                putpixelFn(buf, xc - y, yc - x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=  -x  <= cy1 */ \
+                        }                                               \
                     }                                                   \
                 }                                                       \
-                if (-x >= cx0) {                                        \
-                    if (-x <= cx1) {                                    \
-                        if (y <= cy1)                                   \
-                            putpixelFn(buf, xc - x, yc + y, col); /*  cx0 <=  -x  <= cx1  (cy0 <=)  y  <= cy1 */ \
-                        if (-y >= cy0)                                  \
-                            putpixelFn(buf, xc - x, yc - y, col); /*  cx0 <=  -x  <= cx1   cy0 <=  -y (<= cy1) */ \
-                    }                                                   \
-                    if (-y >= cx0 && x >= cy0 && -x <= cy1) {           \
-                        if (x <= cy1)                                   \
-                            putpixelFn(buf, xc - y, yc + x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=   x  <= cy1 */ \
-                        if (-x >= cy0)                                  \
-                            putpixelFn(buf, xc - y, yc - x, col); /*  cx0 <=  -y (<= cx1)  cy0 <=  -x  <= cy1 */ \
-                    }                                                   \
+                t += 2 * x + 1; /* (x + 1)² - x² */                     \
+                ++x;                                                    \
+                if (t > 0) {                                            \
+                    t += 1 - 2 * y; /* (y - 1)² - y² */                 \
+                    --y;                                                \
+                    nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
+                    if (clipping && y < miny)                           \
+                        break;                                          \
                 }                                                       \
             }                                                           \
-            t += 2 * x + 1; /* (x + 1)² - x² */                         \
-            ++x;                                                        \
-            if (t > 0) {                                                \
-                t += 1 - 2 * y; /* (y - 1)² - y² */                     \
-                --y;                                                    \
-                nAssert(!debug || !clipping || (y < miny) == (y < cx0 || -y > cx1 || y < cy0 || -y > cy1)); \
-                if (clipping && y < miny)                               \
-                    break;                                              \
-            }                                                           \
-        }                                                               \
-    })
+        } while (0)
 
     const int ir = iround(r);
     const bool clip = !(-ir >= cx0 && ir <= cx1 && -ir >= cy0 && ir <= cy1);
