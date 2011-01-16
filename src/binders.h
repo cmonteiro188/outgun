@@ -1,7 +1,7 @@
 /*
  *  binders.h
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -67,34 +67,39 @@ void f() {
 
 #endif
 
-#define MAKE_NAME(a, b) a##0##b
+#define MAKE_NAME1(a) a##0
+#define MAKE_NAME2(a, b) a##0##b
 #define ARG_LIST(a, n)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##1##b
+#define MAKE_NAME1(a) a##1
+#define MAKE_NAME2(a, b) a##1##b
 #define ARG_LIST(a, n) a##_ARG(1)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##2##b
+#define MAKE_NAME1(a) a##2
+#define MAKE_NAME2(a, b) a##2##b
 #define ARG_LIST(a, n) a##_ARG(1) n##_NEXT a##_ARG(2)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##3##b
+#define MAKE_NAME1(a) a##3
+#define MAKE_NAME2(a, b) a##3##b
 #define ARG_LIST(a, n) a##_ARG(1) n##_NEXT a##_ARG(2) n##_NEXT a##_ARG(3)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##4##b
+#define MAKE_NAME1(a) a##4
+#define MAKE_NAME2(a, b) a##4##b
 #define ARG_LIST(a, n) a##_ARG(1) n##_NEXT a##_ARG(2) n##_NEXT a##_ARG(3) n##_NEXT a##_ARG(4)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##5##b
+#define MAKE_NAME1(a) a##5
+#define MAKE_NAME2(a, b) a##5##b
 #define ARG_LIST(a, n) a##_ARG(1) n##_NEXT a##_ARG(2) n##_NEXT a##_ARG(3) n##_NEXT a##_ARG(4) n##_NEXT a##_ARG(5)
 #include "binder_def.inc"
 
-#define MAKE_NAME(a, b) a##6##b
+#define MAKE_NAME1(a) a##6
+#define MAKE_NAME2(a, b) a##6##b
 #define ARG_LIST(a, n) a##_ARG(1) n##_NEXT a##_ARG(2) n##_NEXT a##_ARG(3) n##_NEXT a##_ARG(4) n##_NEXT a##_ARG(5) n##_NEXT a##_ARG(6)
 #include "binder_def.inc"
-
-// binder_def.inc adds macro pollution without #undefing; if anything is added here, add the #undefs there
 
 #endif // BINDERS_H_INC

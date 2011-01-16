@@ -1,7 +1,7 @@
 /*
  *  binder_def.inc
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -42,20 +42,33 @@
 #define     CALL_ARG(n)                    a##n           // a1
 #define    CCALL_ARG(n) ,                  a##n           // , a1
 
-template<class RetT, class ObjT, class MemFnT ARG_LIST(CLASS, PLAIN)> class MAKE_NAME(MF, binder) {
+template<class RetT, class ObjT, class MemFnT ARG_LIST(CLASS, PLAIN)> class MAKE_NAME2(MF, binder) {
     ObjT* p;
     MemFnT f;
     ARG_LIST(MEMDECL, PLAIN)
 
 public:
-    MAKE_NAME(MF, binder)(ObjT& o, const MemFnT& f_ ARG_LIST(CONSARG, PLAIN)) throw () : p(&o), f(f_) ARG_LIST(MEMINIT, PLAIN) { }
+    MAKE_NAME2(MF, binder)(ObjT& o, const MemFnT& f_ ARG_LIST(CONSARG, PLAIN)) throw () : p(&o), f(f_) ARG_LIST(MEMINIT, PLAIN) { }
     RetT operator()() const { return (p->*f)(ARG_LIST(CALL, COMMA)); }
 };
 
 template<class ObjT, class MemFnT ARG_LIST(CLASS, PLAIN)>
-MAKE_NAME(MF, binder)<void, ObjT, MemFnT ARG_LIST(TYPENAME, PLAIN)> MAKE_NAME(VMFbind,)(ObjT& o, const MemFnT& f ARG_LIST(EXTFNARG, PLAIN)) throw () {
-    return MAKE_NAME(MF, binder)<void, ObjT, MemFnT ARG_LIST(TYPENAME, PLAIN)>(o, f ARG_LIST(CCALL, PLAIN));
+MAKE_NAME2(MF, binder)<void, ObjT, MemFnT ARG_LIST(TYPENAME, PLAIN)> MAKE_NAME1(VMFbind)(ObjT& o, const MemFnT& f ARG_LIST(EXTFNARG, PLAIN)) throw () {
+    return MAKE_NAME2(MF, binder)<void, ObjT, MemFnT ARG_LIST(TYPENAME, PLAIN)>(o, f ARG_LIST(CCALL, PLAIN));
 }
 
-#undef MAKE_NAME
+#undef COMMA_NEXT
+#undef PLAIN_NEXT
+
+#undef    CLASS_ARG
+#undef TYPENAME_ARG
+#undef  MEMDECL_ARG
+#undef  CONSARG_ARG
+#undef  MEMINIT_ARG
+#undef EXTFNARG_ARG
+#undef     CALL_ARG
+#undef    CCALL_ARG
+
+#undef MAKE_NAME1
+#undef MAKE_NAME2
 #undef ARG_LIST
