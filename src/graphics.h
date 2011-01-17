@@ -108,7 +108,7 @@ public:
     bool init(int width, int height, int depth, bool windowed, bool flipping) throw ();
     void videoMemoryCorrupted() throw ();    // call this when that happens with page flipping
 
-    void setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) throw (); // call before any playfield draw operation, including the playfield version of draw_background
+    void setRoomLayout(const Map& map, double visible_rooms, bool repeatMapX, bool repeatMapY) throw (); // call before any playfield draw operation, including the playfield version of draw_background
     typedef std::vector<std::vector<uint8_t> > VisibilityMap;
     void draw_background(bool map_ready) throw ();
     void draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) throw ();
@@ -355,7 +355,7 @@ private:
     public:
         RoomLayoutManager(Graphics& host) throw () : g(host) { }
 
-        bool set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) throw (); // returns true if scale has changed
+        bool set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMapX, bool repeatMapY) throw (); // returns true if scale has changed
         void setTopLeft(const WorldCoords& topLeftCoords) throw () { topLeft = topLeftCoords; }
 
         int x0() const throw () { return plx; }

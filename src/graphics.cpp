@@ -469,8 +469,8 @@ bool Graphics::reset_video_mode(int width, int height, int depth, bool windowed,
     return true;
 }
 
-void Graphics::setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) throw () {
-    if (roomLayout.set(map.w, map.h, visible_rooms, repeatMap))
+void Graphics::setRoomLayout(const Map& map, double visible_rooms, bool repeatMapX, bool repeatMapY) throw () {
+    if (roomLayout.set(map.w, map.h, visible_rooms, repeatMapX, repeatMapY))
         needReloadPlayfieldPictures = true;
 }
 
@@ -3188,17 +3188,17 @@ double Graphics::scaled(double value) const throw () {
     return scr_mul * value;
 }
 
-bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) throw () {
+bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMapX, bool repeatMapY) throw () {
     const double oldScale = playfield_scale;
 
     map_w = mapWidth;
     map_h = mapHeight;
 
     visible_rooms_x = visible_rooms_y = visibleRooms;
-    if (!repeatMap) {
+    if (!repeatMapX)
         visible_rooms_x = min<double>(visible_rooms_x, map_w);
+    if (!repeatMapY)
         visible_rooms_y = min<double>(visible_rooms_y, map_h);
-    }
     room_w = static_cast<int>(g.playfield_w / visible_rooms_x);
     room_h = static_cast<int>(g.playfield_h / visible_rooms_y);
     // at least visible_rooms_* must fit in each direction -> to correct aspect ratio, shrink one of room_w,h
@@ -3212,10 +3212,10 @@ bool Graphics::RoomLayoutManager::set(int mapWidth, int mapHeight, double visibl
 
     visible_rooms_x = double(g.playfield_w) / room_w;
     visible_rooms_y = double(g.playfield_h) / room_h;
-    if (!repeatMap) {
+    if (!repeatMapX)
         visible_rooms_x = min<double>(visible_rooms_x, map_w);
+    if (!repeatMapY)
         visible_rooms_y = min<double>(visible_rooms_y, map_h);
-    }
 
     playfield_scale = (double(room_w) / plw + double(room_h) / plh) / 2.;
 
