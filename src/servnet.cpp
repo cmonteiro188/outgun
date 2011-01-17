@@ -2028,16 +2028,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 players_onscreen |= (1 << j);
 
                 // position in 3 bytes
-                uint8_t xy;
-                uint16_t hx, hy;
-                hx = static_cast<uint16_t>(h.pos.x * (double(0xFFF) / plw) + .5);
-                hy = static_cast<uint16_t>(h.pos.y * (double(0xFFF) / plh) + .5);
-                xy = static_cast<uint8_t>(hx & 0x0FF);
-                frame.U8(xy);
-                xy = static_cast<uint8_t>(hy & 0x0FF);
-                frame.U8(xy);
-                xy = static_cast<uint8_t>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
-                frame.U8(xy);
+                const int hx = iround(h.pos.x * (double(0xFFF) / plw));
+                const int hy = iround(h.pos.y * (double(0xFFF) / plh));
+                frame.U8(hx & 0x0FF);
+                frame.U8(hy & 0x0FF);
+                frame.U8((hx & 0xF00) >> 8 | (hy & 0xF00) >> 4);
 
                 if (recipient.protocolExtensionsLevel < 0) {
                     // speed in 2 bytes
