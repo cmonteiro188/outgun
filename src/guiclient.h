@@ -457,6 +457,9 @@ class GuiClient : public ClientBase, public ClientInterface {
     bool player_on_screen(int pid) const throw ();
     bool player_on_screen_exact(int pid) const throw ();
 
+    bool repeatMapX() const throw ();
+    bool repeatMapY() const throw ();
+
     typedef Graphics::VisibilityMap VisibilityMap;
 
     void draw_game_frame() throw ();

@@ -2544,7 +2544,7 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
     /*break;*/ case KEY_MINUS_PAD:
         if (!replaying && !withControl)
             break;
-        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || menu.options.graphics.repeatMap() && (mapWrapsX || mapWrapsY) && visible_rooms < 100) {
+        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || (repeatMapX() || repeatMapY()) && visible_rooms < 100) {
             if (replaying) {
                 ++visible_rooms;
                 if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
@@ -3378,6 +3378,22 @@ const WorldCoords& GuiClient::playerPos(int pid) const throw () {
     return world.player[pid].pos;
 }
 
+bool GuiClient::repeatMapX() const throw () {
+    if (!menu.options.graphics.repeatMap())
+        return false;
+    if (menu.options.graphics.viewOverMapBorder() == Menu_graphics::VOB_Always)
+        return true;
+    return mapWrapsX;
+}
+
+bool GuiClient::repeatMapY() const throw () {
+    if (!menu.options.graphics.repeatMap())
+        return false;
+    if (menu.options.graphics.viewOverMapBorder() == Menu_graphics::VOB_Always)
+        return true;
+    return mapWrapsY;
+}
+
 static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) throw () {
     double coordBase = 0;
     if (visibleRooms >= mapSize) {
@@ -3410,10 +3426,9 @@ WorldCoords GuiClient::viewTopLeft() const throw () {
     else {
         const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
         const bool scroll = menu.options.graphics.scroll();
-        const bool repeat = menu.options.graphics.repeatMap();
         const double xVis = graphics.get_visible_rooms_x(), yVis = graphics.get_visible_rooms_y();
-        const double x = getViewStartCoord(fd.player[me].room().x, fd.player[me].pos.x, plw, fx.map.w, mapWrapsX, repeat && mapWrapsX ? xVis : min<double>(fx.map.w, xVis), view, scroll);
-        const double y = getViewStartCoord(fd.player[me].room().y, fd.player[me].pos.y, plh, fx.map.h, mapWrapsY, repeat && mapWrapsY ? yVis : min<double>(fx.map.h, yVis), view, scroll);
+        const double x = getViewStartCoord(fd.player[me].room().x, fd.player[me].pos.x, plw, fx.map.w, mapWrapsX, repeatMapX() ? xVis : min<double>(fx.map.w, xVis), view, scroll);
+        const double y = getViewStartCoord(fd.player[me].room().y, fd.player[me].pos.y, plh, fx.map.h, mapWrapsY, repeatMapY() ? yVis : min<double>(fx.map.h, yVis), view, scroll);
         const pair<int, double> xp = splitCompositeCoord(x, plw, fx.map.w), yp = splitCompositeCoord(y, plh, fx.map.h);
         return WorldCoords(xp.first, yp.first, xp.second, yp.second);
     }
@@ -3459,8 +3474,7 @@ void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
         ++benchmarkRuns;
         #endif
         const VisibilityMap roomVis = calculateVisibilities();
-        const bool repeat = menu.options.graphics.repeatMap();
-        graphics.setRoomLayout(fx.map, visible_rooms, repeat && mapWrapsX, repeat && mapWrapsY);
+        graphics.setRoomLayout(fx.map, visible_rooms, repeatMapX(), repeatMapY());
         graphics.draw_background(fx.map,
                                  roomVis,
                                  viewTopLeft(),
@@ -4280,7 +4294,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
 void GuiClient::MCF_visibleRoomsPlayChange() throw () {
     if (!replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsPlay();
-        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !(menu.options.graphics.repeatMap() && (mapWrapsX || mapWrapsY)))
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !repeatMapX() && !repeatMapY())
             visible_rooms = max(fx.map.w, fx.map.h);
     }
 }
@@ -4288,7 +4302,7 @@ void GuiClient::MCF_visibleRoomsPlayChange() throw () {
 void GuiClient::MCF_visibleRoomsReplayChange() throw () {
     if (replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsReplay();
-        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !(menu.options.graphics.repeatMap() && (mapWrapsX || mapWrapsY)))
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !repeatMapX() && !repeatMapY())
             visible_rooms = max(fx.map.w, fx.map.h);
     }
 }
