@@ -1886,7 +1886,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
             /*break;*/ case Statistics::flagOwn:   c = teamcol[player.team()];
                 break; case Statistics::flagEnemy: c = teamcol[1 - player.team()];
                 break; case Statistics::flagWild:  c = teamcol[2];
-                break; default: ;
+                break; case Statistics::flagNone: nAssert(0);
             }
             vline(drawbuf, x, starty, starty + pole, colour[Colour::flag_pole]);
             rectfill(drawbuf, x + 1, starty, x + 1 + flag, starty + flag, c);
