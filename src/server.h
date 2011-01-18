@@ -107,6 +107,7 @@ class Server : private NoCopying {
 
     Thread          botthread;
     PointerVector<BotInterface> bots;
+    std::set<std::string> reservedBotNames; // names of incoming bots not connected yet
     int extra_bots;
     volatile bool quit_bots;
     NoLog botNoLog;

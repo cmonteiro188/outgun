@@ -1,7 +1,7 @@
 /*
  *  protocol.h
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2004, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -31,7 +31,7 @@
 
 extern const std::string GAME_STRING;
 extern const std::string GAME_PROTOCOL;
-static const int PROTOCOL_EXTENSIONS_VERSION = 0;
+static const int PROTOCOL_EXTENSIONS_VERSION = 1;
 
 extern const std::string REPLAY_IDENTIFICATION;
 static const unsigned REPLAY_VERSION = 1; // increase when the replay structure changes
@@ -128,6 +128,8 @@ enum Network_data_code {
     data_extension_advantage,
     data_waiting_time,
     data_flag_modes,
+    // available from negotiated extensions level 1:
+    data_quick_map_list,
     data_negotiated_third_party_extensions_first = 200 // from here on, codes are guaranteed to not be used by official versions present or future, and can be used after successful negotiation with data_negotiate_third_party_extensions
 };
 

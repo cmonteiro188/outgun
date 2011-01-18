@@ -36,7 +36,6 @@
 #include <cstring>
 #include <ctime>
 
-#include "incalleg.h"
 #include "commont.h"
 #include "log.h"
 #include "platform.h"
@@ -52,6 +51,7 @@ using std::numeric_limits;
 using std::ofstream;
 using std::ostream;
 using std::ostringstream;
+using std::set;
 using std::setfill;
 using std::setprecision;
 using std::setw;
@@ -435,11 +435,18 @@ vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength
 }
 
 string random_line(const string& file) {
+    return random_line(file, set<string>());
+}
+
+string random_line(const string& file, const set<string>& black_list) {
     ifstream in(file.c_str());
     string line, selected;
-    for (int lines = 1; getline_smart(in, line); lines++)
-        if (rand() % lines == 0)
-            selected = line;
+    for (int lines = 1; getline_smart(in, line); )
+        if (!black_list.count(line)) {
+            if (rand() % lines == 0)
+                selected = line;
+            lines++;
+        }
     return selected;
 }
 
@@ -640,80 +647,3 @@ FormattedText FormattedText::parse(const string& code) throw () {
         result.snips.push_back(snip);
     return result;
 }
-
-// definitions for incalleg.h
-
-#ifndef DEDICATED_SERVER_ONLY
-
-#if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
-    text_mode(bg);
-    va_list argptr;
-    char xbuf[16384];
-    va_start(argptr, format);
-    platVsnprintf(xbuf, 16384, format, argptr);
-    va_end(argptr);
-    textout(bmp, f, xbuf, x, y, color);
-}
-void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
-    text_mode(bg);
-    va_list argptr;
-    char xbuf[16384];
-    va_start(argptr, format);
-    platVsnprintf(xbuf, 16384, format, argptr);
-    va_end(argptr);
-    textout_centre(bmp, f, xbuf, x, y, color);
-}
-void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () {
-    text_mode(bg);
-    va_list argptr;
-    char xbuf[16384];
-    va_start(argptr, format);
-    platVsnprintf(xbuf, 16384, format, argptr);
-    va_end(argptr);
-    textout_right(bmp, f, xbuf, x, y, color);
-}
-void textout_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
-    text_mode(bg);
-    textout(bmp, f, text, x, y, color);
-}
-void textout_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
-    text_mode(bg);
-    textout_centre(bmp, f, text, x, y, color);
-}
-void textout_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, AL_CONST char* text, int x, int y, int color, int bg) throw () {
-    text_mode(bg);
-    textout_right(bmp, f, text, x, y, color);
-}
-#endif // ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
-
-void set_trans_mode(int alpha) throw () {
-    nAssert(alpha >= 0 && alpha <= 255);
-    if (alpha != 255) {
-        set_trans_blender(0, 0, 0, alpha);
-        drawing_mode(DRAW_MODE_TRANS, 0, 0, 0);
-    }
-    else
-        solid_mode();
-}
-
-int makecolBounded(int r, int g, int b) throw () {
-    return makecol(bound(r, 0, 255), bound(g, 0, 255), bound(b, 0, 255));
-}
-
-int set_gfx_mode_if_new(int depth, int card, int w, int h, int v_w, int v_h) throw () {
-    static int oldDepth = -1, oldCard = -1, oldW = -1, oldH = -1, oldVw = -1, oldVh = -1;
-    if (depth == oldDepth && card == oldCard && w == oldW && h == oldH && v_w == oldVw && v_h == oldVh)
-        return 0;
-    set_color_depth(depth);
-    const int ret = set_gfx_mode(card, w, h, v_w, v_h);
-    if (ret == 0) {
-        oldDepth = depth;
-        oldCard = card;
-        oldW = w; oldH = h;
-        oldVw = v_w; oldVh = v_h;
-    }
-    return ret;
-}
-
-#endif // !DEDICATED_SERVER_ONLY

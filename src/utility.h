@@ -26,6 +26,7 @@
 #define UTILITY_H_INC
 
 #include <limits>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -475,6 +476,9 @@ std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineL
 /// Get random non-empty line from a file.
 std::string random_line(const std::string& file);
 
+/// Get random non-empty line from a file, avoiding the strings in black_list.
+std::string random_line(const std::string& file, const std::set<std::string>& black_list);
+
 class LineReceiver {
 protected:
     LineReceiver() throw () { }
@@ -595,6 +599,6 @@ private:
     friend std::vector<FormattedText> split_to_lines(const FormattedText& source, int lineLength, int indent, bool keep_spaces) throw ();
 };
 
-uint16_t CRC16(const void* buf, unsigned size) throw (); // implemented in network.cpp because HawkNL is used
+uint16_t CRC16(ConstDataBlockRef data) throw (); // implemented in network.cpp because HawkNL is used
 
 #endif

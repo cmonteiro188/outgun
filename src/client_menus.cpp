@@ -1,7 +1,7 @@
 /*
  *  client_menus.cpp
  *
- *  Copyright (C) 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2005, 2006, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -525,6 +525,7 @@ Menu_graphics::Menu_graphics() throw () :
     boxRoomsWhenPlaying  (_("Box visible area on map in game"), true),
     viewOverMapBorder    (_("Let view follow over map border")),
     repeatMap            (_("Allow parts of map to repeat on screen"), false),
+    highlightUnknownMaps (_("Highlight maps not in maps.txt"), false),
     statsBgAlpha         (_("Stats screen alpha"), true, 0, 255, 255, 15),
 
     fpsLimit             (_("FPS limit"), false, 1, 10000, 60, 0),
@@ -575,6 +576,7 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add(&boxRoomsWhenPlaying,    CCS_BoxRoomsWhenPlaying);
     add(&viewOverMapBorder,      CCS_ViewOverMapBorder);
     add(&repeatMap,              CCS_RepeatMap);
+    add(&highlightUnknownMaps,   CCS_HighlightUnknownMaps);
     add(&statsBgAlpha,           CCS_StatsBgAlpha);
     add.space();
     add(&fpsLimit,               CCS_FPSLimit);

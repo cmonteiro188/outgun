@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -716,6 +716,21 @@ void ServerNetworking::send_team_stats(const ServerPlayer& player) const throw (
         msg.U32dyn8orU8(team.flags_taken(), e);
         msg.U32dyn8orU8(team.flags_dropped(), e);
         msg.U32dyn8orU8(team.flags_returned(), e);
+    }
+    send_message(player.cid, msg);
+}
+
+void ServerNetworking::send_quick_map_list(const ServerPlayer& player) const throw () {
+    BinaryBuffer<256> msg;
+    msg.U8(data_quick_map_list);
+    for (int offset = 0; offset < 20 && player.current_map_list_item + offset < host->maplist().size(); ++offset) {
+        const MapInfo& map = host->maplist()[player.current_map_list_item + offset];
+        if (map.random && map.width < 128 && map.height < 256)
+            msg.U16(0x8000 | map.width << 8 | map.height);
+        else {
+            nAssert(map.infoHash < 0x8000);
+            msg.U16(map.infoHash);
+        }
     }
     send_message(player.cid, msg);
 }
@@ -1531,7 +1546,8 @@ void ServerNetworking::sendTextToAdminShell(const string& text) const throw () {
     writeToAdminShell(msg);
 }
 
-bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () {
+void ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw (ClientDataError) {
+ try {
     BinaryDataBlockReader msg(data);
 
     ServerPlayer& sender = world.player[pid];
@@ -1549,11 +1565,11 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
         const string text = msg.str();
         if (find_nonprintable_char(text)) {
             log("Received unprintable characters.");
-            return false;
+            throw ClientDataError();
         }
         else if (text.length() > max_chat_message_length) {
             log("Received a too long message (%u characters).", static_cast<unsigned>(text.length()));
-            return false;
+            throw ClientDataError();
         }
         else
             host->chat(pid, text);
@@ -1597,7 +1613,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
         const string fname = msg.str();
         if (fileTransfer[sender.cid].serving_udp_file) {
             log("Another download already in progress.");
-            return false;
+            throw ClientDataError();
         }
         else {
             //alloc to download
@@ -1605,7 +1621,7 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
             fileTransfer[sender.cid].data = get_download_file(ftype, fname);
             if (fileTransfer[sender.cid].data.empty()) {
                 log("Invalid download attempt");
-                return false;
+                throw ClientDataError();
             }
             else {
                 fileTransfer[sender.cid].dp = 0;
@@ -1722,11 +1738,14 @@ bool ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw () 
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log("Invalid message code: %i, length %i.", code, data.size());
-            return false;
+            throw ClientDataError();
         }
         // just ignore commands in reserved range: they're probably some extension we don't have to care about
     }
-    return true;
+ } catch (BinaryReader::ReadError) {
+     log("Invalid data from client.");
+     throw ClientDataError();
+ }
 }
 
 //process incoming client data (callback function)
@@ -1736,6 +1755,8 @@ void ServerNetworking::incoming_client_data(int cid, ConstDataBlockRef data) thr
 
     int pid = ctop[cid];
 
+ try {
+  try {
     //1. process client's frame data
 
     BinaryDataBlockReader frame(data);
@@ -1799,17 +1820,25 @@ void ServerNetworking::incoming_client_data(int cid, ConstDataBlockRef data) thr
         ConstDataBlockRef msg = clientConnection[cid]->receive_message();
         if (msg.data() == 0)
             break;
-        const bool ok = processMessage(pid, msg);
-        clientConnection[cid]->received_message_read();
-        if (!ok) {
-            log("Kicked player %d for client misbehavior.", pid);
-            host->disconnectPlayer(pid, disconnect_client_misbehavior);
-            break;
+        try {
+            processMessage(pid, msg);
+        } catch (...) {
+            clientConnection[cid]->received_message_read();
+            throw;
         }
+        clientConnection[cid]->received_message_read();
         pid = ctop[cid]; // the message might have affected the pid
     }
     if (!world.player[pid].attackOnce) // if the player started holding attack before this frame, he wants to shoot in the new direction, otherwise keep the direction when he started
         world.player[pid].attackGunDir = world.player[pid].gundir;
+  } catch (BinaryReader::ReadError) {
+    log("Format error in frame data received from client.");
+    throw ClientDataError();
+  }
+ } catch (ClientDataError) {
+    log("Kicked player %d for client misbehavior.", pid);
+    host->disconnectPlayer(pid, disconnect_client_misbehavior);
+ } 
 }
 
 void ServerNetworking::removePlayer(int pid) throw () {  // call only when moving players around; this actually does close to nothing
@@ -2012,16 +2041,11 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 players_onscreen |= (1 << j);
 
                 // position in 3 bytes
-                uint8_t xy;
-                uint16_t hx, hy;
-                hx = static_cast<uint16_t>(h.pos.x * (double(0xFFF) / plw) + .5);
-                hy = static_cast<uint16_t>(h.pos.y * (double(0xFFF) / plh) + .5);
-                xy = static_cast<uint8_t>(hx & 0x0FF);
-                frame.U8(xy);
-                xy = static_cast<uint8_t>(hy & 0x0FF);
-                frame.U8(xy);
-                xy = static_cast<uint8_t>( ((hx & 0xF00) >> 8) | ((hy & 0xF00) >> 4) );
-                frame.U8(xy);
+                const int hx = iround(h.pos.x * (double(0xFFF) / plw));
+                const int hy = iround(h.pos.y * (double(0xFFF) / plh));
+                frame.U8(hx & 0x0FF);
+                frame.U8(hy & 0x0FF);
+                frame.U8((hx & 0xF00) >> 8 | (hy & 0xF00) >> 4);
 
                 if (recipient.protocolExtensionsLevel < 0) {
                     // speed in 2 bytes
@@ -2187,8 +2211,18 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
 
         //send server map list if not sent yet
         if (recipient.current_map_list_item < host->maplist().size() && world.frame % 2 == 0) {
-            send_map_info(recipient);
-            ++recipient.current_map_list_item;
+            if (recipient.sendingQuickMapList && recipient.protocolExtensionsLevel >= 1) {
+                send_quick_map_list(recipient);
+                recipient.current_map_list_item += 20;
+                if (recipient.current_map_list_item >= host->maplist().size()) {
+                    recipient.current_map_list_item = 0;
+                    recipient.sendingQuickMapList = false;
+                }
+            }
+            else {
+                send_map_info(recipient);
+                ++recipient.current_map_list_item;
+            }
         }
     }
 
@@ -2788,7 +2822,7 @@ void ServerNetworking::executeAdminCommand(uint32_t code, uint32_t cid, int pid,
     }
 }
 
-bool ServerNetworking::handleAdminCommand() throw (Network::Error) {
+bool ServerNetworking::handleAdminCommand() throw (Network::Error, BinaryReader::ReadError) {
     char rbuf[256];
 
     //read request code
@@ -2864,6 +2898,8 @@ void ServerNetworking::run_shellslave_thread(volatile bool* runningFlag) throw (
                 break;
     } catch (const Network::Error& e) {
         log.error(_("Admin shell: $1", e.str()));
+    } catch (BinaryReader::ReadError) {
+        log.error(_("Admin shell: $1", "data format error"));
     }
 
     if (shellssock.isOpen()) {
@@ -3160,6 +3196,7 @@ Network::Address ServerNetworking::get_client_address(int cid) const throw () {
 }
 
 bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw () {
+ try {
     BinaryDataBlockReader msg(data);
 
     // free reservedPlayerSlots that have been left unused, they might be needed now
@@ -3272,6 +3309,11 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         return false;
     }
     return true;
+ } catch (BinaryReader::ReadError) {
+    log("Format error in hello data from client.");
+    reply.clear();
+    return false;
+ }
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
@@ -3370,7 +3412,9 @@ void ServerNetworking::LocalClient::disconnect(int timeout, Disconnect_reason re
 }
 
 Network::Address ServerNetworking::LocalClient::get_client_address() const throw () {
-    return Network::Address("127.0.0.1");
+    try {
+        return Network::Address("127.0.0.1");
+    } catch (Network::BadIP) { nAssert(0); }
 }
 
 void ServerNetworking::LocalClient::ping() throw () {

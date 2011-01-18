@@ -2,7 +2,7 @@
  *  robot.cpp
  *
  *  Copyright (C) 2006, 2008 - Peter Kosyh
- *  Copyright (C) 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -1765,6 +1765,10 @@ ClientControls Robot::getRobotControls() throw () {
 ClientControls Robot::RobotMain() throw () {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
+    for (int p = 0; p < maxplayers; ++p)
+        if (fx.player[p].dead)
+            fx.player[p].defending = fx.player[p].defendingAfterDeath;
+
     if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
                     fx.player[me].room().x >= fx.map.w || fx.player[me].room().y >= fx.map.h) {
         myGundir = -1;
@@ -1893,12 +1897,16 @@ void Robot::client_connected(ConstDataBlockRef data) throw () { // call with fra
 }
 
 void Robot::client_disconnected(ConstDataBlockRef data) throw () {
-    BinaryDataBlockReader read(data);
+    try {
+        BinaryDataBlockReader read(data);
 
-    const uint8_t reason = read.U8();
-    numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
-                                   || reason == server_c::disconnect_timeout || reason == disconnect_kick),
-               data.size(), reason);
+        const uint8_t reason = read.U8();
+        numAssert2(!read.hasMore() && (reason == server_c::disconnect_client_initiated || reason == server_c::disconnect_server_shutdown
+                                       || reason == server_c::disconnect_timeout || reason == disconnect_kick),
+                   data.size(), reason);
+    } catch (BinaryReader::ReadError) {
+        nAssert(0);
+    }
 
     stop();
 }
@@ -1937,13 +1945,19 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
     ClientPlayer& sender = fx.player[senderPid];
     const string msg = text.substr(colon + 2);
     string description;
-    if (msg == "d" || msg == "def" || msg == "defending") {
+    if (msg == "d" || msg == "D" || msg == "def" || msg == "defending") {
         sender.defending = true;
+        sender.defendingAfterDeath = msg != "d";
         description = sender.name + " prefers defending";
+        if (!sender.defendingAfterDeath)
+            description += " until dead";
     }
-    else if (msg == "a" || msg == "att" || msg == "attacking") {
+    else if (msg == "a" || msg == "A" || msg == "att" || msg == "attacking") {
         sender.defending = false;
+        sender.defendingAfterDeath = msg == "a";
         description = sender.name + " prefers attacking";
+        if (sender.defendingAfterDeath)
+            description += " until dead";
     }
     else
         return;

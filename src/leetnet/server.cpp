@@ -586,7 +586,7 @@ public:
         //   pra ela. a thread lida com conexao tambem.
         // mensagem 0 666 = ping request
         // mensagem 0 200 = serverinfo request
-
+     try {
         BinaryDataBlockReader read(data);
         const uint32_t packid = read.U32(); //packet id
         const uint32_t smsgid = read.U32(); // special message id (if packet id == 0)
@@ -787,6 +787,10 @@ public:
 
         //WEIRD WEIRD fail: num_clients esta mentindo para baixo
         return 0;
+     } catch (BinaryReader::ReadError) {
+         log("Packet format error.");
+         return 0;
+     }
     }
 
     //HACK (a better one): called by reader thread to do some thinking for the server
@@ -888,6 +892,7 @@ public:
         //
 
         if (is_special) {
+         try {
             BinaryDataBlockReader read(data, len);
             read.U32(); //skip "0"
             const uint32_t code = read.U32();
@@ -1019,6 +1024,9 @@ public:
                 log("WTF!?!? %u", (unsigned)code);
                 break;
             }
+         } catch (BinaryReader::ReadError) {
+             log("Packet format error.");
+         }
         }
         //regular packet - must be already connected and not disconnected
         //AND the slot must be used, OF COURSE!

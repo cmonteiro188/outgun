@@ -2,7 +2,7 @@
  *  world.cpp
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -428,7 +428,7 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         else                            // labels have started
             label_lines.back().second.push_back(line);
     }
-    crc = CRC16(crcData.data(), crcData.length());
+    crc = CRC16(crcData);
     crcData.clear();    // free the memory; crcData is not needed from here on
     for (vector<string>::const_iterator line = file_lines.begin(); line != file_lines.end(); ++line)
         if (!parse_line(log, *line, label_lines, crx, cry, scalex, scaley))
@@ -765,7 +765,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     return true;
 }
 
-MapInfo::MapInfo() throw () : random(false), votes(0), sentVotes(0), last_game(0), highlight(false) { }
+MapInfo::MapInfo() throw () : random(false), votes(0), sentVotes(0), last_game(0), preference(0), infoHash(0) { }
 
 bool MapInfo::load(LogSet& log, const string& mapName) throw () {
     Map map;
@@ -779,6 +779,7 @@ bool MapInfo::load(LogSet& log, const string& mapName) throw () {
     height = map.h;
     random = false;
     votes = sentVotes = 0;
+    updateInfoHash();
     return true;
 }
 
@@ -787,6 +788,17 @@ void MapInfo::update(const Map& map) throw () {
     author = map.author;
     width = map.w;
     height = map.h;
+    updateInfoHash();
+}
+
+void MapInfo::updateInfoHash() throw () {
+    ExpandingBinaryBuffer buf;
+    buf.str(title);
+    buf.str(author);
+    buf.U32(width);
+    buf.U32(height);
+    buf.U8(random);
+    infoHash = CRC16(buf) & 0x7FFF;
 }
 
 void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) throw () {
@@ -855,6 +867,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     record_controls = true;
     record_gundir = true;
 
+    sendingQuickMapList = true;
     current_map_list_item = 0;
     nextMinimapPlayer = 0;
     minimapPlayersPerFrame = 2;
@@ -881,7 +894,7 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     posUpdated = prevMapPosUpdateFrame = -1e10;
     fromMinimapUpdate = false;
 
-    defending = false;
+    defending = defendingAfterDeath = false;
 
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
@@ -1407,7 +1420,7 @@ void PhysicalSettings::calc_max_run_speed() throw () {
     max_run_speed = (run_mul * accel - fric) / drag;
 }
 
-void PhysicalSettings::read(BinaryReader& reader) throw () {
+void PhysicalSettings::read(BinaryReader& reader) throw (BinaryReader::ReadError) {
     fric            = reader.flt();
     drag            = reader.flt();
     accel           = reader.flt();

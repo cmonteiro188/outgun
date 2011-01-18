@@ -342,7 +342,7 @@ void MasterSettings::load(LogSet& log) throw () {
         uint8_t buf[bufSize];
         const int numread = fread(buf, 1, bufSize, fp);
         fclose(fp);
-        configCRC = CRC16(buf, numread);
+        configCRC = CRC16(ConstDataBlockRef(buf, numread));
     }
     else
         configCRC = defaultConfigCRC;

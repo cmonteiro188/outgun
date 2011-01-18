@@ -1,7 +1,7 @@
 /*
  *  bot_support.cpp
  *
- *  Copyright (C) 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2008, 2009, 2010, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -21,6 +21,7 @@
  *
  */
 
+#include <iomanip>
 #include <numeric>
 #include <queue>
 
@@ -186,10 +187,10 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const Roo
                         (*ai)->respawnFrequency[team] += 1. / respawns.size();
             }
             else {
-                const int ix1 = (ri->x1 + pointDistance / 2) / pointDistance;
-                const int ix2 = (ri->x2 + pointDistance / 2) / pointDistance;
-                const int iy1 = (ri->y1 + pointDistance / 2) / pointDistance;
-                const int iy2 = (ri->y2 + pointDistance / 2) / pointDistance;
+                const int ix1 = static_cast<int>((ri->x1 + pointDistance / 2) / pointDistance);
+                const int ix2 = static_cast<int>((ri->x2 + pointDistance / 2) / pointDistance);
+                const int iy1 = static_cast<int>((ri->y1 + pointDistance / 2) / pointDistance);
+                const int iy2 = static_cast<int>((ri->y2 + pointDistance / 2) / pointDistance);
                 nAssert(ix1 >= 0 && unsigned(ix2) < xPoints && iy1 >= 0 && unsigned(iy2) < yPoints);
                 vector<int> areaPoints(roomAreas.size(), 0);
                 for (int x = ix1; x <= ix2; ++x)
@@ -282,6 +283,12 @@ void AreaMap::RoomAreaMap::AreaSplitter::testAxisPoints(const vector<int>& minim
         for (unsigned i = 0; i < minimums.size(); ++i)
             if (count[i] && minimums[i] == *pi)
                 --unbrokenAreasAfter;
+        if (unbrokenAreasBefore + unbrokenAreasAfter == nActualAreas) { // if there is a span with no broken areas, put the split point in the middle of the no man's land rather than either border
+            nAssert(unbrokenAreasBefore && unbrokenAreasAfter);
+            nAssert(pi + 1 != points.end());
+            testPoint(axisIsX, (*pi + *(pi + 1)) / 2,
+                      unbrokenAreasBefore * unbrokenAreasAfter * 100000 + 90000 + min(sizeBefore, sizeAfter));
+        }
     }
     nAssert(unbrokenAreasAfter == 0);
     #ifndef NDEBUG

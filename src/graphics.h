@@ -63,33 +63,6 @@ public:
     bool operator<(const ScreenMode& o) const throw () { return width < o.width || (width == o.width && height < o.height); }
 };
 
-class Bitmap {
-    BITMAP* ptr;
-
-public:
-    Bitmap() throw () : ptr(0) { }
-    Bitmap(BITMAP* ptr_) throw () : ptr(ptr_) { }
-    ~Bitmap() throw () { free(); }
-
-    Bitmap(const Bitmap& o) throw () : ptr(0) { nAssert(!o.ptr); }
-    void operator=(const Bitmap& o) throw () { nAssert(!ptr); nAssert(!o.ptr); }
-
-    void free() throw () { if (ptr) { destroy_bitmap(ptr); ptr = 0; } }
-    const Bitmap& operator=(BITMAP* ptr_) throw () { nAssert(!ptr); ptr = ptr_; return *this; }
-
-    operator BITMAP*() const throw () { return ptr; }
-    BITMAP* operator->() const throw () { return ptr; }
-};
-
-class TemporaryClipRect {
-    BITMAP* b;
-    int x1, y1, x2, y2;
-
-public:
-    TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) throw ();
-    ~TemporaryClipRect() throw ();
-};
-
 enum MapListSortKey { MLSK_Number, MLSK_Votes, MLSK_Title, MLSK_Size, MLSK_Author, MLSK_Favorite, MLSK_COUNT };
 
 class Message {
@@ -135,7 +108,7 @@ public:
     bool init(int width, int height, int depth, bool windowed, bool flipping) throw ();
     void videoMemoryCorrupted() throw ();    // call this when that happens with page flipping
 
-    void setRoomLayout(const Map& map, double visible_rooms, bool repeatMap) throw (); // call before any playfield draw operation, including the playfield version of draw_background
+    void setRoomLayout(const Map& map, double visible_rooms, bool repeatMapX, bool repeatMapY) throw (); // call before any playfield draw operation, including the playfield version of draw_background
     typedef std::vector<std::vector<uint8_t> > VisibilityMap;
     void draw_background(bool map_ready) throw ();
     void draw_background(const Map& map, const VisibilityMap& roomVis, const WorldCoords& topLeft, bool continuousTextures, bool mapInfoMode) throw ();
@@ -347,10 +320,6 @@ private:
 
     BITMAP* scale_sprite(const std::string& filename, int x, int y) const throw ();
     BITMAP* scale_alpha_sprite(const std::string& filename, int x, int y) const throw ();
-    static void set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) throw ();
-    static void rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) throw (); // x,y are destination coords of the sprite center
-    static void rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) throw ();    // x,y are destination coords of the sprite center
-    static int colorTo32(int color) throw () { return makecol32(getr(color), getg(color), getb(color)); }
     static void overlayColor(BITMAP* bmp, BITMAP* alpha, int color) throw ();    // alpha must be an 8-bit bitmap; give the color in same format as bmp
     static void combine_sprite(BITMAP* sprite, BITMAP* common, BITMAP* team, BITMAP* personal, int tcol, int pcol) throw (); // give the colors in same format as sprite
 
@@ -369,6 +338,7 @@ private:
     void load_font(const std::string& file) throw ();
 
     int scale(double value) const throw ();
+    double scaled(double value) const throw ();
     int pf_scale(double value) const throw () { return roomLayout.pf_scale(value); }
     double pf_scaled(double value) const throw () { return roomLayout.pf_scaled(value); }
 
@@ -385,7 +355,7 @@ private:
     public:
         RoomLayoutManager(Graphics& host) throw () : g(host) { }
 
-        bool set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMap) throw (); // returns true if scale has changed
+        bool set(int mapWidth, int mapHeight, double visibleRooms, bool repeatMapX, bool repeatMapY) throw (); // returns true if scale has changed
         void setTopLeft(const WorldCoords& topLeftCoords) throw () { topLeft = topLeftCoords; }
 
         int x0() const throw () { return plx; }

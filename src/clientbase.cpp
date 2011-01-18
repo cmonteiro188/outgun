@@ -85,7 +85,7 @@ void TM_ConnectionUpdate::execute(ClientBase* cl) const throw () {
     }
 }
 
-WorldCoords ClientBase::readPosition(BinaryReader& read) const throw () {
+WorldCoords ClientBase::readPosition(BinaryReader& read) const throw (BinaryReader::ReadError) {
     WorldCoords pos;
     pos.room.x = read.U8(0, fx.map.w - 1);
     pos.room.y = read.U8(0, fx.map.h - 1);
@@ -254,29 +254,35 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     connected = true;
     gameshow = true;
 
-    BinaryDataBlockReader read(data);
+    try {
+        BinaryDataBlockReader read(data);
 
-    setMaxPlayers(read.U8(0, MAX_PLAYERS));
+        setMaxPlayers(read.U8(0, MAX_PLAYERS));
 
-    netSetHostname(read.str());
+        netSetHostname(read.str());
 
-    if (read.hasMore()) {
-        const int protoExt = read.U8();
-        log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
-        protocolExtensions = min(protoExt, PROTOCOL_EXTENSIONS_VERSION);
-    }
-    else
-        protocolExtensions = -1;
-
-    while (read.hasMore()) {
-        const uint32_t extensionId = read.U32();
-        BinaryDataBlockReader extData(read.block(read.U8()));
-        switch (extensionId) {
-            /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
-             * break; case EXAMPLE_IDENTIFIER:
-             *    exampleLevel = min(extData.U8(), EXAMPLE_VERSION); // or whatever else you sent in servnet.cpp; also remember to flag the extension disabled before this "while (read.hasMore())"
-             */
+        if (read.hasMore()) {
+            const int protoExt = read.U8();
+            log("Protocol extensions enabled. Server: %d (client: %d; using the smaller)", protoExt, PROTOCOL_EXTENSIONS_VERSION);
+            protocolExtensions = min(protoExt, PROTOCOL_EXTENSIONS_VERSION);
         }
+        else
+            protocolExtensions = -1;
+
+        while (read.hasMore()) {
+            const uint32_t extensionId = read.U32();
+            BinaryDataBlockReader extData(read.block(read.U8()));
+            switch (extensionId) {
+                /* To negotiate unofficial extension "example" at connection time, insert something like this: (search for "unofficial extension" for other relevant parts)
+                 * break; case EXAMPLE_IDENTIFIER:
+                 *    exampleLevel = min(extData.U8(), EXAMPLE_VERSION); // or whatever else you sent in servnet.cpp; also remember to flag the extension disabled before this "while (read.hasMore())"
+                 */
+            }
+        }
+    } catch (BinaryReader::ReadError) {
+        log.error(_("Server sent invalid data."));
+        disconnect_command();
+        return;
     }
 
     if (botmode) {
@@ -383,7 +389,7 @@ void ClientBase::issue_change_name_command() throw () {
     client->send_message(msg);
 }
 
-void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw () {
+void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw (BinaryReader::ReadError) {
     ClientPlayer& pl = fx.player[pid];
     const uint8_t whox = reader.U8(), whoy = reader.U8();
     if (pid == me || pl.onscreen)
@@ -409,7 +415,8 @@ void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw 
     pl.vel = Vec(0, 0); // keep bots from trying to predict minimap players' movement from old velocities
 }
 
-bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // returns false if an error occured that requires disconnecting
+void ClientBase::process_live_frame_data(ConstDataBlockRef data) throw (ServerDataError) {
+ try {
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32();    //server's frame
@@ -427,7 +434,7 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
     }
     #endif
     if (svframe < fx.frame)
-        return true;
+        return;
 
     ClientPhysicsCallbacks cb(*this);
     fx.rocketFrameAdvance(static_cast<int>(svframe - fx.frame), cb);
@@ -463,12 +470,12 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
 
     if (empty_frame_cause_not_ready_yet) {
         fx.skipped = true;
-        return true;
+        return;
     }
 
     if (!map_ready) {
-        log.error("Server sent frame data when loading map");
-        return false;
+        log("Server sent frame data when loading map");
+        throw ServerDataError();
     }
     fx.skipped = false;
 
@@ -580,12 +587,14 @@ bool ClientBase::process_live_frame_data(ConstDataBlockRef data) throw () { // r
 
     if (read.hasMore())
         fx.player[svframe % maxplayers].ping = max<int16_t>(read.S16(), 0); // Server versions up to 1.0.3 using a multicore processor can send negative pings.
-
-    return true;
+ } catch (BinaryReader::ReadError) {
+     throw ServerDataError();
+ }
 }
 
 // process a message (update fx, and add the non frame-related messages to messageQueue)
-bool ClientBase::process_message(ConstDataBlockRef data) throw () {
+void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError) {
+ try {
     const double time = fx.frame / 10;
     BinaryDataBlockReader read(data);
 
@@ -726,7 +735,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         GunDirection dir;
         if (rdir & 0x80) {
             if (protocolExtensions < 0)
-                return false;
+                throw ServerDataError();
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
         }
         else
@@ -748,7 +757,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
                 const int pid = (rteampower & 0x7C) >> 2;
                 if (pid >= maxplayers || !fx.player[pid].used) {
                     log("Bad pid in data_rocket_fire: %d.", pid);
-                    return false;
+                    throw ServerDataError();
                 }
                 team = pid / TSIZE;
                 if (fx.player[pid].posUpdated < frameno) {
@@ -777,7 +786,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         GunDirection dir;
         if (rdir & 0x80) {
             if (protocolExtensions < 0)
-                return false;
+                throw ServerDataError();
             dir.fromNetworkLongForm(((rdir & 0x7F) << 8) | read.U8());
         }
         else
@@ -806,7 +815,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         if (target != 255) {    // hit player
             if (target != 252) {  // not shield hit -> blink player
                 if (target >= maxplayers)
-                    return false;
+                    throw ServerDataError();
                 fx.player[target].hitfx = time + .3;
             }
             //hit position
@@ -882,7 +891,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             mapStream.write(static_cast<const char*>(mapData.data()), mapData.size());
             if (!fx.map.parse_file(log, mapStream)) {
                 log("Problem with map data.");
-                return false;
+                throw ServerDataError();
             }
             fd.map = fx.map;
             log("Map loaded from the replay: %s", fx.map.title.c_str());
@@ -984,6 +993,9 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_current_map:
         netSetCurrentMap(read.U8());
 
+    break; case data_quick_map_list:
+        net_data_quick_map_list(read);
+
     break; case data_map_list:
         net_data_map_list(read);
 
@@ -1007,7 +1019,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         #endif
         pid &= ~0x80;
         if (pid >= maxplayers || ass_pid >= maxplayers || ass_pid < -1)
-            return false;
+            throw ServerDataError();
         fx.player[pid].stats().add_capture(time);
         #ifndef DEDICATED_SERVER_ONLY
         string capturers = fx.player[pid].name;
@@ -1039,7 +1051,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         attacker &= 0x1F;
         target &= 0x1F;
         if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
-            return false;
+            throw ServerDataError();
 
         const bool attacker_team = attacker / TSIZE;
         const bool target_team = target / TSIZE;
@@ -1072,7 +1084,8 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool wild_flag = pid & 0x80;
         pid &= ~0x80;
         if (pid >= maxplayers)
-            return false;
+            throw ServerDataError();
+
         fx.player[pid].stats().add_flag_take(time, wild_flag ? Statistics::flagWild : Statistics::flagEnemy);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_take();
@@ -1091,7 +1104,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool wild_flag = pid & 0x80;
         pid &= ~0x80;
         if (pid >= maxplayers)
-            return false;
+            throw ServerDataError();
         fx.player[pid].stats().add_flag_drop(time);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_drop();
@@ -1105,7 +1118,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool spree_ended = fx.player[pid].stats().current_cons_kills() >= 10;
         pid &= ~0xC0;
         if (pid >= maxplayers)
-            return false;
+            throw ServerDataError();
         const int team = pid / TSIZE;
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
         fx.player[pid].dead = true;
@@ -1120,7 +1133,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; case data_players_present: {       // this is only sent immediately after connecting to the server
         #ifndef DEDICATED_SERVER_ONLY
         if (replaying && replay_version >= 1)
-            return false;                     // Invalid replay file. This message should be only in version 0.
+            throw ServerDataError();          // Invalid replay file. This message should be only in version 0.
         #endif
         const uint32_t pp = read.U32();
         for (int i = 0; i < maxplayers; ++i) {
@@ -1159,7 +1172,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
         const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
         if (rm == players_sb.end())
-            return false;
+            throw ServerDataError();
         players_sb.erase(rm);
         #endif
         nAssert(fx.player[pid].used);
@@ -1192,7 +1205,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
             #ifndef DEDICATED_SERVER_ONLY
             const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[from]);
             if (rm == players_sb.end())
-                return false;
+                throw ServerDataError();
             players_sb.erase(rm);
             players_sb.push_back(&fx.player[to]);
             #endif
@@ -1203,7 +1216,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
 
         #ifndef DEDICATED_SERVER_ONLY
         if (col1 >= PlayerBase::invalid_color)
-            return false;
+            throw ServerDataError();
         fx.player[to].set_color(col1);
         #else
         (void)col1;
@@ -1213,7 +1226,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         if (swap) {
             #ifndef DEDICATED_SERVER_ONLY
             if (col2 >= PlayerBase::invalid_color)
-                return false;
+                throw ServerDataError();
             fx.player[from].set_color(col2);
             #endif
             fx.player[from].stats().kill(static_cast<int>(time), true);
@@ -1268,7 +1281,7 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
         const bool dead = (pid & 0x20);
         pid &= 0x1F;
         if (pid >= maxplayers)
-            return false;
+            throw ServerDataError();
         Statistics& stats = fx.player[pid].stats();
         Statistics::FlagType carriedFlag;
         if (flag)
@@ -1504,18 +1517,20 @@ bool ClientBase::process_message(ConstDataBlockRef data) throw () {
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log("Unknown message code: %d, length %d", code, data.size());
-            return false;
+            throw ServerDataError();
         }
         // just ignore commands in reserved range: they're probably some extension we don't have to care about
     }
-    return true;
+ } catch (BinaryReader::ReadError) {
+     throw ServerDataError();
+ }
 }
 
 void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
     (void)(attacker && target && cause && carrier_defended && flag_defended && flag && wild_flag && spree_ended && spree_started);
 }
 
-void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
+void ClientBase::process_incoming_data(ConstDataBlockRef data) throw (ServerDataError) {
     Lock ml(frameMutex);
 
     if (!connected && !replaying) // means that the connection notification is still in the thread message queue
@@ -1526,22 +1541,24 @@ void ClientBase::process_incoming_data(ConstDataBlockRef data) throw () {
     if (replaying)
         process_replay_packet(data);
     else {
-        if (!process_live_frame_data(data)) {
-            nAssert(!botmode);
-            addThreadMessage(new TM_DoDisconnect());
-            return;
-        }
+        process_live_frame_data(data);
         for (;;) {
             const ConstDataBlockRef message = client->receive_message();
             if (!message.data())
                 break;
-            if (!process_message(message)) {
-                nAssert(!botmode);
-                log.error(_("Format error in data received from the server."));
-                addThreadMessage(new TM_DoDisconnect());
-                return;
-            }
+            process_message(message);
         }
+    }
+}
+
+void ClientBase::process_server_data(ConstDataBlockRef data) throw () {
+    try {
+        process_incoming_data(data);
+    } catch (ServerDataError) {
+        nAssert(!botmode);
+        log.error(_("Format error in data received from the server."));
+        addThreadMessage(new TM_DoDisconnect());
+        return;
     }
 }
 
@@ -1601,5 +1618,5 @@ void ClientBase::connection_update(int connect_result, ConstDataBlockRef data) t
 
 void ClientBase::cfunc_server_data(void* customp, ConstDataBlockRef data) throw () {
     ClientBase* cl = static_cast<ClientBase*>(customp);
-    cl->process_incoming_data(data);
+    cl->process_server_data(data);
 }

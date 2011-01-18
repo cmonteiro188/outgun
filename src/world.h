@@ -2,7 +2,7 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -31,12 +31,10 @@
 #include <string>
 #include <algorithm>
 
+#include "binaryaccess.h"
 #include "commont.h"
 #include "nassert.h"
 #include "utility.h"
-
-class BinaryReader;
-class BinaryWriter;
 
 static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
@@ -253,11 +251,13 @@ public:
     bool asymmetric;
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
-    bool highlight;     // for the map list in the client
+    int preference;     // for the map list in the client
+    uint16_t infoHash; // taking into account only the static information that is shown in the client
 
     MapInfo() throw ();
     bool load(LogSet& log, const std::string& mapName) throw ();
     void update(const Map& map) throw ();
+    void updateInfoHash() throw ();
     bool operator<(const MapInfo& o) const throw () { return cmp_case_ins(title, o.title); }
 };
 
@@ -493,6 +493,7 @@ public:
     int awaiting_client_readies;
     bool want_map_exit;
 
+    bool sendingQuickMapList;
     size_t current_map_list_item;
     int nextMinimapPlayer, minimapPlayersPerFrame;
 
@@ -576,7 +577,7 @@ public:
     int alpha;
 
     // for bots:
-    bool defending; // used for human players
+    bool defending, defendingAfterDeath; // used for human players
 
     // get rid of these since they are only known for the local player
     double item_power_time;
@@ -816,7 +817,7 @@ public:
 
     PhysicalSettings() throw ();
     void calc_max_run_speed() throw ();
-    void read(BinaryReader& reader) throw ();
+    void read(BinaryReader& reader) throw (BinaryReader::ReadError);
     void write(BinaryWriter& writer) const throw ();
 };
 

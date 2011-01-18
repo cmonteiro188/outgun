@@ -1,7 +1,7 @@
 /*
  *  incalleg.h
  *
- *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -20,6 +20,8 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  */
+
+// implementations in allegro_extensions.cpp
 
 #ifdef DEDICATED_SERVER_ONLY
 #define INCALLEG_H_INC // disable this entire file
@@ -41,6 +43,64 @@
 #undef max
 #endif
 
+#include "nassert.h"
+
+// genuine extensions
+
+void set_trans_mode(int alpha) throw ();
+
+int makecolBounded(int r, int g, int b) throw ();
+
+int set_gfx_mode_if_new(int depth, int card, int w, int h, int v_w, int v_h) throw ();
+
+void set_alpha_channel(BITMAP* bitmap, BITMAP* alpha) throw ();
+
+void rotate_trans_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle, int alpha) throw (); // x,y are destination coords of the sprite center
+
+void rotate_alpha_sprite(BITMAP* bmp, BITMAP* sprite, int x, int y, fixed angle) throw ();    // x,y are destination coords of the sprite center
+
+int colorTo32(int color) throw (); // convert from active color depth to 32-bit
+
+void tileBlit(BITMAP* target, int x1, int y1, int x2, int y2, BITMAP* tex) throw ();
+
+void dcircle(BITMAP* buf, int xc, int yc, double r, int col, bool inSolidMode = true) throw (); // draw a circle with floating point radius; if used outside solid_mode, make sure to set inSolidMode = false
+void dcirclefill(BITMAP* buf, int xc, int yc, double r, int col) throw (); // draw a filled circle with floating point radius
+
+class RadiusColorizer {
+public:
+    virtual ~RadiusColorizer() throw () { }
+    virtual int operator()(int r) const throw () = 0;
+};
+
+void radiusColorizedCircleFill(BITMAP* buf, int xc, int yc, double outRad, double inRad, const RadiusColorizer& col, bool inSolidMode = true) throw (); // draw a filled ring colorized based on local radius; if used outside solid_mode, make sure to set inSolidMode = false
+
+class Bitmap {
+    BITMAP* ptr;
+
+public:
+    Bitmap() throw () : ptr(0) { }
+    Bitmap(BITMAP* ptr_) throw () : ptr(ptr_) { }
+    ~Bitmap() throw () { free(); }
+
+    Bitmap(const Bitmap& o) throw () : ptr(0) { nAssert(!o.ptr); }
+    void operator=(const Bitmap& o) throw () { nAssert(!ptr); nAssert(!o.ptr); }
+
+    void free() throw () { if (ptr) { destroy_bitmap(ptr); ptr = 0; } }
+    const Bitmap& operator=(BITMAP* ptr_) throw () { nAssert(!ptr); ptr = ptr_; return *this; }
+
+    operator BITMAP*() const throw () { return ptr; }
+    BITMAP* operator->() const throw () { return ptr; }
+};
+
+class TemporaryClipRect {
+    BITMAP* b;
+    int x1, y1, x2, y2;
+
+public:
+    TemporaryClipRect(BITMAP* bitmap, int x1_, int y1_, int x2_, int y2_, bool respectOld) throw ();
+    ~TemporaryClipRect() throw ();
+};
+
 class FixedWrapper {
     fixed data;
 
@@ -52,15 +112,30 @@ public:
     operator const fixed&() const throw () { return data; }
 };
 
+// wrappers that convert std::string for Allegro
+
 inline int text_length(const FONT* f, const std::string& str) throw () {
     return text_length(f, str.c_str());
 }
+
+inline void textout_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
+    textout_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
+inline void textout_centre_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
+    textout_centre_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
+inline void textout_right_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
+    textout_right_ex(bmp, f, text.c_str(), x, y, color, bg);
+}
+
+// functions provided by later versions of Allegro but not all versions we want to support
 
 #if ALLEGRO_VERSION == 4 && ALLEGRO_SUB_VERSION == 0
 
 #include "utility.h" // for PRINTF_FORMAT
 
-// these are implemented in utility.cpp
 void textprintf_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () PRINTF_FORMAT(7, 8);
 void textprintf_centre_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () PRINTF_FORMAT(7, 8);
 void textprintf_right_ex(struct BITMAP* bmp, AL_CONST FONT *f, int x, int y, int color, int bg, AL_CONST char* format, ...) throw () PRINTF_FORMAT(7, 8);
@@ -88,24 +163,5 @@ inline void get_clip_rect(BITMAP* bitmap, int* x1, int* y1, int* x2, int* y2) th
 }
 
 #endif
-
-// simple "extensions": implemented in utility.cpp
-void set_trans_mode(int alpha) throw ();
-
-inline void textout_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
-    textout_ex(bmp, f, text.c_str(), x, y, color, bg);
-}
-
-inline void textout_centre_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
-    textout_centre_ex(bmp, f, text.c_str(), x, y, color, bg);
-}
-
-inline void textout_right_ex(BITMAP* bmp, AL_CONST FONT* f, const std::string& text, int x, int y, int color, int bg) throw () {
-    textout_right_ex(bmp, f, text.c_str(), x, y, color, bg);
-}
-
-int makecolBounded(int r, int g, int b) throw ();
-
-int set_gfx_mode_if_new(int depth, int card, int w, int h, int v_w, int v_h) throw ();
 
 #endif  // INCALLEG_H_INC

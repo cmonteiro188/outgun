@@ -44,6 +44,8 @@ using std::istream;
 using std::istringstream;
 using std::left;
 using std::list;
+using std::make_pair;
+using std::map;
 using std::max;
 using std::min;
 using std::ofstream;
@@ -392,6 +394,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     downloadMutex("GuiClient::downloadMutex"),
     rankingPassword(log, new MemFun1<GuiClient, void, string>(this, &GuiClient::CB_rankingToken), config.lowerPriority),
     mapInfoMutex("Client::mapInfoMutex"),
+    mapListReadPosition(0),
     mapListSortKey(MLSK_Number),
     mapListChangedAfterSort(false),
     current_map(-1),
@@ -535,6 +538,7 @@ bool GuiClient::start() throw () {
     cfg.close();
 
     loadQuickMessages();
+    loadMapInfoCache();
 
     fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
     ifstream fav(fileName.c_str());
@@ -813,6 +817,7 @@ void GuiClient::client_connected(ConstDataBlockRef data) throw () {   // call wi
     {
         Lock ml(mapInfoMutex);
         maps.clear();
+        mapListReadPosition = 0;
         mapListChangedAfterSort = true;
     }
 
@@ -832,8 +837,6 @@ void GuiClient::send_ranking_participation() throw () {
 }
 
 void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
-    BinaryDataBlockReader read(data);
-
     //restore window title
     extConfig.statusOutput(_("Outgun client"));
 
@@ -841,15 +844,18 @@ void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
 
     string description;
     if (data.size() == 1)
-        switch (read.U8()) {
-        /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
-            break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
-            break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
-            break; case disconnect_kick:                       description = _("You were kicked.");
-            break; case disconnect_idlekick:                   description = _("You were kicked for being idle.");
-            break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
-            break; default:;
-        }
+        try {
+            BinaryDataBlockReader read(data);
+            switch (read.U8()) {
+            /*break;*/ case server_c::disconnect_client_initiated: // user knows why, so no description
+                break; case server_c::disconnect_server_shutdown:  description = _("Server was shut down.");
+                break; case server_c::disconnect_timeout:          description = _("Connection timed out.");
+                break; case disconnect_kick:                       description = _("You were kicked.");
+                break; case disconnect_idlekick:                   description = _("You were kicked for being idle.");
+                break; case disconnect_client_misbehavior:         description = _("Internal error (client misbehaved).");
+                break; default:;
+            }
+        } catch (BinaryReader::ReadError) { nAssert(0); }
 
     m_connectProgress.clear();
     m_connectProgress.wrapLine(_("You have been disconnected."));
@@ -873,52 +879,58 @@ void GuiClient::client_disconnected(ConstDataBlockRef data) throw () {
 void GuiClient::connect_failed_denied(ConstDataBlockRef data) throw () {
     string message;
     bool userHandled = false;
-    if (data.size() > 1) {
-        BinaryDataBlockReader read(data);
-        message = read.str();
-        const string str1 = "Protocol mismatch: server: ";
-        const string str2 = ", client: " + GAME_PROTOCOL;
-        const string::size_type str2pos = message.length() - str2.length();
-        if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
-            const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
-            message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
+    try {
+        if (data.size() > 1) {
+            BinaryDataBlockReader read(data);
+            message = read.str();
+            const string str1 = "Protocol mismatch: server: ";
+            const string str2 = ", client: " + GAME_PROTOCOL;
+            const string::size_type str2pos = message.length() - str2.length();
+            if (message.compare(0, str1.length(), str1) == 0 && str2pos > 0 && message.compare(str2pos, str2.length(), str2) == 0) {
+                const string serverProtocol = message.substr(str1.length(), str2pos - str1.length());
+                message = _("Protocol mismatch. Server: $1, client: $2.", serverProtocol, GAME_PROTOCOL);
+            }
+            // otherwise leave message at its value of whatever the server sent
         }
-        // otherwise leave message at its value of whatever the server sent
-    }
-    else if (data.size() == 1) {
-        BinaryDataBlockReader read(data);
-        const uint8_t rb = read.U8();
-        if (rb > reject_last)
-            message = _("Unknown reason code ($1).", itoa(rb));
-        else {
-            switch (static_cast<Connect_rejection_reason>(rb)) {
-            /*break;*/ case reject_server_full:
-                    message = _("The server is full.");
-                break; case reject_banned:
-                    message = _("You are banned from this server.");
-                break; case reject_player_password_needed:
-                    openMenus.close(&m_connectProgress.menu);
-                    m_playerPassword.setup(playername, false);
-                    showMenu(m_playerPassword);
-                    userHandled = true;
-                    message = "Asking for player password."; // just for logging
-                break; case reject_wrong_player_password:
-                    message = _("Wrong player password.");
-                    remove_player_password(playername, serverIP.toString());
-                break; case reject_server_password_needed:
-                    openMenus.close(&m_connectProgress.menu);
-                    showMenu(m_serverPassword);
-                    userHandled = true;
-                    message = "Asking for server password."; // just for logging
-                break; case reject_wrong_server_password:
-                    message = _("Wrong server password.");
-                    m_serverPassword.password.set("");
-                break; default: nAssert(0);
+        else if (data.size() == 1) {
+            BinaryDataBlockReader read(data);
+            const uint8_t rb = read.U8();
+            if (rb > reject_last)
+                message = _("Unknown reason code ($1).", itoa(rb));
+            else {
+                switch (static_cast<Connect_rejection_reason>(rb)) {
+                /*break;*/ case reject_server_full:
+                        message = _("The server is full.");
+                    break; case reject_banned:
+                        message = _("You are banned from this server.");
+                    break; case reject_player_password_needed:
+                        openMenus.close(&m_connectProgress.menu);
+                        m_playerPassword.setup(playername, false);
+                        showMenu(m_playerPassword);
+                        userHandled = true;
+                        message = "Asking for player password."; // just for logging
+                    break; case reject_wrong_player_password:
+                        message = _("Wrong player password.");
+                        remove_player_password(playername, serverIP.toString());
+                    break; case reject_server_password_needed:
+                        openMenus.close(&m_connectProgress.menu);
+                        showMenu(m_serverPassword);
+                        userHandled = true;
+                        message = "Asking for server password."; // just for logging
+                    break; case reject_wrong_server_password:
+                        message = _("Wrong server password.");
+                        m_serverPassword.password.set("");
+                    break; default: nAssert(0);
+                }
             }
         }
+        else
+            message = _("No reason given.");
+    } catch (BinaryReader::ReadError) {
+        log("Format error in connection denial data.");
+        message.clear();
+        userHandled = false;
     }
-    else
-        message = _("No reason given.");
 
     log("Connecting failed: %s", message.c_str());
 
@@ -1190,7 +1202,7 @@ void GuiClient::refreshGunDir() throw () {
     }
 }
 
-int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw (BinaryReader::ReadError) { // returns number of bytes read - not necessarily all of data
     if (replay_version == 0)
         return process_replay_frame_data_version_0(data);
 
@@ -1278,7 +1290,7 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw () { // r
     return read.getPosition();
 }
 
-int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw () { // returns number of bytes read - not necessarily all of data
+int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw (BinaryReader::ReadError) { // returns number of bytes read - not necessarily all of data
     BinaryDataBlockReader read(data);
 
     const uint32_t svframe = read.U32(static_cast<unsigned>(fx.frame) + 1, uint32_t(-1));    //server's frame
@@ -1327,7 +1339,8 @@ int GuiClient::process_replay_frame_data_version_0(ConstDataBlockRef data) throw
     return read.getPosition();
 }
 
-void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
+void GuiClient::read_replay_controls(ConstDataBlockRef data) throw (ServerDataError) {
+ try {
     BinaryDataBlockReader read(data);
 
     if (replay_version == 0) {
@@ -1390,9 +1403,12 @@ void GuiClient::read_replay_controls(ConstDataBlockRef data) throw () {
                 read.U8();
         }
     }
+ } catch (BinaryReader::ReadError) {
+    throw ServerDataError();
+ }
 }
 
-void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw () {
+void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw (BinaryReader::ReadError) {
     const uint8_t controlByte = read.U8();
     player.controls.fromNetwork(controlByte, true);
 
@@ -1402,7 +1418,7 @@ void GuiClient::read_replay_player_controls(BinaryDataBlockReader& read, ClientP
         player.gundir.fromNetworkShortForm(controlByte >> 5);
 }
 
-void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw () {
+void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer* player) throw (BinaryReader::ReadError) {
     const uint8_t roomx = read.U8();
     const uint8_t roomy = read.U8();
     double lx, ly, sx, sy;
@@ -1425,11 +1441,11 @@ void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientP
     }
 }
 
-void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw () {
+void GuiClient::read_replay_player_position(BinaryDataBlockReader& read, ClientPlayer& player) throw (BinaryReader::ReadError) {
     read_replay_player_position(read, &player);
 }
 
-void GuiClient::skip_replay_player_position(BinaryDataBlockReader& read) throw () {
+void GuiClient::skip_replay_player_position(BinaryDataBlockReader& read) throw (BinaryReader::ReadError) {
     read_replay_player_position(read, 0);
 }
 
@@ -1450,7 +1466,7 @@ void GuiClient::netPowerCollision(int target, double time) throw () {
         addThreadMessage(new TM_Sound(client_sounds.sampleExists(SAMPLE_COLLISION_DAMAGE) ? SAMPLE_COLLISION_DAMAGE : SAMPLE_HIT));
 }
 
-void GuiClient::net_data_sound(BinaryReader& read) throw () {
+void GuiClient::net_data_sound(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t sample = read.U8();
     if (replaying && read.hasMore()) {
         const uint8_t rx = read.U8(0, fx.map.w - 1), ry = read.U8(0, fx.map.h - 1);
@@ -1461,14 +1477,61 @@ void GuiClient::net_data_sound(BinaryReader& read) throw () {
         addThreadMessage(new TM_Sound(sample));
 }
 
-void GuiClient::net_data_registration_response(BinaryReader& read) throw () {
+void GuiClient::net_data_registration_response(BinaryReader& read) throw (BinaryReader::ReadError) {
     if (read.U8() == 1)  // success
         rankingPassword.serverAcceptsToken();
     else
         rankingPassword.serverRejectsToken();
 }
 
-void GuiClient::net_data_map_list(BinaryReader& read) throw () {
+void GuiClient::net_data_quick_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
+    Lock ml(mapInfoMutex);
+    while (read.hasMore()) {
+        const uint16_t hash = read.U16();
+        if (hash & 0x8000) {
+            MapInfo mi;
+            mi.title = "<Random>";
+            mi.author = "Outgun";
+            mi.width = (hash & 0x7F00) >> 8;
+            mi.height = hash & 0xFF;
+            mi.votes = 0;
+            mi.random = true;
+            updateMapPreference(mi);
+            maps.push_back(mi);
+        }
+        else {
+            const MapInfoCache::const_iterator ci = mapInfoCache.find(hash);
+            if (ci != mapInfoCache.end()) {
+                MapInfo mi = ci->second;
+                nAssert(mi.infoHash == hash);
+                updateMapPreference(mi);
+                maps.push_back(mi);
+            }
+            else {
+                MapInfo mi;
+                mi.title = '?';
+                mi.author = '?';
+                mi.width = mi.height = 0;
+                mi.votes = 0;
+                mi.random = false;
+                mi.preference = 0;
+                maps.push_back(mi);
+            }
+        }
+        mapListChangedAfterSort = true;
+    }
+    mapListReadPosition = 0;
+}
+
+void GuiClient::updateMapPreference(MapInfo& mi) const throw () {
+    const map<string, int>::const_iterator fmi = fav_maps.find(toupper(mi.title));
+    if (fmi != fav_maps.end())
+        mi.preference = fmi->second;
+    else
+        mi.preference = menu.options.graphics.highlightUnknownMaps() ? +1 : 0;
+}
+
+void GuiClient::net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     MapInfo mapinfo;
     mapinfo.title = read.str();
     mapinfo.author = read.str();
@@ -1476,13 +1539,22 @@ void GuiClient::net_data_map_list(BinaryReader& read) throw () {
     mapinfo.height = read.U8();
     mapinfo.votes = read.U8();
     mapinfo.random = read.hasMore() ? read.U8() : false;
-    mapinfo.highlight = !!fav_maps.count(toupper(mapinfo.title));
+    updateMapPreference(mapinfo);
+    mapinfo.updateInfoHash();
+
     Lock ml(mapInfoMutex);
-    maps.push_back(mapinfo);
+    if (!mapinfo.random)
+        mapInfoCache[mapinfo.infoHash] = mapinfo;
+    nAssert(mapListReadPosition <= maps.size());
+    if (mapListReadPosition >= maps.size())
+        maps.push_back(mapinfo);
+    else
+        maps[mapListReadPosition] = mapinfo;
+    ++mapListReadPosition;
     mapListChangedAfterSort = true;
 }
 
-void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
+void GuiClient::net_data_crap_update(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t pid = read.U8();
     fx.player[pid].set_color(read.U8(0, PlayerBase::invalid_color - 1));
     ClientLoginStatus ls;
@@ -1538,19 +1610,20 @@ void GuiClient::net_data_crap_update(BinaryReader& read) throw () {
         fx.teams[t].set_power(power[t]);
 }
 
-void GuiClient::net_data_reset_map_list(BinaryReader& read) throw () {
+void GuiClient::net_data_reset_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     (void)read;
     Lock ml(mapInfoMutex);
     maps.clear();
+    mapListReadPosition = 0;
     mapListChangedAfterSort = true;
     map_vote = -1;
 }
 
-void GuiClient::net_data_map_vote(BinaryReader& read) throw () {
+void GuiClient::net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError) {
     map_vote = read.S8();
 }
 
-void GuiClient::net_data_map_votes_update(BinaryReader& read) throw () {
+void GuiClient::net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError) {
     const uint8_t total = read.U8();
     Lock ml(mapInfoMutex);
     for (int i = 0; i < total; i++) {
@@ -1851,17 +1924,17 @@ void GuiClient::netTeamChange(int pl1, int pl2) throw () {
     addThreadMessage(new TM_Sound(SAMPLE_CHANGETEAM));
 }
 
-void GuiClient::process_replay_packet(ConstDataBlockRef data) throw () {
-    const int frameSize = process_replay_frame_data(data);
-    BinaryDataBlockReader read(data);
-    read.block(frameSize);
-    while (read.hasMore()) {
-        const uint32_t size = replay_version == 0 ? read.U32() : read.U32dyn8();
-        if (!process_message(read.block(size))) {
-            log.error(_("Format error in replay file."));
-            stop_replay();
-            return;
+void GuiClient::process_replay_packet(ConstDataBlockRef data) throw (ServerDataError) {
+    try {
+        const int frameSize = process_replay_frame_data(data);
+        BinaryDataBlockReader read(data);
+        read.block(frameSize);
+        while (read.hasMore()) {
+            const uint32_t size = replay_version == 0 ? read.U32() : read.U32dyn8();
+            process_message(read.block(size));
         }
+    } catch (BinaryReader::ReadError) {
+        throw ServerDataError();
     }
 }
 
@@ -2052,32 +2125,34 @@ bool GuiClient::refresh_all_servers() throw () {
                 if (result.length < 10)
                     continue;
 
-                BinaryDataBlockReader msg(buffer, result.length);
+                try {
+                    BinaryDataBlockReader msg(buffer, result.length);
 
-                const uint32_t dw1 = msg.U32(), dw2 = msg.U32();
-                if (dw1 != 0 || dw2 != 200)
-                    continue;
+                    const uint32_t dw1 = msg.U32(), dw2 = msg.U32();
+                    if (dw1 != 0 || dw2 != 200)
+                        continue;
 
-                const uint8_t index = msg.U8(); // entry number echoed by the server
-                const uint8_t pack = msg.U8();  // packet #
+                    const uint8_t index = msg.U8(); // entry number echoed by the server
+                    const uint8_t pack = msg.U8();  // packet #
 
-                if (index >= nServers || pack >= 4 || pack > round)  // don't have to worry about < 0 because they're unsigned
-                    continue;
+                    if (index >= nServers || pack >= 4 || pack > round)  // don't have to worry about < 0 because they're unsigned
+                        continue;
 
-                Lock ml(serverListMutex);
+                    Lock ml(serverListMutex);
 
-                if (result.source != servers[index]->address())
-                    continue;
+                    if (result.source != servers[index]->address())
+                        continue;
 
-                servers[index]->info = msg.str();
+                    servers[index]->info = msg.str();
 
-                if (tempd[index].received() == 0)   // first reply -> server has changed to being valid
-                    pending--;
+                    if (tempd[index].received() == 0)   // first reply -> server has changed to being valid
+                        pending--;
 
-                tempd[index].receive(pack);
-                servers[index]->ping = tempd[index].ping();
+                    tempd[index].receive(pack);
+                    servers[index]->ping = tempd[index].ping();
 
-                servers[index]->noresponse = false;  // set here in advance so that the main thread will already show it
+                    servers[index]->noresponse = false;  // set here in advance so that the main thread will already show it
+                } catch (BinaryReader::ReadError) { }
             }
         }
     }
@@ -2157,9 +2232,13 @@ bool GuiClient::get_local_servers() throw () {
 
             log("Response from %s: '%s'", result.source.toString().c_str(), formatForLogging(buffer).c_str());
 
-            BinaryDataBlockReader read(buffer, result.length);
-            if (read.str() != broadcast_string)
-                continue;   // Not an Outgun server.
+            try {
+                BinaryDataBlockReader read(buffer, result.length);
+                if (read.str() != broadcast_string)
+                    continue;   // Not an Outgun server.
+            } catch (BinaryReader::ReadError) {
+                continue;
+            }
 
             ServerListEntry spy;
             spy.setAddress(result.source);
@@ -2465,7 +2544,7 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
     /*break;*/ case KEY_MINUS_PAD:
         if (!replaying && !withControl)
             break;
-        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || menu.options.graphics.repeatMap() && visible_rooms < 100) {
+        if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || (repeatMapX() || repeatMapY()) && visible_rooms < 100) {
             if (replaying) {
                 ++visible_rooms;
                 if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
@@ -2915,35 +2994,40 @@ void GuiClient::start_replay(const std::string& filename) throw () {
 }
 
 bool GuiClient::start_replay(istream& replay) throw () {
-    BinaryStreamReader read(replay);
+    try {
+        BinaryStreamReader read(replay);
 
-    const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
-    log("Replay identification: %s", identification.c_str());
-    if (identification != REPLAY_IDENTIFICATION) {
-        log.error(_("This is not an Outgun replay."));
+        const string identification = read.constLengthStr(REPLAY_IDENTIFICATION.length());
+        log("Replay identification: %s", identification.c_str());
+        if (identification != REPLAY_IDENTIFICATION) {
+            log.error(_("This is not an Outgun replay."));
+            return false;
+        }
+
+        replay_version = read.U32();
+        log("Replay version: %u", replay_version);
+        if (replay_version > REPLAY_VERSION) {   // incompatible replay
+            log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
+            return false;
+        }
+
+        replay_length = read.U32();
+        replay_first_frame_loaded = false;
+
+        hostname = read.str();
+        string caption;
+        if (spectating)
+            caption = _("Spectating on $1", hostname.substr(0, 32));
+        else
+            caption = _("Replay on $1", hostname.substr(0, 32));
+        extConfig.statusOutput(caption);
+
+        setMaxPlayers(read.U32());
+        read.str(); // ignore map name
+    } catch (BinaryReader::ReadError) {
+        log.error(_("Format error in replay file."));
         return false;
     }
-
-    replay_version = read.U32();
-    log("Replay version: %u", replay_version);
-    if (replay_version > REPLAY_VERSION) {   // incompatible replay
-        log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
-        return false;
-    }
-
-    replay_length = read.U32();
-    replay_first_frame_loaded = false;
-
-    hostname = read.str();
-    string caption;
-    if (spectating)
-        caption = _("Spectating on $1", hostname.substr(0, 32));
-    else
-        caption = _("Replay on $1", hostname.substr(0, 32));
-    extConfig.statusOutput(caption);
-
-    setMaxPlayers(read.U32());
-    read.str(); // ignore map name
 
     replaying = true;
     replay_rate = 1;
@@ -3040,6 +3124,9 @@ void GuiClient::continue_replay(istream& in, bool controls) throw () {
             replay_stopped = true;
         else if (replay_rate > 1)
             replay_rate = 1;
+    } catch (ServerDataError) {
+        log.error(_("Format error in replay file."));
+        stop_replay();
     }
 }
 
@@ -3207,6 +3294,7 @@ void GuiClient::stop() throw () {
     }
 
     saveQuickMessages();
+    saveMapInfoCache();
 
     //save client's password
     log("Saving password file...");
@@ -3290,6 +3378,22 @@ const WorldCoords& GuiClient::playerPos(int pid) const throw () {
     return world.player[pid].pos;
 }
 
+bool GuiClient::repeatMapX() const throw () {
+    if (!menu.options.graphics.repeatMap())
+        return false;
+    if (menu.options.graphics.viewOverMapBorder() == Menu_graphics::VOB_Always)
+        return true;
+    return mapWrapsX;
+}
+
+bool GuiClient::repeatMapY() const throw () {
+    if (!menu.options.graphics.repeatMap())
+        return false;
+    if (menu.options.graphics.viewOverMapBorder() == Menu_graphics::VOB_Always)
+        return true;
+    return mapWrapsY;
+}
+
 static double getViewStartCoord(int myRoom, double myLocal, int roomSize, int mapSize, bool mapWraps, double visibleRooms, Menu_graphics::ViewOverBorderMode view, bool scroll) throw () {
     double coordBase = 0;
     if (visibleRooms >= mapSize) {
@@ -3322,10 +3426,9 @@ WorldCoords GuiClient::viewTopLeft() const throw () {
     else {
         const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
         const bool scroll = menu.options.graphics.scroll();
-        const bool repeat = menu.options.graphics.repeatMap();
         const double xVis = graphics.get_visible_rooms_x(), yVis = graphics.get_visible_rooms_y();
-        const double x = getViewStartCoord(fd.player[me].room().x, fd.player[me].pos.x, plw, fx.map.w, mapWrapsX, repeat ? xVis : min<double>(fx.map.w, xVis), view, scroll);
-        const double y = getViewStartCoord(fd.player[me].room().y, fd.player[me].pos.y, plh, fx.map.h, mapWrapsY, repeat ? yVis : min<double>(fx.map.h, yVis), view, scroll);
+        const double x = getViewStartCoord(fd.player[me].room().x, fd.player[me].pos.x, plw, fx.map.w, mapWrapsX, repeatMapX() ? xVis : min<double>(fx.map.w, xVis), view, scroll);
+        const double y = getViewStartCoord(fd.player[me].room().y, fd.player[me].pos.y, plh, fx.map.h, mapWrapsY, repeatMapY() ? yVis : min<double>(fx.map.h, yVis), view, scroll);
         const pair<int, double> xp = splitCompositeCoord(x, plw, fx.map.w), yp = splitCompositeCoord(y, plh, fx.map.h);
         return WorldCoords(xp.first, yp.first, xp.second, yp.second);
     }
@@ -3371,7 +3474,7 @@ void GuiClient::draw_game_frame() throw () {    // call with frameMutex locked
         ++benchmarkRuns;
         #endif
         const VisibilityMap roomVis = calculateVisibilities();
-        graphics.setRoomLayout(fx.map, visible_rooms, menu.options.graphics.repeatMap());
+        graphics.setRoomLayout(fx.map, visible_rooms, repeatMapX(), repeatMapY());
         graphics.draw_background(fx.map,
                                  roomVis,
                                  viewTopLeft(),
@@ -3834,9 +3937,10 @@ bool MapListSorter::operator()(const pair<const MapInfo*, int>& m1, const pair<c
             return m1s < m2s || m1s == m2s && m1mi.width < m2mi.width;
         }
         break; case MLSK_Author:   return cmp_case_ins(m1mi.author, m2mi.author);
-        break; case MLSK_Favorite: return m1mi.highlight && !m2mi.highlight; // highlighted first
+        break; case MLSK_Favorite: return m1mi.preference > m2mi.preference;
         break; default: nAssert(0);
     }
+    return false;
 }
 
 //draws the game menu
@@ -4190,7 +4294,7 @@ bool GuiClient::screenModeChange() throw () {   // returns true whenever Graphic
 void GuiClient::MCF_visibleRoomsPlayChange() throw () {
     if (!replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsPlay();
-        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !repeatMapX() && !repeatMapY())
             visible_rooms = max(fx.map.w, fx.map.h);
     }
 }
@@ -4198,7 +4302,7 @@ void GuiClient::MCF_visibleRoomsPlayChange() throw () {
 void GuiClient::MCF_visibleRoomsReplayChange() throw () {
     if (replaying) {
         visible_rooms = menu.options.graphics.visibleRoomsReplay();
-        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !menu.options.graphics.repeatMap())
+        if (visible_rooms > fx.map.w && visible_rooms > fx.map.h && !repeatMapX() && !repeatMapY())
             visible_rooms = max(fx.map.w, fx.map.h);
     }
 }
@@ -4569,8 +4673,10 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         return ReplayCache();
     BinaryStreamReader read(in);
     try {
-        if (read.U32() != replayCacheVersionIdentifier)
+        if (read.U32() != replayCacheVersionIdentifier) {
+            log("Replay cache version mismatch. Contents ignored and will be overwritten.");
             return ReplayCache();
+        }
         ReplayCache cache;
         while (read.hasMore()) {
             const string fileName = read.str();
@@ -4579,6 +4685,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         }
         return cache;
     } catch (BinaryReader::ReadOutside) {
+        log("Replay cache file corrupt. Contents ignored and will be overwritten.");
         return ReplayCache();
     }
 }
@@ -4674,8 +4781,16 @@ void GuiClient::load_fav_maps() throw () {
     const string configFile = wheregamedir + "config" + directory_separator + "maps.txt";
     ifstream in(configFile.c_str());
     string line;
-    while (getline_skip_comments(in, line))
-        fav_maps.insert(toupper(trim(line)));
+    while (getline_skip_comments(in, line)) {
+        if (line[0] == '-')
+            fav_maps[toupper(trim(line.substr(1)))] = -1;
+        else if (line[0] == '+')
+            fav_maps[toupper(trim(line.substr(1)))] = +1;
+        else if (line[0] == '0' && (line[1] == ' ' || line[1] == '\t'))
+            fav_maps[toupper(trim(line.substr(2)))] =  0;
+        else
+            fav_maps[toupper(trim(line          ))] = +1;
+    }
 }
 
 void GuiClient::loadQuickMessages() throw () {
@@ -4694,9 +4809,63 @@ void GuiClient::saveQuickMessages() const throw () {
         out << (*field)() + " " << '\n'; // Save at least one space so that the line is not skipped when loading.
 }
 
+std::string GuiClient::mapInfoCacheFile() const throw () {
+    return wheregamedir + "config" + directory_separator + "mapinfocache.bin";
+}
+
+void GuiClient::loadMapInfoCache() throw () {
+    mapInfoCache.clear();
+    ifstream in(mapInfoCacheFile().c_str(), ios::binary);
+    if (!in)
+        return;
+    BinaryStreamReader read(in);
+    try {
+        if (read.U32() != mapInfoCacheVersionIdentifier) {
+            log("Map info cache version mismatch. Contents ignored and will be overwritten.");
+            return;
+        }
+        while (read.hasMore()) {
+            MapInfo mi;
+            mi.infoHash = read.U16();
+            mi.title = read.str();
+            mi.author = read.str();
+            mi.width = read.U32dyn8();
+            mi.height = read.U32dyn8();
+            mi.votes = 0;
+            mi.random = false;
+            mapInfoCache.insert(mapInfoCache.end(), make_pair(mi.infoHash, mi));
+        }
+    } catch (BinaryReader::ReadOutside) {
+        log("Map info cache file corrupt. Contents ignored and will be overwritten.");
+        mapInfoCache.clear();
+    }
+}
+
+void GuiClient::saveMapInfoCache() const throw () {
+    ofstream out(mapInfoCacheFile().c_str(), ios::binary);
+    if (!out) {
+        log("Can't write to %s", mapInfoCacheFile().c_str());
+        return;
+    }
+    ExpandingBinaryBuffer write;
+    write.U32(mapInfoCacheVersionIdentifier);
+    for (MapInfoCache::const_iterator ii = mapInfoCache.begin(); ii != mapInfoCache.end(); ++ii) {
+        const MapInfo& mi = ii->second;
+        nAssert(mi.infoHash == ii->first);
+        write.U16(mi.infoHash);
+        write.str(mi.title);
+        write.str(mi.author);
+        write.U32dyn8(mi.width);
+        write.U32dyn8(mi.height);
+        nAssert(!mi.random);
+        out << write;
+        write.clear();
+    }
+}
+
 void GuiClient::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
-        mi->highlight = !!fav_maps.count(toupper(mi->title));
+        updateMapPreference(*mi);
     mapListChangedAfterSort = true;
 }
 

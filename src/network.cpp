@@ -760,6 +760,6 @@ string base64_encode(const string& data) throw () {
     return result;
 }
 
-uint16_t CRC16(const void* buf, unsigned size) throw () { // from utility.h
-    return nlGetCRC16(const_cast<NLubyte*>(static_cast<const NLubyte*>(buf)), size);
+uint16_t CRC16(ConstDataBlockRef data) throw () { // from utility.h
+    return nlGetCRC16(const_cast<NLubyte*>(static_cast<const NLubyte*>(data.data())), data.size());
 }

@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -819,8 +819,10 @@ bool Server::reset_settings(bool reload) throw () {  // set reload if reset_sett
     if (reload) {   // preserve selected map and restore map votes where possible
         network.broadcast_reset_map_list(); // must be before new votes are sent (right below)
         for (int i = 0; i < maxplayers; i++)
-            if (world.player[i].used)
+            if (world.player[i].used) {
                 world.player[i].current_map_list_item = 0;
+                world.player[i].sendingQuickMapList = true;
+            }
 
         currmap = -1;   // flag so we know if it has changed or not
         for (int mapi = 0; mapi < (int)maprot.size(); ++mapi) {
@@ -902,26 +904,40 @@ void Server::init_bots() throw () {
 
 string Server::create_bot_name() throw () {
     const string bot_prefix = "BOT ";
+
+    // Try to avoid same names.
+    std::set<string> black_list = reservedBotNames;
+    for (int i = 0; i < MAX_PLAYERS; i++)
+        if (world.player[i].used && world.player[i].is_bot()) {
+            const string& bot_name = world.player[i].name;
+            if (bot_name.substr(0, bot_prefix.length()) == bot_prefix)
+                black_list.insert(bot_name.substr(bot_prefix.length()));
+        }
+
     string name;
     string file = settings.get_bot_name_file();
     if (!file.empty()) {
         // Put the game dir before a relative path (that has no '/' or '\' at the beginning and no Windows drive separator)
         if (file[0] != directory_separator && file.find(':') == string::npos)
             file = wheregamedir + "config" + directory_separator + file;
-        const string loaded_name = random_line(file);
-        if (loaded_name.empty())
-            log.error(_("File '$1' contains no bot names.", file));
+        const string loaded_name = random_line(file, black_list);
+        if (loaded_name.empty()) {
+            if (random_line(file).empty())
+                log.error(_("File '$1' contains no bot names.", file));
+        }
         else if (!check_name(loaded_name))
             log.error(_("File '$1' contains invalid name for bot: $2", file, loaded_name));
         else
             name = loaded_name;
     }
-    if (name.empty()) {
-        if (settings.get_bot_name_lang() == "fi")
-            name = finnish_name(maxPlayerNameLength - bot_prefix.length());
-        else
-            name = RandomName();
-    }
+    if (name.empty())
+        do {
+            if (settings.get_bot_name_lang() == "fi")
+                name = finnish_name(maxPlayerNameLength - bot_prefix.length());
+            else
+                name = RandomName();
+        } while (black_list.count(name));
+    reservedBotNames.insert(name);
     name = bot_prefix + name;
     return trim(name.substr(0, maxPlayerNameLength));
 }
@@ -1076,6 +1092,11 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     }
     else {
         if (authorizations.checkNamePassword(name, password)) {
+            if (world.player[pid].is_bot()) {
+                const string bot_prefix = "BOT ";
+                if (name.substr(0, bot_prefix.length()) == bot_prefix)
+                    reservedBotNames.erase(name.substr(bot_prefix.length()));
+            }
             world.player[pid].name = name;
             world.player[pid].waitnametime = get_time() + 1.0;
         }

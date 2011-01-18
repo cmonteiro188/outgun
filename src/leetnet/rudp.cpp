@@ -363,6 +363,7 @@ DLOG_Scope s("UPIP");
         // int8_t[unreliable data size]     all the unreliable data glued in a big chunk
         //
 
+     try {
         BinaryDataBlockReader read(udp_data, udp_size);
 
         const uint32_t packet_id = read.U32();
@@ -456,6 +457,11 @@ DLOG_Scope s("UPIP");
         (*size) = unreliable_size;
         (*special) = false;
         return unreliable;
+     } catch (BinaryReader::ReadError) {
+        *size = 0;
+        *special = false;
+        return udp_data;
+     }
     }
 
     // append reliable message to the packet buffer

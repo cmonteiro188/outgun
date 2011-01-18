@@ -34,8 +34,9 @@
 
 class BinaryReader {
 public:
-    class ReadOutside { };
-    class DataOutOfRange { };
+    class ReadError { };
+    class ReadOutside : public ReadError { };
+    class DataOutOfRange : public ReadError { };
 
     virtual ~BinaryReader() throw () { }
 
