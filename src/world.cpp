@@ -830,6 +830,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     oldfrags = -666;
     want_map_exit = false;      //by default don't want change maps
     mapVote = -1;
+    negativeMapVotes.clear();
     idleFrames = 0;
     kickTimer = 0;
     muted = 0;

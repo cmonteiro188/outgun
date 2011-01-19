@@ -413,6 +413,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void send_ranking_participation() throw ();
     void sendFavoriteColors() throw ();
     void sendMinimapBandwidth() throw ();
+    void sendNegativeVotes() throw ();
 
     void change_name_command() throw ();
 

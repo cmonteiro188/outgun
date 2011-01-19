@@ -254,6 +254,7 @@ Menu_game::Menu_game() throw () :
 
     showServerInfo      (_("Show server info when connected"), false),
     stayDead            (_("Stay dead when in a menu at round start"), true),
+    skipMaps            (_("Skip maps in rotation")),
     underlineMasterAuth (_("Underline master-authenticated players"), true),
     underlineServerAuth (_("Underline server-authenticated players"), false),
 
@@ -267,6 +268,10 @@ Menu_game::Menu_game() throw () :
     showStats.addOption(_("off"), SS_none);
     showStats.addOption(_("teams"), SS_teams);
     showStats.addOption(_("players"), SS_players);
+    skipMaps.addOption(_("none"), SM_none);
+    skipMaps.addOption(_("dimmed"), SM_dimmed);
+    skipMaps.addOption(_("all but highlighted"), SM_nonHighlighted);
+    skipMaps.set(SM_dimmed);
 }
 
 void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCollector& collector) throw () {
@@ -286,6 +291,7 @@ void Menu_game::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingCol
     add.space();
     add(&showServerInfo,         CCS_ShowServerInfo);
     add(&stayDead,               CCS_StayDeadInMenus);
+    add(&skipMaps,               CCS_SkipMaps);
     add(&underlineMasterAuth,    CCS_UnderlineMasterAuth);
     add(&underlineServerAuth,    CCS_UnderlineServerAuth);
     add.space();

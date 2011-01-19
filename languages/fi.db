@@ -448,6 +448,7 @@ Shutdown: relay thread##Sammutus: välipalvelinsäie
 Shutdown: waiting for $1 ranking updates##Sammutus: odotan $1 turnauspäivitystä
 Shutdown: website thread##Sammutus: WWW-säie
 Size##Koko
+Skip maps in rotation##Kierrossa ohitettavat kartat
 Slovakia##Slovakia
 Socket error##Socket-virhe
 Sort order (space to cycle): $1##Järjestys (välilyönti vaihtaa): $1
@@ -551,6 +552,7 @@ a real number, at most $1##reaaliluku, enintään $1
 a real number, between $1 and $2, inclusive##reaaliluku $1 - $2
 administrator##ylläpitäjä
 aim (up = forward)##tähtäyksen mukaan (ylös = eteenpäin)
+all but highlighted##kaikki korostamattomat
 all messages##kaikki
 always##aina
 an even integer between 2 and $1##parillinen kokonaisluku 2 - $1
@@ -567,6 +569,7 @@ config/language.txt can't be written.##Tiedostoon config/language.txt ei voi kir
 day##päivä
 days##päivää
 default##oletus
+dimmed##himmennetyt
 disabled##pois päältä
 down##alas
 fade out##häivytys

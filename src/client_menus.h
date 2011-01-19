@@ -105,6 +105,7 @@ enum ClientCfgSetting {
     CCS_QuickMessagesEnabled,
     CCS_SendQuickMessageImmediately,
     CCS_HighlightUnknownMaps,
+    CCS_SkipMaps,
     CCS_EndOfCommands
 };
 
@@ -197,6 +198,11 @@ public:
         SS_teams,
         SS_players
     };
+    enum SkipMapsMode {
+        SM_none,
+        SM_dimmed,
+        SM_nonHighlighted
+    };
 
     Checkbox    lagPrediction;
     Slider      lagPredictionAmount;
@@ -209,6 +215,7 @@ public:
     Select<ShowStatsMode> showStats;
     Checkbox    showServerInfo;
     Checkbox    stayDead;
+    Select<SkipMapsMode> skipMaps;
     Checkbox    underlineMasterAuth;
     Checkbox    underlineServerAuth;
     Checkbox    autoGetServerList;

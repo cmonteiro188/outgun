@@ -249,6 +249,7 @@ public:
     float repetitive_respawn_area; // probability (0...1) for extra respawn areas
     float wild_flag;    // probability (0...1) for wild flag in addition to team flags
     bool asymmetric;
+
     int votes, sentVotes;
     uint32_t last_game;  // last game in the map (frame #)
     int preference;     // for the map list in the client
@@ -495,6 +496,7 @@ public:
     int nextMinimapPlayer, minimapPlayersPerFrame;
 
     int mapVote;
+    std::vector<bool> negativeMapVotes;
     int idleFrames;
     int kickTimer;
     int muted;  // 0 = no, 1 = yes, 2 = silently

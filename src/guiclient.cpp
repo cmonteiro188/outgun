@@ -1531,6 +1531,24 @@ void GuiClient::updateMapPreference(MapInfo& mi) const throw () {
         mi.preference = menu.options.graphics.highlightUnknownMaps() ? +1 : 0;
 }
 
+void GuiClient::sendNegativeVotes() throw () {
+    if (protocolExtensions < 1)
+        return;
+    ExpandingBinaryBuffer msg;
+    msg.U8(data_negative_map_votes);
+    if (menu.options.game.skipMaps() != Menu_game::SM_none) {
+        const int treshold = menu.options.game.skipMaps() == Menu_game::SM_dimmed ? 0 : +1;
+        Lock ml(mapInfoMutex);
+        for (vector<MapInfo>::const_iterator mi = maps.begin(); mi != maps.end(); ) {
+            uint8_t mask = 0;
+            for (int bi = 0; bi < 8 && mi != maps.end(); ++bi, ++mi)
+                mask |= (mi->preference < treshold) << bi;
+            msg.U8(mask);
+        }
+    }
+    client->send_message(msg);
+}
+
 void GuiClient::net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadError) {
     MapInfo mapinfo;
     mapinfo.title = read.str();
@@ -1542,16 +1560,22 @@ void GuiClient::net_data_map_list(BinaryReader& read) throw (BinaryReader::ReadE
     updateMapPreference(mapinfo);
     mapinfo.updateInfoHash();
 
-    Lock ml(mapInfoMutex);
-    if (!mapinfo.random)
-        mapInfoCache[mapinfo.infoHash] = mapinfo;
-    nAssert(mapListReadPosition <= maps.size());
-    if (mapListReadPosition >= maps.size())
-        maps.push_back(mapinfo);
-    else
-        maps[mapListReadPosition] = mapinfo;
-    ++mapListReadPosition;
-    mapListChangedAfterSort = true;
+    bool firstOrLast;
+    {
+        Lock ml(mapInfoMutex);
+        if (!mapinfo.random)
+            mapInfoCache[mapinfo.infoHash] = mapinfo;
+        nAssert(mapListReadPosition <= maps.size());
+        firstOrLast = mapListReadPosition == 0 || mapListReadPosition >= maps.size() - 1;
+        if (mapListReadPosition >= maps.size())
+            maps.push_back(mapinfo);
+        else
+            maps[mapListReadPosition] = mapinfo;
+        ++mapListReadPosition;
+        mapListChangedAfterSort = true;
+    }
+    if (firstOrLast)
+        sendNegativeVotes(); // send at the first map because that's when the quick map list is complete, and receiving the full list will take time
 }
 
 void GuiClient::net_data_crap_update(BinaryReader& read) throw (BinaryReader::ReadError) {
@@ -4010,6 +4034,8 @@ void GuiClient::initMenus() throw () {
     menu.options.game.minimapBandwidth  .setHook(new MCB::N<Slider,         &GuiClient::sendMinimapBandwidth       >(this));
     typedef Select<Menu_game::MessageLoggingMode> mlComponentT;
     menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &GuiClient::MCF_messageLogging         >(this));
+    typedef Select<Menu_game::SkipMapsMode> smComponentT;
+    menu.options.game.skipMaps          .setHook(new MCB::N<smComponentT,   &GuiClient::sendNegativeVotes          >(this));
 
     menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareControlsMenu    >(this));
     menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &GuiClient::MCF_keyboardLayout         >(this));
@@ -4867,6 +4893,7 @@ void GuiClient::apply_fav_maps() throw () {
     for (vector<MapInfo>::iterator mi = maps.begin(); mi != maps.end(); ++mi)
         updateMapPreference(*mi);
     mapListChangedAfterSort = true;
+    sendNegativeVotes();
 }
 
 void GuiClient::loadHelp() throw () {

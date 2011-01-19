@@ -1708,6 +1708,13 @@ void ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw (Cl
             host->check_map_exit();
         }
     }
+    break; case data_negative_map_votes:
+        sender.negativeMapVotes.clear();
+        while (msg.hasMore()) {
+            uint8_t mask = msg.U8();
+            for (int i = 0; i < 8; ++i, mask >>= 1)
+                sender.negativeMapVotes.push_back(mask & 1);
+        }
     break; case data_fav_colors: {
         const int8_t size = msg.S8();
         vector<char> fav_colors;

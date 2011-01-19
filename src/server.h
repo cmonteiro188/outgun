@@ -2,7 +2,7 @@
  *  server.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2006, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -350,6 +350,8 @@ class Server : private NoCopying {
     void stop_recording() throw ();
     void delete_recording() throw ();
     void record_init_data() throw ();
+
+    int countNegativeVotes(int map) const throw ();
 
 public:
     Server(LogSet& hostLogs, const ServerExternalSettings& config, Log& externalErrorLog, const std::string& errorPrefix) throw ();  // externalErrorLog must outlive the Server object

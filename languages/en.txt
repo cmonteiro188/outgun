@@ -161,6 +161,7 @@ Save replay statistics
 Show stats after the round
 Show server info when connected
 Stay dead when in a menu at round start
+Skip maps in rotation
 Underline master-authenticated players
 Underline server-authenticated players
 Get server list at startup
@@ -369,6 +370,10 @@ chat only
 ; Used as values for 'show stats after the round' in the game menu.
 players
 teams
+
+; Used as values for 'skip maps in rotation' in the game menu.
+dimmed
+all but highlighted
 
 ; Used as values for 'arrow keys in statistics' in the controls menu.
 change stats view

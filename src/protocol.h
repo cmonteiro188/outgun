@@ -130,6 +130,7 @@ enum Network_data_code {
     data_flag_modes,
     // available from negotiated extensions level 1:
     data_quick_map_list,
+    data_negative_map_votes,
     data_negotiated_third_party_extensions_first = 200 // from here on, codes are guaranteed to not be used by official versions present or future, and can be used after successful negotiation with data_negotiate_third_party_extensions
 };
 

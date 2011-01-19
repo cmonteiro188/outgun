@@ -547,6 +547,14 @@ bool Server::load_rotation_map(int pos) throw () {
     return true;
 }
 
+int Server::countNegativeVotes(int map) const throw () {
+    int votes = 0;
+    for (int p = 0; p < maxplayers; ++p)
+        if ((int)world.player[p].negativeMapVotes.size() > map && world.player[p].negativeMapVotes[map])
+            ++votes;
+    return votes;
+}
+
 bool Server::server_next_map(int reason, const string& currmap_title_override) throw () {
     end_game_human_count = network.get_human_count();
 
@@ -607,8 +615,21 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         }
         winners.push_back(m);
     }
-    if (maxVotes == 0)
+    if (maxVotes == 0) {
         currmap = (currmap + 1) % maprot.size();
+        const int first = currmap;
+        int leastVotes = MAX_PLAYERS;
+        for (int map = currmap; leastVotes > 0; ) {
+            const int votes = countNegativeVotes(map);
+            if (votes < leastVotes) {
+                leastVotes = votes;
+                currmap = map;
+            }
+            map = (map + 1) % maprot.size();
+            if (map == first)
+                break;
+        }
+    }
     else {
         if (winners.size() > 1) {
             vector<int>::iterator it = find(winners.begin(), winners.end(), currmap);
