@@ -2290,7 +2290,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     if (player[target].health > 0)
         return;
 
-    const bool flag = player[target].stats().has_flag();
     bool carrier_defended = false, flag_defended = false;
     const int tateam = target / TSIZE;
     if (attacker < maxplayers) { // the reverse happens with deathbringers whose owner has left the server
@@ -2326,7 +2325,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                         }
             }
         }
-        if (flag) {
+        if (player[target].stats().has_flag()) {
             if (!same_team) {
                 player[attacker].stats().add_carrier_kill();
                 host->score_frag(attacker, 1);  // extra frag for fragging a carrier
@@ -2372,14 +2371,6 @@ void ServerWorld::removePlayer(int pid) throw () {
 void ServerWorld::suicide(int pid) throw () {
     if (player[pid].dead)
         return;
-    const bool flag = player[pid].stats().has_flag();
-    bool wild_flag = false;
-    if (flag)
-        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-            if (fi->carrier() == pid) {
-                wild_flag = true;
-                break;
-            }
     host->score_frag(pid, -1);
     player[pid].stats().add_suicide(static_cast<int>(get_time()));
     teams[pid / TSIZE].add_suicide();
@@ -3390,7 +3381,7 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             assPid = targetf->prev_carrier();
         player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid);
         if (targetf->carried())
-            dropFlagIfAny(assPid, true, true); // to keep the game compatible with previous client versions
+            dropFlagIfAny(assPid, true, true);
         if (!reverseCapture && !targetf->at_base()) // TODO: No need to return?
             returnFlag(targetFlagTeam, targetFlagID);
         else if (reverseCapture)
