@@ -1737,7 +1737,7 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) throw () {
     net->ctf_net_flag_status(pid_all, team);
 }
 
-bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
+bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop) throw () {
     if (!player[pid].stats().has_flag())
         return false;
     int flag = -1;
@@ -1754,12 +1754,13 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
             break;
     }
     nAssert(flag != -1);
-    player[pid].stats().add_flag_drop(get_time());  // before dropFlag in hopes to alleviate the assertion above
+    player[pid].stats().add_flag_drop(get_time(), !captureDrop);  // before dropFlag in hopes to alleviate the assertion above
     teams[pid / TSIZE].add_flag_drop();
     dropFlag(team, flag, player[pid].room().x, player[pid].room().y, player[pid].pos.x, player[pid].pos.y);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
-        net->broadcast_flag_drop(player[pid], team);
-        host->score_frag(pid, -1);  // undo the bonus from taking the flag
+        net->broadcast_flag_drop(player[pid], team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy, captureDrop);
+        if (!captureDrop)
+            host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
     return true;
 }
@@ -2290,7 +2291,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
         return;
 
     const bool flag = player[target].stats().has_flag();
-    const bool wild_flag = player[target].stats().has_wild_flag();
     bool carrier_defended = false, flag_defended = false;
     const int tateam = target / TSIZE;
     if (attacker < maxplayers) { // the reverse happens with deathbringers whose owner has left the server
@@ -2343,7 +2343,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     player[target].stats().add_death(type == DT_deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
 
-    net->broadcast_kill(player[attacker], player[target], type, flag, wild_flag, carrier_defended, flag_defended);
+    net->broadcast_kill(player[attacker], player[target], type, player[target].stats().flag(), carrier_defended, flag_defended);
     killPlayer(target, false);
 }
 
@@ -2383,7 +2383,7 @@ void ServerWorld::suicide(int pid) throw () {
     host->score_frag(pid, -1);
     player[pid].stats().add_suicide(static_cast<int>(get_time()));
     teams[pid / TSIZE].add_suicide();
-    net->broadcast_suicide(player[pid], flag, wild_flag);
+    net->broadcast_suicide(player[pid], player[pid].stats().flag());
     killPlayer(pid, true);
 }
 
@@ -3389,10 +3389,8 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
         else if ((assPid == -1 || assPid / TSIZE != carrier.team()) && targetf->prev_carrier() != carrier.pid)
             assPid = targetf->prev_carrier();
         player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid);
-        if (targetf->carried()) {
-            dropFlagIfAny(assPid, true); // to keep the game compatible with previous client versions
-            host->score_frag(assPid, 1); // give back one frag lost by "dropping" the flag
-        }
+        if (targetf->carried())
+            dropFlagIfAny(assPid, true, true); // to keep the game compatible with previous client versions
         if (!reverseCapture && !targetf->at_base()) // TODO: No need to return?
             returnFlag(targetFlagTeam, targetFlagID);
         else if (reverseCapture)
@@ -3609,9 +3607,10 @@ bool ServerWorld::all_kind_of_flags_exist() const throw () {
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
     host->score_frag(pid, 1);
-    player[pid].stats().add_flag_take(get_time(), team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy);
+    const Statistics::FlagType flagType = team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy;
+    player[pid].stats().add_flag_take(get_time(), flagType);
     teams[pid / TSIZE].add_flag_take();
-    net->broadcast_flag_take(player[pid], team);
+    net->broadcast_flag_take(player[pid], flagType);
     stealFlag(team, flag, pid);
     if (player[pid].item_shadow())
         player[pid].set_visibility(maximum_shadow_visibility);
@@ -4121,10 +4120,11 @@ void Statistics::add_flag_take(double time, FlagType type) throw () {
     flag_taking_time = time;
 }
 
-void Statistics::add_flag_drop(double time) throw () {
+void Statistics::add_flag_drop(double time, bool countAsDrop) throw () {
     nAssert(carriedFlag != flagNone);
     set_flag(flagNone);
-    ++total_flags_dropped;
+    if (countAsDrop)
+        ++total_flags_dropped;
     total_flag_carrying_time += time - flag_taking_time;
 }
 

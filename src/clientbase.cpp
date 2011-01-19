@@ -1050,6 +1050,16 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         const bool wild_flag = target & 0x40;
         attacker &= 0x1F;
         target &= 0x1F;
+        Statistics::FlagType carriedFlag;
+        if (flag)
+            if (wild_flag)
+                carriedFlag = Statistics::flagWild;
+            else
+                carriedFlag = Statistics::flagEnemy;
+        else if (wild_flag)
+            carriedFlag = Statistics::flagOwn;
+        else
+            carriedFlag = Statistics::flagNone;
         if (attacker >= maxplayers && attacker != MAX_PLAYERS - 1 || target >= maxplayers) // attacker = MAX_PLAYERS - 1 if attacker already left the server
             throw ServerDataError();
 
@@ -1067,7 +1077,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         fx.player[target].stats().add_death(cause == DT_deathbringer, static_cast<int>(time));
         fx.player[target].dead = true;
         fx.teams[target_team].add_death();
-        if (flag) {
+        if (carriedFlag != Statistics::flagNone) {
             if (!same_team && known_attacker)
                 fx.player[attacker].stats().add_carrier_kill();
             fx.player[target].stats().add_flag_drop(time);
@@ -1076,20 +1086,22 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
 
         const bool spree_started = !same_team && known_attacker && fx.player[attacker].stats().current_cons_kills() % 10 == 0;
 
-        netKill(attacker, target, cause, carrier_defended, flag_defended, flag, wild_flag, spree_ended, spree_started);
+        netKill(attacker, target, cause, carrier_defended, flag_defended, carriedFlag, spree_ended, spree_started);
     }
 
     break; case data_flag_take: {
         uint8_t pid = read.U8();
         const bool wild_flag = pid & 0x80;
-        pid &= ~0x80;
+        const bool own_flag = pid & 0x40;
+        pid &= 0x1F;
+        const Statistics::FlagType carriedFlag = wild_flag ? Statistics::flagWild : own_flag ? Statistics::flagOwn : Statistics::flagEnemy;
         if (pid >= maxplayers)
             throw ServerDataError();
 
-        fx.player[pid].stats().add_flag_take(time, wild_flag ? Statistics::flagWild : Statistics::flagEnemy);
+        fx.player[pid].stats().add_flag_take(time, carriedFlag);
         const int team = pid / TSIZE;
         fx.teams[team].add_flag_take();
-        netFlagTake(pid, wild_flag);
+        netFlagTake(pid, carriedFlag);
     }
 
     break; case data_flag_return: {
@@ -1102,32 +1114,47 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
     break; case data_flag_drop: {
         uint8_t pid = read.U8();
         const bool wild_flag = pid & 0x80;
-        pid &= ~0x80;
+        const bool own_flag = pid & 0x40;
+        const bool fakeDrop = pid & 0x20;
+        pid &= 0x1F;
         if (pid >= maxplayers)
             throw ServerDataError();
-        fx.player[pid].stats().add_flag_drop(time);
-        const int team = pid / TSIZE;
-        fx.teams[team].add_flag_drop();
-        netFlagDrop(pid, wild_flag);
+        fx.player[pid].stats().add_flag_drop(time, !fakeDrop);
+        if (!fakeDrop) {
+            const int team = pid / TSIZE;
+            fx.teams[team].add_flag_drop();
+            const Statistics::FlagType carriedFlag = wild_flag ? Statistics::flagWild : own_flag ? Statistics::flagOwn : Statistics::flagEnemy;
+            netFlagDrop(pid, carriedFlag);
+        }
     }
 
     break; case data_suicide: {
         uint8_t pid = read.U8();
         const bool flag = pid & 0x80;
         const bool wild_flag = pid & 0x40;
+        pid &= 0x1F;
+        Statistics::FlagType carriedFlag;
+        if (flag)
+            if (wild_flag)
+                carriedFlag = Statistics::flagWild;
+            else
+                carriedFlag = Statistics::flagEnemy;
+        else if (wild_flag)
+            carriedFlag = Statistics::flagOwn;
+        else
+            carriedFlag = Statistics::flagNone;
         const bool spree_ended = fx.player[pid].stats().current_cons_kills() >= 10;
-        pid &= ~0xC0;
         if (pid >= maxplayers)
             throw ServerDataError();
         const int team = pid / TSIZE;
         fx.player[pid].stats().add_suicide(static_cast<int>(time));
         fx.player[pid].dead = true;
         fx.teams[team].add_suicide();
-        if (flag) {
+        if (carriedFlag != Statistics::flagNone) {
             fx.player[pid].stats().add_flag_drop(time);
             fx.teams[team].add_flag_drop();
         }
-        netSuicide(pid, flag, wild_flag, spree_ended);
+        netSuicide(pid, carriedFlag, spree_ended);
     }
 
     break; case data_players_present: {       // this is only sent immediately after connecting to the server
@@ -1289,7 +1316,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
                 carriedFlag = Statistics::flagWild;
             else
                 carriedFlag = Statistics::flagEnemy;
-        else if (wild_flag) // TODO: Needs protocol extension
+        else if (wild_flag)
             carriedFlag = Statistics::flagOwn;
         else
             carriedFlag = Statistics::flagNone;
@@ -1526,8 +1553,8 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
  }
 }
 
-void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
-    (void)(attacker && target && cause && carrier_defended && flag_defended && flag && wild_flag && spree_ended && spree_started);
+void ClientBase::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, Statistics::FlagType, bool spree_ended, bool spree_started) throw () {
+    (void)(attacker && target && cause && carrier_defended && flag_defended && spree_ended && spree_started);
 }
 
 void ClientBase::process_incoming_data(ConstDataBlockRef data) throw (ServerDataError) {

@@ -37,6 +37,7 @@
 #include "protocol.h"
 #include "thread.h"
 #include "utility.h"
+#include "world.h"      // for Statistics::FlagType
 
 class GunDirection;
 class LocalConnection;
@@ -344,12 +345,12 @@ public:
     void broadcast_extra_time_out() const throw ();
     void broadcast_normal_time_out(bool sudden_death) const throw ();
     void broadcast_capture(const ServerPlayer& player, int flag_team, int assistant_pid) const throw ();
-    void broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw ();
+    void broadcast_flag_take(const ServerPlayer& player, Statistics::FlagType) const throw ();
     void broadcast_flag_return(const ServerPlayer& player) const throw ();
-    void broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw ();
+    void broadcast_flag_drop(const ServerPlayer& player, Statistics::FlagType, bool captureDrop) const throw ();
     void broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                        DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const throw ();
-    void broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const throw ();
+                        DamageType cause, Statistics::FlagType, bool carrier_defended, bool flag_defended) const throw ();
+    void broadcast_suicide(const ServerPlayer& player, Statistics::FlagType) const throw ();
     void send_waiting_time(const ServerPlayer& player) const throw ();
     void broadcast_new_player(const ServerPlayer& player) const throw ();
     void new_player_to_admin_shell(int pid) const throw ();  // called when the player name is known (unlike at broadcast_new_player)

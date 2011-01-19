@@ -220,11 +220,11 @@ protected:
     virtual void net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
     virtual void net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError) { (void)read; }
     virtual void net_text_message(Message_type type, int sender_team, const std::string& text) throw () = 0;
-    virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw (); // empty
-    virtual void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () { (void)(pid && flag && wild_flag && spree_ended); }
-    virtual void netFlagTake(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
+    virtual void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, Statistics::FlagType, bool spree_ended, bool spree_started) throw (); // empty
+    virtual void netSuicide(int pid, Statistics::FlagType, bool spree_ended) throw () { (void)(pid && spree_ended); }
+    virtual void netFlagTake(int pid, Statistics::FlagType) throw () { (void)(pid); }
     virtual void netFlagReturn(int pid) throw () { (void)pid; }
-    virtual void netFlagDrop(int pid, bool wild_flag) throw () { (void)(pid && wild_flag); }
+    virtual void netFlagDrop(int pid, Statistics::FlagType) throw () { (void)(pid); }
     virtual void netTeamChange(int pl1, int pl2 = -1) throw () { (void)(pl1 && pl2); }
     virtual void netStatsReady() throw () { }
     virtual void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw () { (void)maptitle; (void)(map_number && total_maps); }

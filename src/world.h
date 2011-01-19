@@ -304,7 +304,7 @@ public:
     void add_capture(double time) throw ();
     void add_assist() throw () { ++total_assists; }
     void add_flag_take(double time, FlagType type) throw ();
-    void add_flag_drop(double time) throw ();
+    void add_flag_drop(double time, bool countAsDrop = true) throw ();
     void add_flag_return() throw () { ++total_flags_returned; }
     void add_carrier_kill() throw () { ++total_flag_carriers_killed; }
     void add_shot() throw () { ++total_shots; }
@@ -1148,7 +1148,7 @@ public:
     bool check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw ();
     void game_player_screen_change(int p) throw ();
 
-    bool dropFlagIfAny(int pid, bool purpose = false) throw ();
+    bool dropFlagIfAny(int pid, bool purpose = false, bool captureDrop = false) throw ();
     void resetCarrierData(int pid) throw ();
 
     void shootRockets(int pid, int numshots) throw ();
