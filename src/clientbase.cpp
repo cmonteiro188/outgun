@@ -1340,7 +1340,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         gameSettings.win_score_difference = win_score_diff;
         gameSettings.sudden_death = misc1 & (1 << 10);
         #else
-        (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime);
+        (void)(caplimit && timelimit && extratime && misc1 && pupMin && pupMax && pupAddTime && pupMaxTime && et_periods && win_score_diff);
         #endif
     }
 

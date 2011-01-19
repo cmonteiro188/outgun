@@ -245,6 +245,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
     log("Outgun log file. %s. Game string: %s, protocol: %s, version: %s", date_and_time().c_str(), GAME_STRING.c_str(), GAME_PROTOCOL.c_str(), getVersionString().c_str());
 
     bool showFirstTimeSplash = true;
+    (void)showFirstTimeSplash; // avoid compilation warning of unused variable for dedicated server
     {
         const string main_cfg_file = wheregamedir + "config" + directory_separator + "maincfg.txt";
         ifstream in(main_cfg_file.c_str());
