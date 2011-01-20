@@ -1755,7 +1755,8 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop) throw (
     }
     nAssert(flag != -1);
     player[pid].stats().add_flag_drop(get_time(), !captureDrop);  // before dropFlag in hopes to alleviate the assertion above
-    teams[pid / TSIZE].add_flag_drop();
+    if (!captureDrop)
+        teams[pid / TSIZE].add_flag_drop();
     dropFlag(team, flag, player[pid].room().x, player[pid].room().y, player[pid].pos.x, player[pid].pos.y);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
         net->broadcast_flag_drop(player[pid], team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy, captureDrop);
