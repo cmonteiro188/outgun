@@ -1113,6 +1113,9 @@ int Robot::GetPlayers(int team) const throw () {
 }
 
 bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw () {
+    if (HaveFlag(me))
+        return false;
+
     bool atBase;
     if (flag.carried() || flag.position().room != base.room)
         atBase = false;
