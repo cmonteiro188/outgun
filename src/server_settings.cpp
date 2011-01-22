@@ -250,6 +250,8 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("lock_wild_flags",             &worldConfig.lock_wild_flags));
     cat.add(new GS_Boolean   ("capture_on_team_flag",        &worldConfig.capture_on_team_flag));
     cat.add(new GS_Boolean   ("capture_on_wild_flag",        &worldConfig.capture_on_wild_flag));
+    cat.add(new GS_Boolean   ("capture_away_from_base",      &worldConfig.capture_away_from_base));
+    cat.add(new GS_Boolean   ("carry_own_team_flag",         &worldConfig.carry_own_team_flag));
     cat.add(new GS_Boolean   ("always_send_flag_location",   &worldConfig.always_send_flag_location));
     cat.add(new GS_Balance   ("balance_teams",               &worldConfig.balance_teams));
     cat.add(new GS_Double    ("respawn_time",                &worldConfig.respawn_time, 0.));

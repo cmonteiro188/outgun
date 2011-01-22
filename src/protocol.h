@@ -31,10 +31,10 @@
 
 extern const std::string GAME_STRING;
 extern const std::string GAME_PROTOCOL;
-static const int PROTOCOL_EXTENSIONS_VERSION = 1;
+static const int PROTOCOL_EXTENSIONS_VERSION = 2;
 
 extern const std::string REPLAY_IDENTIFICATION;
-static const unsigned REPLAY_VERSION = 1; // increase when the replay structure changes
+static const unsigned REPLAY_VERSION = 2; // increase when the replay structure changes
 static const unsigned RELAY_PROTOCOL = 0;
 static const unsigned RELAY_PROTOCOL_EXTENSIONS_VERSION = 0;
 

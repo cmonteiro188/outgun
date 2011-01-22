@@ -264,6 +264,8 @@ public:
 
 class Statistics {
 public:
+    enum FlagType { flagNone, flagOwn, flagEnemy, flagWild };
+
     Statistics() throw ();
 
     void clear(bool preserveTime) throw ();
@@ -290,7 +292,7 @@ public:
     void set_lifetime(double time) throw () { total_lifetime = time; }
     void set_flag_carrying_time(double time) throw () { total_flag_carrying_time = time; }
     void set_flag_take_time(double time) throw () { flag_taking_time = time; }
-    void set_flag(bool f, bool wild) throw () { nAssert(!wild || f); flag = f; wild_flag = wild; }
+    void set_flag(FlagType type) throw () { carriedFlag = type; }
     void set_dead(bool d) throw () { dead = d; }
 
     void spawn(double time) throw () { set_spawn_time(time); nAssert(dead); dead = false; }
@@ -302,8 +304,8 @@ public:
     void add_suicide(double time) throw ();
     void add_capture(double time) throw ();
     void add_assist() throw () { ++total_assists; }
-    void add_flag_take(double time, bool wild) throw ();
-    void add_flag_drop(double time) throw ();
+    void add_flag_take(double time, FlagType type) throw ();
+    void add_flag_drop(double time, bool countAsDrop = true) throw ();
     void add_flag_return() throw () { ++total_flags_returned; }
     void add_carrier_kill() throw () { ++total_flag_carriers_killed; }
     void add_shot() throw () { ++total_shots; }
@@ -344,8 +346,9 @@ public:
     double start_time() const throw () { return starttime; }
     double flag_carrying_time(double time) const throw ();
     double flag_take_time() const throw () { return flag_taking_time; }
-    bool has_flag() const throw () { return flag; }  // true for both enemy flag and wild flag
-    bool has_wild_flag() const throw () { return wild_flag; }
+    FlagType flag() const throw () { return carriedFlag; }
+    bool has_flag() const throw () { return carriedFlag != flagNone; }
+    bool has_wild_flag() const throw () { return carriedFlag == flagWild; }
 
 private:
     int total_frags;
@@ -373,7 +376,7 @@ private:
     double saved_speed;
     double starttime;
     bool dead;
-    bool flag, wild_flag;
+    FlagType carriedFlag;
     double total_flag_carrying_time;
     double flag_taking_time;
 };
@@ -641,7 +644,7 @@ public:
     double return_time() const throw () { return return_t; }
 
     const WorldCoords& position() const throw () { return pos; }
-    //const WorldCoords& home_position() const throw () { return home_pos; }
+    const WorldCoords& home_position() const throw () { return home_pos; }
 
     int carrying_team() const throw () { return cteam; }
     int carrying_time() const throw () { return ctime; }
@@ -1033,6 +1036,8 @@ public:
     bool lock_wild_flags;
     bool capture_on_team_flag;
     bool capture_on_wild_flag;
+    bool capture_away_from_base;
+    bool carry_own_team_flag;
 
     bool always_send_flag_location; /// false: only send flag location when seen or on the ground; true: always send the location
 
@@ -1087,8 +1092,11 @@ class ServerWorld : public WorldBase {
     void degradeHealthOrEnergyForRunning(ServerPlayer& pl) throw ();
 
     void player_steals_flag(int pid, int team, int flag) throw ();
+    bool try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam, int targetBase) throw ();
     void player_captures_flag(int pid, int team, int flag, int assistant_pid) throw ();
     void team_gets_carrying_point(int team, bool forRanking) throw ();
+
+    bool is_near_base_for_capture(const Flag& flag, int team) const throw ();
 
     bool extra_time_and_sudden_death() const throw ();
     bool all_kind_of_flags_exist() const throw ();
@@ -1142,7 +1150,7 @@ public:
     bool check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw ();
     void game_player_screen_change(int p) throw ();
 
-    bool dropFlagIfAny(int pid, bool purpose = false) throw ();
+    bool dropFlagIfAny(int pid, bool purpose = false, bool captureDrop = false) throw ();
     void resetCarrierData(int pid) throw ();
 
     void shootRockets(int pid, int numshots) throw ();
@@ -1160,6 +1168,8 @@ public:
     void rocketOutOfBoundsCallback(int rid) throw ();
     bool shouldApplyPhysicsToPlayerCallback(int pid) throw ();
 
+    bool carry_own_team_flag() const throw () { return config.carry_own_team_flag; }
+    bool capture_away_from_base() const throw () { return config.capture_away_from_base; }
     bool lock_team_flags_in_effect() const throw ();
     bool lock_wild_flags_in_effect() const throw ();
     bool capture_on_team_flags_in_effect() const throw ();

@@ -142,7 +142,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        IsMission() const throw (); // have i mission? (No agression mode)
     int         GetEasyEnemy() const throw (); // get easy enemy to kill
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
-    int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag
+    int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag, 3 if n carries an own flag
     bool        IsFlagAtBase(const Flag& f, int team) const throw ();
     enum AimLevel { AL_None, AL_Near, AL_Full };
     std::pair<AimLevel, int> TryAimTradTurning(int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
@@ -165,6 +165,8 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls Aim(int i) const throw ();
     ClientControls EscapeRocket(int mrock) const throw ();
     ClientControls EscapeExplosion() const throw ();
+    ClientControls captureOnFlag(bool carried) const throw ();
+    ClientControls pickUpFlag() const throw ();
     ClientControls GetFlag() const throw ();
     ClientControls FollowFlag() const throw ();
     ClientControls GetPowerup(bool onImportantMission) const throw ();
@@ -189,8 +191,8 @@ class Robot : public ClientBase, public BotInterface {
     void TargetNearestFlag(int& m_distance, Area*& nearestArea, int team, int state) throw ();
     void TargetFog() throw ();
 
-    void TargetNearest(int efb, int efd, int efc,
-                       int mfb, int mfd, int mfc,
+    void TargetNearest(int efb, int efd, int efce, int efcf,
+                       int mfb, int mfd, int mfce, int mfcf,
                        int wfb, int wfd, int wfce, int wfcf,
                        int en,  int fr,
                        int eb,  int fb, int wb) throw ();

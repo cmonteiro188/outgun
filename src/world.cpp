@@ -1584,6 +1584,8 @@ void WorldSettings::reset() throw () {
     lock_wild_flags = false;
     capture_on_team_flag = true;
     capture_on_wild_flag = false;
+    capture_away_from_base = false;
+    carry_own_team_flag = false;
 
     always_send_flag_location = false;
 
@@ -1736,33 +1738,31 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) throw () {
     net->ctf_net_flag_status(pid_all, team);
 }
 
-bool ServerWorld::dropFlagIfAny(int pid, bool purpose) throw () {
+bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop) throw () {
     if (!player[pid].stats().has_flag())
         return false;
     int flag = -1;
-    int i = 0;
-    int team = 1 - pid / TSIZE;
-    for (vector<Flag>::const_iterator fi = teams[team].flags().begin(); fi != teams[team].flags().end(); ++fi, ++i)
-        if (fi->carrier() == pid) {
-            flag = i;
-            break;
-        }
-    if (flag == -1) {
-        team = 2;
-        i = 0;
-        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi, ++i)
+    int team;
+    for (team = 0; team < 3; team++) {
+        int i = 0;
+        const vector<Flag>& flags = team == 2 ? wild_flags : teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++i)
             if (fi->carrier() == pid) {
                 flag = i;
                 break;
             }
+        if (flag != -1)
+            break;
     }
     nAssert(flag != -1);
-    player[pid].stats().add_flag_drop(get_time());  // before dropFlag in hopes to alleviate the assertion above
-    teams[pid / TSIZE].add_flag_drop();
+    player[pid].stats().add_flag_drop(get_time(), !captureDrop);  // before dropFlag in hopes to alleviate the assertion above
+    if (!captureDrop)
+        teams[pid / TSIZE].add_flag_drop();
     dropFlag(team, flag, player[pid].room().x, player[pid].room().y, player[pid].pos.x, player[pid].pos.y);
     if (purpose) {  // Otherwise, the reason is dying, and in that case clients know the flag is dropped.
-        net->broadcast_flag_drop(player[pid], team);
-        host->score_frag(pid, -1);  // undo the bonus from taking the flag
+        net->broadcast_flag_drop(player[pid], team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy, captureDrop);
+        if (!captureDrop)
+            host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
     return true;
 }
@@ -1892,12 +1892,14 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 
 //flag touched by player?
 bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw () {
-    //carried and in different screen can't be touched
-    if (flag.carried() || flag.position().room != RoomCoords(px, py))
+    const WorldCoords pos = flag.carried() ? player[flag.carrier()].position() : flag.position();
+
+    if (pos.room != RoomCoords(px, py))
         return false;
 
-    const double dx = flag.position().x - x;
-    const double dy = flag.position().y - y;
+    // TODO: If collisions are on, carriers shall only need to touch each other.
+    const double dx = pos.x - x;
+    const double dy = pos.y - y;
     const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
 
     return dx * dx + dy * dy < touchRadius * touchRadius;
@@ -2290,8 +2292,6 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     if (player[target].health > 0)
         return;
 
-    const bool flag = player[target].stats().has_flag();
-    const bool wild_flag = player[target].stats().has_wild_flag();
     bool carrier_defended = false, flag_defended = false;
     const int tateam = target / TSIZE;
     if (attacker < maxplayers) { // the reverse happens with deathbringers whose owner has left the server
@@ -2327,7 +2327,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
                         }
             }
         }
-        if (flag) {
+        if (player[target].stats().has_flag()) {
             if (!same_team) {
                 player[attacker].stats().add_carrier_kill();
                 host->score_frag(attacker, 1);  // extra frag for fragging a carrier
@@ -2344,7 +2344,7 @@ void ServerWorld::damagePlayer(int target, int attacker, int damage, DamageType 
     player[target].stats().add_death(type == DT_deathbringer, static_cast<int>(get_time()));
     teams[tateam].add_death();
 
-    net->broadcast_kill(player[attacker], player[target], type, flag, wild_flag, carrier_defended, flag_defended);
+    net->broadcast_kill(player[attacker], player[target], type, player[target].stats().flag(), carrier_defended, flag_defended);
     killPlayer(target, false);
 }
 
@@ -2373,18 +2373,10 @@ void ServerWorld::removePlayer(int pid) throw () {
 void ServerWorld::suicide(int pid) throw () {
     if (player[pid].dead)
         return;
-    const bool flag = player[pid].stats().has_flag();
-    bool wild_flag = false;
-    if (flag)
-        for (vector<Flag>::const_iterator fi = wild_flags.begin(); fi != wild_flags.end(); ++fi)
-            if (fi->carrier() == pid) {
-                wild_flag = true;
-                break;
-            }
     host->score_frag(pid, -1);
     player[pid].stats().add_suicide(static_cast<int>(get_time()));
     teams[pid / TSIZE].add_suicide();
-    net->broadcast_suicide(player[pid], flag, wild_flag);
+    net->broadcast_suicide(player[pid], player[pid].stats().flag());
     killPlayer(pid, true);
 }
 
@@ -3239,23 +3231,30 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
     // Flag steal - touch other team's flag or wild flag
     // ft = 0 => Touch enemy flag
     // ft = 1 => Touch wild flag
+    // ft = 2 => Touch own team flag
     bool touches_flag = false;
-    for (int ft = 0; ft < 2; ft++) {
+    for (int ft = 0; ft < 3; ft++) {
         if (pl.stats().has_flag())
             break;
-        if (ft == 0 && lock_team_flags_in_effect())
+        if ((ft == 0 || ft == 2) && lock_team_flags_in_effect())
             continue;
         if (ft == 1 && lock_wild_flags_in_effect())
-            break;
+            continue;
         const vector<Flag>* flags;
         int flag_team;
         if (ft == 0) {
             flag_team = enemyteam;
             flags = &teams[enemyteam].flags();
         }
-        else {
+        else if (ft == 1) {
             flag_team = 2;
             flags = &wild_flags;
+        }
+        else {
+            if (!config.carry_own_team_flag)
+                continue;
+            flag_team = myteam;
+            flags = &teams[myteam].flags();
         }
         int f = 0;
         for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
@@ -3272,50 +3271,147 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
         pl.dropped_flag = false;
 
     // Flag return - wild flags can't be returned
-    int f = 0;
-    for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-        if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
-            frame / 10. >= fi->drop_time() + config.flag_return_delay)
-        {
-            //FLAG RETURNED!
-            host->score_frag(pl.pid, 1); // just add some frags
-            pl.stats().add_flag_return();
-            teams[myteam].add_flag_return();
-            net->broadcast_flag_return(pl);
-            returnFlag(myteam, f);  //flag returned
-        }
-
-    // Flag captures
-    // ft = 0 => Take enemy or wild flag to own flag
-    // ft = 1 => Take enemy or wild flag to wild flag
-    for (int ft = 0; ft < 2; ft++) {
-        if (ft == 0 && !capture_on_team_flags_in_effect())
-            continue;
-        if (ft == 1 && !capture_on_wild_flags_in_effect())
-            continue;
-        const vector<Flag>& flags = ft == 0 ? teams[myteam].flags() : wild_flags;
-        for (vector<Flag>::const_iterator fmy = flags.begin(); fmy != flags.end(); ++fmy) {
-            if (!fmy->at_base())
-                continue;
-            for (int t = 0; t < 2; ++t) {
-                const vector<Flag>& flags = t == 0 ? teams[enemyteam].flags() : wild_flags;
-                const int flagTeam = t == 0 ? enemyteam : 2;
-                int f = 0;
-                for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi, ++f)
-                    if (fi->carrier() == pl.pid && check_flag_touch(*fmy, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
-                        const int ass_pid = fi->prev_carrier();
-                        player_captures_flag(pl.pid, flagTeam, f, ass_pid);
-                        if (teams[myteam].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
-                            teams[myteam].score() - teams[enemyteam].score() >= config.getWinScoreDifference() ||
-                            extra_time_and_sudden_death())
-                        {
-                            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
-                            return;
-                        }
-                    }
+    if (!config.carry_own_team_flag) {
+        int f = 0;
+        for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
+                frame / 10. >= fi->drop_time() + config.flag_return_delay)
+            {
+                //FLAG RETURNED!
+                host->score_frag(pl.pid, 1); // just add some frags
+                pl.stats().add_flag_return();
+                teams[myteam].add_flag_return();
+                net->broadcast_flag_return(pl);
+                returnFlag(myteam, f);  //flag returned
             }
-        }
     }
+
+    if (!pl.stats().has_flag())
+        return; // The captures are for flag carriers only.
+
+    int flagTeam = -1;
+    int flagID = -1;
+    for (int ft = 0; ft < 3; ft++) {
+        const vector<Flag>& flags = ft == 2 ? wild_flags : teams[ft].flags();
+        int f = 0;
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); fi++, f++)
+            if (fi->carrier() == pl.pid) {
+                flagTeam = ft;
+                flagID = f;
+                break;
+            }
+        if (flagTeam != -1)
+            break;
+    }
+
+    nAssert(flagTeam != -1 && flagID != -1);
+
+    /* Which capture types are real and which not (anything not listed here is not real)
+       (If capture_away_from_base is on, there is no base restriction.)
+     yes  enemy flag to own   flag on own   base
+      no  enemy flag to own   flag on enemy base
+     yes  enemy flag to wild  flag on wild  base
+      no  enemy flag to wild  flag on enemy base
+     yes  own   flag to enemy flag on own   base ; reverse capture
+      no  own   flag to enemy flag on enemy base
+     yes  own   flag to wild  flag on own   base ; reverse capture
+      no  own   flag to wild  flag on wild  base
+     yes  wild  flag to own   flag on own   base
+      no  wild  flag to own   flag on wild  base
+     yes  wild  flag to enemy flag on wild  base ; reverse capture
+      no  wild  flag to enemy flag on enemy base
+     yes  wild  flag to wild  flag on wild  base
+    */
+
+    if (flagTeam == 2) {
+        try_capture(    pl, flagTeam, flagID, myteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, enemyteam, 2) ||
+            try_capture(pl, flagTeam, flagID, 2, 2);
+    }
+    else if (flagTeam == enemyteam) {
+        try_capture(    pl, flagTeam, flagID, myteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, 2, 2);
+    }
+    else { // myteam
+        try_capture(    pl, flagTeam, flagID, enemyteam, myteam) ||
+            try_capture(pl, flagTeam, flagID, 2, myteam);
+    }
+}
+
+bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, int carriedFlagID, int targetFlagTeam, int targetBase) throw () {
+    nAssert(carriedFlagTeam != -1 && carriedFlagID != -1 && targetFlagTeam != -1);
+
+    const int enemyTeam = 1 - carrier.team();
+
+    if (capture_on_team_flags_in_effect() && targetBase == carrier.team() && (targetFlagTeam == carrier.team() || carriedFlagTeam == carrier.team()))
+        ; // ok
+    else if (capture_on_wild_flags_in_effect() && targetBase == 2 && (targetFlagTeam == 2 || carriedFlagTeam == 2))
+        ; // ok
+    else
+        return false;
+
+    const bool reverseCapture = targetFlagTeam != targetBase; // the target flag is about to be captured
+
+    const Flag& carriedFlag = carriedFlagTeam == 2 ? wild_flags[carriedFlagID] : teams[carriedFlagTeam].flag(carriedFlagID);
+    const vector<Flag>& targetFlags = targetFlagTeam == 2 ? wild_flags : teams[targetFlagTeam].flags();
+    int targetFlagID = 0;
+    for (vector<Flag>::const_iterator targetf = targetFlags.begin(); targetf != targetFlags.end(); targetf++, targetFlagID++) {
+        const bool nearBase = config.capture_away_from_base || is_near_base_for_capture(*targetf, targetBase);
+        if (!nearBase)
+            continue;
+        else if (targetf->carried() && targetf->carrier() / TSIZE != carrier.team()) // carried by enemy
+            continue;
+        else if (carriedFlagTeam == targetFlagTeam && carriedFlagID == targetFlagID) // flag can not be captured on itself
+            continue;
+        else if (carriedFlagTeam == carrier.team() && targetf->carried()) // carrier of enemy or wild flag shall be the capturer
+            continue;
+        else if (carriedFlagTeam == 2 && targetFlagTeam == enemyTeam && targetf->carried()) // carrier of enemy flag shall be the capturer
+            continue;
+        else if (!check_flag_touch(*targetf, carrier.room().x, carrier.room().y, carrier.pos.x, carrier.pos.y))
+            continue;
+        else if (get_time() < carriedFlag.grab_time() + config.get_min_capture_time() && (targetf->at_base() || get_time() < targetf->grab_time() + config.get_min_capture_time()))
+            continue;
+
+        // Assistant is a teammate of the capturer who is
+        //   1. the carrier of the target flag,
+        //   2. the previous carrier of the flag being carried now,
+        //   3. the previous carrier of the target flag.
+        int assPid = carriedFlag.prev_carrier();
+        if (targetf->carried())
+            assPid = targetf->carrier();
+        else if ((assPid == -1 || assPid / TSIZE != carrier.team()) && targetf->prev_carrier() != carrier.pid)
+            assPid = targetf->prev_carrier();
+        player_captures_flag(carrier.pid, reverseCapture ? targetFlagTeam : carriedFlagTeam, reverseCapture ? targetFlagID : carriedFlagID, assPid);
+        if (targetf->carried())
+            dropFlagIfAny(assPid, true, true);
+        if (!reverseCapture && !targetf->at_base()) // TODO: No need to return?
+            returnFlag(targetFlagTeam, targetFlagID);
+        else if (reverseCapture)
+            returnFlag(carriedFlagTeam, carriedFlagID);
+        if (teams[carrier.team()].score() >= config.getCaptureLimit() && config.getCaptureLimit() > 0 &&
+                teams[carrier.team()].score() - teams[enemyTeam].score() >= config.getWinScoreDifference() ||
+                extra_time_and_sudden_death())
+            host->server_next_map(NEXTMAP_CAPTURE_LIMIT);   // ignore return value
+        return true;
+    }
+    return false;
+}
+
+bool ServerWorld::is_near_base_for_capture(const Flag& flag, int team) const throw () {
+    if (!config.carry_own_team_flag && team != 2)
+        return flag.at_base();
+    // flag.at_base() can not be used as quick check because the team argument can be different than the flag team.
+    const WorldCoords flagPos = flag.carried() ? player[flag.carrier()].position() : flag.position();
+    const Vec flagVec = flagPos.local();
+    const vector<Flag>& flags = team == 2 ? wild_flags : teams[team].flags();
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); fi++) {
+        if (flagPos.room != fi->home_position().room)
+            continue;
+        const Vec baseVec = fi->home_position().local();
+        if ((flagVec - baseVec).mag2() <= FLAG_RADIUS * FLAG_RADIUS)
+            return true;
+    }
+    return false;
 }
 
 bool ServerWorld::extra_time_and_sudden_death() const throw () {
@@ -3504,22 +3600,19 @@ bool ServerWorld::all_kind_of_flags_exist() const throw () {
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {
     host->score_frag(pid, 1);
-    player[pid].stats().add_flag_take(get_time(), team == 2);
+    const Statistics::FlagType flagType = team == 2 ? Statistics::flagWild : team == player[pid].team() ? Statistics::flagOwn : Statistics::flagEnemy;
+    player[pid].stats().add_flag_take(get_time(), flagType);
     teams[pid / TSIZE].add_flag_take();
-    net->broadcast_flag_take(player[pid], team);
+    net->broadcast_flag_take(player[pid], flagType);
     stealFlag(team, flag, pid);
     if (player[pid].item_shadow())
         player[pid].set_visibility(maximum_shadow_visibility);
 }
 
 void ServerWorld::player_captures_flag(int pid, int team, int flag, int ass_pid) throw () {
-    const Flag& capt_flag = (team == 2 ? wild_flags[flag] : teams[team].flag(flag));
     const int myteam = pid / TSIZE;
     if (ass_pid / TSIZE != myteam)
         ass_pid = -1; // only teammate can be assistant for a capture
-    const double timeDiff = get_time() - capt_flag.grab_time();
-    if (timeDiff <= config.get_min_capture_time()) // can't capture yet
-        return;
     // add frags to all players of the team and
     // penalise every player of the other team
     for (int i = 0; i < MAX_PLAYERS; i++)
@@ -3961,8 +4054,7 @@ Statistics::Statistics() throw () :
     saved_speed(0),
     starttime(0),
     dead(true),
-    flag(false),
-    wild_flag(false),
+    carriedFlag(flagNone),
     total_flag_carrying_time(0),
     flag_taking_time(0)
 { }
@@ -4008,24 +4100,24 @@ void Statistics::add_suicide(double time) throw () {
 }
 
 void Statistics::add_capture(double time) throw () {
-    nAssert(flag);
-    flag = wild_flag = false;
+    nAssert(carriedFlag != flagNone);
+    set_flag(flagNone);
     ++total_captures;
     total_flag_carrying_time += time - flag_taking_time;
 }
 
-void Statistics::add_flag_take(double time, bool wild) throw () {
-    nAssert(!flag);
-    flag = true;
-    wild_flag = wild;
+void Statistics::add_flag_take(double time, FlagType type) throw () {
+    nAssert(carriedFlag == flagNone);
+    set_flag(type);
     ++total_flags_taken;
     flag_taking_time = time;
 }
 
-void Statistics::add_flag_drop(double time) throw () {
-    nAssert(flag);
-    flag = wild_flag = false;
-    ++total_flags_dropped;
+void Statistics::add_flag_drop(double time, bool countAsDrop) throw () {
+    nAssert(carriedFlag != flagNone);
+    set_flag(flagNone);
+    if (countAsDrop)
+        ++total_flags_dropped;
     total_flag_carrying_time += time - flag_taking_time;
 }
 
@@ -4034,8 +4126,8 @@ void Statistics::finish_stats(double time) throw () {
         dead = true;
         total_lifetime += time - last_spawn_time;
     }
-    if (flag) {
-        flag = wild_flag = false;
+    if (has_flag()) {
+        set_flag(flagNone);
         total_flag_carrying_time += time - flag_taking_time;
     }
 }
@@ -4074,7 +4166,7 @@ double Statistics::speed(double time) const throw () {
 }
 
 double Statistics::flag_carrying_time(double time) const throw () {
-    if (!flag)
+    if (!has_flag())
         return total_flag_carrying_time;
     else
         return total_flag_carrying_time + (time - flag_taking_time);

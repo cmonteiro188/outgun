@@ -512,11 +512,11 @@ class GuiClient : public ClientBase, public ClientInterface {
     void net_data_map_vote(BinaryReader& read) throw (BinaryReader::ReadError);
     void net_data_map_votes_update(BinaryReader& read) throw (BinaryReader::ReadError);
     void net_text_message(Message_type type, int sender_team, const std::string& text) throw ();
-    void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw ();
-    void netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw ();
-    void netFlagTake(int pid, bool wild_flag) throw ();
+    void netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, Statistics::FlagType, bool spree_ended, bool spree_started) throw ();
+    void netSuicide(int pid, Statistics::FlagType, bool spree_ended) throw ();
+    void netFlagTake(int pid, Statistics::FlagType) throw ();
     void netFlagReturn(int pid) throw ();
-    void netFlagDrop(int pid, bool wild_flag) throw ();
+    void netFlagDrop(int pid, Statistics::FlagType) throw ();
     void netTeamChange(int pl1, int pl2 = -1) throw ();
     void netStatsReady() throw ();
     void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw ();

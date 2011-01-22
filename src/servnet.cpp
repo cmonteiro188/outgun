@@ -497,12 +497,27 @@ void ServerNetworking::broadcast_capture(const ServerPlayer& player, int flag_te
     }
 }
 
-void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, int flag_team) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_flag_take);
-    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
-    broadcast_message(msg);
-    record_message(msg);
+void ServerNetworking::broadcast_flag_take(const ServerPlayer& player, Statistics::FlagType flagType) const throw () {
+    BinaryBuffer<64> old_msg;
+    old_msg.U8(data_flag_take);
+    BinaryBuffer<64> ext_msg = old_msg;
+    old_msg.U8(player.pid | (flagType == Statistics::flagWild == 2 ? 0x80 : 0x00));
+
+    uint8_t flag;
+    if (flagType == Statistics::flagWild)
+        flag = 0x80;
+    else if (flagType == Statistics::flagOwn)
+        flag = 0x40;
+    else
+        flag = 0x00;
+    ext_msg.U8(player.pid | flag);
+
+    for (int i = 0; i < maxplayers; i++) {
+        const ServerPlayer& player = world.player[i];
+        if (player.used)
+            send_message(player.cid, player.protocolExtensionsLevel >= 2 ? ext_msg : old_msg);
+    }
+    record_message(ext_msg);
 }
 
 void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const throw () {
@@ -514,18 +529,31 @@ void ServerNetworking::broadcast_flag_return(const ServerPlayer& player) const t
 }
 
 // player dropped the flag on purpose
-void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, int flag_team) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_flag_drop);
-    msg.U8(player.pid | (flag_team == 2 ? 0x80 : 0x00));
-    broadcast_message(msg);
-    record_message(msg);
+void ServerNetworking::broadcast_flag_drop(const ServerPlayer& player, Statistics::FlagType flagType, bool captureDrop) const throw () {
+    BinaryBuffer<64> old_msg;
+    old_msg.U8(data_flag_drop);
+    BinaryBuffer<64> ext_msg = old_msg;
+    old_msg.U8(player.pid | (flagType == Statistics::flagWild ? 0x80 : 0x00));
+
+    uint8_t flag = captureDrop ? 0x20 : 0x00;
+    if (flagType == Statistics::flagWild)
+        flag |= 0x80;
+    else if (flagType == Statistics::flagOwn)
+        flag |= 0x40;
+    ext_msg.U8(player.pid | flag);
+
+    for (int i = 0; i < maxplayers; i++) {
+        const ServerPlayer& player = world.player[i];
+        if (player.used)
+            send_message(player.cid, player.protocolExtensionsLevel >= 2 ? ext_msg : old_msg);
+    }
+    record_message(ext_msg);
 }
 
 void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const ServerPlayer& target,
-                                      DamageType cause, bool flag, bool wild_flag, bool carrier_defended, bool flag_defended) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_kill);
+                                      DamageType cause, Statistics::FlagType carriedFlag, bool carrier_defended, bool flag_defended) const throw () {
+    BinaryBuffer<64> old_msg;
+    old_msg.U8(data_kill);
     // first byte: deatbringer bit, carrier defended bit, flag defended bit, and attacker id
     uint8_t attacker_info = attacker.pid;
     if (cause == DT_deathbringer)
@@ -536,16 +564,32 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
         attacker_info |= 0x20;
     // second byte: flag bit, wild flag bit, collision bit, and target id
     uint8_t tar_flag = target.pid;
-    if (flag)
+    if (carriedFlag != Statistics::flagNone)
         tar_flag |= 0x80;
-    if (wild_flag)
+    if (carriedFlag == Statistics::flagWild)
         tar_flag |= 0x40;
     if (cause == DT_collision)
         tar_flag |= 0x20;
-    msg.U8(attacker_info);
-    msg.U8(tar_flag);
-    broadcast_message(msg);
-    record_message(msg);
+    old_msg.U8(attacker_info);
+    BinaryBuffer<64> ext_msg = old_msg;
+    old_msg.U8(tar_flag);
+
+    // Extension version of the second byte
+    tar_flag = target.pid;
+    if (carriedFlag == Statistics::flagWild || carriedFlag == Statistics::flagEnemy)
+        tar_flag |= 0x80;
+    if (carriedFlag == Statistics::flagWild || carriedFlag == Statistics::flagOwn)
+        tar_flag |= 0x40;
+    if (cause == DT_collision)
+        tar_flag |= 0x20;
+    ext_msg.U8(tar_flag);
+
+    for (int i = 0; i < maxplayers; i++) {
+        const ServerPlayer& player = world.player[i];
+        if (player.used)
+            send_message(player.cid, player.protocolExtensionsLevel >= 2 ? ext_msg : old_msg);
+    }
+    record_message(ext_msg);
     if (shellssock.isOpen()) {
         BinaryBuffer<256> msg;
         if (attacker.used) {
@@ -560,17 +604,31 @@ void ServerNetworking::broadcast_kill(const ServerPlayer& attacker, const Server
     }
 }
 
-void ServerNetworking::broadcast_suicide(const ServerPlayer& player, bool flag, bool wild_flag) const throw () {
-    BinaryBuffer<64> msg;
-    msg.U8(data_suicide);
+void ServerNetworking::broadcast_suicide(const ServerPlayer& player, Statistics::FlagType carriedFlag) const throw () {
+    BinaryBuffer<64> old_msg;
+    old_msg.U8(data_suicide);
+    BinaryBuffer<64> ext_msg = old_msg;
+
     uint8_t id_flag = player.pid;
-    if (flag)
+    if (carriedFlag != Statistics::flagNone)
         id_flag |= 0x80;
-    if (wild_flag)
+    if (carriedFlag == Statistics::flagWild)
         id_flag |= 0x40;
-    msg.U8(id_flag);
-    broadcast_message(msg);
-    record_message(msg);
+    old_msg.U8(id_flag);
+
+    id_flag = player.pid;
+    if (carriedFlag == Statistics::flagWild || carriedFlag == Statistics::flagEnemy)
+        id_flag |= 0x80;
+    if (carriedFlag == Statistics::flagWild || carriedFlag == Statistics::flagOwn)
+        id_flag |= 0x40;
+    ext_msg.U8(id_flag);
+
+    for (int i = 0; i < maxplayers; i++) {
+        const ServerPlayer& player = world.player[i];
+        if (player.used)
+            send_message(player.cid, player.protocolExtensionsLevel >= 2 ? ext_msg : old_msg);
+    }
+    record_message(ext_msg);
     if (shellssock.isOpen()) {
         BinaryBuffer<256> msg;
         msg.U32(STA_PLAYER_DIES);
@@ -1890,7 +1948,12 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
     }
     {
         // check if flag lock/capture settings have changed
-        const uint8_t newMask = world.lock_team_flags_in_effect() << 3 | world.lock_wild_flags_in_effect() << 2 | world.capture_on_team_flags_in_effect() << 1 | world.capture_on_wild_flags_in_effect();
+        const uint8_t newMask = world.carry_own_team_flag()             << 5 |
+                                world.capture_away_from_base()          << 4 |
+                                world.      lock_team_flags_in_effect() << 3 |
+                                world.      lock_wild_flags_in_effect() << 2 |
+                                world.capture_on_team_flags_in_effect() << 1 |
+                                world.capture_on_wild_flags_in_effect();
         if (newMask != flagModeMask) {
             flagModeMask = newMask;
             send_flag_modes(pid_all);
@@ -1941,9 +2004,17 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     }
             }
             else if (world.getPupConfig().shadow_see_shadow || !world.player[i].item_shadow() || world.player[i].stats().has_flag())
-                shadowView[t] += static_cast<uint32_t>(1 << i);
+                shadowView[t] |= 1 << i;
         }
         shadowView[t] |= normalView[t];
+    }
+
+    for (int t = 0; t < 2; ++t) {
+        for (vector<Flag>::const_iterator fi = world.teams[t].flags().begin(); fi != world.teams[t].flags().end(); ++fi)
+            if (fi->carried()) {
+                normalView[!t] |= 1 << fi->carrier();
+                shadowView[!t] |= 1 << fi->carrier();
+            }
     }
 
     // send 2 players' coordinates each frame; pick those two for each team both with and without shadow

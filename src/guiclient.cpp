@@ -1779,7 +1779,7 @@ void GuiClient::netPhysicsChanged() throw () {
     out.close();
 }
 
-void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, bool flag, bool wild_flag, bool spree_ended, bool spree_started) throw () {
+void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier_defended, bool flag_defended, Statistics::FlagType carriedFlag, bool spree_ended, bool spree_started) throw () {
     if (target == me)
         deadAfterHighlighted = true;
 
@@ -1850,10 +1850,10 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
             addThreadMessage(new TM_Text(msg_info, msg));
     }
 
-    if (flag) {
-        if (wild_flag)
+    if (carriedFlag != Statistics::flagNone) {
+        if (carriedFlag == Statistics::flagWild)
             msg = tf("$1 LOST THE $GWILD FLAG$>!", formatName(target));
-        else if (1 - target_team == 0)
+        else if (target_team == 0 && carriedFlag == Statistics::flagOwn || target_team == 1 && carriedFlag == Statistics::flagEnemy)
             msg = tf("$1 LOST THE $RRED FLAG$>!", formatName(target));
         else
             msg = tf("$1 LOST THE $BBLUE FLAG$>!", formatName(target));
@@ -1870,18 +1870,18 @@ void GuiClient::netKill(int attacker, int target, DamageType cause, bool carrier
     }
 }
 
-void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended) throw () {
+void GuiClient::netSuicide(int pid, Statistics::FlagType carriedFlag, bool spree_ended) throw () {
     if (pid == me)
         deadAfterHighlighted = true;
 
     const int team = pid / TSIZE;
     if (spree_ended && menu.options.game.showKillMessages())
         addThreadMessage(new TM_Text(msg_info, tf("$1's killing spree was ended.", formatName(pid))));
-    if (flag) {
+    if (carriedFlag != Statistics::flagNone) {
         FormattedText msg;
-        if (wild_flag)
+        if (carriedFlag == Statistics::flagWild)
             msg = tf("$1 LOST THE $GWILD FLAG$>!", formatName(pid));
-        else if (1 - team == 0)
+        else if (team == 0 && carriedFlag == Statistics::flagOwn || team == 1 && carriedFlag == Statistics::flagEnemy)
             msg = tf("$1 LOST THE $RRED FLAG$>!", formatName(pid));
         else
             msg = tf("$1 LOST THE $BBLUE FLAG$>!", formatName(pid));
@@ -1893,12 +1893,12 @@ void GuiClient::netSuicide(int pid, bool flag, bool wild_flag, bool spree_ended)
         addThreadMessage(new TM_Sound(SAMPLE_DEATH + rand() % 2));
 }
 
-void GuiClient::netFlagTake(int pid, bool wild_flag) throw () {
+void GuiClient::netFlagTake(int pid, Statistics::FlagType carriedFlag) throw () {
     const int team = pid / TSIZE;
     FormattedText msg;
-    if (wild_flag)
+    if (carriedFlag == Statistics::flagWild)
         msg = tf("$1 GOT THE $GWILD FLAG$>!", formatName(pid));
-    else if (1 - team == 0)
+    else if (team == 0 && carriedFlag == Statistics::flagOwn || team == 1 && carriedFlag == Statistics::flagEnemy)
         msg = tf("$1 GOT THE $RRED FLAG$>!", formatName(pid));
     else
         msg = tf("$1 GOT THE $BBLUE FLAG$>!", formatName(pid));
@@ -1917,12 +1917,12 @@ void GuiClient::netFlagReturn(int pid) throw () {
     addThreadMessage(new TM_Sound(SAMPLE_CTF_RETURN));
 }
 
-void GuiClient::netFlagDrop(int pid, bool wild_flag) throw () {
+void GuiClient::netFlagDrop(int pid, Statistics::FlagType carriedFlag) throw () {
     const int team = pid / TSIZE;
     FormattedText msg;
-    if (wild_flag)
+    if (carriedFlag == Statistics::flagWild)
         msg = tf("$1 DROPPED THE $GWILD FLAG$>!", formatName(pid));
-    else if (1 - team == 0)
+    else if (team == 0 && carriedFlag == Statistics::flagOwn || team == 1 && carriedFlag == Statistics::flagEnemy)
         msg = tf("$1 DROPPED THE $RRED FLAG$>!", formatName(pid));
     else
         msg = tf("$1 DROPPED THE $BBLUE FLAG$>!", formatName(pid));

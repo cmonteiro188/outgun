@@ -786,37 +786,68 @@ ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
     return ClientControls();
 }
 
-ClientControls Robot::GetFlag() const throw () {
-    if (HaveFlag(me)) {
-        for (int type = 0; type < 2; ++type) { // 0 for own flags, 1 for wild
-            if (!(type == 0 ? capture_on_team_flags_in_effect : capture_on_wild_flags_in_effect))
+ClientControls Robot::captureOnFlag(bool carried) const throw () {
+    const int myFlag = HaveFlag(me);
+    nAssert(myFlag);
+    for (int type = 0; type <= 2; ++type) {
+        const int team = type == 0 ? myTeam() : type == 1 ? 2 : !myTeam();
+        const bool captureOnOtherFlag =   type == 0 && capture_on_team_flags_in_effect && myFlag != 3 ||   type == 1 && capture_on_wild_flags_in_effect;
+        const bool captureOnMyFlag    = myFlag == 3 && capture_on_team_flags_in_effect &&   type != 0 || myFlag == 2 && capture_on_wild_flags_in_effect;
+        if (!captureOnOtherFlag && !captureOnMyFlag)
+            continue;
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+            if (fi->carried() != carried || fi->carried() && (fi->carrier() == me || !myTeam(fx.player[fi->carrier()])))
                 continue;
-            const int team = type == 0 ? myTeam() : 2;
-            const vector<Flag>& flags = type == 0 ? fx.teams[team].flags() : fx.wild_flags;
-            for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
-                if (area(fi->position()) != myArea() || fi->carried())
-                    continue;
-                if (type == 0 || IsFlagAtBase(*fi, team)) // try to capture, or return own flag so that capture is possible; can't return wild flags
-                    return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+            const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
+            if (area(pos) != myArea())
+                continue;
+            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
+                const Coords lPos = fi->carried() ? predictPos(fx.player[fi->carrier()]) : pos.local();
+                return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
             }
+            if (!capture_away_from_base && carried)
+                for (int baseType = 0; baseType <= 1; ++baseType) {
+                    const int baseTeam = baseType == 0 ? myTeam() : 2;
+                    if (baseType == 0 && !(type == 0 && captureOnOtherFlag || myFlag == 3 && captureOnMyFlag) ||
+                        baseType == 1 && !(type == 1 && captureOnOtherFlag || myFlag == 2 && captureOnMyFlag))
+                    {
+                        continue;
+                    }
+                    const vector<WorldCoords>& bases = baseTeam == 2 ? fx.map.wild_flags : fx.map.tinfo[baseTeam].flags;
+                    for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
+                        if (area(*bi) == myArea())
+                            return MoveTo(bi->local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+                }
         }
-        return ClientControls(); // can't pick up another flag
     }
+    return ClientControls();
+}
 
+ClientControls Robot::pickUpFlag() const throw () {
+    nAssert(!HaveFlag(me));
     for (int type = 0; type < 3; ++type) { // 0 for own flags, 1 for enemy, 2 for wild
         if (type == 2 ? lock_wild_flags_in_effect : lock_team_flags_in_effect)
             continue;
         const int team = type == 0 ? myTeam() : type == 1 ? !myTeam() : 2;
-        const vector<Flag>& flags = type == 2 ? fx.wild_flags : fx.teams[team].flags();
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             if (area(fi->position()) != myArea() || fi->carried())
                 continue;
-            if (type != 0 || !IsFlagAtBase(*fi, team)) // try to pick up enemy or wild flag, or return own flag; nothing to do with own flags at base
+            if (!(type == 0 && !carry_own_team_flag && IsFlagAtBase(*fi, team))) // try to pick up a flag or return own flag
                 return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
         }
     }
 
     return ClientControls();
+}
+
+ClientControls Robot::GetFlag() const throw () {
+    if (HaveFlag(me)) {
+        const ClientControls ctrl = captureOnFlag(false);
+        return !ctrl.idle() ? ctrl : captureOnFlag(true);
+    }
+    return pickUpFlag();
 }
 
 Robot::TeamCounts Robot::Teams(const Area* const a, bool countMe) const throw () {
@@ -1125,7 +1156,7 @@ bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) thr
     }
 
     const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
-    const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam();
+    const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam() && !carry_own_team_flag; // flags in fear of being returned by the enemy
     if (!limitInterest && !droppedEnemyFlag || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
         return false;
 
@@ -1196,8 +1227,8 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
         const bool swf = !lock_wild_flags_in_effect; // try to steal wild flags?
 
         const bool deb = (EnemyHasUnseenFlags(true) || EnemyHasUnseenFlags(false)) && capture_on_team_flags_in_effect;
-        TargetNearest(sef, sef,   1,
-                      sef,   1,   1,
+        TargetNearest(sef, sef,   1,   1,
+                      sef,   1,   1,   1,
                       swf, swf,   1,   1,
                         0,   0,
                       deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
@@ -1205,15 +1236,15 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
             for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
                 for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
                     *fii = false;
-            TargetNearest(sef, sef,   1,
-                          sef,   1,   1,
+            TargetNearest(sef, sef,   1,   1,
+                          sef,   1,   1,   1,
                           swf, swf,   1,   1,
                             0,   0,
                           sef,   0, swf); // any flag that makes sense (with ignores relaxed), or an empty base (hopefully getting its flag returned when captured soon)
         }
         if (destinationType == Dest_None) {
-            TargetNearest(  0,   0,   0,
-                            0,   0,   0,
+            TargetNearest(  0,   0,   0,   0,
+                            0,   0,   0,   0,
                             0,   0,   0,   0,
                             1,   0,
                             0,   0,   0);  // if nothing else, target an enemy
@@ -1232,32 +1263,39 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
     }
     else { // i am flagman ;)
         const bool ctf = capture_on_team_flags_in_effect;
-        const bool cwf = capture_on_wild_flags_in_effect;
+        const bool cwfe = capture_on_wild_flags_in_effect;
+
+        const bool cwf = flag != 3 && cwfe || flag == 3 && ctf && capture_away_from_base; // (normal or reverse) capture on wild flag?
+        const bool cof = flag != 3 && ctf; // capture on own flag?
+        const bool cmwf = capture_away_from_base && cwf; // (normal or reverse) capture on moved wild flag?
+        const bool cmof = capture_away_from_base && cof; // capture on moved own flag?
+        const bool cef  = capture_away_from_base && (flag == 3 && ctf || flag == 2 && cwfe); // (reverse) capture on enemy flag?
+        //#fix: when to follow carriers when !capture_away_from_base
 
         if (GetPlayers(myTeam()) > 1) {
-            TargetNearest(  0,   0,   0,
-                          ctf,   0,   0,
-                          cwf,   0,   0,   0,
-                            0,   0,
-                            0,   0,   0); // available capture point
+            TargetNearest(cef,  cef,   0,  cef,
+                          cof, cmof,   0, cmof,
+                          cwf, cmwf,   0, cmwf,
+                            0,    0,
+                            0,    0,   0); // available capture point
         }
         else {
-            TargetNearest(  0,   0,   0,
-                          ctf,   1,   0,
-                          cwf,   0,   0,   0,
-                            0,   0,
-                            0,   0,   0); // available capture point, or dropped own team flag
+            TargetNearest(cef,  cef,   0,   0,
+                          cof,    1,   0,   0,
+                          cwf, cmwf,   0,   0,
+                            0,    0,
+                            0,    0,   0); // available capture point, or dropped own team flag
         }
         if (destinationType == Dest_None) {
-            TargetNearest(  0,   0,   0,
-                            0,   0,   0,
+            TargetNearest(  0,   0,   0,   0,
+                            0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,
                             0, ctf,   0);  // ok, to capture point, even if unavailable
         }
         if (destinationType == Dest_None) {
-            TargetNearest(  0,   0,   0,
-                            0,   0,   0,
+            TargetNearest(  0,   0,   0,   0,
+                            0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,
                             0,   0, cwf);  // only go wait in an empty wild flag base as a last resort
@@ -1289,23 +1327,18 @@ bool Robot::IsMassive() const throw () {
 }
 
 int Robot::HaveFlag(int n) const throw () {
-    const int t = 1 - fx.player[n].team();
-    nAssert(t == 0 || t == 1);
-
-    // look for enemy flags in team
-    for (vector<Flag>::const_iterator fi = fx.teams[t].flags().begin(); fi != fx.teams[t].flags().end(); ++fi)
-        if (fi->carried() && fi->carrier() == n)
-            return 1;
-
-    // looking for wild flags
-    for (vector<Flag>::const_iterator fi = fx.wild_flags.begin(); fi != fx.wild_flags.end(); ++fi)
-        if (fi->carried() && fi->carrier() == n)
-            return 2;
-
+    for (int team = 0; team <= 2; ++team) {
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+            if (fi->carried() && fi->carrier() == n)
+                return team == fx.player[n].team() ? 3 : team == 2 ? 2 : 1;
+    }
     return 0;
 }
 
 bool Robot::IsFlagAtBase(const Flag& f, int team) const throw () {
+    if (f.carried())
+        return false;
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi) {
         const Vec dist = bi->local() - f.position().local();
@@ -1394,7 +1427,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         WorldCoords pos;
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (pl.team() != carrierTeam || !pl.used || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+            if (pl.team() != carrierTeam || !pl.used || pl.pid == me || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
                 continue;
             if (state == 3 && !pl.onscreen) { // check if the position is current enough
                 if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
@@ -1415,8 +1448,8 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         if (distance == -1)
             continue;
 
-        if (state == 1 && team != 2 && distance <= roomToRoomBaseDistance * 3 / 2)
-            distance = 0; // prioritize nearby dropped team flags over other targets
+        if (state == 1 && team != 2 && distance <= roomToRoomBaseDistance * 3 / 2 && !carry_own_team_flag)
+            distance = 0; // prioritize nearby dropped team flags over other targets if they can be returned
 
         if (distance < m_distance || m_distance == -1) {
             m_distance = distance;
@@ -1450,8 +1483,8 @@ void Robot::TargetFog() throw () {
     setDestination(target);
 }
 
-/* TargetNearest(enemy flag {at base, dropped off base, carried},
- *                  my flag {at base, dropped off base, carried},
+/* TargetNearest(enemy flag {at base, dropped off base, carried by enemy, carried by friend},
+ *                  my flag {at base, dropped off base, carried by enemy, carried by friend},
  *                wild flag {at base, dropped off base, carried by enemy, carried by friend},
  *         {enemy, my} team,
  *   {enemy, my, wild} base)
@@ -1462,8 +1495,8 @@ void Robot::TargetFog() throw () {
  * team: a living non-me player with probably known location
  * base: a base, regardless of where its flag is
  */
-void Robot::TargetNearest(int efb, int efd, int efc,
-                          int mfb, int mfd, int mfc,
+void Robot::TargetNearest(int efb, int efd, int efce, int efcf,
+                          int mfb, int mfd, int mfce, int mfcf,
                           int wfb, int wfd, int wfce, int wfcf,
                           int en,  int fr,
                           int eb,  int fb, int wb) throw () {
@@ -1476,54 +1509,29 @@ void Robot::TargetNearest(int efb, int efd, int efc,
 
     destinationType = Dest_None;
 
-    if (efb)
-        TargetNearestFlag(m_distance, targetArea, et, 0);
-
-    if (efd)
-        TargetNearestFlag(m_distance, targetArea, et, 1);
-
-    if (efc)
-        TargetNearestFlag(m_distance, targetArea, et, 2);
-
-    if (mfb)
-        TargetNearestFlag(m_distance, targetArea, t, 0);
-
-    if (mfd)
-        TargetNearestFlag(m_distance, targetArea, t, 1);
-
-    if (mfc)
-        TargetNearestFlag(m_distance, targetArea, t, 3);
-
-    if (wfb)
-        TargetNearestFlag(m_distance, targetArea, 2, 0);
-
-    if (wfd)
-        TargetNearestFlag(m_distance, targetArea, 2, 1);
-
-    if (wfce)
-        TargetNearestFlag(m_distance, targetArea, 2, 3);
-
-    if (wfcf)
-        TargetNearestFlag(m_distance, targetArea, 2, 2);
-
-    if (en)
-        TargetNearestTeam(m_distance, targetArea, et);
-
-    if (fr)
-        TargetNearestTeam(m_distance, targetArea, t);
-
-    if (eb)
-        TargetNearestBase(m_distance, targetArea, et);
-    if (fb)
-        TargetNearestBase(m_distance, targetArea, t);
-    if (wb)
-        TargetNearestBase(m_distance, targetArea, 2);
+    if (efb)  TargetNearestFlag(m_distance, targetArea, et, 0);
+    if (efd)  TargetNearestFlag(m_distance, targetArea, et, 1);
+    if (efce) TargetNearestFlag(m_distance, targetArea, et, 3);
+    if (efcf) TargetNearestFlag(m_distance, targetArea, et, 2);
+    if (mfb)  TargetNearestFlag(m_distance, targetArea,  t, 0);
+    if (mfd)  TargetNearestFlag(m_distance, targetArea,  t, 1);
+    if (mfce) TargetNearestFlag(m_distance, targetArea,  t, 3);
+    if (mfcf) TargetNearestFlag(m_distance, targetArea,  t, 2);
+    if (wfb)  TargetNearestFlag(m_distance, targetArea,  2, 0);
+    if (wfd)  TargetNearestFlag(m_distance, targetArea,  2, 1);
+    if (wfce) TargetNearestFlag(m_distance, targetArea,  2, 3);
+    if (wfcf) TargetNearestFlag(m_distance, targetArea,  2, 2);
+    if (en)   TargetNearestTeam(m_distance, targetArea, et);
+    if (fr)   TargetNearestTeam(m_distance, targetArea,  t);
+    if (eb)   TargetNearestBase(m_distance, targetArea, et);
+    if (fb)   TargetNearestBase(m_distance, targetArea,  t);
+    if (wb)   TargetNearestBase(m_distance, targetArea,  2);
 
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    fprintf(stderr, "TargetNearest(%d, %d, %d,   %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %d\n",
-            efb, efd, efc,
-            mfb, mfd, mfc,
+    fprintf(stderr, "TargetNearest(%d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %d\n",
+            efb, efd, efce, efcf,
+            mfb, mfd, mfce, mfcf,
             wfb, wfd, wfce, wfcf,
             en,  fr,
             eb,  fb, wb,
