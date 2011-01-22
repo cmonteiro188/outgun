@@ -414,6 +414,14 @@ bool Map::parse_file(LogSet& log, istream& in) throw () {
         crcData += '\n';
         if (line[0] == ':') {           // new label
             const string label = line.substr(1);
+            if (label.empty()) {
+                log.error(_("Label name missing: $1", line));
+                return false;
+            }
+            else if (find_if(label.begin(), label.end(), isspace) != label.end()) {
+                log.error(_("Label contains whitespace: $1", line));
+                return false;
+            }
             for (vector<pair<string, vector<string> > >::const_iterator li = label_lines.begin(); li != label_lines.end(); ++li)
                 if (li->first == label) {   // same label again
                     log.error(_("Two identical label names not allowed: $1", line));
