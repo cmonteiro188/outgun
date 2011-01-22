@@ -3794,7 +3794,7 @@ void GuiClient::draw_playfield() throw () {
     }
 
     for (int i = 0; i < maxplayers; i++)
-        if (player_on_screen_exact(i) && fx.player[i].item_deathbringer)
+        if (fx.player[i].item_deathbringer && (player_on_screen_exact(i) || seePropertiesRemotely(i)))
             graphics.draw_deathbringer_carrier_circle(playerPos(i), calculatePlayerAlpha(i));
 
     graphics.draw_effects(time);
@@ -3894,17 +3894,33 @@ GuiClient::VisibilityMap GuiClient::calculateVisibilities() throw () {
 
 int GuiClient::calculatePlayerAlpha(int pid) const throw () {
     static const int min_alpha_friends = 128;
-    const int baseAlpha = fd.player[pid].visibility;
-    if ((replaying || fx.player[pid].team() == fx.player[me].team()) && baseAlpha < min_alpha_friends)
-        return min_alpha_friends;
+    int alpha = fd.player[pid].visibility;
+    if (replaying || fx.player[pid].team() == fx.player[me].team())
+        alpha = max(alpha, min_alpha_friends);
+
+    if (player_on_screen_exact(pid))
+        return alpha;
+    else {
+        if (!seePropertiesRemotely(pid))
+            alpha = 255;
+        return alpha * fx.player[pid].alpha / 255 * 2 / 3;
+    }
+}
+
+bool GuiClient::seePropertiesRemotely(int pid) const throw () {
+    if (see_minimap_player_properties == 0)
+        return false;
+    else if (see_minimap_player_properties == 1)
+        return fx.player[pid].team() == fx.player[me].team();
     else
-        return baseAlpha;
+        return true;
 }
 
 void GuiClient::draw_player(int pid, double time, bool live) throw () {
     ClientPlayer& player = fx.player[pid];
     const bool fullyVisible = player_on_screen_exact(pid);
-    const int alpha = fullyVisible ? calculatePlayerAlpha(pid) : fx.player[pid].alpha * 2 / 3;
+    const bool propertiesVisible = fullyVisible || seePropertiesRemotely(pid);
+    const int alpha = calculatePlayerAlpha(pid);
     const int flagAlpha = fullyVisible ? 255 : alpha;
     const WorldCoords& pos = playerPos(pid);
     // draw flag if player is carrier of a flag
@@ -3913,7 +3929,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
             graphics.draw_flag(fi.team(), pos, false, flagAlpha, menu.options.graphics.emphasizeFlag(visible_rooms));
             break;
         }
-    if (!fullyVisible) {
+    if (!propertiesVisible) {
         graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
         return;
     }

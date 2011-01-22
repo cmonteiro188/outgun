@@ -825,6 +825,27 @@ void PlayerBase::clear(bool enable, int _pid, const string& _name, int team_id) 
     used = enable;
 }
 
+PlayerBase::RemotelyVisiblePropertiesData PlayerBase::remotelyVisibleProperties() const throw () {
+    RemotelyVisiblePropertiesData d;
+    d.data = item_deathbringer
+            | (!!item_shield) << 1
+            | item_power << 2
+            | item_turbo << 3
+            | (visibility < 255) << 4
+            | (visibility < 10) << 5
+            | under_deathbringer_effect(get_time()) << 6;
+    return d;
+}
+
+void ClientPlayer::setProperties(const RemotelyVisiblePropertiesData& d) throw () {
+    item_deathbringer = d.data & 1;
+    item_shield = !!(d.data & 2);
+    item_power = d.data & 4;
+    item_turbo = d.data & 8;
+    visibility = d.data & 0x20 ? 7 : d.data & 0x10 ? 180 : 255;
+    deathbringer_affected = d.data & 0x40;
+}
+
 void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, int team_id, unsigned uniqueId_) throw () {
     attack = attackOnce = false;
     oldfrags = -666;
@@ -1590,6 +1611,7 @@ void WorldSettings::reset() throw () {
     always_send_flag_location = false;
 
     see_rockets_distance = 0;
+    see_minimap_player_properties = 0;
 
     carrying_score_time = 0;
 }
@@ -1874,8 +1896,11 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 
     player[pid].stats().spawn(get_time());
 
-    if (!dontInformClients)
+    if (!dontInformClients) {
         net->broadcast_spawn(player[pid]);
+        for (int pi = 0; pi < maxplayers; ++pi)
+            player[pi].knownProperties[pid].clear();
+    }
 
     if (pupConfig.start_weapon > 1)
         net->sendWeaponPower(pid);
@@ -3596,6 +3621,10 @@ bool ServerWorld::capture_on_wild_flags_in_effect() const throw () {
 
 bool ServerWorld::all_kind_of_flags_exist() const throw () {
     return !wild_flags.empty() && !teams[0].flags().empty() && !teams[1].flags().empty();
+}
+
+bool ServerWorld::seesPropertiesRemotely(const PlayerBase& pl, const PlayerBase& target) const throw () {
+    return pl.team() == target.team() ? config.seeMinimapFriendProperties() : config.seeMinimapEnemyProperties();
 }
 
 void ServerWorld::player_steals_flag(int pid, int team, int flag) throw () {

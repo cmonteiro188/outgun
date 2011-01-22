@@ -31,7 +31,7 @@
 
 extern const std::string GAME_STRING;
 extern const std::string GAME_PROTOCOL;
-static const int PROTOCOL_EXTENSIONS_VERSION = 2;
+static const int PROTOCOL_EXTENSIONS_VERSION = 3;
 
 extern const std::string REPLAY_IDENTIFICATION;
 static const unsigned REPLAY_VERSION = 2; // increase when the replay structure changes
@@ -131,6 +131,8 @@ enum Network_data_code {
     // available from negotiated extensions level 1:
     data_quick_map_list,
     data_negative_map_votes,
+    // available from negotiated extensions level 3:
+    data_minimap_player_properties,
     data_negotiated_third_party_extensions_first = 200 // from here on, codes are guaranteed to not be used by official versions present or future, and can be used after successful negotiation with data_negotiate_third_party_extensions
 };
 

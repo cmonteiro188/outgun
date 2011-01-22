@@ -1947,8 +1947,9 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
         }
     }
     {
-        // check if flag lock/capture settings have changed
-        const uint8_t newMask = world.carry_own_team_flag()             << 5 |
+        // check if flag lock/capture settings (and similar) have changed
+        const uint8_t newMask = world.getConfig().see_minimap_player_properties << 6 |
+                                world.carry_own_team_flag()             << 5 |
                                 world.capture_away_from_base()          << 4 |
                                 world.      lock_team_flags_in_effect() << 3 |
                                 world.      lock_wild_flags_in_effect() << 2 |
@@ -2088,6 +2089,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             frame.U8(recipient.room().x);
             frame.U8(recipient.room().y);
 
+            vector< pair<int, PlayerBase::RemotelyVisiblePropertiesData> > newProperties;
+
             // player data field to indicate which players are on screen (and therefore sent on the frame)
             uint32_t players_onscreen = 0;
 
@@ -2137,6 +2140,8 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                 if (preciseGundir)
                     extra |= 64;
                 frame.U8(extra);
+
+                recipient.knownProperties[h.pid] = h.remotelyVisibleProperties(); // if the frame is dropped, this may rarely cause a failure to inform recipient about the pups until next on screen
 
                 if (!h.dead && recipient.protocolExtensionsLevel >= 0) { // for unextended clients, speed was sent before the extra byte
                     // speed in 2 bytes
@@ -2242,8 +2247,17 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                         frame.U8(rotP & 0xFF);
                         rotP >>= 8;
                     }
-                    for (vector<int>::const_iterator pi = players.begin(); pi != players.end(); ++pi)
-                        writeMinimapPlayerPosition(frame, *pi);
+                    for (vector<int>::const_iterator pi = players.begin(); pi != players.end(); ++pi) {
+                        const int pid = *pi;
+                        writeMinimapPlayerPosition(frame, pid);
+                        if (world.seesPropertiesRemotely(recipient, world.player[pid])) {
+                            const PlayerBase::RemotelyVisiblePropertiesData pd = world.player[pid].remotelyVisibleProperties();
+                            if (recipient.knownProperties[pid] != pd) {
+                                newProperties.push_back(make_pair(pid, pd));
+                                recipient.knownProperties[pid] = pd;
+                            }
+                        }
+                    }
                 }
             }
             else
@@ -2254,6 +2268,7 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
                     else {
                         frame.U8(who);
                         writeMinimapPlayerPosition(frame, who);
+                        // no need to keep track of properties, they can't be sent to old clients anyway
                     }
                 }
 
@@ -2269,6 +2284,16 @@ void ServerNetworking::broadcast_frame(bool gameRunning) throw () {
             // ping of player frame# % maxplayers
             if (recipient.protocolExtensionsLevel < 0 || world.player[world.frame % maxplayers].used)
                 frame.U16(static_cast<uint16_t>(world.player[world.frame % maxplayers].ping));
+
+            if (!newProperties.empty() && recipient.protocolExtensionsLevel >= 3) {
+                BinaryBuffer<100> msg;
+                msg.U8(data_minimap_player_properties);
+                for (vector< pair<int, PlayerBase::RemotelyVisiblePropertiesData> >::const_iterator npi = newProperties.begin(); npi != newProperties.end(); ++npi) {
+                    msg.U8(npi->first);
+                    npi->second.write(msg);
+                }
+                send_message(recipient.cid, msg);
+            }
         }
 
         //send the packet

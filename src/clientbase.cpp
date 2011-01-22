@@ -337,6 +337,7 @@ void ClientBase::client_connected(ConstDataBlockRef data) throw () {   // call w
     lock_wild_flags_in_effect = false;
     capture_on_team_flags_in_effect = true;
     capture_on_wild_flags_in_effect = false;
+    see_minimap_player_properties = 0;
 }
 
 void ClientBase::disconnected_base(ConstDataBlockRef data) throw () {
@@ -1267,7 +1268,14 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
             fx.player[pid].posUpdated = fx.player[pid].prevMapPosUpdateFrame = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
         fx.player[pid].dead = false;
+        fx.player[pid].setProperties(PlayerBase::RemotelyVisiblePropertiesData());
     }
+
+    break; case data_minimap_player_properties:
+        while (read.hasMore()) {
+            const uint8_t pid = read.U8(0, maxplayers - 1);
+            fx.player[pid].setProperties(PlayerBase::RemotelyVisiblePropertiesData().read(read));
+        }
 
     break; case data_team_movements_shots: {
         const bool e = protocolExtensions >= 0;
@@ -1522,6 +1530,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
 
     break; case data_flag_modes: {
         const uint8_t mask = read.U8();
+        see_minimap_player_properties = (mask & 0xC0) >> 6;
         carry_own_team_flag = mask & 0x20;
         capture_away_from_base = mask & 0x10;
         lock_team_flags_in_effect = mask & 8;

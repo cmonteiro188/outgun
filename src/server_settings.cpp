@@ -1,7 +1,7 @@
 /*
  *  server_settings.cpp - implementation of Server::SettingManager
  *
- *  Copyright (C) 2008, 2009 - Niko Ritari
+ *  Copyright (C) 2008, 2009, 2011 - Niko Ritari
  *  Copyright (C) 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -263,6 +263,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("free_turning",                &world.physics.allowFreeTurning));
     cat.add(new GS_Int       ("minimap_send_limit",          &minimap_send_limit, 0, 32));
     cat.add(new GS_Int       ("see_rockets_distance",        &worldConfig.see_rockets_distance, 0));
+    cat.add(new GS_Int       ("see_minimap_player_properties", &worldConfig.see_minimap_player_properties, 0, 2));
     categories.push_back(cat);
 
     cat = Category("health"  , "Health, energy and shooting");

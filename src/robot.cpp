@@ -129,7 +129,7 @@ bool Robot::dangerousExplosionInNeighbor(const Area::Neighbor& neighbor) const t
 bool Robot::moreDefensive(const ClientPlayer& player) const throw () {
     if (HaveFlag(player.pid))
         return true;
-    if (here(player, true) && player.item_turbo != fx.player[me].item_turbo)
+    if ((here(player, true) || see_minimap_player_properties >= 1) && player.item_turbo != fx.player[me].item_turbo)
         return !player.item_turbo;
     if (player.name.substr(0, 4) == "BOT ")
         return player.pid < me;

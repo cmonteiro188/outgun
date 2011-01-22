@@ -470,6 +470,25 @@ public:
 
     const WorldCoords& position() const throw () { return pos; }
     const RoomCoords& room() const throw () { return pos.room; }
+
+    class RemotelyVisiblePropertiesData {
+        friend class PlayerBase;
+        friend class ClientPlayer;
+
+        uint8_t data;
+
+    public:
+        RemotelyVisiblePropertiesData() throw () : data(0) { }
+        void clear() throw () { data = 0; }
+
+        bool operator==(const RemotelyVisiblePropertiesData& o) const throw () { return data == o.data; }
+        bool operator!=(const RemotelyVisiblePropertiesData& o) const throw () { return data != o.data; }
+
+        RemotelyVisiblePropertiesData& read(BinaryReader& reader) throw (BinaryReader::ReadError) { data = reader.U8(); return *this; }
+        void write(BinaryWriter& writer) const throw () { writer.U8(data); }
+    };
+
+    RemotelyVisiblePropertiesData remotelyVisibleProperties() const throw ();
 };
 
 bool compare_players(const PlayerBase* a, const PlayerBase* b) throw ();
@@ -490,6 +509,8 @@ public:
 
     double deathbringer_end;    // end of effect of another players deathbringer
     int deathbringer_attacker;  // whose deathbringer it is
+
+    PlayerBase::RemotelyVisiblePropertiesData knownProperties[MAX_PLAYERS];
 
     int awaiting_client_readies;
     bool want_map_exit;
@@ -594,6 +615,7 @@ public:
     void clear(bool enable, int _pid, const std::string& _name, int team_id) throw ();
 
     void setPosition(const WorldCoords& pos, double frame, bool minimapUpdate = false, bool clearlyVisible = true) throw ();
+    void setProperties(const RemotelyVisiblePropertiesData&) throw ();
 };
 
 // a rocket-shot
@@ -1042,6 +1064,7 @@ public:
     bool always_send_flag_location; /// false: only send flag location when seen or on the ground; true: always send the location
 
     int see_rockets_distance;
+    int see_minimap_player_properties;
 
     int carrying_score_time;
 
@@ -1066,6 +1089,9 @@ public:
 
     Team_balance balanceTeams() const throw () { return balance_teams; }
     bool suddenDeath() const throw () { return sudden_death; }
+
+    bool seeMinimapFriendProperties() const throw () { return see_minimap_player_properties >= 1; }
+    bool seeMinimapEnemyProperties() const throw () { return see_minimap_player_properties >= 2; }
 };
 
 class ServerNetworking;
@@ -1174,6 +1200,8 @@ public:
     bool lock_wild_flags_in_effect() const throw ();
     bool capture_on_team_flags_in_effect() const throw ();
     bool capture_on_wild_flags_in_effect() const throw ();
+
+    bool seesPropertiesRemotely(const PlayerBase& pl, const PlayerBase& target) const throw ();
 };
 
 class ClientWorld : public WorldBase {

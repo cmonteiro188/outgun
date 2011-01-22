@@ -442,6 +442,8 @@ class GuiClient : public ClientBase, public ClientInterface {
     WorldCoords viewTopLeft() const throw ();
     std::pair<int, int> topLeftRoom() const throw ();
 
+    bool seePropertiesRemotely(int pid) const throw ();
+
     // GUI
     void erase_first_message() throw ();
     void print_message(Message_type type, const FormattedText& msg, int sender_team = -1) throw ();

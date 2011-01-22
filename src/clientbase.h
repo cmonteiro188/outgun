@@ -121,6 +121,7 @@ protected:
     bool lock_wild_flags_in_effect;
     bool capture_on_team_flags_in_effect;
     bool capture_on_wild_flags_in_effect;
+    int see_minimap_player_properties;
 
     bool gameshow;
     int gameover_plaque;

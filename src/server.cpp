@@ -1611,12 +1611,21 @@ void Server::simulate_and_broadcast_frame() throw () {
             check_map_exit();
     }
 
-    if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
-        for (int i = 0; i < maxplayers; ++i)
-            if (world.player[i].used && world.player[i].protocolExtensionsLevel < 0 && !world.player[i].toldAboutExtensionAdvantage) {
-                network.warnAboutExtensionAdvantage(i);
-                world.player[i].toldAboutExtensionAdvantage = true;
-            }
+    {
+        int allAdvantagesLevel;
+        if (world.getConfig().see_minimap_player_properties != 0)
+            allAdvantagesLevel = 3;
+        else if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
+            allAdvantagesLevel = 0;
+        else
+            allAdvantagesLevel = -1;
+        if (allAdvantagesLevel != -1)
+            for (int i = 0; i < maxplayers; ++i)
+                if (world.player[i].used && world.player[i].protocolExtensionsLevel < allAdvantagesLevel && !world.player[i].toldAboutExtensionAdvantage) {
+                    network.warnAboutExtensionAdvantage(i);
+                    world.player[i].toldAboutExtensionAdvantage = true;
+                }
+    }
 
     for (int i = 0; i < maxplayers; ++i) {
         if (!world.player[i].used)
