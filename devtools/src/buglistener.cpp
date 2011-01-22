@@ -14,6 +14,13 @@ inline void readStr(const char* buf, int& count, std::string& dst) {
     ++count;
 }
 
+#undef readLong
+void readLong(void* data, int& pos, uint32_t& val) {
+    val = 0;
+    for (int i = 0; i < 4; ++i)
+        val = val << 8 | ((uint8_t*)data)[pos++];
+}
+
 string date_and_time(time_t tt) {
     const tm* tmb = localtime(&tt);
     const int time_w = 20;
@@ -96,7 +103,7 @@ int inMain(FILE* infile, FILE* outfile) {
         int bufp = 0;
         if (!strcmp(buf, "Outgun")) {
             string game, ver, file;
-            int line;
+            uint32_t line;
             unsigned char build;
             readStr(buf, bufp, game);
             readStr(buf, bufp, ver);
