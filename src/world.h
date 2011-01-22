@@ -1106,6 +1106,8 @@ class ServerWorld : public WorldBase {
 
     unsigned current_extra_time_period;
 
+    std::set<std::pair<int, int> > carrierCollisions; // contains collisions of teammate carriers (pid, pid), reset for each frame
+
     uint8_t getFreeRocket() throw ();    // may give an existing rocket to overwrite if the table is full
     bool doesPlayerSeeRocket(ServerPlayer& pl, int roomx, int roomy) const throw ();
     void drop_powerup(const ServerPlayer& player) throw ();
@@ -1173,7 +1175,7 @@ public:
     void respawn_powerup(int p) throw ();
     void check_powerup_creation(bool instant) throw ();
     void game_touch_powerup(int p, int pk, bool teammateTouched = false) throw ();
-    bool check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw ();
+    bool check_flag_touch(const Flag& flag, const PlayerBase& pl) const throw ();
     void game_player_screen_change(int p) throw ();
 
     bool dropFlagIfAny(int pid, bool purpose = false, bool captureDrop = false) throw ();

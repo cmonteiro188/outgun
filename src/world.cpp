@@ -1924,15 +1924,18 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 }
 
 //flag touched by player?
-bool ServerWorld::check_flag_touch(const Flag& flag, int px, int py, double x, double y) throw () {
+bool ServerWorld::check_flag_touch(const Flag& flag, const PlayerBase& pl) const throw () {
     const WorldCoords pos = flag.carried() ? player[flag.carrier()].position() : flag.position();
 
-    if (pos.room != RoomCoords(px, py))
+    if (pos.room != pl.pos.room)
         return false;
 
-    // TODO: If collisions are on, carriers shall only need to touch each other.
-    const double dx = pos.x - x;
-    const double dy = pos.y - y;
+    // If collisions are on, carriers shall only need to touch each other.
+    if (flag.carried() && carrierCollisions.count(pair<int, int>(pl.pid, player[flag.carrier()].pid)))
+        return true;
+
+    const double dx = pos.x - pl.pos.x;
+    const double dy = pos.y - pl.pos.y;
     const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
 
     return dx * dx + dy * dy < touchRadius * touchRadius;
@@ -2557,13 +2560,20 @@ bool ServerWorld::rocketHitPlayerCallback(int rid, int pid) throw () {
 }
 
 PhysicsCallbacksBase::PlayerHitResult ServerWorld::playerHitPlayerCallback(int pid1, int pid2, double speed) throw () {
+    ServerPlayer& pl1 = player[pid1];
+    ServerPlayer& pl2 = player[pid2];
+
+    // Check if teammate carriers collide for a potential capture.
+    if (config.carry_own_team_flag && pl1.stats().has_flag() && pl2.stats().has_flag() && pl1.team() == pl2.team()) {
+        // To simplify the check later, add the pair both ways.
+        carrierCollisions.insert(pair<int, int>(pid1, pid2));
+        carrierCollisions.insert(pair<int, int>(pid2, pid1));
+    }
+
     if (physics.player_collisions != PhysicalSettings::PC_special)
         return PhysicsCallbacksBase::PlayerHitResult(false, false, 1., 1.);
 
     speed /= physics.max_run_speed; // make the speed -> damage relatively constant at top speed, regardless of the physics
-
-    ServerPlayer& pl1 = player[pid1];
-    ServerPlayer& pl2 = player[pid2];
 
     nAssert(!pl1.dead && !pl2.dead);
 
@@ -3291,7 +3301,7 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
         }
         int f = 0;
         for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
-            if (!fi->carried() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y)) {
+            if (!fi->carried() && check_flag_touch(*fi, pl)) {
                 touches_flag = true;
                 // Has player just dropped the flag or not?
                 if (!pl.dropped_flag && !pl.drop_key) {
@@ -3307,7 +3317,7 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
     if (!config.carry_own_team_flag) {
         int f = 0;
         for (vector<Flag>::const_iterator fi = teams[myteam].flags().begin(); fi != teams[myteam].flags().end(); ++fi, ++f)
-            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl.room().x, pl.room().y, pl.pos.x, pl.pos.y) &&
+            if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl) &&
                 frame / 10. >= fi->drop_time() + config.flag_return_delay)
             {
                 //FLAG RETURNED!
@@ -3389,7 +3399,7 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
     const vector<Flag>& targetFlags = targetFlagTeam == 2 ? wild_flags : teams[targetFlagTeam].flags();
     int targetFlagID = 0;
     for (vector<Flag>::const_iterator targetf = targetFlags.begin(); targetf != targetFlags.end(); targetf++, targetFlagID++) {
-        const bool nearBase = config.capture_away_from_base || is_near_base_for_capture(*targetf, targetBase);
+        const bool nearBase = config.capture_away_from_base || is_near_base_for_capture(*targetf, targetBase) || is_near_base_for_capture(carriedFlag, targetBase);
         if (!nearBase)
             continue;
         else if (targetf->carried() && targetf->carrier() / TSIZE != carrier.team()) // carried by enemy
@@ -3400,7 +3410,7 @@ bool ServerWorld::try_capture(const ServerPlayer& carrier, int carriedFlagTeam, 
             continue;
         else if (carriedFlagTeam == 2 && targetFlagTeam == enemyTeam && targetf->carried()) // carrier of enemy flag shall be the capturer
             continue;
-        else if (!check_flag_touch(*targetf, carrier.room().x, carrier.room().y, carrier.pos.x, carrier.pos.y))
+        else if (!check_flag_touch(*targetf, carrier))
             continue;
         else if (get_time() < carriedFlag.grab_time() + config.get_min_capture_time() && (targetf->at_base() || get_time() < targetf->grab_time() + config.get_min_capture_time()))
             continue;
@@ -3452,6 +3462,8 @@ bool ServerWorld::extra_time_and_sudden_death() const throw () {
 }
 
 void ServerWorld::simulateFrame() throw () {
+    carrierCollisions.clear();
+
     // (-1) check powerup respawn
     for (int i = 0; i < MAX_POWERUPS; i++)
         if (item[i].kind == Powerup::pup_respawning && get_time() > item[i].respawn_time)
