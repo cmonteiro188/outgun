@@ -1925,7 +1925,7 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 
 //flag touched by player?
 bool ServerWorld::check_flag_touch(const Flag& flag, const PlayerBase& pl) const throw () {
-    const WorldCoords pos = flag.carried() ? player[flag.carrier()].position() : flag.position();
+    const WorldCoords& pos = flag.carried() ? player[flag.carrier()].position() : flag.position();
 
     if (pos.room != pl.pos.room)
         return false;
@@ -1934,11 +1934,7 @@ bool ServerWorld::check_flag_touch(const Flag& flag, const PlayerBase& pl) const
     if (flag.carried() && carrierCollisions.count(pair<int, int>(pl.pid, player[flag.carrier()].pid)))
         return true;
 
-    const double dx = pos.x - pl.pos.x;
-    const double dy = pos.y - pl.pos.y;
-    const int touchRadius = PLAYER_RADIUS + FLAG_RADIUS;
-
-    return dx * dx + dy * dy < touchRadius * touchRadius;
+    return (pos.local() - pl.pos.local()).mag2() < sqr(PLAYER_RADIUS + FLAG_RADIUS);
 }
 
 // drop shield, turbo, shadow, power or weapon power-up if player has some of them
