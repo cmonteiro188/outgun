@@ -607,6 +607,8 @@ bool GuiClient::start() throw () {
     // message highlighting
     load_highlight_texts();
 
+    load_fav_maps();
+
     if (menu.options.game.autoGetServerList())
         MCF_updateServers();
 
