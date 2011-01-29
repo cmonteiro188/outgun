@@ -3460,14 +3460,20 @@ bool ServerWorld::extra_time_and_sudden_death() const throw () {
 void ServerWorld::simulateFrame() throw () {
     carrierCollisions.clear();
 
+    vector<ServerPlayer*> playerOrder;
+    for (int i = 0; i < maxplayers; ++i)
+        if (player[i].used)
+            playerOrder.push_back(&player[i]);
+    random_shuffle(playerOrder.begin(), playerOrder.end());
+
     // (-1) check powerup respawn
     for (int i = 0; i < MAX_POWERUPS; i++)
         if (item[i].kind == Powerup::pup_respawning && get_time() > item[i].respawn_time)
             respawn_powerup(i);
 
     // (0) do stuff for every player
-    for (int i = 0; i < maxplayers; i++)
-        simulatePlayerPrePhysics(player[i]);
+    for (vector<ServerPlayer*>::const_iterator pi = playerOrder.begin(); pi != playerOrder.end(); ++pi)
+        simulatePlayerPrePhysics(**pi);
 
     cleanOldDeathbringerExplosions();
 
@@ -3522,8 +3528,8 @@ void ServerWorld::simulateFrame() throw () {
 
     // check player respawn
     vector<ServerPlayer*> respawners[2];
-    for (int i = 0; i < maxplayers; ++i) {
-        ServerPlayer& pl = player[i];
+    for (vector<ServerPlayer*>::const_iterator pi = playerOrder.begin(); pi != playerOrder.end(); ++pi) {
+        ServerPlayer& pl = **pi;
         if (!pl.used || !pl.dead)
             continue;
         if (pl.frames_to_respawn)
@@ -3531,7 +3537,7 @@ void ServerWorld::simulateFrame() throw () {
         else if (pl.extra_frames_to_respawn)
             --pl.extra_frames_to_respawn;
         if (!pl.awaiting_client_readies)
-            respawners[i / TSIZE].push_back(&pl);
+            respawners[pl.team()].push_back(&pl);
     }
     for (int i = 0; i < 2; ++i)
         sort(respawners[i].begin(), respawners[i].end(), sortByExtraFramesToRespawn);
@@ -3556,8 +3562,8 @@ void ServerWorld::simulateFrame() throw () {
     }
 
     // for each player, do misc stuff
-    for (int i = 0; i < maxplayers; i++)
-        simulatePlayerPostPhysics(player[i]);
+    for (vector<ServerPlayer*>::const_iterator pi = playerOrder.begin(); pi != playerOrder.end(); ++pi)
+        simulatePlayerPostPhysics(**pi);
 
     // check for score for carrying a wild flag
     if (config.carrying_score_time > 0 && teams[0].flags().empty() && teams[1].flags().empty()) {
