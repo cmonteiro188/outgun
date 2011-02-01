@@ -2,7 +2,7 @@
  *  commont.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2006, 2008 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -133,9 +133,9 @@ public:
     }
 
     bool token     () const throw () { return (data & SB_token     ) != 0; } // client has reported a token
-    bool masterAuth() const throw () { return (data & SB_masterAuth) != 0; } // client's token has been authorized by master
+    bool masterAuth() const throw () { return (data & SB_masterAuth) != 0; } // client has been authenticated by verifying the token with master
     bool ranking   () const throw () { return (data & SB_ranking   ) != 0; } // client's score is being recorded for ranking scoring
-    bool localAuth () const throw () { return (data & SB_localAuth ) != 0; } // client has been authorized by the server's auth.txt
+    bool localAuth () const throw () { return (data & SB_localAuth ) != 0; } // client has been authenticated by the server's auth.txt
     bool admin     () const throw () { return (data & SB_admin     ) != 0; } // client is an admin on this server
 
     void setToken     (bool b) throw () { data = (data & (~SB_token     )) | (b ? SB_token      : 0); }

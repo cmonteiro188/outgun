@@ -405,7 +405,7 @@ public:
     void score_frag(int p, int amount, bool forRanking = true) throw ();
     void score_neg(int p, int amount, bool forRanking = true) throw ();
     int getLessScoredTeam() const throw ();  // using team_smul ; call refresh_team_score_modifiers before calling this
-    bool isLocallyAuthorized(int pid) const throw ();
+    bool isLocallyAuthenticated(int pid) const throw ();
     bool isAdmin(int pid) const throw ();
 
     bool load_rotation_map(int pos) throw ();

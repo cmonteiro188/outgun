@@ -398,7 +398,7 @@ public:
     void broadcastPowerupPicked(int roomx, int roomy, int pup_id) const throw ();
     void sendPupTime(int pid, uint8_t pupType, double timeLeft) const throw ();
     void sendFragUpdate(int pid, uint32_t frags) const throw ();
-    void sendNameAuthorizationRequest(int pid) const throw ();
+    void sendNameAuthenticationRequest(int pid) const throw ();
 
     void broadcast_sample(int code) const throw ();
     void broadcast_screen_sample(int p, int code) const throw ();

@@ -93,7 +93,7 @@ enum Network_data_code {
     data_movements_shots,
     data_team_movements_shots,
     data_fav_colors,
-    data_name_authorization_request,
+    data_name_authentication_request,
     data_server_settings,
     data_reset_map_list,
     data_stats_ready,

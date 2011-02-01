@@ -586,9 +586,9 @@ keyboard (8-directional)##näppäimistöllä (8 suuntaa)
 keyboard (smooth turning)##näppäimistöllä (sulava kääntyminen)
 left##vasemmalle
 locale##fi_FI
-locally authorized##palvelin tunnisti
+locally authenticated##palvelin tunnisti
 master auth pending##pääpalvelimen tunnistus kesken
-master authorized##pääpalvelin tunnisti
+master authenticated##pääpalvelin tunnisti
 minimal##minimaalinen
 minute##minuutti
 minutes##minuuttia

@@ -67,7 +67,7 @@ const int PASSBUFFER = 32;  //size of password file
 int benchmarkRuns = 0;
 #endif
 
-void GuiClient::processNameAuthorizationRequest() throw () {
+void GuiClient::processNameAuthenticationRequest() throw () {
     m_playerPassword.setup(playername, false);
     showMenu(m_playerPassword);
 }
@@ -1601,7 +1601,7 @@ void GuiClient::net_data_crap_update(BinaryReader& read) throw (BinaryReader::Re
         msg << _("Status") << ": ";
         if (ls.token()) {
             if (ls.masterAuth()) {
-                msg << _("master authorized") << ", ";
+                msg << _("master authenticated") << ", ";
                 if (ls.ranking())
                     msg << _("recording");
                 else
@@ -1618,7 +1618,7 @@ void GuiClient::net_data_crap_update(BinaryReader& read) throw (BinaryReader::Re
         else
             msg << _("no ranking login");
         if (ls.localAuth())
-            msg << "; " << _("locally authorized");
+            msg << "; " << _("locally authenticated");
         if (ls.admin())
             msg << "; " << _("administrator");
         addThreadMessage(new TM_Text(msg_info, msg.str()));

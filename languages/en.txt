@@ -552,19 +552,20 @@ Saved screenshot to $1.
 Could not save screenshot to $1.
 Downloading map "$1"...
 
-; Used to report authorization status when connected to a server.
+; Used to report authentication, authorization and ranking status when
+; connected to a server.
 ; "Recording" means recording scores with the ranking system.
 ; An in-game message is composed of these, for example:
-; Status: master authorized, not recording; administrator
+; Status: master authenticated, not recording; administrator
 Status
-master authorized
+master authenticated
 recording
 not recording
 master auth pending
 will record
 will not record
 no ranking login
-locally authorized
+locally authenticated
 administrator
 
 ; Used below the messages when typing a message: Say: Hello world_

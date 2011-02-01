@@ -55,10 +55,10 @@ public:
 };
 
 #ifndef DEDICATED_SERVER_ONLY
-class TM_NameAuthorizationRequest : public ThreadMessage {
+class TM_NameAuthenticationRequest : public ThreadMessage {
 public:
     void execute(ClientBase* cl) const throw () {
-        cl->processNameAuthorizationRequest();
+        cl->processNameAuthenticationRequest();
     }
 };
 #endif
@@ -1351,9 +1351,9 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         stats.set_flag_take_time     (time);
     }
 
-    break; case data_name_authorization_request:
+    break; case data_name_authentication_request:
         #ifndef DEDICATED_SERVER_ONLY
-        addThreadMessage(new TM_NameAuthorizationRequest());
+        addThreadMessage(new TM_NameAuthenticationRequest());
         #endif
 
     break; case data_server_settings: {

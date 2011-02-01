@@ -438,7 +438,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void process_udp_download_chunk(ConstDataBlockRef, bool last) throw ();
     void download_server_file(const std::string& type, const std::string& name) throw ();
 
-    void processNameAuthorizationRequest() throw ();
+    void processNameAuthenticationRequest() throw ();
 
     const WorldCoords& playerPos(int pid) const throw ();
     WorldCoords viewTopLeft() const throw ();

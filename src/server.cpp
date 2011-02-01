@@ -1122,7 +1122,7 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
             world.player[pid].waitnametime = get_time() + 1.0;
         }
         else if (entered_game) {
-            log("Kicked player %d for client misbehavior: authorization changed between entering the game and first name change.", pid);
+            log("Kicked player %d for client misbehavior: authentication changed between entering the game and first name change.", pid);
             disconnectPlayer(pid, disconnect_client_misbehavior);
             return;
         }
@@ -1130,7 +1130,7 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
                              name.c_str(), password.c_str(), network.get_client_address(cid).toString().c_str());
-            network.sendNameAuthorizationRequest(pid);
+            network.sendNameAuthenticationRequest(pid);
             return;
         }
     }
@@ -1139,7 +1139,7 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     if (entered_game)
         network.new_player_to_admin_shell(pid);
 
-    // token removed; possibly authorized and/or admin
+    // token removed; possibly authenticated and/or admin
     network.broadcast_player_crap(pid);
 }
 
@@ -1153,8 +1153,8 @@ public:
     PlayerMessager& operator()(const string& str) throw () { host.sendMessage(player, type, str); return *this; }
 };
 
-bool Server::isLocallyAuthorized(int pid) const throw () {
-    return world.player[pid].localIP || authorizations.nameAccess(world.player[pid].name).isProtected(); // must have authorized because otherwise couldn't use the name
+bool Server::isLocallyAuthenticated(int pid) const throw () {
+    return world.player[pid].localIP || authorizations.nameAccess(world.player[pid].name).isProtected(); // must have authenticated because otherwise couldn't use the name
 }
 
 bool Server::isAdmin(int pid) const throw () {

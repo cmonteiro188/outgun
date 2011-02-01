@@ -277,7 +277,7 @@ void ServerNetworking::send_player_crap_update(int cid, int pid) throw () {
     st.setToken(clid.token_have);
     st.setMasterAuth(clid.token_have && clid.token_valid);
     st.setRanking(host->rankingLoginSet() && clid.token_have && clid.current_participation);
-    st.setLocalAuth(host->isLocallyAuthorized(pid));
+    st.setLocalAuth(host->isLocallyAuthenticated(pid));
     st.setAdmin(host->isAdmin(pid));
     world.player[pid].reg_status = st;
 
@@ -3275,9 +3275,9 @@ void ServerNetworking::sendFragUpdate(int pid, uint32_t frags) const throw () {
     record_message(msg);
 }
 
-void ServerNetworking::sendNameAuthorizationRequest(int pid) const throw () {
+void ServerNetworking::sendNameAuthenticationRequest(int pid) const throw () {
     BinaryBuffer<256> msg;
-    msg.U8(data_name_authorization_request);
+    msg.U8(data_name_authentication_request);
     send_message(world.player[pid].cid, msg);
 }
 
