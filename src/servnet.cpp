@@ -3320,14 +3320,7 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         temp << "This server is open from ";
         temp << join_start / 3600 << ':' << setfill('0') << setw(2) << join_start / 60 % 60 << " to ";
         temp << join_end   / 3600 << ':' << setfill('0') << setw(2) << join_end   / 60 % 60 << " GMT. ";
-        const int wait = (join_start - seconds + 24 * 3600 + 60) % (24 * 3600);
-        temp << "Come again in ";
-        if (wait >= 3600)
-            temp << wait / 3600 << ':' << setfill('0') << setw(2) << wait / 60 % 60 << " hours.";
-        else if (wait >= 120)
-            temp << wait / 60 << " minutes.";
-        else
-            temp << "a minute.";
+        temp << "Come again in " << formatDuration(positiveModulo(join_start - seconds, 24 * 3600), english) << '.';
         if (!settings.get_join_limit_message().empty())
             temp << ' ' << settings.get_join_limit_message();
         reply.str(temp.str());

@@ -1675,21 +1675,12 @@ void ServerWorld::reset() throw () {
 
 void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
     // server uptime
-    const unsigned long uptime = frame / 10 / 60;   // minutes
-    const int days = uptime / 60 / 24;
     ostringstream server_time;
-    server_time << "The server has been up for ";
-    if (days > 0)
-        server_time << days << " day" << (days > 1 ? "s " : " ");
-    server_time << uptime / 60 % 24 << ':' << setfill('0') << setw(2) << uptime % 60;
-    if (days == 0)
-        server_time << " hours";
-    server_time << '.';
+    server_time << "The server has been up for " << formatDuration(frame / 10, english) << '.';
     printer(server_time.str());
     // map time
-    const int seconds = getMapTime() / 10;
     ostringstream map_time;
-    map_time << "Map time: " << seconds / 60 << ':' << setfill('0') << setw(2) << seconds % 60 << '.';
+    map_time << "Map time: " << formatDuration(getMapTime() / 10, english) << '.';
     if (config.getTimeLimit() == 0)
         map_time << " There is no time limit.";
     else {
@@ -1699,17 +1690,13 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
             map_time << " No time limit at the moment as there is only one player.";
         else if (remaining_seconds < 0) {
             const int extra_time_seconds = getExtraTimeLeft() / 10;
-            if (extra_time_seconds > 0) {
-                map_time << " Extra-time left: " << extra_time_seconds / 60 << ':';
-                map_time << setfill('0') << setw(2) << extra_time_seconds % 60 << '.';
-            }
+            if (extra_time_seconds > 0)
+                map_time << " Extra-time left: " << formatDuration(extra_time_seconds, english) << '.';
             if (config.suddenDeath())
                 map_time << " Sudden death.";
         }
-        else {
-            map_time << " Time left: " << remaining_seconds / 60 << ':';
-            map_time << setfill('0') << setw(2) << remaining_seconds % 60 << '.';
-        }
+        else
+            map_time << " Time left: " << formatDuration(remaining_seconds, english) << '.';
     }
     printer(map_time.str());
 }

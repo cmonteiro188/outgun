@@ -44,6 +44,7 @@
 #endif
 
 class FormattedText;
+class Language;
 
 // to be used as a base class when a class is needed to not have a copy constructor or copy assignment operator available
 class NoCopying {
@@ -410,7 +411,12 @@ template<class UnsignedIntT> UnsignedIntT freeShift(UnsignedIntT val, int bitsLe
 std::string date_and_time() throw ();
 
 /// Get a verbal approximation of the given time interval
-std::string approxTime(int seconds) throw ();
+std::string approxTime(int seconds, const Language& lang) throw ();
+std::string approxTime(int seconds) throw (); // uses global language
+
+/// Format a duration of time like "1 day 2:34:56", "1:23:45 hours", "1:23 minutes", or "1 second"
+std::string formatDuration(int seconds, const Language& lang) throw ();
+std::string formatDuration(int seconds) throw (); // uses global language
 
 /// UTF-8 mode for Linux
 extern bool utf8_mode;

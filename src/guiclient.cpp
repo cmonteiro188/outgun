@@ -4424,7 +4424,7 @@ void GuiClient::acceptLanguage(const string& lang, bool restart_message) throw (
         langConfig.close();
         if (lang != language.code() && restart_message) {  // what is currently loaded; what was previously in language.txt has no significance
             m_dialog.clear();
-            m_dialog.wrapLine(newLang.get_text("Please close and restart Outgun to complete the change of language."));
+            m_dialog.wrapLine(_("Please close and restart Outgun to complete the change of language.", newLang));
             showMenu(m_dialog);
         }
     }

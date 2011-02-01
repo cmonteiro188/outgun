@@ -511,37 +511,71 @@ string date_and_time() throw () {
     return time_str;
 }
 
-string approxTime(int seconds) throw () {
+string approxTime(int seconds, const Language& lang) throw () {
     int time = seconds;
     string timeUnit;
     if (time == 0 || (time % 60 != 0 && time <= 200))
-        timeUnit = time == 1 ? _("second") : _("seconds");
+        timeUnit = time == 1 ? _("second", lang) : _("seconds", lang);
     else {
         time = (time + 40) / 60;    // 40 chosen because rounding up is favored
         if (time % 60 != 0 && time <= 200)
-            timeUnit = time == 1 ? _("minute") : _("minutes");
+            timeUnit = time == 1 ? _("minute", lang) : _("minutes", lang);
         else {
             time = (time + 40) / 60;
             if (time % 24 != 0 && time <= 100)
-                timeUnit = time == 1 ? _("hour") : _("hours");
+                timeUnit = time == 1 ? _("hour", lang) : _("hours", lang);
             else {
                 time = (time + 16) / 24;
                 // because a year isn't an integral amount of weeks, it must be handled separately
                 if (time % 365 == 0 || time >= 7 * 100) {   // show more than 100 weeks in years
                     time = (time + 250) / 365;
-                    timeUnit = time == 1 ? _("year") : _("years");
+                    timeUnit = time == 1 ? _("year", lang) : _("years", lang);
                 }
                 else if (time % 7 != 0 && time <= 50)
-                    timeUnit = time == 1 ? _("day") : _("days");
+                    timeUnit = time == 1 ? _("day", lang) : _("days", lang);
                 else {
                     time = (time + 5) / 7;
-                    timeUnit = time == 1 ? _("week") : _("weeks");
+                    timeUnit = time == 1 ? _("week", lang) : _("weeks", lang);
                 }
             }
         }
     }
     const string str = itoa(time) + ' ' + timeUnit;
     return str;
+}
+
+string approxTime(int seconds) throw () {
+    return approxTime(seconds, language);
+}
+
+string formatDuration(int seconds, const Language& lang) throw () {
+    nAssert(seconds >= 0);
+    ostringstream os;
+    os << setfill('0');
+    if (seconds < 60) {
+        os << seconds << ' ' << (seconds == 1 ? _("second", lang) : _("seconds", lang));
+        return os.str();
+    }
+    int minutes = seconds / 60;
+    seconds %= 60;
+    if (minutes < 60) {
+        os << minutes << ':' << setw(2) << seconds << ' ' << _("minutes", lang);
+        return os.str();
+    }
+    int hours = minutes / 60;
+    minutes %= 60;
+    if (hours < 24) {
+        os << hours << ':' << setw(2) << minutes << ':' << setw(2) << seconds << ' ' << _("hours", lang);
+        return os.str();
+    }
+    int days = hours / 24;
+    hours %= 24;
+    os << days << ' ' << (days == 1 ? _("day", lang) : _("days", lang)) << ' ' << hours << ':' << setw(2) << minutes << ':' << setw(2) << seconds;
+    return os.str();
+}
+
+string formatDuration(int seconds) throw () {
+    return formatDuration(seconds, language);
 }
 
 FileName::FileName(const string& fullName) throw () {

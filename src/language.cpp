@@ -37,6 +37,7 @@ using std::map;
 using std::string;
 
 Language language;
+Language english;
 
 string Language::get_text(const string& text) const throw () {
     const map<string, string>::const_iterator translation = texts.find(text);
@@ -88,12 +89,12 @@ bool Language::load(const string& lang, LogSet& log) throw () {
     return true;
 }
 
-string _(const string& text) throw () {
-    return language.get_text(text);
+string _(const string& text, const Language& lang) throw () {
+    return lang.get_text(text);
 }
 
-string _(string text, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) throw () {
-    text = _(text);
+string _(string text, const Language& lang, const string& t1, const string& t2, const string& t3, const string& t4, const string& t5) throw () {
+    text = _(text, lang);
     const int nReplacements = 5;
     const string* const replacement[nReplacements] = { &t1, &t2, &t3, &t4, &t5 };
     string::size_type pos = 0;
@@ -111,6 +112,6 @@ string _(string text, const string& t1, const string& t2, const string& t3, cons
     return text;
 }
 
-FormattedText tf(const string& text, const FormattedText& t1, const FormattedText& t2, const FormattedText& t3, const FormattedText& t4, const FormattedText& t5) throw () {
-    return FormattedText::parse(_(text, t1.code(), t2.code(), t3.code(), t4.code(), t5.code()));
+FormattedText tf(const string& text, const Language& lang, const FormattedText& t1, const FormattedText& t2, const FormattedText& t3, const FormattedText& t4, const FormattedText& t5) throw () {
+    return FormattedText::parse(_(text, lang, t1.code(), t2.code(), t3.code(), t4.code(), t5.code()));
 }

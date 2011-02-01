@@ -51,21 +51,46 @@ private:
 };
 
 extern Language language;
+extern Language english;
 
-std::string _(const std::string& text) throw ();
+std::string _(const std::string& text, const Language& lang = language) throw ();
 
 // Get translation and replace $1...$5 with t1...t5.
-std::string _(std::string text, const std::string& t1,
-                                const std::string& t2 = "$2",
-                                const std::string& t3 = "$3",
-                                const std::string& t4 = "$4",
-                                const std::string& t5 = "$5") throw ();
+std::string _(std::string text,
+              const Language& lang,
+              const std::string& t1,
+              const std::string& t2 = "$2",
+              const std::string& t3 = "$3",
+              const std::string& t4 = "$4",
+              const std::string& t5 = "$5") throw ();
+
+inline std::string _(std::string text,
+                     const std::string& t1,
+                     const std::string& t2 = "$2",
+                     const std::string& t3 = "$3",
+                     const std::string& t4 = "$4",
+                     const std::string& t5 = "$5") throw ()
+{
+    return _(text, language, t1, t2, t3, t4, t5);
+}
 
 // translate formatted: Get translation, parse as FormattedText, and replace $1..$5 with t1..t5.
-FormattedText tf(const std::string& text, const FormattedText& t1,
-                                          const FormattedText& t2 = "$2",
-                                          const FormattedText& t3 = "$3",
-                                          const FormattedText& t4 = "$4",
-                                          const FormattedText& t5 = "$5") throw ();
+FormattedText tf(const std::string& text,
+                 const Language& lang,
+                 const FormattedText& t1,
+                 const FormattedText& t2 = "$2",
+                 const FormattedText& t3 = "$3",
+                 const FormattedText& t4 = "$4",
+                 const FormattedText& t5 = "$5") throw ();
+
+inline FormattedText tf(const std::string& text,
+                        const FormattedText& t1,
+                        const FormattedText& t2 = "$2",
+                        const FormattedText& t3 = "$3",
+                        const FormattedText& t4 = "$4",
+                        const FormattedText& t5 = "$5") throw ()
+{
+    return tf(text, language, t1, t2, t3, t4, t5);
+}
 
 #endif
