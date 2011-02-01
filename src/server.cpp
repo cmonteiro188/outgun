@@ -1093,47 +1093,39 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     if (get_time() < world.player[pid].waitnametime)
         return;
 
-    //FLUSH PENDING REPORTS TO MASTER IF token_have/token_valid !!!
     network.client_report_status(cid);
-
-    //name changed -- this means that the player is NOT REGISTERED
-    //  anymore for recording statistics
     client[cid].token_have = false;
 
     world.player[pid].clanTag = string();
 
-    //check if it's the first name information from client. then it
-    // must have just entered the game
-    const bool entered_game = world.player[pid].name.empty();
+    const bool entered_game = world.player[pid].name.empty(); // the first name "change" means the client has just entered the game
 
     if (!check_name(name)) {
         log("Kicked player %d for client misbehavior: attempted invalid name '%s'.", pid, name.c_str());
         disconnectPlayer(pid, disconnect_client_misbehavior);
         return;
     }
-    else {
-        if (authorizations.checkNamePassword(name, password)) {
-            if (world.player[pid].is_bot()) {
-                const string bot_prefix = "BOT ";
-                if (name.substr(0, bot_prefix.length()) == bot_prefix)
-                    reservedBotNames.erase(name.substr(bot_prefix.length()));
-            }
-            world.player[pid].name = name;
-            world.player[pid].waitnametime = get_time() + 1.0;
-        }
-        else if (entered_game) {
+    if (!authorizations.checkNamePassword(name, password)) {
+        if (entered_game) {
             log("Kicked player %d for client misbehavior: authentication changed between entering the game and first name change.", pid);
             disconnectPlayer(pid, disconnect_client_misbehavior);
-            return;
         }
         else {
             if (!password.empty())
                 log.security("Wrong player password. Name \"%s\", password \"%s\" tried from %s.",
                              name.c_str(), password.c_str(), network.get_client_address(cid).toString().c_str());
             network.sendNameAuthenticationRequest(pid);
-            return;
         }
+        return;
     }
+
+    if (world.player[pid].is_bot()) {
+        const string bot_prefix = "BOT ";
+        if (name.substr(0, bot_prefix.length()) == bot_prefix)
+            reservedBotNames.erase(name.substr(bot_prefix.length()));
+    }
+    world.player[pid].name = name;
+    world.player[pid].waitnametime = get_time() + 1.0;
 
     network.broadcast_player_name(pid); // must be before new_player_to_admin_shell
     if (entered_game)
