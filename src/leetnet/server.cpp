@@ -948,7 +948,7 @@ public:
                     else {
 
                         //send CONNECTION_REJECTED to client
-                        BinaryBuffer<32> msg;
+                        ExpandingBinaryBuffer msg;
                         msg.U32(0);      //"special packet"
                         msg.U32(4);      //"connection rejected"
                         msg.block(ConstDataBlockRef(res.customData, res.customDataLength));   // custom "connection denied" information
