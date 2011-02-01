@@ -538,6 +538,17 @@ public:
     private:
         CallClassT* host;
     };
+
+    template<class ArgT, void (CallClassT::*memFun)() const>
+    class NC : public Function1<void, ArgT&> {
+    public:
+        NC(const CallClassT* host_) throw () : host(host_) { }
+        void operator()(ArgT&) const throw () { (host->*memFun)(); }
+        NC* clone() const throw () { return new NC(host); }
+
+    private:
+        const CallClassT* host;
+    };
 };
 
 template<class CallClassT>

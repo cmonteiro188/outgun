@@ -384,6 +384,8 @@ class GuiClient : public ClientBase, public ClientInterface {
     void apply_fav_maps() throw ();
     void updateMapPreference(MapInfo& mi) const throw ();
 
+    void saveSettings() const throw ();
+
     void loadQuickMessages() throw ();
     void saveQuickMessages() const throw ();
 

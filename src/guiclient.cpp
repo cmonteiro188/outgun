@@ -3274,44 +3274,9 @@ void GuiClient::stop() throw () {
     ClientBase::stop();
     rankingPassword.stop();
 
-    //save configuration file
-    string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
-    log("Saving client configuration in %s", fileName.c_str());
-    ofstream cfg(fileName.c_str());
-    if (cfg) {
-        for (SettingManager::MapT::const_iterator si = settings.read().begin(); si != settings.read().end(); ++si) {
-            nAssert(si->second);
-            cfg << si->first << ' ';
-            si->second->save(cfg);
-            cfg << '\n';
-        }
+    saveSettings();
 
-        // some more complicated settings need to be handled here
-        cfg << CCS_PlayerName << ' ' << playername << '\n';
-        {   // favorite colors
-            cfg << CCS_FavoriteColors << ' ';
-            if (menu.options.player.favoriteColors.values().empty())
-                cfg << -1;
-            else {
-                const vector<int>& colVec = menu.options.player.favoriteColors.values();
-                for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
-                    cfg << *col << ' ';
-            }
-            cfg << '\n';
-        }
-        cfg << CCS_KeyboardLayout << ' ' << menu.options.controls.keyboardLayout() << '\n';
-        {
-            ScreenMode mode = menu.options.screenMode.resolution();
-            cfg << CCS_GFXMode << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
-        }
-        cfg << CCS_Antialiasing << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
-
-        cfg.close();
-    }
-    else
-        log("Can't open %s for writing", fileName.c_str());
-    log("Client configuration saved");
-    fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
+    string fileName = wheregamedir + "config" + directory_separator + "favorites.txt";
     ofstream fav(fileName.c_str());
     if (fav) {
         for (vector<ServerListEntry>::const_iterator spy = gamespy.begin(); spy != gamespy.end(); ++spy)
@@ -3319,7 +3284,6 @@ void GuiClient::stop() throw () {
         fav.close();
     }
 
-    saveQuickMessages();
     saveMapInfoCache();
 
     //save client's password
@@ -4040,6 +4004,8 @@ void GuiClient::initMenus() throw () {
 
     menu.spectate.manualEntry        .setKeyHook(new MKC::N<Textfield,      &GuiClient::MCF_spectateEntryKeyHandler>(this));
 
+    menu.options.menu              .setCloseHook(new MCB::NC<Menu,          &GuiClient::saveSettings               >(this));
+
     menu.options.player.menu        .setOpenHook(new MCB::N<Menu,           &GuiClient::MCF_preparePlayerMenu      >(this));
     menu.options.player.menu        .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareDrawPlayerMenu  >(this));
     menu.options.player.menu       .setCloseHook(new MCB::N<Menu,           &GuiClient::MCF_playerMenuClose        >(this));
@@ -4054,6 +4020,8 @@ void GuiClient::initMenus() throw () {
     menu.options.game.messageLogging    .setHook(new MCB::N<mlComponentT,   &GuiClient::MCF_messageLogging         >(this));
     typedef Select<Menu_game::SkipMapsMode> smComponentT;
     menu.options.game.skipMaps          .setHook(new MCB::N<smComponentT,   &GuiClient::sendNegativeVotes          >(this));
+
+    menu.options.quickMessages.menu.setCloseHook(new MCB::NC<Menu,          &GuiClient::saveQuickMessages          >(this));
 
     menu.options.controls.menu      .setDrawHook(new MCB::N<Menu,           &GuiClient::MCF_prepareControlsMenu    >(this));
     menu.options.controls.keyboardLayout.setHook(new MCB::N<Select<string>, &GuiClient::MCF_keyboardLayout         >(this));
@@ -4835,6 +4803,46 @@ void GuiClient::load_fav_maps() throw () {
         else
             fav_maps[toupper(trim(line          ))] = +1;
     }
+}
+
+void GuiClient::saveSettings() const throw () {
+    //save configuration file
+    const string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
+    log("Saving client configuration in %s", fileName.c_str());
+    ofstream cfg(fileName.c_str());
+    if (!cfg) {
+        log("Can't open %s for writing", fileName.c_str());
+        return;
+    }
+
+    for (SettingManager::MapT::const_iterator si = settings.read().begin(); si != settings.read().end(); ++si) {
+        nAssert(si->second);
+        cfg << si->first << ' ';
+        si->second->save(cfg);
+        cfg << '\n';
+    }
+
+    // some more complicated settings need to be handled here
+    cfg << CCS_PlayerName << ' ' << playername << '\n';
+    {   // favorite colors
+        cfg << CCS_FavoriteColors << ' ';
+        if (menu.options.player.favoriteColors.values().empty())
+            cfg << -1;
+        else {
+            const vector<int>& colVec = menu.options.player.favoriteColors.values();
+            for (vector<int>::const_iterator col = colVec.begin(); col != colVec.end(); ++col)
+                cfg << *col << ' ';
+        }
+        cfg << '\n';
+    }
+    cfg << CCS_KeyboardLayout << ' ' << menu.options.controls.keyboardLayout() << '\n';
+    {
+        ScreenMode mode = menu.options.screenMode.resolution();
+        cfg << CCS_GFXMode << ' ' <<  mode.width << ' ' << mode.height << ' ' << menu.options.screenMode.colorDepth() << '\n';
+    }
+    cfg << CCS_Antialiasing << ' ' << (menu.options.graphics.antialiasing() ? 2 : 1) << '\n';
+
+    log("Client configuration saved");
 }
 
 void GuiClient::loadQuickMessages() throw () {
