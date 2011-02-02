@@ -1268,6 +1268,7 @@ bool ServerNetworking::start() throw () {
     // start leetnet
     leetServer = new_server_c(settings.networkPriority(), settings.minLocalPort(), settings.maxLocalPort());
 
+    leetServer->setExtendedQueryCallback(sfunc_extended_query);
     leetServer->setHelloCallback(sfunc_client_hello);
     leetServer->setConnectedCallback(sfunc_leetnet_client_connected);
     leetServer->setDisconnectedCallback(sfunc_client_disconnected);
@@ -3351,7 +3352,7 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         return false;
     }
     const string player_password = msg.str();
-    if (!host->check_name_password(name, player_password)) {
+    if (!host->check_name_password(name, player_password, true)) {
         if (player_password.empty())
             reply.U8(reject_player_password_needed);
         else {
@@ -3397,6 +3398,160 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
     reply.clear();
     return false;
  }
+}
+
+void ServerNetworking::eraseStaleWaiters() throw () {
+    for (map<string, GameWaiter>::iterator wi = waiters.begin(); wi != waiters.end(); ) {
+        if (wi->second.refreshTime < get_time() - 75 || host->findPlayerByName(wi->second.name) >= 0) { // assuming a refresh interval of 1 minute, a request can be delayed 15 seconds before the waiter is dropped; also drop players that have already joined the game
+            const map<string, GameWaiter>::iterator erased = wi;
+            ++wi;
+            waiters.erase(erased);
+        }
+        else
+            ++wi;
+    }
+}
+
+void ServerNetworking::extendedQuery(BinaryReader& read, BinaryWriter& write) throw (BinaryReader::ReadError) {
+    const uint32_t version = min(read.U32dyn8(), EXTENDED_QUERY_PROTOCOL_VERSION);
+    write.U32dyn8(version);
+    // Be careful when extending the query format; bytes not expected in older protocol versions can only be added after everything else.
+    // The answer format is more relaxed since the answer is tagged with the exact protocol version and it's one the client is guaranteed to understand. Just be sure to check the version when sending anything new in the middle.
+    const uint32_t contents = read.U32dyn8();
+    // Signal that future extensions haven't been handled. This is helpful even if that could be determined from the protocol version as well.
+    // Future versions aren't forced to reply to all current requests either and would signal skipped ones here (but naturally must know how to read the requests enough to skip them).
+    write.U32dyn8(contents & (EQC_SimpleQueries | EQC_RegisterWaiter));
+    if (contents & EQC_Language)
+        for (;;) {
+            const uint32_t flags = read.U32dyn8();
+            const string code = read.str();
+            if (flags & 1)
+                break;
+        }
+    if (contents & EQC_InitialExtensions)
+        for (;;) {
+            const uint8_t header = read.U8();
+            const bool last = header & 0x80;
+            const int bytes = header & 0x7F;
+            read.block(bytes);
+            if (last)
+                break;
+        }
+    if (contents & EQC_UnofficialExtensions) {
+        const uint32_t nExtensions = read.U32dyn8();
+        for (unsigned ei = 0; ei < nExtensions; ++ei) {
+            const uint32_t extId = read.U32();
+            BinaryDataBlockReader extData(read.block(read.U8()));
+            (void)extId;
+            #if 0 // if enabled, add EQC_UnofficialExtensions to the reply contents mask
+            switch (extId) {
+                // Process unofficial extensions here, preferrably with same id's as in the main protocol. Search for "unofficial extension" for more information and other relevant parts.
+            /*break;*/ default:
+                    write.U8(255); // Signal that the extension isn't used in the reply. For extensions you handle, send any other first byte and modify the rest of the answer format freely when the extension is detected.
+            }
+            #endif
+        }
+    }
+    if (contents & EQC_SimpleQueries) {
+        const uint32_t queries = read.U32dyn8();
+        write.U32dyn8(queries & EQSQ_ALL);
+        if (queries & EQSQ_GameProtocol) {
+            write.str(GAME_STRING);
+            write.str(GAME_PROTOCOL);
+        }
+        if (queries & EQSQ_Version)
+            for (;;) {
+                const uint32_t flags = read.U32dyn8();
+                const uint32_t softLimit = read.U32dyn8() & 0xFFF;
+                const uint32_t hardLimit = read.U32dyn8() & 0xFFF;
+                write.str(getVersionString(flags & 2, softLimit, hardLimit, flags & 4));
+                if (flags & 1)
+                    break;
+            }
+        if (queries & EQSQ_ServerName)
+            write.str(settings.get_hostname());
+        if (queries & EQSQ_BasicSettings) {
+            const bool password = !settings.get_server_password().empty();
+            const bool ded = settings.dedicated();
+            const bool spect = is_relay_active();
+            const bool ft = world.physics.allowFreeTurning;
+            const bool ff = world.physics.friendly_fire > 0;
+            const bool pups = world.getPupConfig().pups_min > 0;
+            const bool carryOwn = world.getConfig().carry_own_team_flag;
+            const bool unofficialExt = false; // should be enabled if the server has unofficial extensions that (with current settings) give a gameplay advantage to players with supporting clients (and the extension in question hasn't been signaled in the query above)
+            write.U32dyn16(maxplayers / 2 - 1 | password << 4 | ded << 5 | spect << 6 | ft << 7 | ff << 8 | pups << 9 | carryOwn << 10 | unofficialExt << 11);
+            write.U32dyn8(host->allAdvantagesExtensionsLevel() + 1);
+        }
+        if (queries & EQSQ_Uptime) // uptime
+            write.U32dyn8(world.frame / 10);
+        if (queries & EQSQ_Players) {
+            write.U32dyn8(get_human_count());
+            write.U32dyn8(bot_count);
+            eraseStaleWaiters();
+            write.U32dyn8(waiters.size());
+            if (queries & EQSQ_PlayerNames) {
+                for (int i = 0; i < maxplayers; ++i)
+                    if (world.player[i].used && !world.player[i].is_bot())
+                        write.str(world.player[i].name);
+                for (map<string, GameWaiter>::const_iterator wi = waiters.begin(); wi != waiters.end(); ++wi) {
+                    const GameWaiter& w = wi->second;
+                    write.str(w.name);
+                    write.U32dyn8(w.minPlayers);
+                }
+            }
+            if (queries & EQSQ_PlayerPings) {
+                for (int i = 0; i < maxplayers; ++i)
+                    if (world.player[i].used && !world.player[i].is_bot())
+                        write.U32dyn8(world.player[i].ping);
+                for (int i = 0; i < maxplayers; ++i)
+                    if (world.player[i].used &&  world.player[i].is_bot())
+                        write.U32dyn8(world.player[i].ping);
+            }
+        }
+        if (queries & EQSQ_CurrentMap)
+            write.str(host->current_map().title);
+        if (queries & EQSQ_CurrentGame) {
+            write.U32dyn8(world.teams[0].score());
+            write.U32dyn8(world.teams[1].score());
+            write.U32dyn8(world.getConfig().getCaptureLimit());
+            write.U32dyn8(world.getMapTime() / 10);
+            write.U32dyn8(world.getConfig().getTimeLimit() / 10);
+        }
+    }
+    if (contents & EQC_RegisterWaiter) {
+        GameWaiter w;
+        w.name = read.str();
+        const string password = read.str();
+        w.minPlayers = read.U32dyn8() & 0x1F;
+        w.refreshTime = get_time();
+        if (w.minPlayers == 0)
+            throw BinaryReader::DataOutOfRange();
+        if (host->check_name_password(w.name, password, false)) {
+            waiters[w.name] = w;
+            write.U32dyn8(1);
+        }
+        else {
+            log("Wrong name/password for %s trying to register as waiting.", w.name.c_str());
+            write.U32dyn8(0);
+        }
+    }
+}
+
+bool ServerNetworking::sfunc_extended_query(void* customp, BinaryReader& read, BinaryWriter& write) throw () {
+    ServerNetworking* const sn = static_cast<ServerNetworking*>(customp);
+    if (sn->threadLock)
+        sn->threadLockMutex.lock();
+    bool result;
+    try {
+        sn->extendedQuery(read, write);
+        result = true;
+    } catch (BinaryReader::ReadError) {
+        sn->log("Format error in extended query from client.");
+        result = false;
+    }
+    if (sn->threadLock)
+        sn->threadLockMutex.unlock();
+    return result;
 }
 
 void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {

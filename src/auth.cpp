@@ -1,7 +1,7 @@
 /*
  *  auth.cpp
  *
- *  Copyright (C) 2003, 2004, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2011 - Niko Ritari
  *  Copyright (C) 2004 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -222,9 +222,9 @@ AuthorizationDatabase::AccessDescriptor AuthorizationDatabase::nameAccess(const 
     return names[idx].access;
 }
 
-bool AuthorizationDatabase::checkNamePassword(const string& name, const string& password) const throw () {
+bool AuthorizationDatabase::checkNamePassword(const string& name, const string& password, bool acceptUnlisted) const throw () {
     const int idx = identifyName(name);
-    return (idx == -1 || names[idx].password == password);
+    return idx == -1 ? acceptUnlisted : (names[idx].password == password);
 }
 
 bool AuthorizationDatabase::isBanned(Network::Address addr) const throw () {

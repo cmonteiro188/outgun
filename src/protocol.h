@@ -32,6 +32,7 @@
 extern const std::string GAME_STRING;
 extern const std::string GAME_PROTOCOL;
 static const int PROTOCOL_EXTENSIONS_VERSION = 3;
+static const unsigned EXTENDED_QUERY_PROTOCOL_VERSION = 0;
 
 extern const std::string REPLAY_IDENTIFICATION;
 static const unsigned REPLAY_VERSION = 2; // increase when the replay structure changes
@@ -155,6 +156,29 @@ enum Connect_rejection_reason {
 enum Relay_data_code {
     relay_data_frame,
     relay_data_game_start
+};
+
+enum ExtendedQueryContentsBits {
+    EQC_Language             = 1,
+    EQC_InitialExtensions    = 2,
+    EQC_UnofficialExtensions = 4,
+    EQC_SimpleQueries        = 8,
+    EQC_RegisterWaiter       = 0x10,
+    EQC_ExtraInfoRequest     = 0x20
+};
+
+enum ExtendedQuerySimpleQueryBits {
+    EQSQ_GameProtocol  = 1,
+    EQSQ_Version       = 2,
+    EQSQ_ServerName    = 4,
+    EQSQ_BasicSettings = 8,
+    EQSQ_Uptime        = 0x10,
+    EQSQ_Players       = 0x20,
+    EQSQ_PlayerNames   = 0x40,
+    EQSQ_PlayerPings   = 0x80,
+    EQSQ_CurrentMap    = 0x100,
+    EQSQ_CurrentGame   = 0x200,
+    EQSQ_ALL           = 0x3FF
 };
 
 #endif

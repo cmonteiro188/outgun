@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2010, 2011 - Niko Ritari
  */
 
 /*
@@ -29,6 +29,9 @@
 #define _server_h_
 
 #include "../network.h"
+
+class BinaryReader;
+class BinaryWriter;
 
 struct ServerHelloResult {
     bool accepted;
@@ -43,6 +46,7 @@ public:
     virtual ~server_c() throw () { }
 
     // the callbacks should not throw (but we can't say that in a typedef)
+    typedef bool extendedQueryCallbackT (void* customp, BinaryReader& dataIn, BinaryWriter& dataOut);
     typedef void helloCallbackT         (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res);
     typedef void connectedCallbackT     (void* customp, int client_id, int customStoredData);
     typedef void disconnectedCallbackT  (void* customp, int client_id, bool reentrant); // reentrant basically means that the calling thread is a user one
@@ -51,6 +55,7 @@ public:
     typedef void pingResultCallbackT    (void* customp, int client_id, int pingtime);
 
     //set a callback. you must set all the callbacks before calling start()
+    virtual void setExtendedQueryCallback(extendedQueryCallbackT* fn) throw () = 0;
     virtual void setHelloCallback(helloCallbackT* fn) throw () = 0;
     virtual void setConnectedCallback(connectedCallbackT* fn) throw () = 0;
     virtual void setDisconnectedCallback(disconnectedCallbackT* fn) throw () = 0;

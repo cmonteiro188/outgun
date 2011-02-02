@@ -16,7 +16,7 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010, 2011 - Niko Ritari
  */
 
 /*
@@ -161,6 +161,7 @@ public:
     int lagtimeout;
     int droptimeout;
 
+    extendedQueryCallbackT* extendedQueryCallback;
     helloCallbackT* helloCallback;
     connectedCallbackT* connectedCallback;
     disconnectedCallbackT* disconnectedCallback;
@@ -177,6 +178,7 @@ public:
     //------------------------
 
     //set a callback. you must set all the callbacks before calling start()
+    virtual void setExtendedQueryCallback(extendedQueryCallbackT* fn) throw () { extendedQueryCallback = fn; }
     virtual void setHelloCallback(helloCallbackT* fn) throw () { helloCallback = fn; }
     virtual void setConnectedCallback(connectedCallbackT* fn) throw () { connectedCallback = fn; }
     virtual void setDisconnectedCallback(disconnectedCallbackT* fn) throw () { disconnectedCallback = fn; }
@@ -659,11 +661,20 @@ public:
             const uint8_t b = read.U8(); //packet try #
 
             ExpandingBinaryBuffer msg;
-            msg.U32(0);
-            msg.U32(200);
-            msg.U8(a);
-            msg.U8(b);
-            msg.str(serverinfo);
+            if (read.hasMore()) {
+                msg.U32(0xD58E065D);
+                msg.U8(a);
+                msg.U8(b);
+                if (!extendedQueryCallback(customp, read, msg))
+                    return 0;
+            }
+            else {
+                msg.U32(0);
+                msg.U32(200);
+                msg.U8(a);
+                msg.U8(b);
+                msg.str(serverinfo);
+            }
             //send
             try {
                 log("SENDING REPLY TO CLIENT AT %s", remoteaddr.toString().c_str());

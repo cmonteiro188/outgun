@@ -164,7 +164,15 @@ private:
         }
     };
 
+    struct GameWaiter {
+        std::string name;
+        int minPlayers;
+        double refreshTime;
+    };
+    std::map<std::string, GameWaiter> waiters;
+
     // server callbacks
+    static bool sfunc_extended_query          (void* customp, BinaryReader& read, BinaryWriter& write) throw ();
     static void sfunc_client_hello            (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     static void sfunc_leetnet_client_connected(void* customp, int client_id, int customStoredData) throw ();
     static void sfunc_local_client_connected  (void* customp, int client_id, int customStoredData) throw ();
@@ -271,6 +279,9 @@ private:
     void upload_next_file_chunk(int i) throw ();
     std::string get_download_file(const std::string& ftype, const std::string& fname) throw ();
 
+    void eraseStaleWaiters() throw ();
+
+    void extendedQuery(BinaryReader& read, BinaryWriter& write) throw (BinaryReader::ReadError);
     bool clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw ();
     void leetnet_client_connected(int client_id, int customStoredData) throw ();
     void local_client_connected(int client_id, int customStoredData) throw ();

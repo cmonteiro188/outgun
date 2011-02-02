@@ -1,7 +1,7 @@
 /*
  *  auth.h
  *
- *  Copyright (C) 2003, 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2008, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -125,7 +125,7 @@ public:
     const AccessDescriptor& localAccess() const throw () { return map_get_assert(classes, std::string("local")); }
     AccessDescriptor nameAccess(const std::string& name) const throw ();
 
-    bool checkNamePassword(const std::string& name, const std::string& password) const throw ();
+    bool checkNamePassword(const std::string& name, const std::string& password, bool acceptUnlisted) const throw ();
 
     bool isBanned(Network::Address addr) const throw ();
     void ban(Network::Address addr, const std::string& name, int minutes) throw ();

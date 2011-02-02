@@ -179,8 +179,15 @@ void Server::logChat(int pid, const string& message) throw () {
                        + ": " + message);
 }
 
-bool Server::check_name_password(const string& name, const string& password) const throw () {
-    return authorizations.checkNamePassword(name, password);
+bool Server::check_name_password(const string& name, const string& password, bool acceptUnlisted) const throw () {
+    return authorizations.checkNamePassword(name, password, acceptUnlisted);
+}
+
+int Server::findPlayerByName(const string& name) const throw () {
+    for (int p = 0; p < maxplayers; ++p)
+        if (world.player[p].used && world.player[p].name == name)
+            return p;
+    return -1;
 }
 
 void Server::ctf_game_restart() throw () {
@@ -1105,7 +1112,7 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
         disconnectPlayer(pid, disconnect_client_misbehavior);
         return;
     }
-    if (!authorizations.checkNamePassword(name, password)) {
+    if (!authorizations.checkNamePassword(name, password, true)) {
         if (entered_game) {
             log("Kicked player %d for client misbehavior: authentication changed between entering the game and first name change.", pid);
             disconnectPlayer(pid, disconnect_client_misbehavior);
@@ -1556,6 +1563,15 @@ bool Server::changeRegistration(int cid, const string& token) throw () {
     return client[cid].token_have;
 }
 
+int Server::allAdvantagesExtensionsLevel() const throw () {
+    if (world.getConfig().see_minimap_player_properties != 0)
+        return 3;
+    else if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
+        return 0;
+    else
+        return -1;
+}
+
 void Server::simulate_and_broadcast_frame() throw () {
     //check end of gameover plaque
     bool recordFrameNumber = false;
@@ -1604,13 +1620,7 @@ void Server::simulate_and_broadcast_frame() throw () {
     }
 
     {
-        int allAdvantagesLevel;
-        if (world.getConfig().see_minimap_player_properties != 0)
-            allAdvantagesLevel = 3;
-        else if (world.getConfig().see_rockets_distance > 0 || world.physics.allowFreeTurning)
-            allAdvantagesLevel = 0;
-        else
-            allAdvantagesLevel = -1;
+        const int allAdvantagesLevel = allAdvantagesExtensionsLevel();
         if (allAdvantagesLevel != -1)
             for (int i = 0; i < maxplayers; ++i)
                 if (world.player[i].used && world.player[i].protocolExtensionsLevel < allAdvantagesLevel && !world.player[i].toldAboutExtensionAdvantage) {

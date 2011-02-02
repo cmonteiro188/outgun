@@ -365,13 +365,15 @@ public:
     void simulate_and_broadcast_frame() throw ();
     void server_think_after_broadcast() throw ();
     bool game_running() const throw () { return !gameover; }
+    int allAdvantagesExtensionsLevel() const throw ();
 
     int get_player_count() const throw () { return network.get_player_count(); }
     void mutePlayer(int pid, int mode, int admin) throw ();
     void kickPlayer(int pid, int admin) throw ();
     void banPlayer(int pid, int admin, int minutes) throw ();
     bool isBanned(const Network::Address& address) const throw () { return authorizations.isBanned(address); }
-    bool check_name_password(const std::string& name, const std::string& password) const throw ();
+    bool check_name_password(const std::string& name, const std::string& password, bool acceptUnlisted) const throw ();
+    int findPlayerByName(const std::string& name) const throw (); // -1 for none, first if many by the same name
     void disconnectPlayer(int pid, Disconnect_reason reason) throw ();
     void sendMessage(int pid, Message_type type, const std::string& msg) throw ();
 
