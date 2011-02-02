@@ -1444,7 +1444,7 @@ public:
 };
 
 int DeathbringerColorizer::operator()(int r) const throw () {
-    r -= rIn;
+    r = max(r - rIn, 0);
     int brightness;
     if (r < rMid)
         brightness = 14 + static_cast<int>(mul1 * r);
