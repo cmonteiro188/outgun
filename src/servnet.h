@@ -173,7 +173,8 @@ private:
 
     // server callbacks
     static bool sfunc_extended_query          (void* customp, BinaryReader& read, BinaryWriter& write) throw ();
-    static void sfunc_client_hello            (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
+    static void sfunc_client_hello            (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res, bool bot) throw ();
+    static void sfunc_leetnet_client_hello    (void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw ();
     static void sfunc_leetnet_client_connected(void* customp, int client_id, int customStoredData) throw ();
     static void sfunc_local_client_connected  (void* customp, int client_id, int customStoredData) throw ();
     static void sfunc_client_disconnected     (void* customp, int client_id, bool reentrant) throw ();
@@ -282,7 +283,7 @@ private:
     void eraseStaleWaiters() throw ();
 
     void extendedQuery(BinaryReader& read, BinaryWriter& write) throw (BinaryReader::ReadError);
-    bool clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw ();
+    bool clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData, bool bot) throw ();
     void leetnet_client_connected(int client_id, int customStoredData) throw ();
     void local_client_connected(int client_id, int customStoredData) throw ();
     int  client_connected(int cid, int customStoredData) throw ();

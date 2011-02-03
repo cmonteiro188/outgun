@@ -1269,7 +1269,7 @@ bool ServerNetworking::start() throw () {
     leetServer = new_server_c(settings.networkPriority(), settings.minLocalPort(), settings.maxLocalPort());
 
     leetServer->setExtendedQueryCallback(sfunc_extended_query);
-    leetServer->setHelloCallback(sfunc_client_hello);
+    leetServer->setHelloCallback(sfunc_leetnet_client_hello);
     leetServer->setConnectedCallback(sfunc_leetnet_client_connected);
     leetServer->setDisconnectedCallback(sfunc_client_disconnected);
     leetServer->setDataCallback(sfunc_client_data);
@@ -3286,7 +3286,7 @@ Network::Address ServerNetworking::get_client_address(int cid) const throw () {
     return clientConnection[cid]->get_client_address();
 }
 
-bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData) throw () {
+bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlockRef data, BinaryWriter& reply, int& customStoredData, bool bot) throw () {
  try {
     BinaryDataBlockReader msg(data);
 
@@ -3313,8 +3313,8 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         reply.str("Protocol mismatch: server: " + GAME_PROTOCOL + ", client: " + protoStr); // this message shouldn't be altered: client detects this exact form and allows translation (it's been the same at least since 0.5.0)
         return false;
     }
-    if (get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
-                                   join_start > join_end && (seconds < join_start && seconds > join_end))) {
+    if (!bot && get_human_count() == 0 && (join_start < join_end && (seconds < join_start || seconds > join_end) ||
+                                           join_start > join_end && (seconds < join_start && seconds > join_end))) {
         log("Rejected a client because the server is not open at this time.");
 
         ostringstream temp;
@@ -3332,7 +3332,7 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         reply.U8(reject_server_full);
         return false;
     }
-    if (host->isBanned(address)) {
+    if (!bot && host->isBanned(address)) {
         log("Rejected a client because their IP is banned (%s).", address.toString().c_str());
         reply.U8(reject_banned);
         return false;
@@ -3341,7 +3341,7 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
     const string password = msg.str();
     if (!check_name(name))
         return false; // no need to explain, the client must not allow this
-    if (password != settings.get_server_password()) {
+    if (!bot && password != settings.get_server_password()) {
         if (password.empty())
             reply.U8(reject_server_password_needed);
         else {
@@ -3352,7 +3352,7 @@ bool ServerNetworking::clientHello(const Network::Address& address, ConstDataBlo
         return false;
     }
     const string player_password = msg.str();
-    if (!host->check_name_password(name, player_password, true)) {
+    if (!bot && !host->check_name_password(name, player_password, true)) {
         if (player_password.empty())
             reply.U8(reject_player_password_needed);
         else {
@@ -3554,17 +3554,21 @@ bool ServerNetworking::sfunc_extended_query(void* customp, BinaryReader& read, B
     return result;
 }
 
-void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+void ServerNetworking::sfunc_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res, bool bot) throw () {
     ServerNetworking* const sn = static_cast<ServerNetworking*>(customp);
     if (sn->threadLock)
         sn->threadLockMutex.lock();
 
     BinaryWriter reply(res->customData, sizeof(res->customData));
-    res->accepted = sn->clientHello(address, data, reply, res->customStoredData);
+    res->accepted = sn->clientHello(address, data, reply, res->customStoredData, bot);
     res->customDataLength = reply.size();
 
     if (sn->threadLock)
         sn->threadLockMutex.unlock();
+}
+
+void ServerNetworking::sfunc_leetnet_client_hello(void* customp, const Network::Address& address, ConstDataBlockRef data, ServerHelloResult* res) throw () {
+    sfunc_client_hello(customp, address, data, res, false);
 }
 
 ControlledPtr<LocalConnection> ServerNetworking::newLocalConnection() throw () {

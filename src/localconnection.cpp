@@ -51,7 +51,7 @@ DataBlock ClientServerLocalConnection::connect(ConstDataBlockRef data) throw () 
     ServerHelloResult res;
     Network::Address localAddr;
     localAddr.fromValidIP("127.0.0.1");
-    ServerNetworking::sfunc_client_hello(&server, localAddr, data, &res);
+    ServerNetworking::sfunc_client_hello(&server, localAddr, data, &res, true);
     nAssert(res.accepted);
     ServerNetworking::sfunc_local_client_connected(&server, cid, res.customStoredData);
     connected = true;
