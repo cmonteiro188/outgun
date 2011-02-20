@@ -1067,7 +1067,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     scene.setScaling(startx, starty, scale);
 
     // add floors
-    scene.addRectangle(0, 0, maxx, maxy, colour[Colour::map_ground]);
+    scene.addRectangle(0, 0, maxx, maxy, 0);
 
     // add room boundaries
     const double halfPixw = .49999 / scale;
