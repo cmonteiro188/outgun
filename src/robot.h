@@ -1,7 +1,7 @@
 /*
  *  robot.h
  *
- *  Copyright (C) 2006, 2008, 2009, 2010 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -143,7 +143,9 @@ class Robot : public ClientBase, public BotInterface {
     int         GetEasyEnemy() const throw (); // get easy enemy to kill
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
     int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag, 3 if n carries an own flag
+    bool        TeamHasFlags(int team, int flagTeam) const throw ();
     bool        IsFlagAtBase(const Flag& f, int team) const throw ();
+    bool        IsAnyFlagAtBase(int team) const throw ();
     enum AimLevel { AL_None, AL_Near, AL_Full };
     std::pair<AimLevel, int> TryAimTradTurning(int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
     std::pair<bool, GunDirection> TryAimFreeTurning(int target) const throw (); // returns (shoot?, direction)

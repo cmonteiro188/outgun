@@ -1236,9 +1236,20 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
             for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
                 for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
                     *fii = false;
-            TargetNearest(sef, sef,   1,   1,
-                          sef,   1,   1,   1,
-                          swf, swf,   1,   1,
+            // only defend already defended flags if the team can make a capture with the currently controlled flags
+            const bool controlOwn  = TeamHasFlags(myTeam(),  myTeam()) || IsAnyFlagAtBase(myTeam());
+            const bool controlOpp  = TeamHasFlags(myTeam(), !myTeam());
+            const bool controlWild = TeamHasFlags(myTeam(), 2);
+            bool def = false;
+            if (capture_on_team_flags_in_effect && controlOwn && (controlOpp || controlWild))
+                def = true;
+            if (capture_on_wild_flags_in_effect && controlOpp && (controlWild || lock_wild_flags_in_effect))
+                def = true;
+            if (!capture_on_wild_flags_in_effect && !capture_on_team_flags_in_effect)
+                def = true;
+            TargetNearest(sef, sef,   1, def,
+                   sef && def,   1,   1, def,
+                          swf, swf,   1, def,
                             0,   0,
                           sef,   0, swf); // any flag that makes sense (with ignores relaxed), or an empty base (hopefully getting its flag returned when captured soon)
         }
@@ -1336,6 +1347,14 @@ int Robot::HaveFlag(int n) const throw () {
     return 0;
 }
 
+bool Robot::TeamHasFlags(int carrierTeam, int flagTeam) const throw () {
+    const vector<Flag>& flags = flagTeam == 2 ? fx.wild_flags : fx.teams[flagTeam].flags();
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+        if (fi->carried() && fx.player[fi->carrier()].team() == carrierTeam)
+            return true;
+    return false;
+}
+
 bool Robot::IsFlagAtBase(const Flag& f, int team) const throw () {
     if (f.carried())
         return false;
@@ -1345,6 +1364,14 @@ bool Robot::IsFlagAtBase(const Flag& f, int team) const throw () {
         if (bi->room == f.position().room && fabs(dist.x) <= 5. && fabs(dist.y) <= 5.)
             return true;
     }
+    return false;
+}
+
+bool Robot::IsAnyFlagAtBase(int team) const throw () {
+    const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+        if (IsFlagAtBase(*fi, team))
+            return true;
     return false;
 }
 
