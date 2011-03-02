@@ -144,7 +144,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
     int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag, 3 if n carries an own flag
     bool        TeamHasFlags(int team, int flagTeam) const throw ();
-    bool        IsFlagAtBase(const Flag& f, int team) const throw ();
+    bool        IsFlagAtBase(const Flag& f, int team, bool captureableEnough) const throw ();
     bool        IsAnyFlagAtBase(int team) const throw ();
     enum AimLevel { AL_None, AL_Near, AL_Full };
     std::pair<AimLevel, int> TryAimTradTurning(int target) const throw (); // returns how near the target is to the aim in the best direction (AL_None if behind a wall), and that direction
