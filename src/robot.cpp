@@ -138,14 +138,18 @@ bool Robot::moreDefensive(const ClientPlayer& player) const throw () {
 }
 
 bool Robot::IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
-    const Room& room = fx.map[myPos.room];
+    return IsBehindWall(myPos, delta, radius, maxDistanceFromTarget);
+}
+
+bool Robot::IsBehindWall(const WorldCoords& startPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw () {
+    const Room& room = fx.map[startPos.room];
     const double dist = delta.mag();
     if (dist == 0)
         return false;
     const double nearEnoughFraction = (dist - maxDistanceFromTarget) / dist;
     if (nearEnoughFraction <= 0.)
         return false;
-    return room.genGetTimeTillWall(myPos.local(), delta, radius, nearEnoughFraction).first < nearEnoughFraction;
+    return room.genGetTimeTillWall(startPos.local(), delta, radius, nearEnoughFraction).first < nearEnoughFraction;
 }
 
 double Robot::ScanDir(GunDirection dir) const throw () {
@@ -749,25 +753,45 @@ ClientControls Robot::FreeWalk() throw () {
     return MoveDirNoAggregate(FreeDir());
 }
 
+ClientControls Robot::MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget) const throw () {
+    const Coords target(myPos.local() + delta);
+
+    int bestDir = -1;
+    double minDist = 1e99;
+
+    for (int dirOffset = -4; dirOffset <= 3; ++dirOffset) {
+        const int dir = positiveModulo(myGundir + dirOffset, 8);
+        const pair<double, Coords> wallPos = WallHitPosition(GunDirection().from8way(dir), PLAYER_RADIUS);
+        if (wallPos.first <= PLAYER_RADIUS)
+            continue;
+        const double fract = (wallPos.first - PLAYER_RADIUS) / wallPos.first; // pick a turning point along the line but an additional player radius away from the wall
+        const Coords turnPos(wallPos.second * fract + myPos.local() * (1. - fract));
+
+        if (IsBehindWall(WorldCoords(myPos.room, turnPos), target - turnPos, PLAYER_RADIUS, maxDistanceFromTarget))
+            continue;
+
+        const double dist = wallPos.first - PLAYER_RADIUS + mag(target - turnPos) + 2 * PLAYER_RADIUS * abs(dirOffset);
+        if (dist < minDist) {
+            minDist = dist;
+            bestDir = dir;
+        }
+    }
+    return MoveDir(bestDir != -1 ? bestDir : FreeDir());
+}
+
 ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw () {
-    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget)) {
-        const int mdir = FreeDir();
-        return MoveDir(mdir);
-    }
-    else {
-        const int mdir = GetDir(delta).to8way();
-        return MoveDirNoAggregate(mdir);
-    }
+    if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
+        return MoveIndirectlyTowards(delta, maxDistanceFromTarget);
+    else
+        return MoveDirNoAggregate(GetDir(delta).to8way());
 }
 
 
 ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw () {
-    int mdir;
     if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
-        mdir = FreeDir();
+        return MoveIndirectlyTowards(delta, maxDistanceFromTarget);
     else
-        mdir = GetDir(delta).to8way();
-    return MoveDir(mdir);
+        return MoveDir(GetDir(delta).to8way());
 }
 
 ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {

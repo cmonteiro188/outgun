@@ -153,6 +153,7 @@ class Robot : public ClientBase, public BotInterface {
     double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
 
     bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
+    bool        IsBehindWall(const WorldCoords& startPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
     double      ScanDir(GunDirection dir) const throw (); // return length to wall (or room border) in dir
     std::pair<double, Coords> WallHitPosition(GunDirection dir, double radius) const throw (); // return length to wall (or room border) in dir, and the hit position
     std::pair<bool, GunDirection> NeedShootFreeTurning(const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
@@ -176,6 +177,7 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw ();
     ClientControls MoveToDoor(const Area::Neighbor& n) const throw ();
     ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw ();
+    ClientControls MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget) const throw ();
     ClientControls MoveDir(int dir) const throw ();
     ClientControls Escape() const throw ();
     ClientControls FreeWalk() throw ();

@@ -61,6 +61,7 @@ struct Coords : public BasicCoords<double> { // coordinates within a room
 };
 
 struct WorldCoords {
+    WorldCoords(const RoomCoords& room_, const Coords& local) throw () : room(room_), x(local.x), y(local.y) { }
     WorldCoords(const RoomCoords& room_, double x_, double y_) throw () : room(room_), x(x_), y(y_) { }
     WorldCoords(int rx, int ry, double x_, double y_) throw () : room(rx, ry), x(x_), y(y_) { }
     WorldCoords() throw () : room(-1, -1) { }
