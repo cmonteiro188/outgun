@@ -2001,14 +2001,14 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
         sender.defendingAfterDeath = msg != "d";
         description = sender.name + " prefers defending";
         if (!sender.defendingAfterDeath)
-            description += " until dead";
+            description += " until dead, then attacking";
     }
     else if (msg == "a" || msg == "A" || msg == "att" || msg == "attacking") {
         sender.defending = false;
         sender.defendingAfterDeath = msg == "a";
         description = sender.name + " prefers attacking";
         if (sender.defendingAfterDeath)
-            description += " until dead";
+            description += " until dead, then defending";
     }
     else
         return;
