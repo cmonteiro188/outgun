@@ -759,7 +759,7 @@ ClientControls Robot::MoveIndirectlyTowards(const Vec& delta, double maxDistance
     int bestDir = -1;
     double minDist = 1e99;
 
-    for (int dirOffset = -4; dirOffset <= 3; ++dirOffset) {
+    for (int dirOffset = -3; dirOffset <= 3; ++dirOffset) {
         const int dir = positiveModulo(myGundir + dirOffset, 8);
         const pair<double, Coords> wallPos = WallHitPosition(GunDirection().from8way(dir), PLAYER_RADIUS);
         if (wallPos.first <= PLAYER_RADIUS)
