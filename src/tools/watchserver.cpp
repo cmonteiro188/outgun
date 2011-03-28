@@ -129,16 +129,16 @@ ProbeResult parseNewFormatReply(BinaryReader& msg, uint8_t sentByte1, uint8_t se
 
     string gameString, protocolString;
     string serverVersion, serverName;
-    int maxPlayers;
-    bool password, ded, spect, ft, ff, pups, carryOwn, unofficialExt;
-    int allAdvantagesExtensionsLevel;
-    uint32_t uptime;
+    int maxPlayers = 0; // everything initialized just to please GCC
+    bool password = false, ded = false, spect = false, ft = false, ff = false, pups = false, carryOwn = false, unofficialExt = false;
+    int allAdvantagesExtensionsLevel = 0;
+    uint32_t uptime = 0;
     vector<Human> humans;
     vector<int> botPings;
     vector<Waiter> waiters;
     string currentMap;
-    int score[2], captureLimit;
-    int mapTime, timeLimit;
+    int score[2] = { 0, 0 }, captureLimit = 0;
+    int mapTime = 0, timeLimit = 0;
 
     if (queries & EQSQ_GameProtocol) {
         gameString = msg.str();
