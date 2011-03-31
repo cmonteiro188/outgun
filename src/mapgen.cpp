@@ -516,7 +516,6 @@ void MapGenerator::save_map(ostream& out, const string& title, const string& aut
                 out << "R " << x << ' ' << y << "\nG 0 0 16 12 " << floor << "\n";
             }
         }
-    vector<string> files;
     const string dir = wheregamedir + "mapgen" + directory_separator;
     FileFinder* finder = platMakeFileFinder(dir, ".txt", false);
     string filename;
