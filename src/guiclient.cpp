@@ -3694,7 +3694,7 @@ void GuiClient::draw_playfield() throw () {
         if (on_screen(pos.room.x, pos.room.y, pos.x, pos.y, Graphics::extended_flag_max_size_in_world / 2)) {
             const bool flash = menu.options.graphics.highlightReturnedFlag() &&
                                time < fi->return_time() + 2 && static_cast<int>(fmod(time * 15, 3)) == 0;
-            const double return_delay = fi.team() != 2 ? fi->drop_time() + flag_return_delay / 10 - time : 0;
+            const double return_delay = fi.team() != 2 && !carry_own_team_flag ? fi->drop_time() + flag_return_delay / 10 - time : 0;
             graphics.draw_flag(fi.team(), pos, flash, 255, menu.options.graphics.emphasizeFlag(visible_rooms), return_delay);
         }
     }
