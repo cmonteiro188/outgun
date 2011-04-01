@@ -32,7 +32,7 @@ extern const std::string GAME_RELEASED_VERSION_SHORT; // no longer than 8 charac
 extern const std::string GAME_RELEASED_VERSION;
 extern const std::string GAME_COPYRIGHT_YEAR;
 
-/** Get a version identifier string combining the GAME_RELEASED_VERSION definitions and a potential SVN revision.
+/** Get a version identifier string combining the GAME_RELEASED_VERSION definitions and a potential Git revision.
  * @param allowSpaces      allow spaces in the string (prefer VERSION), otherwise use VERSION_SHORT
  * @param softLengthLimit  the maximum string length preferred
  * @param hardLengthLimit  the maximum string length accepted (must be at least the length of VERSION_SHORT)

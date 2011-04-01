@@ -26,7 +26,7 @@
 #include "nassert.h"
 #include "version.h"
 
-#include "generated/svnrevision.inc"
+#include "generated/gitrevision.inc"
 
 using std::string;
 
@@ -40,7 +40,7 @@ const string GAME_RELEASED_VERSION = "1.0.3";
 const string GAME_COPYRIGHT_YEAR = "2010";
 
 string getVersionString(bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) throw () {
-    static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = SVN_REVISION;
+    static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = GIT_REVISION;
     string ver;
 
     nAssert(!hardLimit || vShort.length() <= hardLimit);
@@ -50,13 +50,9 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
     if (rev.empty())
         return allowSpaces && (!softLimit || vFull.length() <= softLimit) ? vFull : vShort;
 
-    if (allowSpaces) {
-        ver = vFull + " r" + rev;
-        if (!softLimit || ver.length() <= softLimit)
-            return ver;
-    }
-
-    ver = vShort + 'r' + rev;
+    ver = rev;
+    if (ver[0] == 'v')
+        ver = ver.substr(1);
     if (!softLimit || ver.length() <= softLimit)
         return ver;
 

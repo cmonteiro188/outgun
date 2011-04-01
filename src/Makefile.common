@@ -51,7 +51,7 @@ CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
 CXX ?= g++
-SVNVERSION ?= svnversion
+GITVERSION ?= git describe --match "v*" --dirty="M"
 
 DEPDIR ?= dep
 OBJDIR ?= obj
@@ -127,8 +127,8 @@ default:
 .SUFFIXES:
 .DELETE_ON_ERROR:
 
-ifeq ($(wildcard .svn),.svn)
- SVN_REVISION := $(shell $(SVNVERSION))
+ifeq ($(wildcard ../.git),../.git)
+ GIT_REVISION := $(shell $(GITVERSION))
 endif
 
 # -- Compiler flags: --
@@ -158,7 +158,7 @@ SRC_PREFIXES := * leetnet/* loadpng/* tests/* tools/*
 # Files that generate Makefile rules (.cpp and .c) must be included last.
 SRC_SUFFIXES := .h .inc .cpp .c
 SRC_FILE_PATTERNS := $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
-GENERATED_HEADER_FILES := generated/svnrevision.inc
+GENERATED_HEADER_FILES := generated/gitrevision.inc
 SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
 
 # -- Source file dependency list files: --
@@ -254,10 +254,10 @@ make-directories-dummy: | $(GENERATED_DIRS)
 
 WRITEIFDIFFERENT := $(WRITEIFDIFF_EXE)
 
-generated/svnrevision.inc :: | make-directories-dummy $(WRITEIFDIFFERENT)
+generated/gitrevision.inc :: | make-directories-dummy $(WRITEIFDIFFERENT)
 
-generated/svnrevision.inc ::
-	@$(WRITEIFDIFFERENT) $@ "#define SVN_REVISION \"$(SVN_REVISION)\""
+generated/gitrevision.inc ::
+	@$(WRITEIFDIFFERENT) $@ "#define GIT_REVISION \"$(GIT_REVISION)\""
 
 # -- Source file dependency list files: --
 
