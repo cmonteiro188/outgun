@@ -24,6 +24,7 @@
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -43,6 +44,7 @@ using std::cerr;
 using std::cout;
 using std::flush;
 using std::istringstream;
+using std::set;
 using std::sort;
 using std::string;
 using std::vector;
@@ -373,6 +375,7 @@ int main(int argc, const char* argv[]) {
     int minPlayers = 1, minutesBeforeNotify = 1;
     string server;
     string waiterName, password;
+    set<string> friends;
 
     try {
         for (int iArg = 1; iArg < argc; ++iArg) {
@@ -393,6 +396,8 @@ int main(int argc, const char* argv[]) {
                 if (waiterName.empty() || password.empty())
                     throw SyntaxError();
             }
+            else if (arg == "-f" && iArg + 1 < argc)
+                friends.insert(argv[++iArg]);
             else if (server.empty() && !arg.empty() && arg[0] != '-')
                 server = arg;
             else
@@ -401,9 +406,10 @@ int main(int argc, const char* argv[]) {
         if (server.empty())
             throw SyntaxError();
     } catch (SyntaxError) {
-        cerr << "syntax: " << argv[0] << " [-p players] [-t minutes] [-w name password] server-address\n"
+        cerr << "syntax: " << argv[0] << " [-p players] [-t minutes] [-w name password] [-f friend [-f friend ...]] server-address\n"
              << "Executes ./watchserver-notifier after the server has reported at least the given number of players plus matching waiters (1-31, default 1) for the given time (default 1 minute, min 0).\n"
-             << "If -w is given, the player name is added to the waiter list on the server for as long as the program is running. The name must be registered on the server (in auth.txt) using the given password. You should be ready to play soon after notified.\n";
+             << "If -w is given, the player name is added to the waiter list on the server for as long as the program is running. The name must be registered on the server (in auth.txt) using the given password. You should be ready to play soon after notified.\n"
+             << "If -f are given, the given player names trigger the notification if any of them are found on the server or waiting, even if the player count isn't satisfied.\n";
         return 2;
     }
 
@@ -455,6 +461,7 @@ int main(int argc, const char* argv[]) {
                 cout << ", " << res.waiters.size() << " waiters";
             const bool playerNames = !res.players.empty() && !res.players.front().name.empty();
             const bool waiterNames = !res.waiters.empty() && !res.waiters.front().name.empty();
+            int nFriends = 0;
             if (playerNames || waiterNames) {
                 cout << ": ";
                 if (playerNames)
@@ -462,6 +469,8 @@ int main(int argc, const char* argv[]) {
                         if (pi != res.players.begin())
                             cout << ", ";
                         cout << pi->name;
+                        if (friends.count(pi->name))
+                            ++nFriends;
                     }
                 if (playerNames && waiterNames)
                     cout << " + ";
@@ -472,6 +481,8 @@ int main(int argc, const char* argv[]) {
                         cout << wi->name;
                         if (wi->minPlayers != -1)
                             cout << ':' << wi->minPlayers;
+                        if (friends.count(wi->name))
+                            ++nFriends;
                     }
             }
             cout << "\n" << std::flush;
@@ -480,7 +491,7 @@ int main(int argc, const char* argv[]) {
                 for (vector<Waiter>::const_iterator wi = res.waiters.begin(); wi != res.waiters.end(); ++wi)
                     if (wi->minPlayers <= minPlayers && !(wi->name == waiterName && !waiterName.empty()))
                         ++nGoodWaiters;
-            if ((int)res.players.size() + nGoodWaiters < minPlayers)
+            if ((int)res.players.size() + nGoodWaiters < minPlayers && nFriends == 0)
                 activeInRow = 0;
             else if (activeInRow++ >= minutesBeforeNotify)
                 notify();
