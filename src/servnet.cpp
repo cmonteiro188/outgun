@@ -3462,9 +3462,9 @@ void ServerNetworking::extendedQuery(BinaryReader& read, BinaryWriter& write) th
         if (queries & EQSQ_Version)
             for (;;) {
                 const uint32_t flags = read.U32dyn8();
-                const uint32_t softLimit = read.U32dyn8() & 0xFFF;
-                const uint32_t hardLimit = read.U32dyn8() & 0xFFF;
-                write.str(getVersionString(flags & 2, softLimit, hardLimit, flags & 4));
+                const int softLimit = read.U32dyn8() & 0xFFF;
+                const int hardLimit = read.U32dyn8() & 0xFFF;
+                write.str(getVersionString(flags & 2, softLimit, hardLimit ? max(hardLimit, 8) : 0, flags & 4)); // note: returned string may be longer than hardLimit (better leave the truncation to the caller)
                 if (flags & 1)
                     break;
             }
