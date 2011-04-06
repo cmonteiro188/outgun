@@ -51,7 +51,7 @@ CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
 CXX ?= g++
-GITVERSION ?= git describe --match "v*" --dirty="M"
+GITVERSION ?= git describe --match "v*" --dirty="-M"
 
 DEPDIR ?= dep
 OBJDIR ?= obj
@@ -345,6 +345,8 @@ $(TEST_TARGETS) : $(BINDIR)/tests/%$(EXE_SUFFIX) : $(OBJDIR)/tests/%.o $(OBJDIR)
 $(BINDIR)/tests/binarybuffer$(EXE_SUFFIX) : $(OBJDIR)/gui/binaryaccess.o
 
 $(BINDIR)/tests/formattedtext$(EXE_SUFFIX) : $(COMMON_TEST_OBJS)
+
+$(BINDIR)/tests/versionstring$(EXE_SUFFIX) : $(OBJDIR)/gui/version.o
 
 # -- Executing tests: --
 

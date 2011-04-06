@@ -1,7 +1,7 @@
 /*
  *  version.cpp
  *
- *  Copyright (C) 2008 - Niko Ritari
+ *  Copyright (C) 2008, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -41,7 +41,6 @@ const string GAME_COPYRIGHT_YEAR = "2010";
 
 string getVersionString(bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) throw () {
     static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = GIT_REVISION;
-    string ver;
 
     nAssert(!hardLimit || vShort.length() <= hardLimit);
     if (hardLimit && (!softLimit || softLimit > hardLimit))
@@ -50,16 +49,87 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
     if (rev.empty())
         return allowSpaces && (!softLimit || vFull.length() <= softLimit) ? vFull : vShort;
 
-    ver = rev;
-    if (ver[0] == 'v')
-        ver = ver.substr(1);
-    if (!softLimit || ver.length() <= softLimit)
-        return ver;
+    /* parse rev with the regexps 'v(.*)()()(-M)?(-E)?' or 'v(.*)-([0-9]*)-g([0-9a-f]*)(-M)?(-E)?'
+     * \1 must begin with vShort, and the rest is left in revRest
+     * \2 (if any) is stored in nCommits with a leading '-'
+     * \3 (if any) is stored in hash with a leading '-'
+     * -M and -E set modified and exported
+     */
 
-    ver = vShort + (rev.find_first_of("MS:") == string::npos ? '+' : 'x');
+    nAssert(rev.find_first_of(' ') == string::npos);
+    string revRest = rev;
+    const bool exported = revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-E";
+    if (exported)
+        revRest.erase(revRest.size() - 2);
+    const bool modified = revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-M";
+    if (modified)
+        revRest.erase(revRest.size() - 2);
+
+    nAssert(revRest.substr(0, vShort.length() + 1) == 'v' + vShort);
+    revRest.erase(0, vShort.length() + 1);
+
+    string nCommits, hash; // both with leading -
+    struct IsPlainTag { }; // exception thrown if nCommits and hash aren't there
+    try {
+        string::size_type hashPos = revRest.find_last_not_of("0123456789abcdef");
+        if (hashPos == string::npos || hashPos == 0 || revRest.substr(hashPos - 1, 2) != "-g")
+            throw IsPlainTag();
+        hash = '-' + revRest.substr(hashPos + 1);
+        const string::size_type nCommitsEnd = hashPos - 1;
+        string::size_type nCommitsPos = revRest.find_last_not_of("0123456789", nCommitsEnd - 1);
+        if (nCommitsPos == string::npos || revRest[nCommitsPos] != '-')
+            throw IsPlainTag();
+        nCommits = revRest.substr(nCommitsPos, nCommitsEnd - nCommitsPos);
+        if (hash.empty() || nCommits.empty())
+            throw IsPlainTag();
+        revRest.erase(nCommitsPos);
+    } catch (IsPlainTag) {
+        nCommits.clear();
+        hash.clear();
+    }
+
+    // return a maximally informative subset of the information within softLimit
+
+    string flags = string(modified ? "-M" : "") + (exported ? "-E" : "");
+    string shortFlags = string(modified ? "M" : "") + (exported ? "E" : "");
+
+    if (allowSpaces) {
+        const string ver = vFull + revRest + nCommits + hash + flags;
+        if (!softLimit || ver.length() <= softLimit)
+            return ver;
+    }
+
+    const string base = vShort + revRest + nCommits;
+    if (!softLimit || base.length() + hash.length() + flags.length() <= softLimit)
+        return base + hash + flags;
+
+    // truncate hash
+    if (base.length() + 4 + flags.length() <= softLimit)
+        return base + hash.substr(0, softLimit - base.length() - flags.length()) + flags;
+    if (base.length() + 3 + shortFlags.length() <= softLimit)
+        return base + hash.substr(0, softLimit - base.length() - shortFlags.length()) + shortFlags;
+
+    // drop hash
+    if (base.length() + flags.length() <= softLimit)
+        return base + flags;
+    if (base.length() + shortFlags.length() <= softLimit)
+        return base + shortFlags;
+
+    // drop nCommits
+    if (!nCommits.empty()) {
+        flags = '+' + shortFlags;
+        shortFlags = modified ? "x" : !nCommits.empty() ? "+" : exported ? "E" : "";
+    }
+    if (vShort.length() + revRest.length() + flags.length() <= softLimit)
+        return vShort + revRest + flags;
+    if (vShort.length() + revRest.length() + shortFlags.length() <= softLimit)
+        return vShort + revRest + shortFlags;
+
+    // drop revRest
+    shortFlags = modified ? "x" : !(revRest.empty() && nCommits.empty()) ? "+" : exported ? "E" : "";
     const string::size_type limit = tryHardForSoft ? softLimit : hardLimit;
-    if (!limit || ver.length() <= limit)
-        return ver;
+    if (vShort.length() + shortFlags.length() <= limit)
+        return vShort + shortFlags;
 
     return vShort;
 }
