@@ -51,7 +51,7 @@ CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
 CXX ?= g++
-GITVERSION ?= git describe --match "v*" --dirty="-M"
+GITVERSION ?= git describe --match "v[0-9]*" --dirty="-M"
 
 DEPDIR ?= dep
 OBJDIR ?= obj
