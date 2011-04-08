@@ -1883,15 +1883,18 @@ void ServerNetworking::incoming_client_data(int cid, ConstDataBlockRef data) thr
 
     //2. process messages
     for (;;) {
+        nAssert(clientConnection[cid]);
         ConstDataBlockRef msg = clientConnection[cid]->receive_message();
         if (msg.data() == 0)
             break;
         try {
             processMessage(pid, msg);
         } catch (...) {
+            nAssert(clientConnection[cid]);
             clientConnection[cid]->received_message_read();
             throw;
         }
+        nAssert(clientConnection[cid]);
         clientConnection[cid]->received_message_read();
         pid = ctop[cid]; // the message might have affected the pid
     }
