@@ -129,6 +129,13 @@ default:
 
 ifeq ($(wildcard ../.git),../.git)
  GIT_REVISION := $(shell $(GITVERSION))
+ ifdef BOT_COMPARISON
+  ifdef LINUX
+   ifndef PRESERVE_ROBOT2
+    AUTOUPDATE_ROBOT2=1
+   endif
+  endif
+ endif
 endif
 
 # -- Compiler flags: --
@@ -159,7 +166,11 @@ SRC_PREFIXES := * leetnet/* loadpng/* tests/* tools/*
 SRC_SUFFIXES := .h .inc .cpp .c
 SRC_FILE_PATTERNS := $(foreach SUFFIX,$(SRC_SUFFIXES),$(addsuffix $(SUFFIX),$(SRC_PREFIXES)))
 GENERATED_HEADER_FILES := generated/gitrevision.inc
-SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS)))
+ifdef AUTOUPDATE_ROBOT2
+ GENERATED_HEADER_FILES += robot2.h
+ GENERATED_SOURCE_FILES := robot2.cpp
+endif
+SRC_FILES := $(GENERATED_HEADER_FILES) $(filter-out $(SRC_FILE_PATTERNS),$(wildcard $(SRC_FILE_PATTERNS))) $(GENERATED_SOURCE_FILES)
 
 # -- Source file dependency list files: --
 
@@ -258,6 +269,18 @@ generated/gitrevision.inc :: | make-directories-dummy $(WRITEIFDIFFERENT)
 
 generated/gitrevision.inc ::
 	@$(WRITEIFDIFFERENT) $@ "#define GIT_REVISION \"$(GIT_REVISION)\""
+
+ifdef AUTOUPDATE_ROBOT2
+
+robot2.cpp :: | make-directories-dummy
+	@git show HEAD:src/robot.cpp > generated/robot2.cpp
+	@diff -q generated/robot2.cpp robot2.cpp > /dev/null 2>&1 || git show HEAD:src/robot.cpp > robot2.cpp
+
+robot2.h :: | make-directories-dummy
+	@git show HEAD:src/robot.h > generated/robot2.h
+	@diff -q generated/robot2.h robot2.h > /dev/null 2>&1 || git show HEAD:src/robot.h > robot2.h
+
+endif
 
 # -- Source file dependency list files: --
 
