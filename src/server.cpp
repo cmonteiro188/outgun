@@ -1441,8 +1441,11 @@ void Server::chat(int pid, const string& message) throw () {
                     bool handled = false;
                     for (int i = 0; i < MAX_PLAYERS; ++i)
                         if (world.player[i].used && world.player[i].uniqueId == bot_id) {
-                            if (world.player[i].is_bot())
-                                nameChange(world.player[i].cid, i, name, string());
+                            if (world.player[i].is_bot()) {
+                                try {
+                                    nameChange(world.player[i].cid, i, name, string());
+                                } catch (ClientDataError) { nAssert(0); }
+                            }
                             else
                                 network.plprintf(pid, msg_warning, "Player %d is not a bot.", bot_id);
                             handled = true;
