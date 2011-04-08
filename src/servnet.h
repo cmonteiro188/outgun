@@ -53,10 +53,10 @@ class WorldCoords;
 
 static const int pid_none = -1, pid_record = -2, pid_all = -3, shell_pid = -4; // pseudo pids used for no one, record only, everyone (includes record where appropriate), and admin shell user
 
+class ClientDataError { }; // exception
+
 class ServerNetworking {
     friend class ClientServerLocalConnection;
-
-    class ClientDataError { }; // exception
 
 public:
     class Settings {
