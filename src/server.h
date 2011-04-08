@@ -393,7 +393,7 @@ public:
     void check_fav_colors(int pid) throw ();
     void set_fav_colors(int pid, const std::vector<char>& colors) throw ();
 
-    void nameChange(int cid, int pid, std::string name, const std::string& password) throw ();
+    void nameChange(int cid, int pid, std::string name, const std::string& password) throw (ClientDataError);
     void chat(int pid, const std::string& sbuf) throw ();   //#fix: separate console handling
 
     const ClientData& getClientData(int cid) const throw () { return client[cid]; }

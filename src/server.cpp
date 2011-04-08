@@ -1087,7 +1087,7 @@ void Server::disconnectPlayer(int pid, Disconnect_reason reason) throw () {
     network.disconnect_client(world.player[pid].cid, 2, reason);
 }
 
-void Server::nameChange(int cid, int pid, string name, const string& password) throw () {
+void Server::nameChange(int cid, int pid, string name, const string& password) throw (ClientDataError) {
     replace_all_in_place(name, '\xA0', ' '); // 'normalize' any no-break space
 
     if (!world.player[pid].is_bot() && name.substr(0, 3) == "BOT" && (name.length() == 3 || name[3] == ' '))
@@ -1108,14 +1108,13 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     const bool entered_game = world.player[pid].name.empty(); // the first name "change" means the client has just entered the game
 
     if (!check_name(name)) {
-        log("Kicked player %d for client misbehavior: attempted invalid name '%s'.", pid, name.c_str());
-        disconnectPlayer(pid, disconnect_client_misbehavior);
-        return;
+        log("Player %d, client misbehavior: attempted invalid name '%s'.", pid, name.c_str());
+        throw ClientDataError();
     }
     if (!authorizations.checkNamePassword(name, password, true)) {
         if (entered_game) {
-            log("Kicked player %d for client misbehavior: authentication changed between entering the game and first name change.", pid);
-            disconnectPlayer(pid, disconnect_client_misbehavior);
+            log("Player %d, client misbehavior: authentication changed between entering the game and first name change.", pid);
+            throw ClientDataError();
         }
         else {
             if (!password.empty())
