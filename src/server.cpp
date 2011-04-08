@@ -1108,7 +1108,7 @@ void Server::nameChange(int cid, int pid, string name, const string& password) t
     const bool entered_game = world.player[pid].name.empty(); // the first name "change" means the client has just entered the game
 
     if (!check_name(name)) {
-        log("Player %d, client misbehavior: attempted invalid name '%s'.", pid, name.c_str());
+        log("Player %d, client misbehavior: attempted invalid name '%s'.", pid, formatForLogging(name).c_str());
         throw ClientDataError();
     }
     if (!authorizations.checkNamePassword(name, password, true)) {
