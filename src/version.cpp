@@ -53,17 +53,20 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
      * \1 must begin with vShort, and the rest is left in revRest
      * \2 (if any) is stored in nCommits with a leading '-'
      * \3 (if any) is stored in hash with a leading '-'
-     * -M and -E set modified and exported
+     * -M and -E set status to Modified and Exported (-M-E is Modified)
      */
 
     nAssert(rev.find_first_of(' ') == string::npos);
     string revRest = rev;
-    const bool exported = revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-E";
-    if (exported)
+    enum { Clean, Exported, Modified } status = Clean;
+    if (revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-E") {
         revRest.erase(revRest.size() - 2);
-    const bool modified = revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-M";
-    if (modified)
+        status = Exported;
+    }
+    if (revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-M") {
         revRest.erase(revRest.size() - 2);
+        status = Modified;
+    }
 
     nAssert(revRest.substr(0, vShort.length() + 1) == 'v' + vShort);
     revRest.erase(0, vShort.length() + 1);
@@ -90,8 +93,8 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
 
     // return a maximally informative subset of the information within softLimit
 
-    string flags = string(modified ? "-M" : "") + (exported ? "-E" : "");
-    string shortFlags = string(modified ? "M" : "") + (exported ? "E" : "");
+    string flags = status == Modified ? "-M" : status == Exported ? "-E" : "";
+    string shortFlags = status == Modified ? "M" : status == Exported ? "E" : "";
 
     if (allowSpaces) {
         const string ver = vFull + revRest + nCommits + hash + flags;
@@ -116,17 +119,17 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
         return base + shortFlags;
 
     // drop nCommits
-    if (!nCommits.empty()) {
-        flags = '+' + shortFlags;
-        shortFlags = modified ? "x" : !nCommits.empty() ? "+" : exported ? "E" : "";
-    }
+    flags = (!nCommits.empty() ? "+" : "") + shortFlags;
+    if (!nCommits.empty())
+        shortFlags = status == Clean ? '+' : 'x';
     if (vShort.length() + revRest.length() + flags.length() <= softLimit)
         return vShort + revRest + flags;
     if (vShort.length() + revRest.length() + shortFlags.length() <= softLimit)
         return vShort + revRest + shortFlags;
 
     // drop revRest
-    shortFlags = modified ? "x" : !(revRest.empty() && nCommits.empty()) ? "+" : exported ? "E" : "";
+    if (!revRest.empty())
+        shortFlags = status == Clean ? '+' : 'x';
     const string::size_type limit = tryHardForSoft ? softLimit : hardLimit;
     if (vShort.length() + shortFlags.length() <= limit)
         return vShort + shortFlags;
