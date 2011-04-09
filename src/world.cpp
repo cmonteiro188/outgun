@@ -1868,8 +1868,6 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
 
     player[pid].weapon = pupConfig.start_weapon;
 
-    net->sendWeaponPower(pid);
-
     player[pid].item_shield = pupConfig.start_shield;
     player[pid].item_power = pupConfig.start_power;
     player[pid].item_power_time = get_time() + pupConfig.start_power;
@@ -1897,8 +1895,8 @@ void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
             player[pi].knownProperties[pid].clear();
     }
 
-    if (pupConfig.start_weapon > 1)
-        net->sendWeaponPower(pid);
+    net->sendWeaponPower(pid);
+
     if (pupConfig.start_power)
         net->sendPupTime(pid, Powerup::pup_power, pupConfig.start_power);
     if (pupConfig.start_turbo)
