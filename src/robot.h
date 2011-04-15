@@ -63,11 +63,12 @@ class Robot : public ClientBase, public BotInterface {
     struct DistanceTableDescriptor { // the actual table is distributed in all Areas
         const Area* center; // the Area that has distance=0, or 0 if there are multiple centers
         double respawnWeight;
+        bool reverseDirection;
 
         DistanceTableDescriptor() throw () : center(0) { }
-        DistanceTableDescriptor(const Area* c, double rw) throw () : center(c), respawnWeight(rw) { }
+        DistanceTableDescriptor(const Area* c, double rw, bool rd) throw () : center(c), respawnWeight(rw), reverseDirection(rd) { }
 
-        bool operator==(const DistanceTableDescriptor& o) const { return center == o.center && respawnWeight == o.respawnWeight; }
+        bool operator==(const DistanceTableDescriptor& o) const { return center == o.center && respawnWeight == o.respawnWeight && reverseDirection == o.reverseDirection; }
     };
 
     DistanceTableDescriptor distanceTable[Table_Max];
@@ -183,8 +184,8 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls FreeWalk() throw ();
     ClientControls MoveToDestination() const throw ();
 
-    void BuildDistanceTable(Area* startPoint, double respawnWeight, DistanceTableId num) throw (); // build distance table from single point
-    void BuildDistanceTable(const std::vector<Area*>& startPoints, double respawnWeight, DistanceTableId num) throw (); // build distance table from multiple points
+    void BuildDistanceTable(Area* startPoint, double respawnWeight, bool reverseDirection, DistanceTableId num) throw (); // build distance table from single point
+    void BuildDistanceTable(const std::vector<Area*>& startPoints, double respawnWeight, bool reverseDirection, DistanceTableId num) throw (); // build distance table from multiple points
     void setDestination(Area* target) throw ();
     void ChooseDestination() throw ();
 
