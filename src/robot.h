@@ -137,7 +137,8 @@ class Robot : public ClientBase, public BotInterface {
     bool        EnemyHasUnseenFlags(bool wild) const throw ();
     int         GetPlayers(int team) const throw (); // get num of players
     TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
-    bool        IsHome(const Area* a) const throw (); //is it base
+    bool        IsHome(const Area* a, int team) const throw (); // is it base
+    bool        IsHome(const Area* a) const throw (); // uses my team
 
     bool        AmILast() const throw ();
     bool        IsMission() const throw (); // have i mission? (No agression mode)

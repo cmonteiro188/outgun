@@ -1026,6 +1026,8 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnW
             dist -= na->respawnValue[ myTeam()] * respawnWeight * .5;
             dist += na->respawnValue[!myTeam()] * respawnWeight;
             nAssert(dist >= 0.);
+            if (IsHome(na, !myTeam()))
+                dist += 1.5;
             na->distance[num] = a->distance[num] + static_cast<int>(dist * roomToRoomBaseDistance);
             workQueue.push(na);
         }
@@ -1448,8 +1450,11 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
 }
 
 bool Robot::IsHome(const Area* a) const throw () {
-    const vector<WorldCoords>& tflags = fx.map.tinfo[myTeam()].flags;
-    // our bases
+    return IsHome(a, myTeam());
+}
+
+bool Robot::IsHome(const Area* a, int team) const throw () {
+    const vector<WorldCoords>& tflags = team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags;
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi)
         if (area(*pi) == a)
             return true;
