@@ -131,7 +131,7 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
     if (!revRest.empty())
         shortFlags = status == Clean ? '+' : 'x';
     const string::size_type limit = tryHardForSoft ? softLimit : hardLimit;
-    if (vShort.length() + shortFlags.length() <= limit)
+    if (!limit || vShort.length() + shortFlags.length() <= limit)
         return vShort + shortFlags;
 
     return vShort;
