@@ -1081,8 +1081,18 @@ ClientControls Robot::MoveToDestination() const throw () {
     if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination)) // we keep the same destination and wait for the explosion to settle because it won't take long
         return ClientControls();
 
-    if (!oldDestinationFound)
-        immediateDestination = goodNeighbors.empty() ? 0 : goodNeighbors[rand() % goodNeighbors.size()];
+    if (!oldDestinationFound) {
+        // select one of the good neighbors, weighted by inverse distance to the door: if distances are d, 2d, 4d, we get probabilities with ratios 4 : 2 : 1
+        immediateDestination = 0;
+        double weightSum = 0;
+        for (vector<const Area::Neighbor*>::const_iterator ni = goodNeighbors.begin(); ni != goodNeighbors.end(); ++ni) {
+            const double dist = distanceFromDoor(**ni);
+            const double weight = 1. / max(dist, 4. * PLAYER_RADIUS);
+            weightSum += weight;
+            if (drand() * weightSum < weight)
+                immediateDestination = *ni;
+        }
+    }
 
     if (immediateDestination)
         return MoveToDoor(*immediateDestination);

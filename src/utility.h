@@ -32,6 +32,7 @@
 
 #include <climits>
 #include <cmath>
+#include <cstdlib>
 
 #include "nassert.h" // for __attribute__ for non-GCC as well as nAssert
 
@@ -358,6 +359,10 @@ inline double sqr(double value) throw () { // the square of the given value (jus
 
 inline int sqr(int value) throw () {
     return value * value;
+}
+
+inline double drand() throw () { // returns a random number in [0, 1[
+    return double(rand()) / (double(RAND_MAX) + 1);
 }
 
 template<class Int1T, class Int2T> Int2T positiveModulo(Int1T val, Int2T modulus) throw () {
