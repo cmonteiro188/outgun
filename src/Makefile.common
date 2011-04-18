@@ -266,17 +266,18 @@ make-directories-dummy: | $(GENERATED_DIRS)
 WRITEIFDIFFERENT := $(WRITEIFDIFF_EXE)
 
 generated/gitrevision.inc :: | make-directories-dummy $(WRITEIFDIFFERENT)
-
 generated/gitrevision.inc ::
 	@$(WRITEIFDIFFERENT) $@ "#define GIT_REVISION \"$(GIT_REVISION)\""
 
 ifdef AUTOUPDATE_ROBOT2
 
 robot2.cpp :: | make-directories-dummy
+robot2.cpp ::
 	@git show HEAD:src/robot.cpp > generated/robot2.cpp
 	@diff -q generated/robot2.cpp robot2.cpp > /dev/null 2>&1 || git show HEAD:src/robot.cpp > robot2.cpp
 
 robot2.h :: | make-directories-dummy
+robot2.h ::
 	@git show HEAD:src/robot.h > generated/robot2.h
 	@diff -q generated/robot2.h robot2.h > /dev/null 2>&1 || git show HEAD:src/robot.h > robot2.h
 
