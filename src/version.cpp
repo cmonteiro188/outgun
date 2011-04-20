@@ -27,6 +27,7 @@
 #include "version.h"
 
 #include "generated/gitrevision.inc"
+#include "exported_revision.inc"
 
 using std::string;
 
@@ -40,25 +41,47 @@ const string GAME_RELEASED_VERSION = "1.0.3";
 const string GAME_COPYRIGHT_YEAR = "2010";
 
 string getVersionString(bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) throw () {
-    static const string vShort = GAME_RELEASED_VERSION_SHORT, vFull = GAME_RELEASED_VERSION, rev = GIT_REVISION;
+    return getVersionString(GAME_RELEASED_VERSION_SHORT, GAME_RELEASED_VERSION, GIT_REVISION, GIT_EXPORT_REVISION, allowSpaces, softLimit, hardLimit, tryHardForSoft);
+}
 
-    nAssert(!hardLimit || vShort.length() <= hardLimit);
-    if (hardLimit && (!softLimit || softLimit > hardLimit))
-        softLimit = hardLimit;
+struct VersionDescription {
+    string revRest; // the rest of the tagged version number (after vShort)
+    string nCommits, hash; // both with leading -
+    enum ModificationStatus { Clean, Exported, Modified } status;
+    bool partsUnknown;
 
-    if (rev.empty())
-        return allowSpaces && (!softLimit || vFull.length() <= softLimit) ? vFull : vShort;
+    VersionDescription(const string& vShort, const string& rev, const string& exportRev) throw ();
+};
 
-    /* parse rev with the regexps 'v(.*)()()(-M)?(-E)?' or 'v(.*)-([0-9]*)-g([0-9a-f]*)(-M)?(-E)?'
+VersionDescription::VersionDescription(const string& vShort, const string& rev, const string& exportRev) throw () :
+    status(Clean), partsUnknown(false)
+{
+    if (rev.empty() && exportRev == "$Format:%H-E$") {
+        revRest = 'x'; // not properly exported, who knows what revision
+        return;
+    }
+
+    revRest = !rev.empty() ? rev : exportRev;
+
+    /* parse revision with the regexps 'v(.*)()()(-M)?(-E)?' or 'v(.*)-([0-9]*)-g([0-9a-f]*)(-M)?(-E)?', or (exportRev only) '()()([0-9a-f]{40})-E'
      * \1 must begin with vShort, and the rest is left in revRest
      * \2 (if any) is stored in nCommits with a leading '-'
      * \3 (if any) is stored in hash with a leading '-'
      * -M and -E set status to Modified and Exported (-M-E is Modified)
      */
 
-    nAssert(rev.find_first_of(' ') == string::npos);
-    string revRest = rev;
-    enum { Clean, Exported, Modified } status = Clean;
+    nAssert(revRest.find_first_of(' ') == string::npos);
+
+    if (revRest.substr(0, vShort.length() + 1) != 'v' + vShort) {
+        nAssert(rev.empty()); // this is only allowed of exportRev
+        nAssert(revRest.length() == 42 && revRest.substr(40) == "-E" && revRest.find_first_not_of("0123456789abcdef") == 40);
+        hash = '-' + revRest.substr(0, 10);
+        revRest.clear();
+        status = Exported;
+        partsUnknown = true; // we don't know the tag and nCommits
+        return;
+    }
+
     if (revRest.size() >= 2 && revRest.substr(revRest.size() - 2) == "-E") {
         revRest.erase(revRest.size() - 2);
         status = Exported;
@@ -71,30 +94,39 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
     nAssert(revRest.substr(0, vShort.length() + 1) == 'v' + vShort);
     revRest.erase(0, vShort.length() + 1);
 
-    string nCommits, hash; // both with leading -
-    struct IsPlainTag { }; // exception thrown if nCommits and hash aren't there
-    try {
-        string::size_type hashPos = revRest.find_last_not_of("0123456789abcdef");
-        if (hashPos == string::npos || hashPos == 0 || revRest.substr(hashPos - 1, 2) != "-g")
-            throw IsPlainTag();
-        hash = '-' + revRest.substr(hashPos + 1);
-        const string::size_type nCommitsEnd = hashPos - 1;
-        string::size_type nCommitsPos = revRest.find_last_not_of("0123456789", nCommitsEnd - 1);
-        if (nCommitsPos == string::npos || revRest[nCommitsPos] != '-')
-            throw IsPlainTag();
-        nCommits = revRest.substr(nCommitsPos, nCommitsEnd - nCommitsPos);
-        if (hash.empty() || nCommits.empty())
-            throw IsPlainTag();
-        revRest.erase(nCommitsPos);
-    } catch (IsPlainTag) {
+    string::size_type hashPos = revRest.find_last_not_of("0123456789abcdef");
+    if (hashPos == string::npos || hashPos == 0 || revRest.substr(hashPos - 1, 2) != "-g")
+        return;
+    hash = '-' + revRest.substr(hashPos + 1);
+    const string::size_type nCommitsEnd = hashPos - 1;
+    string::size_type nCommitsPos = revRest.find_last_not_of("0123456789", nCommitsEnd - 1);
+    if (nCommitsPos == string::npos || revRest[nCommitsPos] != '-') {
+        hash.clear();
+        return;
+    }
+    nCommits = revRest.substr(nCommitsPos, nCommitsEnd - nCommitsPos);
+    if (hash.empty() || nCommits.empty()) {
         nCommits.clear();
         hash.clear();
     }
+    else
+        revRest.erase(nCommitsPos);
+}
 
-    // return a maximally informative subset of the information within softLimit
+string getVersionString(const string& vShort, const string& vFull, const string& rev, const string& exportRev,
+                        bool allowSpaces, string::size_type softLimit, string::size_type hardLimit, bool tryHardForSoft) throw ()
+{
+    nAssert(!hardLimit || hardLimit >= 8);
+    nAssert(vShort.length() <= 8);
+    if (hardLimit && (!softLimit || softLimit > hardLimit))
+        softLimit = hardLimit;
 
-    string flags = status == Modified ? "-M" : status == Exported ? "-E" : "";
-    string shortFlags = status == Modified ? "M" : status == Exported ? "E" : "";
+    const VersionDescription desc(vShort, rev, exportRev);
+    const string& revRest = desc.revRest, & nCommits = desc.nCommits, & hash = desc.hash;
+    bool identityTruncated = desc.partsUnknown; // is the information without the hash misleading? (a + will be added)
+
+    string flags = desc.status == VersionDescription::Modified ? "-M" : desc.status == VersionDescription::Exported ? "-E" : "";
+    string shortFlags = desc.status == VersionDescription::Modified ? "M" : desc.status == VersionDescription::Exported ? "E" : "";
 
     if (allowSpaces) {
         const string ver = vFull + revRest + nCommits + hash + flags;
@@ -113,23 +145,31 @@ string getVersionString(bool allowSpaces, string::size_type softLimit, string::s
         return base + hash.substr(0, softLimit - base.length() - shortFlags.length()) + shortFlags;
 
     // drop hash
+    if (identityTruncated) {
+        flags = '+' + shortFlags;
+        shortFlags = desc.status == VersionDescription::Clean ? '+' : 'x';
+    }
     if (base.length() + flags.length() <= softLimit)
         return base + flags;
     if (base.length() + shortFlags.length() <= softLimit)
         return base + shortFlags;
 
     // drop nCommits
-    flags = (!nCommits.empty() ? "+" : "") + shortFlags;
-    if (!nCommits.empty())
-        shortFlags = status == Clean ? '+' : 'x';
+    if (!nCommits.empty() && !identityTruncated) {
+        flags = '+' + shortFlags;
+        shortFlags = desc.status == VersionDescription::Clean ? '+' : 'x';
+        identityTruncated = true;
+    }
     if (vShort.length() + revRest.length() + flags.length() <= softLimit)
         return vShort + revRest + flags;
     if (vShort.length() + revRest.length() + shortFlags.length() <= softLimit)
         return vShort + revRest + shortFlags;
 
     // drop revRest
-    if (!revRest.empty())
-        shortFlags = status == Clean ? '+' : 'x';
+    if (!revRest.empty() && !identityTruncated) {
+        shortFlags = desc.status == VersionDescription::Clean ? '+' : 'x';
+        identityTruncated = true;
+    }
     const string::size_type limit = tryHardForSoft ? softLimit : hardLimit;
     if (!limit || vShort.length() + shortFlags.length() <= limit)
         return vShort + shortFlags;

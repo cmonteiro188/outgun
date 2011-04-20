@@ -40,4 +40,8 @@ extern const std::string GAME_COPYRIGHT_YEAR;
  */
 std::string getVersionString(bool allowSpaces = true, std::string::size_type softLengthLimit = 0, std::string::size_type hardLengthLimit = 0, bool tryHardForSoft = false) throw ();
 
+// version with constants replaced by given strings for testing:
+std::string getVersionString(const std::string& vShort, const std::string& vFull, const std::string& rev, const std::string& exportRev,
+                             bool allowSpaces, std::string::size_type softLengthLimit, std::string::size_type hardLengthLimit, bool tryHardForSoft) throw ();
+
 #endif // ! VERSION_H_INC
