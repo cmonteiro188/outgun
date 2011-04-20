@@ -46,7 +46,7 @@ endif
 
 # -- User configurable items: --
 
-CFLAGS ?= -W -Wall -O3 -ffast-math -fno-enforce-eh-specs
+CFLAGS ?= -W -Wall -Wno-parentheses -O3 -ffast-math -fno-enforce-eh-specs
 CXXFLAGS ?= $(CFLAGS)
 
 CC ?= gcc
