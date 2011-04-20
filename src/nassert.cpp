@@ -90,9 +90,17 @@ static bool stackTrace(BinaryWriter& b) throw () { // returns false if a proper 
 
 #endif
 
+static volatile int nFailures = 0;
+
 void nasprintf(const char* file, int line, const char* expr, ...) throw () PRINTF_FORMAT(3, 4); // PRINTF_FORMAT is defined in utility.h
 
 void nasprintf(const char* file, int line, const char* expr, ...) throw () {
+    if (nFailures >= 4) {
+        fprintf(stderr, "Too many (recursive?) assertion failures, some left unreported.\n");
+        abort();
+    }
+    ++nFailures;
+
     // display to console (should be safest, but rarely visible on Windows)
     fprintf(stderr, "Assertion failed: ");
     va_list argptr;
