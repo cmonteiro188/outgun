@@ -51,7 +51,7 @@ bool Server::SettingManager::trySetMaxplayers(int val) throw () {
     return true;
 }
 
-void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const throw () {
+void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool interactive, const GamemodAccessDescriptor& access) const throw () {
     string cmd, value;
     istringstream ist(line);
     ist >> cmd;
@@ -65,7 +65,7 @@ void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bo
             if (!access.isAllowed(ci->identifier, cmd))
                 argLogs("You don't have permission to access the setting %s.", cmd.c_str());
             else {
-                if (value.empty() && allowGet) {
+                if (value.empty() && interactive) {
                     const string value = setting.get();
                     if (value.empty())
                         argLogs("The setting %s can't be queried.", cmd.c_str());
@@ -78,6 +78,11 @@ void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bo
                         value.erase(0, 1);
                     }
                     setting.set(argLogs, value);  // ignore return value; the status is logged
+                    if (interactive) {
+                        const string realValue = setting.get();
+                        if (!realValue.empty())
+                            argLogs("%s = %s.", cmd.c_str(), realValue.c_str());
+                    }
                 }
             }
             return;
