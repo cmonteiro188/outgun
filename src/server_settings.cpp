@@ -227,6 +227,9 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("balance_bot",                 &balance_bot));
     cat.add(new GS_Int       ("bot_ping",                    &bot_ping, 0, 2000));
     cat.add(new GS_String    ("bot_name_lang",               &bot_name_lang));
+    categories.push_back(cat);
+
+    cat = Category("bot_name_file", "Bot files"); // Separate category because this settings selects a file from the server and it is reasonable to be restricted more than the other bot settings.
     cat.add(new GS_String    ("bot_name_file",               &bot_name_file));
     categories.push_back(cat);
 
