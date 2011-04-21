@@ -826,7 +826,7 @@ ClientControls Robot::captureOnFlag(bool carried) const throw () {
             const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
             if (area(pos) != myArea())
                 continue;
-            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team, true)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
+            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team, FBT_Captureable)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
                 const Coords lPos = fi->carried() ? predictPos(fx.player[fi->carrier()]) : pos.local();
                 return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
             }
@@ -858,7 +858,7 @@ ClientControls Robot::pickUpFlag() const throw () {
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
             if (area(fi->position()) != myArea() || fi->carried())
                 continue;
-            if (!(type == 0 && !carry_own_team_flag && IsFlagAtBase(*fi, team, false))) // try to pick up a flag or return own flag
+            if (!(type == 0 && !carry_own_team_flag && IsFlagAtBase(*fi, team, FBT_Unmoved))) // try to pick up a flag or return own flag
                 return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
         }
     }
@@ -1185,14 +1185,7 @@ bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) thr
     if (HaveFlag(me))
         return false;
 
-    bool atBase;
-    if (flag.carried() || flag.position().room != base.room)
-        atBase = false;
-    else {
-        const Vec dist = base.local() - flag.position().local();
-        atBase = fabs(dist.x) <= 5. && fabs(dist.y) <= 5.;
-    }
-
+    const bool atBase = !flag.carried() && area(flag.position()) == area(base);
     const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
     const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam() && !carry_own_team_flag; // flags in fear of being returned by the enemy
     if (!limitInterest && !droppedEnemyFlag || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
@@ -1393,14 +1386,21 @@ bool Robot::TeamHasFlags(int carrierTeam, int flagTeam) const throw () {
     return false;
 }
 
-bool Robot::IsFlagAtBase(const Flag& f, int team, bool captureableEnough) const throw () {
+bool Robot::IsFlagAtBase(const Flag& f, int team, FlagBaseTreshold treshold) const throw () {
     if (f.carried())
         return false;
     const vector<WorldCoords>& bases = fx.map.tinfo[team].flags;
+    const Area* const flagArea = treshold != FBT_SameArea ? 0 : area(f.position());
     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi) {
-        const int treshold = captureableEnough ? 2 * FLAG_RADIUS + PLAYER_RADIUS : 5; // flag_r+player_r for the player to touch the flag, and another flag_r for the player to touch the capture-point as well
-        if (bi->room == f.position().room && (bi->local() - f.position().local()).mag() <= treshold)
-            return true;
+        if (treshold == FBT_SameArea) {
+            if (flagArea == area(*bi))
+                return true;
+        }
+        else {
+            const int tresholdDist = treshold == FBT_Captureable ? 2 * FLAG_RADIUS + PLAYER_RADIUS : 5; // flag_r+player_r for the player to touch the flag, and another flag_r for the player to touch the capture-point as well
+            if (bi->room == f.position().room && (bi->local() - f.position().local()).mag() <= tresholdDist)
+                return true;
+        }
     }
     return false;
 }
@@ -1408,7 +1408,7 @@ bool Robot::IsFlagAtBase(const Flag& f, int team, bool captureableEnough) const 
 bool Robot::IsAnyFlagAtBase(int team) const throw () {
     const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
     for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-        if (IsFlagAtBase(*fi, team, true))
+        if (IsFlagAtBase(*fi, team, FBT_SameArea))
             return true;
     return false;
 }
@@ -1471,14 +1471,6 @@ bool Robot::IsHome(const Area* a, int team) const throw () {
     return false;
 }
 
-bool Robot::IsFlagsAtBases(int team) const throw () {
-    const vector<Flag>& flags = (team != 2) ? fx.teams[team].flags() : fx.wild_flags;
-    for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
-        if (fi->carried() || !IsFlagAtBase(*fi, team, true))
-            return false;
-    return true;
-}
-
 void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int state) throw () {
     // state - 0 - at base, 1 - dropped off base, 2 - carried by friends, 3 - carried by enemy
 
@@ -1506,7 +1498,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             pos = pl.position();
         }
         else {
-            if (IsFlagAtBase(*fi, team, true) != (state == 0))
+            if (IsFlagAtBase(*fi, team, FBT_SameArea) != (state == 0))
                 continue;
             pos = fi->position();
         }
