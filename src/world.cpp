@@ -3774,6 +3774,7 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Simp
 
     out << "<H3>Game info</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"info\">";
+    out << "\n <TR><TH>Map<TD>" << escape_for_html(map_name);
     out << "\n <TR><TH>Capture limit<TD>";
     if (settings.capture_limit == 0)
         out << "none";
