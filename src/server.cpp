@@ -573,7 +573,10 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         world.player[i].stats().finish_stats(get_time());
 
     if (settings.get_save_stats() && !gameover && network.get_human_count() >= settings.get_save_stats())    // !gameover: Don't save stats for the game that didn't start.
-        world.save_stats("server_stats", currmap_title_override.empty() ? current_map().title : currmap_title_override, world.getConfig());
+        world.save_stats("server_stats",
+            currmap_title_override.empty() ? current_map().title : currmap_title_override,
+            currmap_title_override.empty() ? current_map().size() : RoomCoords(0, 0),
+            world.getConfig());
 
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {

@@ -1696,7 +1696,7 @@ void GuiClient::netStatsReady() throw () {
         stats_autoshowing = true;
     }
     if (players_sb.size() > 1 && (menu.options.game.saveStats() && !replaying || menu.options.game.saveReplayStats() && replaying))
-        fx.save_stats("client_stats", fx.map.title, gameSettings);
+        fx.save_stats("client_stats", fx.map.title, fx.map.size(), gameSettings);
 }
 
 void GuiClient::netMapChange(const string& maptitle, const int map_number, const int total_maps) throw () {
