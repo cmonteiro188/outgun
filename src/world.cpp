@@ -881,7 +881,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     health = energy = 0;
     megabonus = 0;
     weapon = 1;
-    drop_key = false;
+    drop_key = drop_queued = false;
     dropped_flag = -1;
     frames_to_respawn = extra_frames_to_respawn = 0;
     respawn_to_base = false;
@@ -3543,6 +3543,16 @@ void ServerWorld::simulateFrame() throw () {
         }
         if (p0->extra_frames_to_respawn == 0 && p0->frames_to_respawn == 0)
             respawnPlayer(p0->pid);
+    }
+
+    // apply intentional flag drops
+    for (vector<ServerPlayer*>::const_iterator pi = playerOrder.begin(); pi != playerOrder.end(); ++pi) {
+        ServerPlayer& pl = **pi;
+        if (pl.drop_key || pl.drop_queued) {
+            if (!pl.under_deathbringer_effect(get_time()))
+                dropFlagIfAny(pl.pid, true, false, true);
+            pl.drop_queued = false;
+        }
     }
 
     // for each player, do misc stuff

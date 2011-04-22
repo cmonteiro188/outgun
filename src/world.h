@@ -542,7 +542,7 @@ public:
     int protocolExtensionsLevel;
     bool toldAboutExtensionAdvantage;
 
-    bool drop_key;
+    bool drop_key, drop_queued;
     int dropped_flag; // flag team, -1 = none (to avoid picking it back up right away)
     uint32_t next_shoot_frame, start_take_damage_frame;
     int frames_to_respawn, extra_frames_to_respawn;

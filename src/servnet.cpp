@@ -1746,9 +1746,7 @@ void ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw (Cl
         }
     }
     break; case data_drop_flag:
-        sender.drop_key = true;
-        if (!sender.under_deathbringer_effect(get_time()))
-            world.dropFlagIfAny(pid, true, false, true);
+        sender.drop_key = sender.drop_queued = true;
     break; case data_stop_drop_flag:
         sender.drop_key = false;
     break; case data_map_vote: {
