@@ -543,7 +543,7 @@ public:
     bool toldAboutExtensionAdvantage;
 
     bool drop_key;
-    bool dropped_flag;
+    int dropped_flag; // flag team, -1 = none (to avoid picking it back up right away)
     uint32_t next_shoot_frame, start_take_damage_frame;
     int frames_to_respawn, extra_frames_to_respawn;
     bool respawn_to_base;
@@ -1181,7 +1181,7 @@ public:
     bool check_flag_touch(const Flag& flag, const PlayerBase& pl) const throw ();
     void game_player_screen_change(int p) throw ();
 
-    bool dropFlagIfAny(int pid, bool purpose = false, bool captureDrop = false) throw ();
+    bool dropFlagIfAny(int pid, bool purpose = false, bool captureDrop = false, bool avoidPickup = false) throw ();
     void resetCarrierData(int pid) throw ();
 
     void shootRockets(int pid, int numshots) throw ();

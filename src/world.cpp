@@ -882,7 +882,7 @@ void ServerPlayer::clear(bool enable, int _pid, int _cid, const string& _name, i
     megabonus = 0;
     weapon = 1;
     drop_key = false;
-    dropped_flag = false;
+    dropped_flag = -1;
     frames_to_respawn = extra_frames_to_respawn = 0;
     respawn_to_base = false;
     fav_col.clear();
@@ -1755,7 +1755,7 @@ void ServerWorld::stealFlag(int team, int flag, int carrier) throw () {
     net->ctf_net_flag_status(pid_all, team);
 }
 
-bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop) throw () {
+bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop, bool avoidPickup) throw () {
     if (!player[pid].stats().has_flag())
         return false;
     int flag = -1;
@@ -1781,6 +1781,8 @@ bool ServerWorld::dropFlagIfAny(int pid, bool purpose, bool captureDrop) throw (
         if (!captureDrop)
             host->score_frag(pid, -1);  // undo the bonus from taking the flag
     }
+    if (avoidPickup)
+        player[pid].dropped_flag = team;
     return true;
 }
 
@@ -3207,7 +3209,6 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
         pl.health = max<double>(pupConfig.deathbringer_health_limit, pl.health - pupConfig.deathbringer_health_degradation / 10.);
     if (pl.item_deathbringer && pl.energy > pupConfig.deathbringer_energy_limit)
         pl.energy = max<double>(pupConfig.deathbringer_energy_limit, pl.energy - pupConfig.deathbringer_energy_degradation / 10.);
-    //megahealth bonus:
     if (pl.megabonus > 0)
         for (int mh = 0; mh < 5; mh++) {
             if (pl.megabonus > 0 && pl.health < config.health_max) {
@@ -3219,7 +3220,6 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
                 pl.megabonus--;
             }
         }
-    // new limit - don't store megabonuses
     if (pl.health == config.health_max && pl.energy == config.energy_max)
         pl.megabonus = 0;
 
@@ -3256,7 +3256,7 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
     // ft = 0 => Touch enemy flag
     // ft = 1 => Touch wild flag
     // ft = 2 => Touch own team flag
-    bool touches_flag = false;
+    bool stillTouching = false; // is the player still touching a flag they dropped (or another flag of the same type)
     for (int ft = 0; ft < 3; ft++) {
         if (pl.stats().has_flag())
             break;
@@ -3283,16 +3283,16 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
         int f = 0;
         for (vector<Flag>::const_iterator fi = flags->begin(); fi != flags->end(); ++fi, ++f)
             if (!fi->carried() && check_flag_touch(*fi, pl)) {
-                touches_flag = true;
-                // Has player just dropped the flag or not?
-                if (!pl.dropped_flag && !pl.drop_key) {
+                if (pl.dropped_flag == flag_team)
+                    stillTouching = true;
+                else if (!pl.drop_key) {
                     player_steals_flag(pl.pid, flag_team, f);
                     break;  // only take one flag
                 }
             }
     }
-    if (!pl.drop_key && !touches_flag)  // Player who dropped the flag has now moved outside it.
-        pl.dropped_flag = false;
+    if (!pl.drop_key && !stillTouching)
+        pl.dropped_flag = -1;
 
     // Flag return - wild flags can't be returned
     if (!config.carry_own_team_flag) {
@@ -3301,12 +3301,11 @@ void ServerWorld::simulatePlayerPostPhysics(ServerPlayer& pl) throw () {
             if (!fi->carried() && !fi->at_base() && check_flag_touch(*fi, pl) &&
                 frame / 10. >= fi->drop_time() + config.flag_return_delay)
             {
-                //FLAG RETURNED!
-                host->score_frag(pl.pid, 1); // just add some frags
+                host->score_frag(pl.pid, 1);
                 pl.stats().add_flag_return();
                 teams[myteam].add_flag_return();
                 net->broadcast_flag_return(pl);
-                returnFlag(myteam, f);  //flag returned
+                returnFlag(myteam, f);
             }
     }
 
