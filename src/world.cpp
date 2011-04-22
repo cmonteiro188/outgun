@@ -3747,7 +3747,7 @@ void ClientWorld::extrapolateSinglePlayerPosition(ClientPlayer& pl, const Client
 }
 
 // Save stats in HTML file.
-void WorldBase::save_stats(const string& dir, const string& map_name, const RoomCoords& map_size, const SimpleGameSettings& settings) const throw () {
+void WorldBase::save_stats(const string& dir, const string& map_name, const RoomCoords& map_size, const SimpleGameSettings& settings, const string& hostname) const throw () {
     const string date_time = date_and_time();
     const string date = date_time.substr(0, date_time.find(' '));
     const string time = date_time.substr(date_time.find(' ') + 1);
@@ -3774,6 +3774,8 @@ void WorldBase::save_stats(const string& dir, const string& map_name, const Room
 
     out << "<H3>Game info</H3>\n\n";
     out << "<TABLE BORDER CLASS=\"info\">";
+    if (!hostname.empty())
+        out << "\n <TR><TH>Server<TD>" << escape_for_html(hostname);
     out << "\n <TR><TH>Map<TD>" << escape_for_html(map_name);
     if (map_size.x != 0 && map_size.y != 0)
         out << "\n <TR><TH>Map size<TD>" << map_size.x << '×' << map_size.y;

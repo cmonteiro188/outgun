@@ -957,7 +957,7 @@ public:
     virtual void dropFlag(int team, int flag, int roomx, int roomy, double lx, double ly) throw ();
     virtual void stealFlag(int team, int flag, int carrier) throw ();
 
-    void save_stats(const std::string& dir, const std::string& map_name, const RoomCoords& map_size, const SimpleGameSettings& settings) const throw ();
+    void save_stats(const std::string& dir, const std::string& map_name, const RoomCoords& map_size, const SimpleGameSettings& settings, const std::string& hostname) const throw ();
 
     void addDeathbringerExplosion(const DeathbringerExplosion& db) throw () { dbExplosions.push_back(db); }
     void cleanOldDeathbringerExplosions() throw ();

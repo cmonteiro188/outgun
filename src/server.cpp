@@ -576,7 +576,7 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         world.save_stats("server_stats",
             currmap_title_override.empty() ? current_map().title : currmap_title_override,
             currmap_title_override.empty() ? current_map().size() : RoomCoords(0, 0),
-            world.getConfig());
+            world.getConfig(), settings.get_hostname());
 
     // broadcast stats to all players for stats saving
     for (int i = 0; i < maxplayers; ++i) {
