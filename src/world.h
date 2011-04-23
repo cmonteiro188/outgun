@@ -238,7 +238,7 @@ public:
     bool load(LogSet& log, const std::string& mapdir, const std::string& mapname, std::string* buffer = 0) throw ();
     bool load_file(LogSet& log, const std::string& fileName, std::string* buffer = 0) throw ();
     bool parse_file(LogSet& log, std::istream& in) throw ();
-    const RoomCoords size() const { return RoomCoords(w, h); }
+    RoomCoords size() const { return RoomCoords(w, h); }
 };
 
 class MapInfo {
@@ -261,7 +261,7 @@ public:
     bool load(LogSet& log, const std::string& mapName) throw ();
     void update(const Map& map) throw ();
     void updateInfoHash() throw ();
-    const RoomCoords size() const { return RoomCoords(width, height); }
+    RoomCoords size() const { return RoomCoords(width, height); }
     bool operator<(const MapInfo& o) const throw () { return cmp_case_ins(title, o.title); }
 };
 
