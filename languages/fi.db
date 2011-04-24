@@ -124,7 +124,7 @@ Admin shell: Can't set socket to listen mode.##Ylläpitoyhteys: Soketin asetus ku
 Admin shell: read failed. Reason: $1##Ylläpitoyhteys: luku epäonnistui. Syy: $1
 Admin shell: sending response failed. Reason: $1##Ylläpitoyhteys: vastauksen lähetys epäonnistui. Syy: $1
 Admin shell: unprintable characters, message ignored.##Ylläpitoyhteys: virheellisiä merkkejä, viesti ohitettu.
-Allow parts of map to repeat on screen##Salli kentän osien toistua näytölla
+Allow parts of map to repeat on screen##Salli kentän osien toistua näytöllä
 Alpha bitmaps must be 8-bit grayscale images; $1 is $2-bit.##Alfakuvien täytyy olla 8-bittisiä harmaasävykuvia; $1 on $2-bittinen.
 Alt+$1##Alt+$1
 Alternative page flipping method##Vaihtoehtoinen page flipping -tapa
