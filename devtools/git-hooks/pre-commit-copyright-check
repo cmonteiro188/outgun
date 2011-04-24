@@ -1,0 +1,31 @@
+#! /bin/sh
+
+# note: The authorship information checked for is the Git default, not
+#       what was given to git commit via --author and --date or -C/-c.
+#       Some future version of Git should provide the proper information
+#       to us, now it is unavailable.
+AUTHOR_IDENT="`git var GIT_AUTHOR_IDENT`"
+AUTHOR_NAME="`echo "$AUTHOR_IDENT" | sed -E -n 's/^([^<]*) <.*$/\1/p'`"
+AUTHOR_TIME="`echo "$AUTHOR_IDENT" | sed -E -n 's/^[^>]*> ([0-9]*) \+[0-9]*$/\1/p'`"
+AUTHOR_YEAR="`date --date="@$AUTHOR_TIME" "+%Y"`"
+#echo "'$AUTHOR_IDENT' '$AUTHOR_NAME' '$AUTHOR_TIME' '$AUTHOR_YEAR'"
+if [ "$AUTHOR_NAME" = "" -o "$AUTHOR_YEAR" = "" ]; then
+    echo "$0: failed to extract author identity and year from GIT_AUTHOR_IDENT '$AUTHOR_IDENT'"
+    exit 1
+fi
+
+ERRORS=0
+for file; do
+    echo "$file" | egrep -q '^(.*/)?(Makefile.*|.*\.(c|cc|cpp|h|hh|hpp|inc))$' || continue
+    egrep -q "Copyright.*[^0-9]$AUTHOR_YEAR[^0-9].*$AUTHOR_NAME" "$file" && continue
+    if [ "$ERRORS" = 0 ]; then
+        ERRORS=1
+        echo "Proper copyright notice (for $AUTHOR_YEAR and $AUTHOR_NAME) missing:"
+    fi
+    echo "  $file"
+done
+if [ "$ERRORS" != 0 ]; then
+    echo
+    echo "Use git commit -n to skip check."
+    exit 1
+fi
