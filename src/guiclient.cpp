@@ -728,11 +728,7 @@ void GuiClient::check_download() throw () { // call with downloadMutex locked
 
 void GuiClient::download_server_file(const string& type, const string& name) throw () {
     nAssert(type == "map");
-    if (name.find_first_of("./:\\") != string::npos) {
-        log.error("Illegal file download request: map \"" + name + "\"");
-        addThreadMessage(new TM_DoDisconnect());
-        return;
-    }
+    nAssert(validMapFilename(name));
 
     Lock ml(downloadMutex);
     const string fileName = wheregamedir + CLIENT_MAPS_DIR + directory_separator + name + ".txt";

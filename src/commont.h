@@ -46,6 +46,8 @@ std::istream& getline_skip_comments(std::istream& in, std::string& str) throw ()
 // Check player name validity.
 bool check_name(const std::string& name) throw ();
 
+bool validMapFilename(const std::string& fileName) throw ();
+
 bool isFlood(const std::string& message) throw ();
 
 enum Message_type { msg_normal, msg_team, msg_info, msg_warning, msg_server, msg_header, Message_types };

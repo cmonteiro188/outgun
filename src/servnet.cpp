@@ -161,7 +161,7 @@ void ServerNetworking::upload_next_file_chunk(int cid) throw () {
 
 string ServerNetworking::get_download_file(const string& ftype, const string& fname) throw () {
     if (ftype == "map") {
-        if (fname.find_first_of("./:\\") != string::npos) {
+        if (!validMapFilename(fname)) {
             log("Illegal file download attempt: map \"%s\"", fname.c_str());
             return string();
         }

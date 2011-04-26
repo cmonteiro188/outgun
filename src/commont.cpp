@@ -199,6 +199,10 @@ bool check_name(const string& name) throw () {
     return true;
 }
 
+bool validMapFilename(const string& fileName) throw () {
+    return fileName.find_first_of("./:\\") == string::npos;
+}
+
 bool isFlood(const string& message) throw () {
     int count = 0;
     string::value_type chr = 0;

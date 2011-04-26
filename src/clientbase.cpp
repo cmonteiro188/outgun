@@ -193,6 +193,11 @@ void ClientBase::send_client_ready() throw () {
 // If the map file is not there, or the CRC's don't match, download the map from the server to "cmaps".
 void ClientBase::server_map_command(const string& mapname, uint16_t server_crc) throw () {
     log("Received map change: '%s'", mapname.c_str());
+    if (!validMapFilename(mapname)) {
+        log.error("Illegal map filename: \"" + mapname + "\"");
+        addThreadMessage(new TM_DoDisconnect());
+        return;
+    }
 
     servermap = mapname;
 

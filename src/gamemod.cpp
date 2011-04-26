@@ -1,7 +1,7 @@
 /*
  *  gamemod.cpp
  *
- *  Copyright (C) 2004, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2010, 2011 - Niko Ritari
  *  Copyright (C) 2004, 2008, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -73,13 +73,14 @@ string GS_CheckForwardInt::get() throw () {
 
 bool GS_Map::set(LogSet& log, const string& value) throw () {
     MapInfo mi;
-    if (mi.load(log, trim(value))) {
+    const string trimmed = trim(value);
+    if (validMapFilename(trimmed) && mi.load(log, trimmed)) {
         var->push_back(mi);
-        log("Added '%s' to map rotation.", value.c_str());
+        log("Added '%s' to map rotation.", trimmed.c_str());
         return true;
     }
     else {
-        log.error(_("Can't add '$1' to map rotation.", value));
+        log.error(_("Can't add '$1' to map rotation.", trimmed));
         return false;
     }
 }
