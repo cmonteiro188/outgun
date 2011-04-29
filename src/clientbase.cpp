@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1362,11 +1362,12 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         #endif
 
     break; case data_server_settings: {
-        const uint8_t caplimit = read.U8(), timelimit = read.U8(), extratime = read.U8();
+        const bool e = protocolExtensions >= 4;
+        const uint32_t caplimit = read.U32dyn8orU8(e), timelimit = read.U32dyn8orU8(e), extratime = read.U32dyn8orU8(e);
         const uint16_t misc1 = read.U16(), pupMin = read.U16(), pupMax = read.U16(), pupAddTime = read.U16(), pupMaxTime = read.U16();
         fx.physics.read(read);
         if (read.hasMore())
-            flag_return_delay = read.U16();
+            flag_return_delay = read.U32dyn8orU16(e);
         else
             flag_return_delay = -1;
         uint8_t et_periods;
@@ -1374,9 +1375,9 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
             et_periods = read.U8();
         else
             et_periods = 1;
-        uint8_t win_score_diff;
+        uint32_t win_score_diff;
         if (read.hasMore())
-            win_score_diff = read.U8();
+            win_score_diff = read.U32dyn8orU8(e);
         else
             win_score_diff = 1;
         #ifndef DEDICATED_SERVER_ONLY

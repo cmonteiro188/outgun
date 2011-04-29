@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -868,13 +868,21 @@ void ServerNetworking::send_server_settings(const ServerPlayer& player) const th
 }
 
 void ServerNetworking::send_server_settings(int cid) const throw () {
+    if (cid == pid_all) {
+        for (int i = 0; i < maxplayers; i++)
+            if (world.player[i].used)
+                send_server_settings(world.player[i].cid);
+        return;
+    }
+
     BinaryBuffer<256> msg;
     const WorldSettings& config = world.getConfig();
     const PowerupSettings& pupConfig = world.getPupConfig();
     msg.U8(data_server_settings);
-    msg.U8(config.getCaptureLimit());
-    msg.U8(config.getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
-    msg.U8(config.getExtraTime() / 600);
+    const bool e = cid == pid_record || world.player[ctop[cid]].protocolExtensionsLevel >= 4;
+    msg.U32dyn8orU8(config.getCaptureLimit(), e);
+    msg.U32dyn8orU8(config.getTimeLimit() / 600, e); // note: max time for old clients 255 mins ~ 4 hours
+    msg.U32dyn8orU8(config.getExtraTime() / 600, e);
     uint16_t settings = 0;
     int i = 0;
     if (config.balanceTeams())
@@ -907,9 +915,9 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     msg.U16(pupConfig.pup_add_time);
     msg.U16(pupConfig.pup_max_time);
     world.physics.write(msg);
-    msg.U16(static_cast<unsigned>(10 * config.flag_return_delay));
+    msg.U32dyn8orU16(static_cast<unsigned>(10 * config.flag_return_delay), e);
     msg.U8(config.getExtraTimePeriods());
-    msg.U8(config.getWinScoreDifference());
+    msg.U32dyn8orU8(config.getWinScoreDifference(), e);
     /* TODO: 1.0.4 send more settings
        - locked flags?
        - captureable flags?
