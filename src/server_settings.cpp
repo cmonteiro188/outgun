@@ -380,7 +380,8 @@ void Server::SettingManager::commit(bool reload) throw () {
             network.send_server_settings(world.player[i]);
     if (recording)
         network.send_server_settings(pid_record);
-    network.send_map_time(pid_all);  // broadcast time to all, in case time limit has been changed
+    if (server.game_running())
+        network.send_map_time(pid_all);  // broadcast time to all, in case time limit has been changed
 }
 
 vector<string> Server::SettingManager::listSettings(const GamemodAccessDescriptor& access) throw () {

@@ -1504,7 +1504,8 @@ int ServerNetworking::client_connected(int cid, int customStoredData) throw () {
     }
 
     send_server_settings(world.player[myself]);
-    send_map_time(cid);
+    if (host->game_running())
+        send_map_time(cid);
     send_stats(world.player[myself]);
     send_team_stats(world.player[myself]);
 
