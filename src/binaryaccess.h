@@ -62,6 +62,8 @@ public:
     // argument choice methods for dynamic or fixed length
     uint32_t U32dyn8orU8  (bool dyn) throw (ReadOutside) { return dyn ? U32dyn8 () : U8 (); }
      int32_t S32dyn8orS8  (bool dyn) throw (ReadOutside) { return dyn ? S32dyn8 () : S8 (); }
+    uint32_t U32dyn8orU16 (bool dyn) throw (ReadOutside) { return dyn ? U32dyn8 () : U16(); }
+     int32_t S32dyn8orS16 (bool dyn) throw (ReadOutside) { return dyn ? S32dyn8 () : S16(); }
     uint32_t U32dyn16orU16(bool dyn) throw (ReadOutside) { return dyn ? U32dyn16() : U16(); }
      int32_t S32dyn16orS16(bool dyn) throw (ReadOutside) { return dyn ? S32dyn16() : S16(); }
 
@@ -199,6 +201,8 @@ public:
     // argument choice methods for dynamic or fixed length
     void U32dyn8orU8  (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U8 (bound(wData,      0U,   255U)); }
     void S32dyn8orS8  ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S8 (bound(wData,   -128 ,   127 )); }
+    void U32dyn8orU16 (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U16(bound(wData,      0U, 65535U)); }
+    void S32dyn8orS16 ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S16(bound(wData, -32768 , 32767 )); }
     void U32dyn16orU16(uint32_t wData, bool dyn) throw () { if (dyn) U32dyn16(wData); else U16(bound(wData,      0U, 65535U)); }
     void S32dyn16orS16( int32_t wData, bool dyn) throw () { if (dyn) S32dyn16(wData); else S16(bound(wData, -32768 , 32767 )); }
 
