@@ -229,7 +229,7 @@ protected:
     virtual void netTeamChange(int pl1, int pl2 = -1) throw () { (void)(pl1 && pl2); }
     virtual void netStatsReady() throw () { }
     virtual void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw () { (void)maptitle; (void)(map_number && total_maps); }
-    virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
+    virtual void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, uint32_t caplimit, uint32_t timelimit) throw () { (void)(redScore && blueScore && caplimit && timelimit); }
     virtual void netGameoverPeriodEnd() throw () { }
     virtual void netGameStarted() throw () { }
     virtual void netPhysicsChanged() throw () { }

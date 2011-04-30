@@ -930,11 +930,12 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         const uint8_t plaque = read.U8();
         if (plaque == NEXTMAP_CAPTURE_LIMIT || plaque == NEXTMAP_VOTE_EXIT) {
             gameover_plaque = plaque;
-            const bool e = protocolExtensions >= 0;
+            bool e = protocolExtensions >= 0;
             const uint32_t redScore = read.U32dyn8orU8(e);
             const uint32_t blueScore = read.U32dyn8orU8(e);
-            const uint8_t caplimit = read.U8();
-            const uint8_t timelimit = read.U8();
+            e = protocolExtensions >= 4;
+            const uint32_t caplimit = read.U32dyn8orU8(e);
+            const uint32_t timelimit = read.U32dyn8orU8(e);
 
             for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
                 pi->stats().finish_stats(time);

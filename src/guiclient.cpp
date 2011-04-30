@@ -1719,7 +1719,7 @@ void GuiClient::netMapChange(const string& maptitle, const int map_number, const
     addThreadMessage(new TM_Text(msg_info, msg));
 }
 
-void GuiClient::netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw () {
+void GuiClient::netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, uint32_t caplimit, uint32_t timelimit) throw () {
     red_final_score = redScore;
     blue_final_score = blueScore;
 

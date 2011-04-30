@@ -1091,26 +1091,36 @@ void ServerNetworking::send_map_change_message(int pid, int reason, const char* 
         ext_msg.U8(data_gameover_show);
         ext_msg.U8(reason);      //capture limit plaque or vote exit plaque
         BinaryBuffer<256> old_msg = ext_msg;
+        BinaryBuffer<256> ext4_msg = ext_msg;
         if (reason == NEXTMAP_CAPTURE_LIMIT || reason == NEXTMAP_VOTE_EXIT) {
             ext_msg.U32dyn8(world.teams[0].score());
             ext_msg.U32dyn8(world.teams[1].score());
-            ext_msg.U8(world.getConfig().getCaptureLimit());
-            ext_msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
-            old_msg.U8(min(world.teams[0].score(), 255));
-            old_msg.U8(min(world.teams[1].score(), 255));
-            old_msg.U8(world.getConfig().getCaptureLimit());
-            old_msg.U8(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
+            ext4_msg = ext_msg;
+            ext4_msg.U32dyn8(world.getConfig().getCaptureLimit());
+            ext4_msg.U32dyn8(world.getConfig().getTimeLimit() / 600);
+            ext_msg.U8bound(world.getConfig().getCaptureLimit());
+            ext_msg.U8bound(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
+            old_msg.U8bound(world.teams[0].score());
+            old_msg.U8bound(world.teams[1].score());
+            old_msg.U8bound(world.getConfig().getCaptureLimit());
+            old_msg.U8bound(world.getConfig().getTimeLimit() / 600); // note: max time 255 mins ~ 4 hours
         }
         if (pid == pid_record)
-            record_message(ext_msg);
+            record_message(ext4_msg);
         else if (pid == pid_all) {
             for (int i = 0; i < maxplayers; i++)
-                if (world.player[i].used)
-                    send_message(world.player[i].cid, world.player[i].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
-            record_message(ext_msg);
+                if (world.player[i].used) {
+                    const ServerPlayer& pl = world.player[i];
+                    const int level = pl.protocolExtensionsLevel;
+                    send_message(pl.cid, level >= 4 ? ext4_msg : level >= 0 ? ext_msg : old_msg);
+                }
+            record_message(ext4_msg);
         }
-        else
-            send_message(world.player[pid].cid, world.player[pid].protocolExtensionsLevel >= 0 ? ext_msg : old_msg);
+        else {
+            const ServerPlayer& pl = world.player[pid];
+            const int level = pl.protocolExtensionsLevel;
+            send_message(pl.cid, level >= 4 ? ext4_msg : level >= 0 ? ext_msg : old_msg);
+        }
     }
 
     BinaryBuffer<256> msg;

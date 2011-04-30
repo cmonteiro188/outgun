@@ -524,7 +524,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void netTeamChange(int pl1, int pl2 = -1) throw ();
     void netStatsReady() throw ();
     void netMapChange(const std::string& maptitle, const int map_number, const int total_maps) throw ();
-    void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, int caplimit, int timelimit) throw ();
+    void netGameoverPeriodStart(uint32_t redScore, uint32_t blueScore, uint32_t caplimit, uint32_t timelimit) throw ();
     void netGameoverPeriodEnd() throw ();
     void netGameStarted() throw ();
     void netPhysicsChanged() throw ();
