@@ -2,6 +2,7 @@
  *  binaryaccess.h
  *
  *  Copyright (C) 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -172,6 +173,12 @@ public:
     void U64(uint64_t wData) throw ();
     void S64( int64_t wData) throw () { U64(static_cast<uint64_t>(wData)); }
 
+    // if value is out of range, use nearest value
+    void U8bound (unsigned wData) throw () { U8 (bound(wData,      0U,   255U)); }
+    void S8bound (  signed wData) throw () { S8 (bound(wData,   -128 ,   127 )); }
+    void U16bound(unsigned wData) throw () { U16(bound(wData,      0U, 65535U)); }
+    void S16bound(  signed wData) throw () { S16(bound(wData, -32768 , 32767 )); }
+
     /* Dynamic length datatypes:
      *
      * U32dyn8 is equal in range to U32 (0 .. 2^32-1), but packed with the expectation of approximately the range of U8 (0 .. 255).
@@ -199,12 +206,12 @@ public:
     void S32dyn16( int32_t wData) throw () { U32dyn16(encodeSignedDynamic(wData)); }
 
     // argument choice methods for dynamic or fixed length
-    void U32dyn8orU8  (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U8 (bound(wData,      0U,   255U)); }
-    void S32dyn8orS8  ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S8 (bound(wData,   -128 ,   127 )); }
-    void U32dyn8orU16 (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U16(bound(wData,      0U, 65535U)); }
-    void S32dyn8orS16 ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S16(bound(wData, -32768 , 32767 )); }
-    void U32dyn16orU16(uint32_t wData, bool dyn) throw () { if (dyn) U32dyn16(wData); else U16(bound(wData,      0U, 65535U)); }
-    void S32dyn16orS16( int32_t wData, bool dyn) throw () { if (dyn) S32dyn16(wData); else S16(bound(wData, -32768 , 32767 )); }
+    void U32dyn8orU8  (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U8bound (wData); }
+    void S32dyn8orS8  ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S8bound (wData); }
+    void U32dyn8orU16 (uint32_t wData, bool dyn) throw () { if (dyn) U32dyn8 (wData); else U16bound(wData); }
+    void S32dyn8orS16 ( int32_t wData, bool dyn) throw () { if (dyn) S32dyn8 (wData); else S16bound(wData); }
+    void U32dyn16orU16(uint32_t wData, bool dyn) throw () { if (dyn) U32dyn16(wData); else U16bound(wData); }
+    void S32dyn16orS16( int32_t wData, bool dyn) throw () { if (dyn) S32dyn16(wData); else S16bound(wData); }
 
     void flt(float  wData) throw ();
     void dbl(double wData) throw ();
