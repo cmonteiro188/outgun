@@ -1181,11 +1181,11 @@ int Robot::GetPlayers(int team) const throw () {
     return npl;
 }
 
-bool Robot::flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw () {
+bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     if (HaveFlag(me))
         return false;
 
-    const bool atBase = !flag.carried() && area(flag.position()) == area(base);
+    const bool atBase = IsFlagAtBase(flag, team, FBT_SameArea);
     const bool limitInterest = atBase && team == myTeam() || flag.carried() && myTeam(fx.player[flag.carrier()]);
     const bool droppedEnemyFlag = !atBase && !flag.carried() && team == !myTeam() && !carry_own_team_flag; // flags in fear of being returned by the enemy
     if (!limitInterest && !droppedEnemyFlag || flag.carried() && fx.player[flag.carrier()].posUpdated < fx.frame - FADEOUT)
@@ -1707,10 +1707,9 @@ ClientControls Robot::getRobotControls() throw () {
 
     for (int team = 0; team <= 2; ++team) {
         flagsIgnored[team].clear();
-        const vector<WorldCoords>& bases = team == 2 ? fx.map.wild_flags : fx.map.tinfo[team].flags;
         const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
-        for (int fi = 0; fi < (int)flags.size(); ++fi)
-            flagsIgnored[team].push_back(flagIgnored(flags[fi], bases[fi], team));
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
+            flagsIgnored[team].push_back(flagIgnored(*fi, team));
     }
 
     if (last_seen != -1) {

@@ -207,7 +207,7 @@ class Robot : public ClientBase, public BotInterface {
 
     ClientControls RobotMain() throw ();
 
-    bool flagIgnored(const Flag& flag, const WorldCoords& base, int team) throw ();
+    bool flagIgnored(const Flag& flag, int team) throw ();
 
     bool firstBotInTeam() const throw ();
 
