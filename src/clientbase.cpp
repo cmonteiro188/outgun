@@ -1365,7 +1365,8 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
     break; case data_server_settings: {
         const bool e = protocolExtensions >= 4;
         const uint32_t caplimit = read.U32dyn8orU8(e), timelimit = read.U32dyn8orU8(e), extratime = read.U32dyn8orU8(e);
-        const uint16_t misc1 = read.U16(), pupMin = read.U16(), pupMax = read.U16(), pupAddTime = read.U16(), pupMaxTime = read.U16();
+        const uint16_t misc1 = read.U16();
+        const uint32_t pupMin = read.U32dyn8orU16(e), pupMax = read.U32dyn8orU16(e), pupAddTime = read.U32dyn8orU16(e), pupMaxTime = read.U32dyn8orU16(e);
         fx.physics.read(read);
         if (read.hasMore())
             flag_return_delay = read.U32dyn8orU16(e);

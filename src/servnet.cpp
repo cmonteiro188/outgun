@@ -910,10 +910,10 @@ void ServerNetworking::send_server_settings(int cid) const throw () {
     i++;
     nAssert(i <= 16);
     msg.U16(settings);
-    msg.U16(pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0));
-    msg.U16(pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0));
-    msg.U16(pupConfig.pup_add_time);
-    msg.U16(pupConfig.pup_max_time);
+    msg.U32dyn8orU16(pupConfig.pups_min + (pupConfig.pups_min_percentage ? 100 : 0), e);
+    msg.U32dyn8orU16(pupConfig.pups_max + (pupConfig.pups_max_percentage ? 100 : 0), e);
+    msg.U32dyn8orU16(pupConfig.pup_add_time, e);
+    msg.U32dyn8orU16(pupConfig.pup_max_time, e);
     world.physics.write(msg);
     msg.U32dyn8orU16(static_cast<unsigned>(10 * config.flag_return_delay), e);
     msg.U8(config.getExtraTimePeriods());

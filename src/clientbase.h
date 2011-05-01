@@ -313,14 +313,15 @@ class GuiClient;
 class TM_ServerSettings : public ThreadMessage { // implementation in guiclient.cpp
     uint32_t caplimit, timelimit, extratime;
     uint8_t  extratime_periods;
-    uint16_t misc1, pupMin, pupMax, pupAddTime, pupMaxTime;
+    uint16_t misc1;
+    uint32_t pupMin, pupMax, pupAddTime, pupMaxTime;
     int flag_return_delay;
 
     void addLine(GuiClient* cl, const std::string& caption, const std::string& value) const throw ();
 
 public:
     TM_ServerSettings(uint32_t caplimit_, uint32_t timelimit_, uint32_t extratime_, uint8_t extratime_periods_, uint16_t misc1_,
-                      uint16_t pupMin_, uint16_t pupMax_, uint16_t pupAddTime_, uint16_t pupMaxTime_, int flag_return_delay_) throw () :
+                      uint32_t pupMin_, uint32_t pupMax_, uint32_t pupAddTime_, uint32_t pupMaxTime_, int flag_return_delay_) throw () :
         caplimit(caplimit_), timelimit(timelimit_), extratime(extratime_), extratime_periods(extratime_periods_), misc1(misc1_),
         pupMin(pupMin_), pupMax(pupMax_), pupAddTime(pupAddTime_), pupMaxTime(pupMaxTime_), flag_return_delay(flag_return_delay_) { }
     void execute(ClientBase* cl) const throw ();
