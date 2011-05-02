@@ -929,11 +929,22 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     PlayerBase::clear(enable, _pid, _name, team_id);
 }
 
-void ClientPlayer::setPosition(const WorldCoords& pos_, double frame, bool minimapUpdate, bool clearlyVisible) throw () {
+void ClientPlayer::setPosition(const WorldCoords& pos_, double frame, bool minimapUpdate, bool clearlyVisible, bool estimateVelocity) throw () {
     nAssert(!(minimapUpdate && !clearlyVisible));
     if (fromMinimapUpdate) {
         prevMapPosUpdateFrame = posUpdated;
         prevMapUpdateRoom = pos.room;
+    }
+    if (estimateVelocity && frame > posUpdated + .5) {
+        if (frame > posUpdated + 5)
+            vel = Vec(0, 0);
+        else {
+            const Vec movement = pos_.total() - pos.total();
+            if (fabs(movement.x) > plw / 2 || fabs(movement.y) > plh / 2) // in super fast movement, or moving over map border (we don't have the dimensions here and don't need to guess)
+                vel = Vec(0, 0);
+            else
+                vel = movement / (frame - posUpdated);
+        }
     }
     pos = pos_;
     fromMinimapUpdate = minimapUpdate;

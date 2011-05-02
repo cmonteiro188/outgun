@@ -418,7 +418,6 @@ void ClientBase::readMinimapPlayerPosition(BinaryReader& reader, int pid) throw 
     const double dx = newx - oldx, dy = newy - oldy;
     if (fabs(dx) >= xStep || fabs(dy) >= yStep)
         pl.gundir.fromRad(atan2(dy, dx));
-    pl.vel = Vec(0, 0); // keep bots from trying to predict minimap players' movement from old velocities
 }
 
 void ClientBase::process_live_frame_data(ConstDataBlockRef data) throw (ServerDataError) {
@@ -564,7 +563,7 @@ void ClientBase::process_live_frame_data(ConstDataBlockRef data) throw (ServerDa
         }
 
         const bool clearlyVisible = i / TSIZE == me / TSIZE || h.visibility >= 10 || h.stats().has_flag();
-        h.setPosition(WorldCoords(fx.player[me].room(), lx, ly), svframe, false, clearlyVisible);
+        h.setPosition(WorldCoords(fx.player[me].room(), lx, ly), svframe, false, clearlyVisible, false);
     }
 
     // see servnet.cpp for a short documentation of the minimap player position protocol
@@ -1275,6 +1274,8 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         fx.player[pid].stats().spawn(time);
         if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
             fx.player[pid].posUpdated = fx.player[pid].prevMapPosUpdateFrame = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
+        if (!fx.player[pid].onscreen)
+            fx.player[pid].vel = Vec(0, 0);
         fx.player[pid].dead = false;
         fx.player[pid].setProperties(PlayerBase::RemotelyVisiblePropertiesData());
     }

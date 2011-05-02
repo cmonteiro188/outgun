@@ -617,7 +617,7 @@ public:
 
     void clear(bool enable, int _pid, const std::string& _name, int team_id) throw ();
 
-    void setPosition(const WorldCoords& pos, double frame, bool minimapUpdate = false, bool clearlyVisible = true) throw ();
+    void setPosition(const WorldCoords& pos, double frame, bool minimapUpdate = false, bool clearlyVisible = true, bool estimateVelocity = true) throw ();
     void setProperties(const RemotelyVisiblePropertiesData&) throw ();
 };
 
