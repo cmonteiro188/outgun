@@ -617,7 +617,8 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
             if (fx.player[pid].name.empty()) {
                 fx.player[pid].name = name;
                 addThreadMessage(new TM_Text(msg_info, tf("$1 entered the game.", formatName(pid))));
-                addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
+                if (!isBotByName(name))
+                    addThreadMessage(new TM_Sound(SAMPLE_ENTERGAME));
             }
             else if (fx.player[pid].name != " " && fx.player[pid].name != name)    // " " is the case with players already in game when connecting
                 addThreadMessage(new TM_Text(msg_info, tf("$1 changed name to $2.", formatName(pid), name)));
@@ -1203,7 +1204,8 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         #ifndef DEDICATED_SERVER_ONLY
         const FormattedText msg = tf("$1 left the game with $2 frags.", formatName(pid), itoa(fx.player[pid].stats().frags()));
         addThreadMessage(new TM_Text(msg_info, msg));
-        addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
+        if (!isBotByName(fx.player[pid].name))
+            addThreadMessage(new TM_Sound(SAMPLE_LEFTGAME));
         const vector<ClientPlayer*>::iterator rm = find(players_sb.begin(), players_sb.end(), &fx.player[pid]);
         if (rm == players_sb.end())
             throw ServerDataError();
