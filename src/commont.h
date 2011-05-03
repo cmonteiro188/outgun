@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2008, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2006, 2008 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -45,6 +45,12 @@ std::istream& getline_skip_comments(std::istream& in, std::string& str) throw ()
 
 // Check player name validity.
 bool check_name(const std::string& name) throw ();
+
+/** Guess from a player's name if the player is a bot.
+ * @param name  player's name
+ * @return      true if the player seems to be a bot, false if not
+ */
+bool isBotByName(const std::string& name) throw ();
 
 bool validMapFilename(const std::string& fileName) throw ();
 

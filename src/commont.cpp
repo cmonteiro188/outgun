@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2008, 2010 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2006 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -197,6 +197,11 @@ bool check_name(const string& name) throw () {
     if (name.find_first_of(" \xA0") == 0 || name.find_last_of(" \xA0") == name.length() - 1)
         return false;
     return true;
+}
+
+bool isBotByName(const string& name) throw () {
+    const string bot_prefix = "BOT ";
+    return name.substr(0, bot_prefix.length()) == bot_prefix;
 }
 
 bool validMapFilename(const string& fileName) throw () {
