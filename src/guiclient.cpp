@@ -2852,7 +2852,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
 
             ClientPhysicsCallbacks cb(*this);
             if (replaying)
-                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replay_buffer_end_reached ? 0.0 : replaySubFrame); // Some extrapolation is needed even if replay buffer is at the end so that player properties and such are copied from fx to fd.
+                fd.extrapolate(fx, cb, -1, controlHistory, 0, 0, replay_buffer_end_reached ? 0.0 : replaySubFrame, false); // Some extrapolation is needed even if replay buffer is at the end so that player properties and such are copied from fx to fd.
             else if (menu.options.game.lagPrediction()) {
                 const double lagWanted = 2. * (1. - menu.options.game.lagPredictionAmount() / 10.); // lagPredictionAmount() is in range [0, 10]
                 double timeDelta = max<double>(0., averageLag - lagWanted) + (get_time() - frameReceiveTime) * 10.;
@@ -2882,13 +2882,13 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                             }
                         }
                 }
-                fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta);
+                fd.extrapolate(fx, cb, me, controlHistory, firstFrame, lastFrame, timeDelta, menu.options.graphics.minimapSmoothMovement());
             }
             else {
                 if (fx.physics.allowFreeTurning && !fx.player[me].dead && menu.options.controls.aimMode() != Menu_controls::AM_8way)
                     fx.player[me].gundir = gunDir;
                 double timeDelta = (get_time() - frameReceiveTime) * 10.;
-                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta);
+                fd.extrapolate(fx, cb, me, controlHistory, clFrameWorld, clFrameWorld, timeDelta, menu.options.graphics.minimapSmoothMovement());
             }
 
             if (mapChanged) {
@@ -3360,8 +3360,7 @@ void GuiClient::play_sound(int sample) throw () {
 }
 
 const WorldCoords& GuiClient::playerPos(int pid) const throw () {
-    const ClientWorld& world = fx.player[pid].onscreen || replaying ? fd : fx;
-    return world.player[pid].pos;
+    return fd.player[pid].pos;
 }
 
 bool GuiClient::repeatMapX() const throw () {
@@ -3633,7 +3632,7 @@ void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
             for (ConstFlagIterator fi(fx); fi; ++fi)
                 if (fi->carrier() == i)
                     graphics.draw_mini_flag(fi.team(), *fi, fx.map);
-            const ClientPlayer& exactPl = replaying || fx.player[i].onscreen ? fd.player[i] : pl;
+            const ClientPlayer& exactPl = fd.player[i];
             if (i != me)
                 graphics.draw_minimap_player(fx.map, exactPl);
             else // myself: draw differently
@@ -3661,7 +3660,7 @@ void GuiClient::draw_playfield() throw () {
         if (fx.player[i].dead && player_on_screen(i)) {
             const double respawn_delay = i == me ? max(next_respawn_time - get_time(), 0.) : 0.;
             if (fx.player[i].stats().frags() % 100 == 0 && fx.player[i].stats().frags() >= 100)
-                graphics.draw_virou_sorvete(playerPos(i), respawn_delay);
+                graphics.draw_virou_sorvete(fx.player[i].pos, respawn_delay);
             else
                 graphics.draw_player_dead(fx.player[i], respawn_delay);
         }

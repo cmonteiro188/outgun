@@ -226,6 +226,7 @@ Antialiasing
 Less transparency effects
 Continuous textures between rooms
 Disappeared players on minimap
+Smooth player movement on minimap
 Highlight returned and dropped flags
 Make flags extra-visible
 Show flag disappearance positions

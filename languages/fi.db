@@ -450,6 +450,7 @@ Shutdown: website thread##Sammutus: WWW-säie
 Size##Koko
 Skip maps in rotation##Kierrossa ohitettavat kartat
 Slovakia##Slovakia
+Smooth player movement on minimap##Jatkuva pelaajien liike kartalla
 Socket error##Socket-virhe
 Sort order (space to cycle): $1##Järjestys (välilyönti vaihtaa): $1
 Sound options##Äänet

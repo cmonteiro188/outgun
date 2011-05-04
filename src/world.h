@@ -1224,7 +1224,7 @@ public:
     double get_frame() const throw () { return frame; }
     // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
     void extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                     const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw ();
+                     const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter, bool moveMinimapPlayers) throw ();
     void extrapolateSinglePlayerPosition(ClientPlayer& pl, const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw ();
 
     /*void save_stats(const std::string& dir, const Team* teams,

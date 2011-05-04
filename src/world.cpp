@@ -3713,7 +3713,7 @@ void ServerWorld::team_gets_carrying_point(int team, bool forRanking) throw () {
 
 // extrapolate : advances from source, a frame per every ctrl listed except the last one which gets subFrameAfter, controls are for player me
 void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCallbacks, int me,
-                              const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) throw () {
+                              const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter, bool moveMinimapPlayers) throw () {
     frame = source.frame;
 
     if (source.skipped) {
@@ -3750,6 +3750,14 @@ void ClientWorld::extrapolate(ClientWorld& source, PhysicsCallbacksBase& physCal
         player[me].controls = ctrlTab[ctrlLast];
     applyPhysics(physCallbacks, PLAYER_RADIUS - playerPosAccuracy, subFrameAfter);
     frame += subFrameAfter;
+
+    // separate velocity-only execution for players not in the room:
+    for (int i = 0; i < maxplayers; ++i)
+        if (source.player[i].used && !player[i].used) { // not copied in the first loop
+            player[i] = source.player[i];
+            if (moveMinimapPlayers && player[i].posUpdated >= 0.)
+                applyPhysicsToPlayerInIsolation(player[i], PLAYER_RADIUS - playerPosAccuracy, min(3., frame - player[i].posUpdated));
+        }
 }
 
 void ClientWorld::extrapolateSinglePlayerPosition(ClientPlayer& pl, const ClientControls* ctrlTab, uint8_t ctrlFirst, uint8_t ctrlLast, double subFrameAfter) const throw () {

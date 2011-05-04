@@ -106,6 +106,7 @@ enum ClientCfgSetting {
     CCS_SendQuickMessageImmediately,
     CCS_HighlightUnknownMaps,
     CCS_SkipMaps,
+    CCS_MinimapSmoothMovement,
     CCS_EndOfCommands
 };
 
@@ -325,6 +326,7 @@ public:
     Checkbox            minTransp;
     Checkbox            contTextures;
     Select<MinimapPlayerMode> minimapPlayers;
+    Checkbox            minimapSmoothMovement;
     Checkbox            highlightReturnedFlag;
     Select<FlagEmphasizeMode> emphasizeFlags;
     Checkbox            oldFlagPositions;

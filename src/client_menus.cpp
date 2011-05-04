@@ -522,6 +522,7 @@ Menu_graphics::Menu_graphics() throw () :
     minTransp            (_("Less transparency effects"), false),
     contTextures         (_("Continuous textures between rooms"), true),
     minimapPlayers       (_("Disappeared players on minimap")),
+    minimapSmoothMovement(_("Smooth player movement on minimap"), true),
     highlightReturnedFlag(_("Highlight returned and dropped flags"), true),
     emphasizeFlags       (_("Make flags extra-visible")),
     oldFlagPositions     (_("Show flag disappearance positions"), false),
@@ -573,6 +574,7 @@ void Menu_graphics::initialize(MenuHookable<Menu>::HookFunctionT* opener, Settin
     add(&minTransp,              CCS_MinTransp);
     add(&contTextures,           CCS_ContinuousTextures);
     add(&minimapPlayers,         CCS_MinimapPlayers);
+    add(&minimapSmoothMovement,  CCS_MinimapSmoothMovement);
     add(&highlightReturnedFlag,  CCS_HighlightReturnedFlag);
     add(&emphasizeFlags,         CCS_EmphasizeFlags);
     add(&oldFlagPositions,       CCS_OldFlagPositions);
