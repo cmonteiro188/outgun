@@ -877,6 +877,10 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         fx.wild_flags.clear();
         for (int i = 0; i < MAX_ROCKETS; ++i)
             fx.rock[i].owner = -1;
+        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi) {
+            pi->dead = true;
+            pi->setPosition(WorldCoords(0, 0, 0, 0), 1e-10);
+        }
         const uint16_t crc = read.U16();
         const string mapname = read.str();
         const string maptitle = read.str();
