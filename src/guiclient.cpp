@@ -3711,8 +3711,10 @@ void GuiClient::draw_playfield() throw () {
 
         if (!player_on_screen(i))
             continue;
-        if (!replaying && !fx.player[i].onscreen && fx.player[i].room() == fx.player[me].room())
-            continue; // don't draw players whose last known location is in this room but who aren't really here
+        if (!replaying && !fx.player[i].onscreen && fx.player[i].room() == fx.player[me].room()) {
+            fx.player[i].posUpdated = -1e10; // don't draw (now or in the future) players whose last known location is in this room but who aren't really here
+            continue;
+        }
 
         //HACK REMENDEX: predict item_shadow
         if (player_on_screen_exact(i) && fx.player[i].item_shadow()) {
