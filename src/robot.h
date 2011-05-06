@@ -112,7 +112,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        here(const ClientPlayer& p, bool roomEnough = false) const throw () { return p.posUpdated > fx.frame - 10 && p.room() == myPos.room && (roomEnough || area(p) == myArea()); }
 
     Coords      predictPos(const Coords& startPos, const Vec& vel) const throw () { return Coords(startPos + averageLag * vel); }
-    Coords      predictPos(const ClientPlayer& p) const throw () { return predictPos(p.pos.local(), p.vel); }
+    Coords      predictPos(const ClientPlayer& p) const throw ();
     Coords      predictPos(const Rocket& r) const throw () { return predictPos(r.pos.local(), r.vel); }
 
     int         myTeam() const throw () { return fx.player[me].team(); }

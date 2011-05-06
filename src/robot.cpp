@@ -87,6 +87,10 @@ inline int inv_dir(int dir) throw () { return dir ^ 4; }
 int Robot::xDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Right) ? +1 : (dir == Area::Neighbor::Left) ? -1 : 0; }
 int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Down ) ? +1 : (dir == Area::Neighbor::Up  ) ? -1 : 0; }
 
+Coords Robot::predictPos(const ClientPlayer& p) const throw () {
+    return Coords(p.pos.local() + (min(fx.frame - p.posUpdated, 5.) + averageLag) * p.vel);
+}
+
 const DeathbringerExplosion* Robot::explosionInRoom(const RoomCoords& room) const throw () {
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
         const WorldCoords& pos = dbi->position();
@@ -1495,7 +1499,9 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
                 if (fx.map[pl.room()].enemies_seen_frame > pl.posUpdated)
                     continue;
             }
-            pos = pl.position();
+            pos.room = pl.room();
+            pos.local(Coords(predictPos(pl) + 5. * pl.vel));
+            pos.normalize(fx.map);
         }
         else {
             if (IsFlagAtBase(*fi, team, FBT_SameArea) != (state == 0))
