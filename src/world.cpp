@@ -67,6 +67,26 @@ bool compare_players(const PlayerBase* a, const PlayerBase* b) throw () {
     return a->stats().frags() > b->stats().frags();
 }
 
+void WorldCoords::normalize(const Map& map) throw () { // transfers extremities in local coordinates into room coordinates, bounding local within the room
+    nAssert(room.x >= 0 && room.x < map.w && room.y >= 0 && room.y < map.h);
+    while (x < 0) {
+        room.x = (room.x + map.w - 1) % map.w;
+        x += plw;
+    }
+    while (x >= plw) {
+        room.x = (room.x + 1) % map.w;
+        x -= plw;
+    }
+    while (y < 0) {
+        room.y = (room.y + map.h - 1) % map.h;
+        y += plh;
+    }
+    while (y >= plh) {
+        room.y = (room.y + 1) % map.h;
+        y -= plh;
+    }
+}
+
 /* subIntersection:
  * returns true if the area between lines l1-l2 and r1-r2 intersects the rectangle (rectx1,recty1)-(rectx2,recty2)
  * every line must be y-ordered : l1.y<=l2.y, r1.y<=r2.y, recty1<=recty2 ; additionally rectx1<=rectx2 and lx(y)<=rx(y) for all applicable y

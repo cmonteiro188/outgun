@@ -36,6 +36,8 @@
 #include "nassert.h"
 #include "utility.h"
 
+class Map;
+
 static const int POWERUP_RADIUS = 15, FLAG_RADIUS = 15;  // for touch checks, mostly
 
 template<class T> struct BasicCoords {
@@ -77,6 +79,8 @@ struct WorldCoords {
     double xTotal() const throw () { return room.x * plw + x; }
     double yTotal() const throw () { return room.y * plh + y; }
     Vec total() const throw () { return Vec(xTotal(), yTotal()); }
+
+    void normalize(const Map& map) throw (); // transfers extremities in local coordinates into room coordinates, bounding local within the room
 
     RoomCoords room;
     double x, y; // coords within the room
