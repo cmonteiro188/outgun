@@ -85,6 +85,7 @@ class Robot : public ClientBase, public BotInterface {
     int         myGundir;
     ClientPlayer futureMe; // extrapolated by averageLag
     WorldCoords myPos; // shortcut to futureMe.pos
+    int extraAttackers; // number of extra attackers from default in team strategy, can be negative
 
     std::vector<bool> flagsIgnored[3];
 

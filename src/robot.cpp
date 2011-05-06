@@ -3,6 +3,7 @@
  *
  *  Copyright (C) 2006, 2008 - Peter Kosyh
  *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
+ *  Copyright (C) 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1318,8 +1319,7 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     }
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
-                                          : GetPlayers(myTeam()) / nAllFlags;
+    const int maxPlayers = GetPlayers(myTeam()) / (flag.carried() ? 2 : nAllFlags) - extraAttackers;
     if (maxPlayers == 0)
         return true;
 
@@ -2036,7 +2036,8 @@ Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& ex
     connectQueued(false),
     sharedDataHandle(g_botSharedDataStorage),
     finished(false),
-    botPrevFire(false)
+    botPrevFire(false),
+    extraAttackers(0)
 { }
 
 Robot::~Robot() throw () {
@@ -2135,6 +2136,22 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
         description = sender.name + " prefers attacking";
         if (sender.defendingAfterDeath)
             description += " until dead, then defending";
+    }
+    else if (!msg.empty() && msg.find_first_not_of("+") == string::npos || msg.find_first_not_of("-") == string::npos) {
+        const int playerCount = GetPlayers(myTeam());
+        const int defaultAttackers = (playerCount + 1) / 2;
+        if (msg[0] == '+')
+            extraAttackers += msg.length();
+        else
+            extraAttackers -= msg.length();
+        if (defaultAttackers + extraAttackers > playerCount)
+            extraAttackers = playerCount - defaultAttackers;
+        if (defaultAttackers + extraAttackers < 0)
+            extraAttackers = -defaultAttackers;
+        description = "attack-defence balance ";
+        description += itoa(defaultAttackers + extraAttackers);
+        description += "-";
+        description += itoa(playerCount - defaultAttackers - extraAttackers);
     }
     else
         return;
