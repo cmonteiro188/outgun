@@ -82,8 +82,13 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             symmetry = rotational;
         else
             do {
-                symmetry = Symmetry(rand() % 3 + 1);
-            } while (symmetry == vertical && h == 1 && w > 1 || symmetry == horizontal && w == 1 && h > 1);
+                // Shifted symmetry require passages over the edge.
+                const int shiftSymmetries = allow_over_edge ? 5 : 0;
+                symmetry = Symmetry(rand() % (3 + shiftSymmetries) + 1);
+            } while ((symmetry == vertical || symmetry == verShifted || symmetry == verShiftedMirrored || symmetry == horVerShifted) && h == 1 && w > 1 ||
+                     (symmetry == horizontal || symmetry == horShifted || symmetry == horShiftedMirrored || symmetry == horVerShifted) && w == 1 && h > 1 ||
+                     (symmetry == verShifted || symmetry == verShiftedMirrored || symmetry == horVerShifted) && h % 2 ||
+                     (symmetry == horShifted || symmetry == horShiftedMirrored || symmetry == horVerShifted) && w % 2);
     }
 
     int rx = rand() % width(), ry = rand() % height();
@@ -312,6 +317,9 @@ MapGenerator::DistRoom MapGenerator::select_green_flag_base(int team_flag_x, int
     if ((symmetry == horizontal || symmetry == rotational) && width() % 2 == 0 ||
         (symmetry == vertical   || symmetry == rotational) && height() % 2 == 0)
             return DistRoom::invalid();
+    // It would be possible to have green flags in shifted maps but it is not yet supported.
+    if (symmetry == horShifted || symmetry == horShiftedMirrored || symmetry == verShifted || symmetry == verShiftedMirrored || symmetry == horVerShifted)
+        return DistRoom::invalid();
     return select_base(false, team_flag_x, team_flag_y);
 }
 
@@ -421,6 +429,21 @@ RoomCoords MapGenerator::select_symmetric_room(const RoomCoords& source, int& kd
         break; case vertical:
             y = height() - 1 - y;
             kdy = -1;
+        break; case horShifted:
+            x = (x + width() / 2) % width();
+        break; case horShiftedMirrored:
+            x = (x + width() / 2) % width();
+            y = height() - 1 - y;
+            kdy = -1;
+        break; case verShifted:
+            y = (y + height() / 2) % height();
+        break; case verShiftedMirrored:
+            x = width()  - 1 - x;
+            y = (y + height() / 2) % height();
+            kdx = -1;
+        break; case horVerShifted:
+            x = (x + width() / 2) % width();
+            y = (y + height() / 2) % height();
         break; default: nAssert(0);
     }
     return RoomCoords(x, y);

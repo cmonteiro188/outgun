@@ -29,7 +29,7 @@
 
 class MapGenerator {
     enum Direction { up, down, left, right };
-    enum Symmetry { asymmetric, rotational, horizontal, vertical };
+    enum Symmetry { asymmetric, rotational, horizontal, vertical, horShifted, horShiftedMirrored, verShifted, verShiftedMirrored, horVerShifted };
 
     class SimpleRoom {
     public:
