@@ -1,7 +1,7 @@
 /*
  *  mapgen.h
  *
- *  Copyright (C) 2008, 2010 - Jani Rivinoja
+ *  Copyright (C) 2008, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -85,6 +85,9 @@ private:
     DistRoom select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
     BasePair select_asymmetric_bases() const throw ();
     DistRoom select_asymmetric_green_base(const RoomCoords& red_base, const RoomCoords& blue_base) const throw ();
+
+    RoomCoords select_symmetric_room(const RoomCoords& source) const throw ();
+    RoomCoords select_symmetric_room(const RoomCoords& source, int& kdx, int& kdy) const throw ();
 
     int distance(int sx, int sy, int gx, int gy) const throw ();
     const RoomCoords& find_best(const std::vector<std::vector<Node> >& node, const std::vector<RoomCoords>& open) const throw ();

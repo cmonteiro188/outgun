@@ -1,7 +1,7 @@
 /*
  *  mapgen.cpp
  *
- *  Copyright (C) 2008, 2010 - Jani Rivinoja
+ *  Copyright (C) 2008, 2010, 2011 - Jani Rivinoja
  *  Copyright (C) 2010 - Niko Ritari
  *
  *  This file is part of Outgun.
@@ -135,8 +135,9 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
         const DistRoom base = select_base();
         x1 = base.x;
         y1 = base.y;
-        x2 = symmetry == vertical   ? x1 : width()  - 1 - x1;
-        y2 = symmetry == horizontal ? y1 : height() - 1 - y1;
+        const RoomCoords base2 = select_symmetric_room(base);
+        x2 = base2.x;
+        y2 = base2.y;
         dist = base.dist;
     }
     room[x1][y1].team_flag = true;
@@ -167,8 +168,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             if (symmetry == asymmetric)
                 blue = RoomCoords(rand() % w, rand() % h);
             else {
-                blue.x = symmetry == vertical   ? red.x : width()  - 1 - red.x;
-                blue.y = symmetry == horizontal ? red.y : height() - 1 - red.y;
+                blue = select_symmetric_room(red);
             }
             room[red.x][red.y].add_respawn(0);
             room[blue.x][blue.y].add_respawn(1);
@@ -200,11 +200,9 @@ bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_room
     else if (dx > 0)
         current.right = next.left = false;
     if (symmetry != asymmetric && !mirror) {
-        const int mx1 = symmetry == vertical   ? rx : width()  - 1 - rx;
-        const int my1 = symmetry == horizontal ? ry : height() - 1 - ry;
-        const int mx2 = mx1 + (symmetry == vertical   ? +dx : -dx);
-        const int my2 = my1 + (symmetry == horizontal ? +dy : -dy);
-        remove_wall(mx1, my1, mx2 - mx1, my2 - my1, visited_rooms, true);
+        int kdx2, kdy2;
+        const RoomCoords counterPart = select_symmetric_room(RoomCoords(rx, ry), kdx2, kdy2);
+        remove_wall(counterPart.x, counterPart.y, kdx2 * dx, kdy2 * dy, visited_rooms, true);
     }
     return true;
 }
@@ -323,8 +321,9 @@ MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x
     for (int y = 0; y < height(); y++)
         for (int x = 0; x < width(); x++) {
             if (team_base) {
-                team_flag_x = symmetry == vertical   ? x : width()  - 1 - x;
-                team_flag_y = symmetry == horizontal ? y : height() - 1 - y;
+                RoomCoords target = select_symmetric_room(RoomCoords(x, y));
+                team_flag_x = target.x;
+                team_flag_y = target.y;
             }
             else if (room[x][y].team_flag ||
                     (symmetry == horizontal || symmetry == rotational) && x != width() / 2 ||
@@ -400,6 +399,31 @@ MapGenerator::DistRoom MapGenerator::select_asymmetric_green_base(const RoomCoor
     if (candidates.empty())
         return DistRoom::invalid();
     return candidates[rand() % candidates.size()];
+}
+
+RoomCoords MapGenerator::select_symmetric_room(const RoomCoords& source) const throw () {
+    int temp;
+    return select_symmetric_room(source, temp, temp);
+}
+
+RoomCoords MapGenerator::select_symmetric_room(const RoomCoords& source, int& kdx, int& kdy) const throw () {
+    int x = source.x, y = source.y;
+    kdx = kdy = 1;
+    switch (symmetry) {
+    /*break;*/ case rotational:
+            x = width()  - 1 - x;
+            y = height() - 1 - y;
+            kdx = -1;
+            kdy = -1;
+        break; case horizontal:
+            x = width()  - 1 - x;
+            kdx = -1;
+        break; case vertical:
+            y = height() - 1 - y;
+            kdy = -1;
+        break; default: nAssert(0);
+    }
+    return RoomCoords(x, y);
 }
 
 int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
