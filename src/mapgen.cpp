@@ -172,9 +172,8 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             RoomCoords blue;
             if (symmetry == asymmetric)
                 blue = RoomCoords(rand() % w, rand() % h);
-            else {
+            else
                 blue = select_symmetric_room(red);
-            }
             room[red.x][red.y].add_respawn(0);
             room[blue.x][blue.y].add_respawn(1);
         } while (rand() % 1000 < 1000 * repetitive_respawn);
@@ -329,7 +328,7 @@ MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x
     for (int y = 0; y < height(); y++)
         for (int x = 0; x < width(); x++) {
             if (team_base) {
-                RoomCoords target = select_symmetric_room(RoomCoords(x, y));
+                const RoomCoords target = select_symmetric_room(RoomCoords(x, y));
                 team_flag_x = target.x;
                 team_flag_y = target.y;
             }
