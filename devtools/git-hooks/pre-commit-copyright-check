@@ -17,7 +17,7 @@ fi
 ERRORS=0
 for file; do
     echo "$file" | egrep -q '^(.*/)?(Makefile.*|.*\.(c|cc|cpp|h|hh|hpp|inc))$' || continue
-    egrep -q "Copyright.*[^0-9]$AUTHOR_YEAR[^0-9].*$AUTHOR_NAME" "$file" && continue
+    git show ":$file" | egrep -q "Copyright.*[^0-9]$AUTHOR_YEAR[^0-9].*$AUTHOR_NAME" && continue
     if [ "$ERRORS" = 0 ]; then
         ERRORS=1
         echo "Proper copyright notice (for $AUTHOR_YEAR and $AUTHOR_NAME) missing:"
