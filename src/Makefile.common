@@ -197,7 +197,7 @@ WRITEIFDIFF_OBJ_NAMES := tools/writeifdifferent.o
 MON_OBJ_NAMES := tools/srvmonit.o nassert_simple.o network.o utility.o globals.o language.o log.o commont.o timer.o version.o debug.o mutex.o binaryaccess.o $(PLATFORM_OBJ_NAMES)
 WATCHSERVER_OBJ_NAMES := tools/watchserver.o binaryaccess.o commont.o debug.o globals.o language.o log.o mutex.o nassert_simple.o network.o timer.o utility.o version.o $(PLATFORM_OBJ_NAMES)
 
-COMMON_TEST_OBJ_NAMES = commont.o debug.o globals.o language.o log.o mutex.o network.o utility.o timer.o version.o mapgen.o $(PLATFORM_OBJ_NAMES)
+COMMON_TEST_OBJ_NAMES = commont.o debug.o globals.o language.o log.o mutex.o network.o utility.o timer.o version.o $(PLATFORM_OBJ_NAMES)
 
 LEETNET_OBJS := $(patsubst %,$(OBJDIR)/leetnet/%,$(LEETNET_OBJ_NAMES))
 OUTGUN_CLIENT_OBJS := $(patsubst %,$(OBJDIR)/gui/%,$(OUTGUN_CLIENT_OBJ_NAMES)) $(LEETNET_OBJS)
@@ -372,7 +372,7 @@ $(BINDIR)/tests/formattedtext$(EXE_SUFFIX) : $(COMMON_TEST_OBJS)
 
 $(BINDIR)/tests/versionstring$(EXE_SUFFIX) : $(OBJDIR)/gui/version.o
 
-$(BINDIR)/tests/mapgen$(EXE_SUFFIX) : $(COMMON_TEST_OBJS)
+$(BINDIR)/tests/mapgen$(EXE_SUFFIX) : $(COMMON_TEST_OBJS) $(OBJDIR)/gui/mapgen.o
 
 # -- Executing tests: --
 
