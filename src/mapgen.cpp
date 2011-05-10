@@ -60,13 +60,15 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
     for (vector<vector<SimpleRoom> >::iterator vi = room.begin(); vi != room.end(); vi++)
         *vi = vector<SimpleRoom>(h, true);
 
-    if (green_flag && !create_asymmetric && w % 2 == 0 && h % 2 == 0) // no green flag if it can't be symmetrical
-        green_flag = false;
-
     if (create_asymmetric)
         symmetry = asymmetric;
     else if (green_flag) {
-        if (w % 2 == 0)
+        if (w % 2 == 0 && h % 2 == 0) {
+            // Shifted symmetry requires passages over the edge.
+            const int shiftSymmetries = allow_over_edge ? 5 : 0;
+            symmetry = Symmetry(rand() % (3 + shiftSymmetries) + 1);
+        }
+        else if (w % 2 == 0)
             symmetry = vertical;
         else if (h % 2 == 0)
             symmetry = horizontal;
@@ -82,7 +84,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             symmetry = rotational;
         else
             do {
-                // Shifted symmetry require passages over the edge.
+                // Shifted symmetry requires passages over the edge.
                 const int shiftSymmetries = allow_over_edge ? 5 : 0;
                 symmetry = Symmetry(rand() % (3 + shiftSymmetries) + 1);
             } while ((symmetry == vertical || symmetry == verShifted || symmetry == verShiftedMirrored || symmetry == horVerShifted) && h == 1 && w > 1 ||
@@ -162,6 +164,14 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             SimpleRoom& green_base = room[green.x][green.y];
             green_base.green_flag = true;
             flags++;
+            if (symmetry != asymmetric) {
+                // If one green flag is not in a symmetric position, add another green flag to make the map symmetric.
+                const RoomCoords base2 = select_symmetric_room(RoomCoords(green.x, green.y));
+                if (base2 != RoomCoords(green.x, green.y)) {
+                    room[base2.x][base2.y].green_flag = true;
+                    flags++;
+                }
+            }
         }
     }
 
@@ -310,15 +320,6 @@ MapGenerator::DistRoom MapGenerator::select_base() const throw () {
 }
 
 MapGenerator::DistRoom MapGenerator::select_green_flag_base(int team_flag_x, int team_flag_y) const throw () {
-    // Find a base for the green flag. It must be in the same distance from both 
-    // the team bases, symmetrically. That means that the green flags can only 
-    // be in the centre line of the map, unless the map is asymmetric.
-    if ((symmetry == horizontal || symmetry == rotational) && width() % 2 == 0 ||
-        (symmetry == vertical   || symmetry == rotational) && height() % 2 == 0)
-            return DistRoom::invalid();
-    // It would be possible to have green flags in shifted maps but it is not yet supported.
-    if (symmetry == horShifted || symmetry == horShiftedMirrored || symmetry == verShifted || symmetry == verShiftedMirrored || symmetry == horVerShifted)
-        return DistRoom::invalid();
     return select_base(false, team_flag_x, team_flag_y);
 }
 
@@ -332,11 +333,15 @@ MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x
                 team_flag_x = target.x;
                 team_flag_y = target.y;
             }
-            else if (room[x][y].team_flag ||
-                    (symmetry == horizontal || symmetry == rotational) && x != width() / 2 ||
-                    (symmetry == vertical   || symmetry == rotational) && y != height() / 2)
+            else if (room[x][y].team_flag)
                 continue;
-            const int dist = distance(x, y, team_flag_x, team_flag_y);
+            int dist = distance(x, y, team_flag_x, team_flag_y);
+            if (!team_base) { // Check also distance from base to the second green flag.
+                const RoomCoords counterPart = select_symmetric_room(RoomCoords(x, y));
+                dist = min(dist, distance(counterPart.x, counterPart.y, team_flag_x, team_flag_y));
+                if (counterPart == RoomCoords(x, y))
+                    dist += 2; // Favour one green flag over two flags.
+            }
             DistRoom d(x, y, dist);
             candidates.push_back(d);
             if (dist > max_dist)
