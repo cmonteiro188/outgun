@@ -877,10 +877,11 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         fx.wild_flags.clear();
         for (int i = 0; i < MAX_ROCKETS; ++i)
             fx.rock[i].owner = -1;
-        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi) {
-            pi->dead = true;
-            pi->setPosition(WorldCoords(0, 0, 0, 0), 1e-10);
-        }
+        for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
+            if (pi->posUpdated < fx.frame) {
+                pi->dead = true;
+                pi->setPosition(WorldCoords(0, 0, 0, 0), 1e-10);
+            }
         const uint16_t crc = read.U16();
         const string mapname = read.str();
         const string maptitle = read.str();
@@ -1278,7 +1279,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         fx.player[pid].stats().spawn(time);
         if (fx.player[pid].posUpdated != fx.frame)   // this information is after the spawn
             fx.player[pid].posUpdated = fx.player[pid].prevMapPosUpdateFrame = -1e10;  // (probably) not seen in this life; if seen before spawning, not valid anymore
-        if (!fx.player[pid].onscreen)
+        if (!fx.player[pid].onscreen && !replaying)
             fx.player[pid].vel = Vec(0, 0);
         fx.player[pid].dead = false;
         fx.player[pid].setProperties(PlayerBase::RemotelyVisiblePropertiesData());
