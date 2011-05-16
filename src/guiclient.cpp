@@ -3032,6 +3032,14 @@ bool GuiClient::start_replay(istream& replay) throw () {
             log.error(_("This is a newer replay version ($1).", itoa(replay_version)));
             return false;
         }
+        switch (replay_version) {
+            break; case 0: protocolExtensions = 0;
+            break; case 1: protocolExtensions = 1;
+            break; case 2: protocolExtensions = 3;
+            break; case 3: protocolExtensions = 4;
+            break; default: nAssert(0); protocolExtensions = PROTOCOL_EXTENSIONS_VERSION;
+        }
+        nAssert(protocolExtensions <= PROTOCOL_EXTENSIONS_VERSION);
 
         replay_length = read.U32();
         replay_first_frame_loaded = false;

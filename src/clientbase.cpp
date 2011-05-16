@@ -636,7 +636,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
             break;
         }
         int8_t sender_team = -1;
-        if (protocolExtensions >= 0 || replaying) {
+        if (protocolExtensions >= 0) {
             if (type == msg_team || type == msg_normal)
                 sender_team = read.S8();
         }
