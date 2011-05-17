@@ -2567,7 +2567,7 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         if (!replaying && !withControl)
             break;
         if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || (repeatMapX() || repeatMapY()) && visible_rooms < 100) {
-            if (replaying) {
+            if (replaying && !withControl) {
                 ++visible_rooms;
                 if (replayTopLeftRoom.room.x == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.room.x > 0) // if map border wasn't broken, don't break it either
                     --replayTopLeftRoom.room.x;
@@ -2582,7 +2582,7 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         if (!replaying && !withControl)
             break;
         if (visible_rooms > 1) {
-            if (replaying)
+            if (replaying && !withControl && visible_rooms >= 2)
                 --visible_rooms;
             else
                 visible_rooms -= visible_rooms <= 3 ? .25 : visible_rooms <= 5 ? .5 : 1.;
