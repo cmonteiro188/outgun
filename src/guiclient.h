@@ -247,7 +247,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     unsigned replay_start_frame;
     unsigned replay_length;
     uint32_t replay_players_present;
-    std::pair<int, int> replayTopLeftRoom;
+    WorldCoords replayTopLeftRoom;
     double visible_rooms;
 
     Network::TCPSocket spectate_socket;

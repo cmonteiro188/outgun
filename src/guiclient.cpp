@@ -2569,10 +2569,10 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         if (visible_rooms < fx.map.w || visible_rooms < fx.map.h || (repeatMapX() || repeatMapY()) && visible_rooms < 100) {
             if (replaying) {
                 ++visible_rooms;
-                if (replayTopLeftRoom.first == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.first > 0) // if map border wasn't broken, don't break it either
-                    --replayTopLeftRoom.first;
-                if (replayTopLeftRoom.second == fx.map.h + 1 - visible_rooms && replayTopLeftRoom.second > 0)
-                    --replayTopLeftRoom.second;
+                if (replayTopLeftRoom.room.x == fx.map.w + 1 - visible_rooms && replayTopLeftRoom.room.x > 0) // if map border wasn't broken, don't break it either
+                    --replayTopLeftRoom.room.x;
+                if (replayTopLeftRoom.room.y == fx.map.h + 1 - visible_rooms && replayTopLeftRoom.room.x > 0)
+                    --replayTopLeftRoom.room.y;
             }
             else
                 visible_rooms += visible_rooms < 3 ? .25 : visible_rooms < 5 ? .5 : 1.;
@@ -2590,6 +2590,7 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
         return;
     }
 
+    const double replayMoveRooms = key[KEY_LCONTROL] || key[KEY_RCONTROL] ? 0.25 : 1.;
     switch (sc) {
     /*break;*/ case KEY_HOME:   // change colours
             if (replaying)
@@ -2625,24 +2626,32 @@ void GuiClient::handleGameKeypress(int sc, int ch, bool withControl, bool alt_se
             }
         }
         break; case KEY_LEFT: {
-            if (replaying)
-                replayTopLeftRoom.first = (replayTopLeftRoom.first - 1 + fx.map.w) % fx.map.w;
+            if (replaying) {
+                replayTopLeftRoom.x -= replayMoveRooms * plw;
+                replayTopLeftRoom.normalize(fx.map);
+            }
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor > 0)
                 talkbuffer_cursor--;
         }
         break; case KEY_RIGHT: {
-            if (replaying)
-                replayTopLeftRoom.first = (replayTopLeftRoom.first + 1) % fx.map.w;
+            if (replaying) {
+                replayTopLeftRoom.x += replayMoveRooms * plw;
+                replayTopLeftRoom.normalize(fx.map);
+            }
             else if (menu.options.controls.arrowKeysInTextInput() && !talkbuffer.empty() && talkbuffer_cursor < static_cast<int>(talkbuffer.size()))
                 talkbuffer_cursor++;
         }
         break; case KEY_UP: {
-            if (replaying)
-                replayTopLeftRoom.second = (replayTopLeftRoom.second - 1 + fx.map.h) % fx.map.h;
+            if (replaying) {
+                replayTopLeftRoom.y -= replayMoveRooms * plh;
+                replayTopLeftRoom.normalize(fx.map);
+            }
         }
         break; case KEY_DOWN: {
-            if (replaying)
-                replayTopLeftRoom.second = (replayTopLeftRoom.second + 1) % fx.map.h;
+            if (replaying) {
+                replayTopLeftRoom.y += replayMoveRooms * plh;
+                replayTopLeftRoom.normalize(fx.map);
+            }
         }
         break; case KEY_PGUP: {
             if (replaying && (replay_rate *= 2) > 128)
@@ -2911,8 +2920,8 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                         pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
                     else
                         pos = WorldCoords(0, 0, 0, 0);
-                    replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
-                                                       max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
+                    replayTopLeftRoom = WorldCoords(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
+                                                    max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)), 0, 0);
                 }
 
                 mapWrapsX = mapWrapsY = false;
@@ -3064,7 +3073,7 @@ bool GuiClient::start_replay(istream& replay) throw () {
     replay_buffer_end_reached = false;
     replayTime = get_time();
     replaySubFrame = 0;
-    replayTopLeftRoom = pair<int, int>();
+    replayTopLeftRoom = WorldCoords(0, 0, 0, 0);
 
     show_all_messages = false;
     stats_autoshowing = false;
@@ -3413,7 +3422,7 @@ WorldCoords GuiClient::viewTopLeft() const throw () {
     if (!map_ready)
         return WorldCoords(0, 0, 0, 0);
     else if (me < 0)
-        return WorldCoords(replayTopLeftRoom.first, replayTopLeftRoom.second, 0, 0);
+        return replayTopLeftRoom;
     else {
         const Menu_graphics::ViewOverBorderMode view = menu.options.graphics.viewOverMapBorder();
         const bool scroll = menu.options.graphics.scroll();
