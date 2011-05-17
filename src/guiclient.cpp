@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -2904,17 +2904,15 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                     visible_rooms = max(fx.map.w, fx.map.h);
                 if (replaying) {
                     const int team = rand() % 2;
-                    replayTopLeftRoom = pair<int, int>();
-                    if (!fx.map.tinfo[team].flags.empty()) {
-                        const WorldCoords& pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
-                                                           max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
-                    }
-                    else if (!fx.map.wild_flags.empty()) {
-                        const WorldCoords& pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
-                        replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
-                                                           max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
-                    }
+                    WorldCoords pos;
+                    if (!fx.map.tinfo[team].flags.empty())
+                        pos = fx.map.tinfo[team].flags[rand() % fx.map.tinfo[team].flags.size()];
+                    else if (!fx.map.wild_flags.empty())
+                        pos = fx.map.wild_flags[rand() % fx.map.wild_flags.size()];
+                    else
+                        pos = WorldCoords(0, 0, 0, 0);
+                    replayTopLeftRoom = pair<int, int>(max(0, pos.room.x + 1 - static_cast<int>(visible_rooms)),
+                                                       max(0, pos.room.y + 1 - static_cast<int>(visible_rooms)));
                 }
 
                 mapWrapsX = mapWrapsY = false;
