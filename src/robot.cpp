@@ -30,6 +30,7 @@
 #include <map>
 #include <queue>
 #include <set>
+#include <sstream>
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
@@ -69,6 +70,7 @@ BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& cl
 
 #endif
 
+using std::istringstream;
 using std::list;
 using std::make_pair;
 using std::map;
@@ -2137,13 +2139,19 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
         if (sender.defendingAfterDeath)
             description += " until dead, then defending";
     }
-    else if (!msg.empty() && msg.find_first_not_of("+") == string::npos || msg.find_first_not_of("-") == string::npos) {
+    else if (!msg.empty() && msg[0] == '+' || msg[0] == '-') {
         const int playerCount = GetPlayers(myTeam());
         const int defaultAttackers = (playerCount + 1) / 2;
-        if (msg[0] == '+')
+        if (msg.find_first_not_of("+") == string::npos)      // +; increase attackers
             extraAttackers += msg.length();
-        else
+        else if (msg.find_first_not_of("-") == string::npos) // -; decrease attackers
             extraAttackers -= msg.length();
+        else { // +n, -n; set the number of attackers
+            istringstream ist(msg);
+            ist >> extraAttackers;
+            if (!ist || !ist.eof())
+                return;
+        }
         if (defaultAttackers + extraAttackers > playerCount)
             extraAttackers = playerCount - defaultAttackers;
         if (defaultAttackers + extraAttackers < 0)
