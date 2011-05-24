@@ -719,8 +719,10 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
                 if (!new_flag) {
                     if (!fx.player[carrier].onscreen && !replaying) {
                         const WorldCoords& flagPos = (team == 2 ? fx.wild_flags[i] : fx.teams[team].flag(i)).position();
-                        if (!flagPos.unknown())
+                        if (!flagPos.unknown() && fx.player[carrier].posUpdated < fx.frame - 2.) {
                             fx.player[carrier].setPosition(flagPos, fx.frame);
+                            fx.player[carrier].vel = Vec(0, 0);
+                        }
                     }
                     addThreadMessage(new TM_Sound(SAMPLE_CTF_GOT));
                 }
