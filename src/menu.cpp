@@ -2,7 +2,7 @@
  *  menu.cpp
  *
  *  Copyright (C) 2004, 2006 - Niko Ritari
- *  Copyright (C) 2004, 2006, 2008, 2009 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006, 2008, 2009, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -60,15 +60,15 @@ void scrollbar(BITMAP* buffer, int x, int y, int height, int bar_y, int bar_h, i
     }
 }
 
-void drawKeySymbol(BITMAP* buffer, int x, int y, const string& text) throw () {
+void drawKeySymbol(BITMAP* buffer, int x, int y, const string& text, const Colour_manager& col) throw () {
     const int width  = text_length(font, text);
     const int height = text_height(font);
-    hline(buffer, x - 4, y - 1, x + width + 3, makecol(0xEE, 0xEE, 0xEE));
-    vline(buffer, x - 4, y - 1, y + height, makecol(0xEE, 0xEE, 0xEE));
-    hline(buffer, x - 4, y + height, x + width + 3, makecol(0x22, 0x22, 0x22));
-    vline(buffer, x + width + 3, y - 1, y + height, makecol(0x22, 0x22, 0x22));
-    rectfill(buffer, x - 3, y, x + width + 2, y + height - 1, makecol(0x99, 0x99, 0x99));
-    textout_ex(buffer, font, text.c_str(), x, y, 0, -1);
+    hline(buffer, x - 4, y - 1, x + width + 3, col[Colour::menu_button_edge_tl]);
+    vline(buffer, x - 4, y - 1, y + height, col[Colour::menu_button_edge_tl]);
+    hline(buffer, x - 4, y + height, x + width + 3, col[Colour::menu_button_edge_br]);
+    vline(buffer, x + width + 3, y - 1, y + height, col[Colour::menu_button_edge_br]);
+    rectfill(buffer, x - 3, y, x + width + 2, y + height - 1, col[Colour::menu_button_background]);
+    textout_ex(buffer, font, text.c_str(), x, y, col[Colour::menu_button_text], -1);
 }
 
 int Component::captionColor(bool active, const Colour_manager& col) const throw () {
@@ -492,13 +492,13 @@ void SelectBase::draw(BITMAP* buffer, int x, int y, int h, bool active, const Co
     nAssert(!options.empty());
     nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
     if (active && selected > 0)
-        drawKeySymbol(buffer, x, y, "<");
+        drawKeySymbol(buffer, x, y, "<", col);
     x += text_length(font, "<") + char_w();
     const int list_x = x - char_w();
     textout_ex(buffer, font, options[selected].c_str(), x, y, col[Colour::menu_value], -1);
     x += text_length(font, options[selected]) + char_w();
     if (active && selected + 1 < static_cast<int>(options.size()))
-        drawKeySymbol(buffer, x, y, ">");
+        drawKeySymbol(buffer, x, y, ">", col);
     if (!active || !open) {
         open = false;
         return;
@@ -648,7 +648,7 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active, const C
     textout_ex(buffer, font, ":", x, y, captionColor(active, col), -1);
     x += text_length(font, ":") + char_w();
     if (active)
-        drawKeySymbol(buffer, x, y, "+");
+        drawKeySymbol(buffer, x, y, "+", col);
     x += 2 * char_w();
     nAssert(!options.empty());
     nAssert(selected >= 0 && selected < static_cast<int>(options.size()));
@@ -662,7 +662,7 @@ void Colorselect::draw(BITMAP* buffer, int x, int y, int h, bool active, const C
     }
     if (active) {
         x += options.size() * (bw + 2) + bw - 2;
-        drawKeySymbol(buffer, x, y, "-");
+        drawKeySymbol(buffer, x, y, "-", col);
     }
 }
 

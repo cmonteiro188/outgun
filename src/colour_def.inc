@@ -1,7 +1,7 @@
 /*
  *  colour_def.inc
  *
- *  Copyright (C) 2008 - Jani Rivinoja
+ *  Copyright (C) 2008, 2011 - Jani Rivinoja
  *  Copyright (C) 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
@@ -50,6 +50,10 @@ COL(menu_disabled              , 0x00, 0xAA, 0x00)
 COL(menu_value                 , 0xFF, 0xFF, 0xFF)
 COL(menu_shortcut_disabled     , 0x50, 0x60, 0x50)
 COL(menu_shortcut_enabled      , 0xB0, 0xD0, 0xB0)
+COL(menu_button_background     , 0x99, 0x99, 0x99)
+COL(menu_button_edge_tl        , 0xEE, 0xEE, 0xEE)
+COL(menu_button_edge_br        , 0x22, 0x22, 0x22)
+COL(menu_button_text           , 0x00, 0x00, 0x00)
 
 SECTION("Scrollbar")
 COL(scrollbar                  , 0x00, 0xFF, 0x00)
