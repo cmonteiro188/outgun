@@ -9,6 +9,10 @@ menu_disabled                777777
 menu_value                   FFFFFF
 menu_shortcut_disabled       506050
 menu_shortcut_enabled        B0D0B0
+menu_button_background       9999FF
+menu_button_edge_tl          CCCCFF
+menu_button_edge_br          333399
+menu_button_text             000066
 
 scrollbar                    0000FF
 scrollbar_bg                 000077
