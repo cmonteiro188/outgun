@@ -2,7 +2,7 @@
  *  utility.cpp
  *
  *  Copyright (C) 2003, 2004, 2006, 2008, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -466,7 +466,7 @@ void messageBox(const string& heading, const string& msg, bool blocking) throw (
     #else
     (void)blocking;
     #endif
-    std::cerr << heading << ":\n" << msg << '\n';
+    std::cerr << (utf8_mode ? latin1_to_utf8(heading) : heading) << ":\n" << (utf8_mode ? latin1_to_utf8(msg) : msg) << '\n';
     ofstream os((wheregamedir + "log" + directory_separator + "suppressed_messages.txt").c_str(), std::ios_base::ate);
     // ignore possible error (what could we do?)
     os << date_and_time() << '\n' << heading << ":\n" << msg << "\n\n\n";
