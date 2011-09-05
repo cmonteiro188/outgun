@@ -2248,6 +2248,7 @@ void Robot::bot_loop() throw () {
     if (mapChanged) {
         mapChanged = false;
         BuildMap();
+        extraAttackers = 0;
     }
 
     fx.cleanOldDeathbringerExplosions();
