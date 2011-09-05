@@ -135,7 +135,7 @@ bool Robot::moreDefensive(const ClientPlayer& player) const throw () {
         return true;
     if ((here(player, true) || see_minimap_player_properties >= 1) && player.item_turbo != fx.player[me].item_turbo)
         return !player.item_turbo;
-    if (player.name.substr(0, 4) == "BOT ")
+    if (isBotByName(player.name))
         return player.pid < me;
     else
         return player.defending;
@@ -1984,7 +1984,7 @@ void Robot::connect_command() throw () {   // call with frameMutex locked
 bool Robot::firstBotInTeam() const throw () {
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& p = fx.player[i];
-        if (p.used && myTeam(p) && p.name.substr(0, 4) == "BOT ")
+        if (p.used && myTeam(p) && isBotByName(p.name))
             return i == me;
     }
     return true; // possible if we've been renamed to something without "BOT "
