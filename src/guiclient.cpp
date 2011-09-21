@@ -1120,7 +1120,7 @@ void GuiClient::send_frame(bool newFrame, bool forceSend) throw () {
     static double keyFilterTimeout = 0;
 
     ClientControls currentControls = readControlsInGame();
-    if (menu.options.controls.aimMode() == Menu_controls::AM_Turn && !currentControls.isStrafe()) {
+    if (fx.physics.allowFreeTurning && menu.options.controls.aimMode() == Menu_controls::AM_Turn && !currentControls.isStrafe()) {
         currentControls.clearLeft();
         currentControls.clearRight();
     }
