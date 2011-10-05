@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2006, 2008, 2009 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2009, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -422,10 +422,17 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
                 return;
             }
             register_png_file_type();
-            string source = argc >= 3 ? argv[2] : wheregamedir + SERVER_MAPS_DIR;
-            string target = argc >= 4 ? argv[3] : wheregamedir + "mappic";
-            if (argc >= 5)
-                log.error(_("$1 can only be followed by the source and target directory.", argv[i]));
+            int argi = 2;
+            string option = argc >= argi + 1 ? argv[argi] : "";
+            bool new_files_only = option == "-n";
+            if (new_files_only)
+                argi++;
+            string source = argc >= argi + 1 ? argv[argi] : wheregamedir + SERVER_MAPS_DIR;
+            argi++;
+            string target = argc >= argi + 1 ? argv[argi] : wheregamedir + "mappic";
+            argi++;
+            if (argc >= 5 && !new_files_only || argc >= 6)
+                log.error(_("$1 can only be followed by the -n option (new files only) and the source and target directory.", argv[i]));
             if (!check_absolute_dir(target, log))
                 return;
 
@@ -434,7 +441,7 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
 
             log("Saving map pictures");
             set_window_title(_("Outgun - Saving map pictures").c_str());
-            Mappic mappic(log, source, target);
+            Mappic mappic(log, source, target, new_files_only);
             try {
                 mappic.run();
                 messageBox("Outgun", _("Map pictures saved to the directory '$1'.", target));

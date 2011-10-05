@@ -1,7 +1,7 @@
 /*
  *  mappic.cpp
  *
- *  Copyright (C) 2004, 2009 - Jani Rivinoja
+ *  Copyright (C) 2004, 2009, 2011 - Jani Rivinoja
  *  Copyright (C) 2006 - Niko Ritari
  *
  *  This file is part of Outgun.
@@ -34,10 +34,11 @@
 using std::string;
 using std::vector;
 
-Mappic::Mappic(LogSet logs, const string& source, const string& target) throw () :
+Mappic::Mappic(LogSet logs, const string& source, const string& target, bool new_files_only_) throw () :
     log(logs),
     source_dir(source),
-    target_dir(target)
+    target_dir(target),
+    new_files_only(new_files_only_)
 {
     if (!source_dir.empty() && *source_dir.rbegin() != directory_separator)
         source_dir += directory_separator;
@@ -67,7 +68,9 @@ void Mappic::save_pictures() const throw (Save_error) {
     for (vector<string>::const_iterator name = smaps.begin(); name != smaps.end(); name++) {
         const string picture = target_dir + *name + Graphics::save_extension;
         Map mp;
-        if (!mp.load_file(log, source_dir + *name + ".txt"))
+        if (new_files_only && platIsFile(picture))
+            log(_("Map picture saver: Picture '$1' already exists, skipping.", picture));
+        else if (!mp.load_file(log, source_dir + *name + ".txt"))
             log.error(_("Map picture saver: Map '$1' is not a valid map file.", *name));
         else if (graphics.save_map_picture(picture, mp))
             log("Map picture saver: Saved map picture to '%s'.", picture.c_str());

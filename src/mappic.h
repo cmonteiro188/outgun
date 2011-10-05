@@ -1,7 +1,7 @@
 /*
  *  mappic.h
  *
- *  Copyright (C) 2004, 2009 - Jani Rivinoja
+ *  Copyright (C) 2004, 2009, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -35,7 +35,7 @@ class Mappic {
 public:
     class Save_error { };
 
-    Mappic(LogSet logs, const std::string& source, const std::string& target) throw ();
+    Mappic(LogSet logs, const std::string& source, const std::string& target, bool new_files_only_ = false) throw ();
 
     void run() throw (Save_error);
 
@@ -44,6 +44,7 @@ private:
     std::vector<std::string> smaps; // server maps
     std::string source_dir;
     std::string target_dir;
+    bool new_files_only;
 
     std::vector<std::string> load_maps() throw ();
     void save_pictures() const throw (Save_error);
