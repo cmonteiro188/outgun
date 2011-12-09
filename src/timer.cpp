@@ -1,7 +1,7 @@
 /*
  *  timer.cpp
  *
- *  Copyright (C) 2006, 2008, 2010 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2010, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -26,6 +26,16 @@
 
 SystemTimer* g_systemTimer = 0;
 TimeCounter g_timeCounter;
+
+void TimeCounter::refresh(double maxExpectedSkip) throw () {
+    const double oldValue = value;
+    value = g_systemTimer->read() - base;
+    if (value < oldValue || value > oldValue + maxExpectedSkip) { // if the clock suddenly goes backwards, or skips forward by an unexpected amount, assume the change is only in the clock, not in real time
+        // value = read - base; oldValue = read - newBase -> newBase = read - oldValue = base + value - oldValue
+        base += value - oldValue;
+        value = oldValue;
+    }
+}
 
 static bool quickSleepDelay = true;
 

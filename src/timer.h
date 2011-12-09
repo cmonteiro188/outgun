@@ -1,7 +1,7 @@
 /*
  *  timer.h
  *
- *  Copyright (C) 2006, 2010 - Niko Ritari
+ *  Copyright (C) 2006, 2010, 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -38,10 +38,10 @@ class TimeCounter { // usable only when g_systemTimer is, that is after platInit
 public:
     TimeCounter() throw () : value(0), base(0) { }
     void setZero() throw () { base = g_systemTimer->read(); value = 0; }
-    void refresh() throw () { value = g_systemTimer->read() - base; }
+    void refresh(double maxExpectedSkip = 10.) throw (); // maxExpectedSkip is the maximal time to expect between the last refresh and this one
     double read() const throw () { return value; }
 
-    void advanceArtificially(double seconds) throw () { base -= seconds; refresh(); }
+    void advanceArtificially(double seconds, double maxExpectedSkip = 10.) throw () { base -= seconds; refresh(seconds + maxExpectedSkip); }
 };
 
 extern TimeCounter g_timeCounter; // defined in globals.cpp
