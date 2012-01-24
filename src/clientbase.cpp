@@ -2,7 +2,7 @@
  *  clientbase.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1567,6 +1567,13 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         #ifndef DEDICATED_SERVER_ONLY
         addThreadMessage(new TM_Text(msg_warning, _("Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.")));
         #endif
+
+    break; case data_debug_highlight:
+        if (USE_DEBUG_HIGHLIGHT) {
+            const uint8_t pid = read.U8() & 0x1F;
+            fx.player[pid].debugHighlightFrame = fx.frame;
+            fx.player[pid].debugHighlightMask = read.U32();
+        }
 
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {

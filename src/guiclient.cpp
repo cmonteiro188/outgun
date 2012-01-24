@@ -2,7 +2,7 @@
  *  guiclient.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -2852,6 +2852,12 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                 }
                 continue_replay();
             }
+            if (USE_DEBUG_HIGHLIGHT && replay_rate > 1)
+                for (int i = 0; i < maxplayers; ++i)
+                    if (fx.player[i].debugHighlightFrame == fx.frame && (fx.player[i].debugHighlightMask & DH_Stop) && !fx.player[i].dead) {
+                        replay_rate = 1;
+                        replay_paused = true;
+                    }
         }
 
         // the rest is drawing
@@ -3901,6 +3907,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     const int alpha = calculatePlayerAlpha(pid);
     const int flagAlpha = fullyVisible ? 255 : alpha;
     const WorldCoords& pos = playerPos(pid);
+    const int32_t debugHighlights = USE_DEBUG_HIGHLIGHT && fx.player[pid].debugHighlightFrame == fx.frame ? fx.player[pid].debugHighlightMask : 0;
     // draw flag if player is carrier of a flag
     for (ConstFlagIterator fi(fx); fi; ++fi)
         if (fi->carrier() == pid) {
@@ -3908,7 +3915,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
             break;
         }
     if (!propertiesVisible) {
-        graphics.draw_player(pos, player.team(), player.color(), player.gundir, 0, false, alpha, time);
+        graphics.draw_player(pos, player.team(), player.color(), debugHighlights, player.gundir, 0, false, alpha, time);
         return;
     }
 
@@ -3919,7 +3926,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     }
 
     //draw player
-    graphics.draw_player(pos, player.team(), player.color(), player.gundir, player.hitfx, player.item_power, alpha, time);
+    graphics.draw_player(pos, player.team(), player.color(), debugHighlights, player.gundir, player.hitfx, player.item_power, alpha, time);
 
     //draw deathbringer carrier smoke effect
     if (player.item_deathbringer && time > player.next_smoke_effect_time) {

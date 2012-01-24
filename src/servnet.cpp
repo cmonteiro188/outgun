@@ -2,7 +2,7 @@
  *  servnet.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1816,6 +1816,14 @@ void ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw (Cl
     }
     break; case data_set_minimap_player_bandwidth:
         sender.minimapPlayersPerFrame = msg.U8();
+    break; case data_debug_highlight:
+        if (USE_DEBUG_HIGHLIGHT) {
+            BinaryBuffer<10> saved;
+            saved.U8(data_debug_highlight);
+            saved.U8(pid);
+            saved.U32(msg.U32());
+            record_message(saved);
+        }
     break; default:
         if (code < data_reserved_range_first || code > data_reserved_range_last) {
             log("Invalid message code: %i, length %i.", code, data.size());

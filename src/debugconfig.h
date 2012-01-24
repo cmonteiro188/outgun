@@ -1,7 +1,7 @@
 /*
  *  debugconfig.h
  *
- *  Copyright (C) 2004, 2008 - Niko Ritari
+ *  Copyright (C) 2004, 2008, 2012 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -50,6 +50,10 @@ static const bool WATCH_CONNECTION = false;
 
 // Briefly log message types when receiving (both client and server; LEETNET_DATA_LOG does the same much better but the logs aren't as easy to read).
 static const bool LOG_MESSAGE_TRAFFIC = false;
+
+// Allow players (in practice, bots) to highlight themselves in replays.
+enum DebugHighlightBits { DH_Stop = 1, DH_White = 2 }; // DH_stop pauses replay from fast forward; alone it is also DH_white
+static const bool USE_DEBUG_HIGHLIGHT = false;
 
 // What to report over the net in the event of an assertion.
 enum AutoBugReporting { ABR_disabled, ABR_minimal, ABR_withDump };

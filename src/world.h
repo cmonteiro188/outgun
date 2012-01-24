@@ -605,6 +605,8 @@ public:
     double prevMapPosUpdateFrame; // if fromMinimapUpdate, the last update before posUpdated
     RoomCoords prevMapUpdateRoom;
     int alpha;
+    double debugHighlightFrame;
+    uint32_t debugHighlightMask;
 
     // for bots:
     bool defending, defendingAfterDeath; // used for human players

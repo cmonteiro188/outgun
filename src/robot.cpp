@@ -2,7 +2,7 @@
  *  robot.cpp
  *
  *  Copyright (C) 2006, 2008 - Peter Kosyh
- *  Copyright (C) 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -1830,6 +1830,9 @@ ClientControls Robot::getRobotControls() throw () {
 ClientControls Robot::RobotMain() throw () {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
+    if (USE_DEBUG_HIGHLIGHT)
+        debugHighlightMask = 0;
+
     for (int p = 0; p < maxplayers; ++p)
         if (fx.player[p].dead)
             fx.player[p].defending = fx.player[p].defendingAfterDeath;
@@ -1912,6 +1915,12 @@ ClientControls Robot::RobotMain() throw () {
         msg.U8(data_fire_off);
         client->send_message(msg);
         botPrevFire = false;
+    }
+    if (USE_DEBUG_HIGHLIGHT && debugHighlightMask) {
+        BinaryBuffer<10> msg;
+        msg.U8(data_debug_highlight);
+        msg.U32(debugHighlightMask);
+        client->send_message(msg);
     }
 
     return ctrl;

@@ -943,6 +943,7 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     oldRoom = prevMapUpdateRoom = RoomCoords(0, 0);
     posUpdated = prevMapPosUpdateFrame = -1e10;
     fromMinimapUpdate = false;
+    debugHighlightFrame = -1;
 
     defending = defendingAfterDeath = false;
 

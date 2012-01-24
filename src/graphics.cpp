@@ -2,7 +2,7 @@
  *  graphics.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1239,7 +1239,7 @@ void Graphics::draw_neighbor_marker(bool flag, const WorldCoords& pos, int team,
 }
 
 //draws a basic player object
-void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) throw () {
+void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, uint32_t debugHighlightMask, GunDirection gundir, double hitfx, bool item_power, int alpha, double time) throw () {
     nAssert(colorId >= 0 && colorId <= MAX_PLAYERS / 2);
 
     if (alpha <= 0)
@@ -1274,6 +1274,11 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, GunDir
     ScaledCoordSet sc(pos, this);
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
+
+        if (USE_DEBUG_HIGHLIGHT && debugHighlightMask) {
+            if (debugHighlightMask & DH_White || debugHighlightMask == DH_Stop)
+                dcirclefill(drawbuf, x, y, pf_scale(PLAYER_RADIUS * 2), makecol(255, 255, 255));
+        }
 
         if (sprite) {
             if (alpha < 255)
@@ -2701,7 +2706,7 @@ void Graphics::draw_turbofx(double time) throw () {
             fx = cfx.erase(fx);
         else {
             const int alpha = static_cast<int>(fx->alpha * (90 - delta * 300));
-            draw_player(fx->pos, fx->col1, fx->col2, fx->gundir, time, false, alpha, time);
+            draw_player(fx->pos, fx->col1, fx->col2, 0, fx->gundir, time, false, alpha, time);
             ++fx;
         }
     }

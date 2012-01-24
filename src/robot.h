@@ -54,6 +54,7 @@ class Robot : public ClientBase, public BotInterface {
     int botId;
     double botReactedFrame;
     bool finished;
+    mutable uint32_t debugHighlightMask;
 
     AreaMap areaMap;
     typedef AreaMap::Area Area;

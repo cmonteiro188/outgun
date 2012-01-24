@@ -134,7 +134,7 @@ public:
 
     void draw_neighbor_marker(bool flag, const WorldCoords& pos, int team, bool old = false) throw ();
 
-    void draw_player(const WorldCoords& pos, int team, int colorId, GunDirection gundir, double hitfx, bool power, int alpha, double time) throw ();
+    void draw_player(const WorldCoords& pos, int team, int colorId, uint32_t debugHighlightMask, GunDirection gundir, double hitfx, bool power, int alpha, double time) throw ();
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false) throw ();
     void draw_player_dead(const ClientPlayer& player, double respawn_delay = 0.) throw ();
     void draw_me_highlight(const WorldCoords& pos, double size) throw ();
