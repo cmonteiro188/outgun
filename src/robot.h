@@ -1,7 +1,7 @@
 /*
  *  robot.h
  *
- *  Copyright (C) 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2012 - Niko Ritari
  *  Copyright (C) 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -139,6 +139,7 @@ class Robot : public ClientBase, public BotInterface {
     TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
     bool        IsHome(const Area* a, int team) const throw (); // is it base
     bool        IsHome(const Area* a) const throw (); // uses my team
+    bool        flagsInArea(const Area* a) const;
 
     bool        AmILast() const throw ();
     bool        IsMission() const throw (); // have i mission? (No agression mode)
@@ -154,11 +155,13 @@ class Robot : public ClientBase, public BotInterface {
     std::pair<bool, GunDirection> TryAimFreeTurning(int target) const throw (); // returns (shoot?, direction)
     double      GetHitTime(const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
     double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
+    bool        waitForFriend(const Area::Neighbor& destination) const;
 
     bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
     bool        IsBehindWall(const WorldCoords& startPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
     double      ScanDir(GunDirection dir) const throw (); // return length to wall (or room border) in dir
-    std::pair<double, Coords> WallHitPosition(GunDirection dir, double radius) const throw (); // return length to wall (or room border) in dir, and the hit position
+    std::pair<double, Coords> WallHitPosition(const WorldCoords& startPos, const Vec& dir, double radius) const throw (); // return distance (in multiples of dir) to wall (or room border) following dir, and the hit position
+    std::pair<double, Coords> WallHitPosition(GunDirection dir, double radius) const throw (); // return distance to wall (or room border) in dir, and the hit position
     std::pair<bool, GunDirection> NeedShootFreeTurning(const GunDirection& defaultDir) throw (); // to shoot or not to shoot, and the gunDir to aim at (defaultDir if there's no target)
     std::pair<bool, int> ShootAtDoorTradTurning() throw (); // to shoot or not to shoot, and the direction if shooting
     std::pair<bool, int> NeedShootTradTurning() throw ();   // to shoot or not to shoot, and the direction if shooting

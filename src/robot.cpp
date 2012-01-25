@@ -26,6 +26,7 @@
 //#define DEBUGSTRATEGY
 
 #include <iomanip>
+#include <map>
 #include <queue>
 #include <set>
 
@@ -69,6 +70,7 @@ BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& cl
 
 using std::list;
 using std::make_pair;
+using std::map;
 using std::max;
 using std::min;
 using std::pair;
@@ -160,17 +162,21 @@ double Robot::ScanDir(GunDirection dir) const throw () {
     return WallHitPosition(dir, PLAYER_RADIUS).first;
 }
 
+pair<double, Coords> Robot::WallHitPosition(const WorldCoords& startPos, const Vec& dir, double radius) const throw () {
+    double maxDist = 1e99;
+    if (dir.x != 0)
+        maxDist = min(maxDist, (dir.x > 0 ? S_W - startPos.x : -startPos.x) / dir.x);
+    if (dir.y != 0)
+        maxDist = min(maxDist, (dir.y > 0 ? S_H - startPos.y : -startPos.y) / dir.y);
+
+    const Room& room = fx.map[startPos.room];
+    const double dist = min(maxDist, room.genGetTimeTillWall(startPos.local(), dir, radius, maxDist).first);
+    return make_pair(dist, Coords(startPos.local() + dir * dist));
+}
+
 pair<double, Coords> Robot::WallHitPosition(GunDirection dir, double radius) const throw () {
     const double deg = dir.toRad();
-    const Vec d(cos(deg), sin(deg));
-    const Room& room = fx.map[myPos.room];
-    double maxDist = 1e99;
-    if (d.x != 0)
-        maxDist = min(maxDist, (d.x > 0 ? S_W - myPos.x : -myPos.x) / d.x);
-    if (d.y != 0)
-        maxDist = min(maxDist, (d.y > 0 ? S_H - myPos.y : -myPos.y) / d.y);
-    const double dist = min(maxDist, room.genGetTimeTillWall(myPos.local(), d, radius, maxDist).first);
-    return make_pair(dist, Coords(myPos.local() + d * dist));
+    return WallHitPosition(myPos, Vec(cos(deg), sin(deg)), radius);
 }
 
 pair<Robot::AimLevel, int> Robot::TryAimTradTurning(int target) const throw () {
@@ -1098,10 +1104,89 @@ ClientControls Robot::MoveToDestination() const throw () {
         }
     }
 
-    if (immediateDestination)
+    if (immediateDestination && !waitForFriend(*immediateDestination))
         return MoveToDoor(*immediateDestination);
     else
         return ClientControls();
+}
+
+bool Robot::flagsInArea(const Area* a) const {
+    for (int team = 0; team <= 2; ++team) {
+        const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
+        for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+            if (fi->carried() && fx.player[fi->carrier()].posUpdated < fx.frame - FADEOUT)
+                continue;
+            const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
+            if (area(pos) == a)
+                return true;
+        }
+    }
+    return false;
+}
+
+bool Robot::waitForFriend(const Area::Neighbor& destination) const {
+    if (fx.player[me].item_deathbringer) // with deathbringer we always want to go first
+        return false;
+
+    const TeamCounts tcHere = Teams(myArea(), true);
+    if (tcHere.enemies > tcHere.friends)
+        return false;
+
+    const TeamCounts tc = Teams(destination.area, false);
+    const int minEnemies = HaveFlag(me) ? 2 : 1; // with a flag, speed can be better than safety
+    if (tc.enemies < minEnemies || tc.friends)
+        return false;
+
+    /* In addition to the general conditions above, the following must be satisfied for some friend:
+     *  - they are headed for a door that leads to our target room
+     *  - they are significantly farther from the door than we are OR have a deathbringer
+     *  - there are no flags in the room they're in (else their movement is not a strong signal of their intentions)
+     */
+    map<const Area*, const Area::Neighbor*> watchedAreas; // areas that have doors to the target area and have no flags
+    for (vector<Area*>::const_iterator drni = destination.area->reverseNeighbors().begin(); drni != destination.area->reverseNeighbors().end(); ++drni) {
+        if (flagsInArea(*drni))
+            continue;
+        for (vector<Area::Neighbor>::const_iterator ni = (*drni)->neighbors().begin(); ni != (*drni)->neighbors().end(); ++ni)
+            if (ni->area == destination.area) {
+                watchedAreas[*drni] = &*ni;
+                break;
+            }
+    }
+    if (watchedAreas.empty())
+        return false;
+
+    for (int iPlayer = 0; iPlayer < maxplayers; ++iPlayer) {
+        const ClientPlayer& pl = fx.player[iPlayer];
+        if (!pl.used || !myTeam(pl) || pl.dead || iPlayer == me)
+            continue;
+        const map<const Area*, const Area::Neighbor*>::const_iterator wai = watchedAreas.find(area(pl));
+        if (wai == watchedAreas.end())
+            continue;
+        const Area::Neighbor& plDest = *wai->second;
+
+        const pair<double, Coords> hitPos = WallHitPosition(pl.pos, pl.vel, PLAYER_RADIUS);
+        Area::Neighbor::Direction plDir;
+        double doorWallCoord;
+        if      (hitPos.second.x <=       1) { plDir = Area::Neighbor::Left;  doorWallCoord = hitPos.second.y; }
+        else if (hitPos.second.x >= plw - 1) { plDir = Area::Neighbor::Right; doorWallCoord = hitPos.second.y; }
+        else if (hitPos.second.y <=       1) { plDir = Area::Neighbor::Up;    doorWallCoord = hitPos.second.x; }
+        else if (hitPos.second.y >= plh - 1) { plDir = Area::Neighbor::Down;  doorWallCoord = hitPos.second.x; }
+        else
+            continue;
+        if (plDir != plDest.direction)
+            continue;
+        bool hitDoor = false;
+        for (vector< pair<double, double> >::const_iterator di = plDest.doors.begin(); di != plDest.doors.end(); ++di)
+            if (doorWallCoord >= di->first && doorWallCoord <= di->second) {
+                hitDoor = true;
+                break;
+            }
+        if (!hitDoor)
+            continue;
+        if (pl.item_deathbringer || distanceFromDoor(plDest, predictPos(pl)) > distanceFromDoor(destination) + fx.physics.max_run_speed * 2) // we are willing to lead the friend by a constant number of frames; too low may lead to both players slowing down in turn
+            return true;
+    }
+    return false;
 }
 
 Coords Robot::nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) const throw (AlreadyInRoom) {
