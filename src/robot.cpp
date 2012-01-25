@@ -615,7 +615,7 @@ ClientControls Robot::EscapeExplosion() const throw () {
         }
     }
     if (bestRoom)
-        return MoveToDoor(*bestRoom);
+        return MoveToDoor(*bestRoom, MM_Run);
     else
         return ClientControls();
 }
@@ -630,7 +630,7 @@ ClientControls Robot::Aim(int i) const throw () {
     if (aim.first == AL_Full && aim.second == myGundir)
         return ClientControls();
     else if (aim.first == AL_None || aim.second != myGundir)
-        return MoveTo(d, PLAYER_RADIUS + PLAYER_RADIUS);
+        return MoveTo(d, PLAYER_RADIUS + PLAYER_RADIUS, MM_Run);
     nAssert(aim.first == AL_Near && aim.second == myGundir);
 
     // almost aimed
@@ -680,7 +680,17 @@ int Robot::FreeDir() const throw () {
     return mdir;
 }
 
-ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
+bool Robot::shouldRun(MoveMode mode) const throw () {
+    if (Teams(myArea(), false).enemies)
+        return true;
+    if (mode != MM_Normal)
+        return mode == MM_Run;
+    if (HaveFlag(me))
+        return true;
+    return fx.player[me].weapon < 2; //#todo: shield (need to know pup_shield_hits)
+}
+
+ClientControls Robot::MoveDirNoAggregate(int dir, MoveMode mode) const throw () {
     Vec sd(0, 0);
     int n = 0;
 
@@ -697,14 +707,16 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
     }
 
     if (!n)
-        return MoveDir(dir);
+        return MoveDir(dir, mode);
 
     if (!sd.x && !sd.y)
         dir = rand() % 8;
 
     sd /= n;
 
-    ClientControls ctrl = ClientControls().fromDirection(dir).setRun().setStrafe();
+    ClientControls ctrl = ClientControls().fromDirection(dir).setStrafe();
+    if (shouldRun(mode))
+        ctrl.setRun();
 
     switch (dir) {
         case 0:
@@ -749,21 +761,24 @@ ClientControls Robot::MoveDirNoAggregate(int dir) const throw () {
     return ctrl;
 }
 
-ClientControls Robot::MoveDir(int dir) const throw () {
-    return ClientControls().fromDirection(dir).setRun();
+ClientControls Robot::MoveDir(int dir, MoveMode mode) const throw () {
+    if (shouldRun(mode))
+        return ClientControls().fromDirection(dir).setRun();
+    else
+        return ClientControls().fromDirection(dir);
 }
 
 ClientControls Robot::FreeWalk() throw () {
     for (int tries = 0; tries < 20; ++tries) {
         if (freeWalkTarget.x >= 0 && !IsBehindWall(freeWalkTarget - myPos.local(), PLAYER_RADIUS, PLAYER_RADIUS) && mag(freeWalkTarget - myPos.local()) > 3 * PLAYER_RADIUS)
-            return MoveToNoAggregate(freeWalkTarget - myPos.local(), PLAYER_RADIUS);
+            return MoveToNoAggregate(freeWalkTarget - myPos.local(), PLAYER_RADIUS, MM_Walk);
         freeWalkTarget = Coords(rand() % S_W, rand() % S_H);
     }
     freeWalkTarget.x = -1;
-    return MoveDirNoAggregate(FreeDir());
+    return MoveDirNoAggregate(FreeDir(), MM_Walk);
 }
 
-ClientControls Robot::MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw () {
     const Coords target(myPos.local() + delta);
 
     int bestDir = -1;
@@ -786,22 +801,22 @@ ClientControls Robot::MoveIndirectlyTowards(const Vec& delta, double maxDistance
             bestDir = dir;
         }
     }
-    return MoveDir(bestDir != -1 ? bestDir : FreeDir());
+    return MoveDir(bestDir != -1 ? bestDir : FreeDir(), mode);
 }
 
-ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw () {
     if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
-        return MoveIndirectlyTowards(delta, maxDistanceFromTarget);
+        return MoveIndirectlyTowards(delta, maxDistanceFromTarget, mode);
     else
-        return MoveDirNoAggregate(GetDir(delta).to8way());
+        return MoveDirNoAggregate(GetDir(delta).to8way(), mode);
 }
 
 
-ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw () {
+ClientControls Robot::MoveTo(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw () {
     if (IsBehindWall(delta, PLAYER_RADIUS, maxDistanceFromTarget))
-        return MoveIndirectlyTowards(delta, maxDistanceFromTarget);
+        return MoveIndirectlyTowards(delta, maxDistanceFromTarget, mode);
     else
-        return MoveDir(GetDir(delta).to8way());
+        return MoveDir(GetDir(delta).to8way(), mode);
 }
 
 ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
@@ -815,7 +830,7 @@ ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
             if (dot(d, fx.player[me].vel) < 0 && d.mag2() > sqr(5 * PLAYER_RADIUS)) // don't bother if the powerup is behind
                 continue;
         }
-        return MoveTo(d, PLAYER_RADIUS + POWERUP_RADIUS);
+        return MoveTo(d, PLAYER_RADIUS + POWERUP_RADIUS, MM_Run);
     }
     return ClientControls();
 }
@@ -838,7 +853,7 @@ ClientControls Robot::captureOnFlag(bool carried) const throw () {
                 continue;
             if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team, FBT_Captureable)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
                 const Coords lPos = fi->carried() ? predictPos(fx.player[fi->carrier()]) : pos.local();
-                return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+                return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS, MM_Run);
             }
             if (!capture_away_from_base && carried)
                 for (int baseType = 0; baseType <= 1; ++baseType) {
@@ -851,7 +866,7 @@ ClientControls Robot::captureOnFlag(bool carried) const throw () {
                     const vector<WorldCoords>& bases = baseTeam == 2 ? fx.map.wild_flags : fx.map.tinfo[baseTeam].flags;
                     for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
                         if (area(*bi) == myArea())
-                            return MoveTo(bi->local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+                            return MoveTo(bi->local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS, MM_Run);
                 }
         }
     }
@@ -869,7 +884,7 @@ ClientControls Robot::pickUpFlag() const throw () {
             if (area(fi->position()) != myArea() || fi->carried())
                 continue;
             if (!(type == 0 && !carry_own_team_flag && IsFlagAtBase(*fi, team, FBT_Unmoved))) // try to pick up a flag or return own flag
-                return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS);
+                return MoveTo(fi->position().local() - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS, MM_Run);
         }
     }
 
@@ -945,7 +960,7 @@ ClientControls Robot::Escape() const throw () {
             if (dangerousExplosionInNeighbor(*ni))
                 return ClientControls(); // don't check other neighbors, because this is the one we'll tend to go to when the explosion is over (soon)
             else
-                return MoveToDoor(*ni);
+                return MoveToDoor(*ni, MM_Run);
         }
     }
     return ClientControls();
@@ -978,9 +993,9 @@ ClientControls Robot::FollowFlag() const throw () {
     if (target.mag() < 3 * PLAYER_RADIUS)
         return ClientControls().setStrafe(); // signal to caller 'do nothing' instead of 'don't care'
     if (!IsBehindWall(target, PLAYER_RADIUS, 0))
-        return MoveToNoAggregate(target, PLAYER_RADIUS);
+        return MoveToNoAggregate(target, PLAYER_RADIUS, target.mag() > 10 * PLAYER_RADIUS ? MM_Run : MM_Walk);
     else
-        return MoveToNoAggregate(d, PLAYER_RADIUS);
+        return MoveToNoAggregate(d, PLAYER_RADIUS, MM_Run);
 }
 
 void Robot::BuildMap() throw () {
@@ -1105,7 +1120,7 @@ ClientControls Robot::MoveToDestination() const throw () {
     }
 
     if (immediateDestination && !waitForFriend(*immediateDestination))
-        return MoveToDoor(*immediateDestination);
+        return MoveToDoor(*immediateDestination, MM_Normal);
     else
         return ClientControls();
 }
@@ -1241,14 +1256,15 @@ Coords Robot::nearestDoor(const Area::Neighbor& neighbor, const Coords& pos) con
         return Coords(freeTarget, fixedTarget);
 }
 
-ClientControls Robot::MoveToDoor(const Area::Neighbor& neighbor) const throw () {
+ClientControls Robot::MoveToDoor(const Area::Neighbor& neighbor, MoveMode mode) const throw () {
     const Area::Neighbor::Direction dir = neighbor.direction;
     try {
         const Coords door = nearestDoor(neighbor, myPos.local());
-        return MoveToNoAggregate(door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos.local(), 0);
+        return MoveToNoAggregate(door + PLAYER_RADIUS * Vec(xDelta(dir), yDelta(dir)) - myPos.local(), 0, mode);
     } catch (AlreadyInRoom) {
         ClientControls ctrl;
-        ctrl.setRun();
+        if (shouldRun(mode))
+            ctrl.setRun();
         switch (dir) {
         /*break;*/ case Area::Neighbor::Up:    return ctrl.setUp();
             break; case Area::Neighbor::Down:  return ctrl.setDown();

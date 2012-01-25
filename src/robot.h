@@ -179,12 +179,15 @@ class Robot : public ClientBase, public BotInterface {
     ClientControls GetFlag() const throw ();
     ClientControls FollowFlag() const throw ();
     ClientControls GetPowerup(bool onImportantMission) const throw ();
-    ClientControls MoveDirNoAggregate(int dir) const throw ();
-    ClientControls MoveTo(const Vec& delta, double maxDistanceFromTarget) const throw ();
-    ClientControls MoveToDoor(const Area::Neighbor& n) const throw ();
-    ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget) const throw ();
-    ClientControls MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget) const throw ();
-    ClientControls MoveDir(int dir) const throw ();
+
+    enum MoveMode { MM_Walk, MM_Normal, MM_Run }; // in normal mode, run if carrying or with enemies, or powerups don't need energy
+    bool shouldRun(MoveMode mode) const throw ();
+    ClientControls MoveDirNoAggregate(int dir, MoveMode mode) const throw ();
+    ClientControls MoveTo(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw ();
+    ClientControls MoveToDoor(const Area::Neighbor& n, MoveMode mode) const throw ();
+    ClientControls MoveToNoAggregate(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw ();
+    ClientControls MoveIndirectlyTowards(const Vec& delta, double maxDistanceFromTarget, MoveMode mode) const throw ();
+    ClientControls MoveDir(int dir, MoveMode mode) const throw ();
     ClientControls Escape() const throw ();
     ClientControls FreeWalk() throw ();
     ClientControls MoveToDestination() const throw ();
