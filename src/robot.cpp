@@ -1502,6 +1502,8 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             pos.room = pl.room();
             pos.local(Coords(predictPos(pl) + 5. * pl.vel));
             pos.normalize(fx.map);
+            if (pos.room == fx.player[me].room() && pl.posUpdated < fx.frame - 10)
+                pos = pl.pos;
         }
         else {
             if (IsFlagAtBase(*fi, team, FBT_SameArea) != (state == 0))
@@ -1670,7 +1672,7 @@ void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
         pl.setPosition(posGuess, timeGuess); // leaves no mark about the position being a guess, but that isn't terrible
     }
     else
-        pl.posUpdated = fx.frame - FADEOUT; // "forget" the position
+        pl.posUpdated = fx.frame - FADEOUT - 1; // "forget" the position; add -1 because comparisons have both < and <=
 }
 
 ClientControls Robot::getRobotControls() throw () {
