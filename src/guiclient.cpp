@@ -2968,8 +2968,7 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                         continue;
                     const ClientPlayer& pl = fx.player[fi->carrier()];
                     const WorldCoords& pos = playerPos(fi->carrier());
-                    nAssert(pos.room.x >= 0 && pos.room.y >= 0);
-                    if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h)
+                    if (!pl.used)
                         continue;
                     if (t < 2)
                         fx.teams[t].move_flag(f, pos);
@@ -3646,8 +3645,7 @@ void GuiClient::draw_map(const VisibilityMap& roomVis) throw () {
     if ((me >= 0 || replaying) && fx.frame >= 0)
         for (int i = 0; i < maxplayers; i++) {
             const ClientPlayer& pl = fx.player[i];
-            const WorldCoords& pos = playerPos(i);
-            if (!pl.used || pos.room.x >= fx.map.w || pos.room.y >= fx.map.h || pl.alpha <= 0)
+            if (!pl.used || pl.alpha <= 0)
                 continue;
             set_trans_mode(pl.alpha);
             for (ConstFlagIterator fi(fx); fi; ++fi)
@@ -3862,7 +3860,7 @@ GuiClient::VisibilityMap GuiClient::calculateVisibilities() throw () {
     }
     for (int i = 0; i < maxplayers; i++) {
         ClientPlayer& pl = fx.player[i];
-        if (pl.used && (!pl.dead && pl.posUpdated > fx.frame - max_time || i == me) && pl.room().x < fx.map.w && pl.room().y < fx.map.h) {
+        if (pl.used && (!pl.dead && pl.posUpdated > fx.frame - max_time || i == me)) {
             if (fx.frame > pl.posUpdated + start_fadeout && i != me)
                 pl.alpha = 255 - static_cast<int>((fx.frame - pl.posUpdated - start_fadeout) * 255 / (max_time - start_fadeout));
             else

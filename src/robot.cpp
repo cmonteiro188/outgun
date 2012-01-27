@@ -1306,7 +1306,7 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
         int nearEnemyDistance = myDistance, nearFriendDistance = myDistance;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h || player.posUpdated < fx.frame - FADEOUT)
+            if (!player.used || player.dead || i == me || player.posUpdated < fx.frame - FADEOUT)
                 continue;
             const int distance = area(player)->distance[Table_Def];
             if (myTeam(player))
@@ -1326,7 +1326,7 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     int nearNum = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
-        if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+        if (!player.used || !myTeam(player) || player.dead || i == me)
             continue;
         const int distance = area(player)->distance[Table_Def];
         if (distance < myDistance || distance == myDistance && moreDefensive(player))
@@ -1343,9 +1343,6 @@ bool Robot::EnemyHasUnseenFlags(bool wild) const throw () {
         if (!fi->carried())
             continue;
         const ClientPlayer& pl = fx.player[fi->carrier()];
-
-        if (!pl.used || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
-            return true;
         if (myTeam(pl))
             continue;
         if (pl.posUpdated < max(fx.frame - FADEOUT, fx.map[pl.room()].enemies_seen_frame))
@@ -1541,7 +1538,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (i == me || !pl.used || pl.team() != team || pl.dead || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+        if (i == me || !pl.used || pl.team() != team || pl.dead)
             continue;
 
         if (enemy) {
@@ -1592,7 +1589,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         WorldCoords pos;
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (pl.team() != carrierTeam || !pl.used || pl.pid == me || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+            if (pl.team() != carrierTeam || !pl.used || pl.pid == me)
                 continue;
             if (state == 3 && !pl.onscreen) { // check if the position is current enough
                 if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
@@ -1940,8 +1937,7 @@ ClientControls Robot::RobotMain() throw () {
         if (fx.player[p].dead)
             fx.player[p].defending = fx.player[p].defendingAfterDeath;
 
-    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
-                    fx.player[me].room().x >= fx.map.w || fx.player[me].room().y >= fx.map.h) {
+    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1) {
         myGundir = -1;
         freeWalkTarget.x = -1;
         if (botPrevFire) {
