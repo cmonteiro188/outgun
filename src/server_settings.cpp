@@ -2,7 +2,7 @@
  *  server_settings.cpp - implementation of Server::SettingManager
  *
  *  Copyright (C) 2008, 2009, 2011 - Niko Ritari
- *  Copyright (C) 2008, 2009 - Jani Rivinoja
+ *  Copyright (C) 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *

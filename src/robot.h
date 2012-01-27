@@ -1,7 +1,7 @@
 /*
  *  robot.h
  *
- *  Copyright (C) 2006, 2008, 2009, 2010, 2012 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *

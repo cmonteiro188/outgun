@@ -1,7 +1,7 @@
 /*
  *  colour_def.inc
  *
- *  Copyright (C) 2008, 2011 - Jani Rivinoja
+ *  Copyright (C) 2008, 2010, 2011 - Jani Rivinoja
  *  Copyright (C) 2011 - Niko Ritari
  *
  *  This file is part of Outgun.
