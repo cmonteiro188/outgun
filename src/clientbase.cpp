@@ -882,7 +882,7 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         for (vector<ClientPlayer>::iterator pi = fx.player.begin(); pi != fx.player.end(); ++pi)
             if (pi->posUpdated < fx.frame) {
                 pi->dead = true;
-                pi->setPosition(WorldCoords(0, 0, 0, 0), 1e-10);
+                pi->setPosition(WorldCoords(0, 0, 0, 0), -1e10);
             }
         const uint16_t crc = read.U16();
         const string mapname = read.str();
