@@ -1139,7 +1139,7 @@ bool Robot::flagsInArea(const Area* a) const {
     return false;
 }
 
-bool Robot::waitForFriend(const Area::Neighbor& destination) const {
+bool Robot::waitForFriend(const Area::Neighbor& destination) const throw () {
     if (fx.player[me].item_deathbringer) // with deathbringer we always want to go first
         return false;
 
