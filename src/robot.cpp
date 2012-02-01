@@ -1045,7 +1045,7 @@ void Robot::BuildDistanceTable(const vector<Area*>& startPoints, double respawnW
         const int nNeighbors = reverseDirection ? a->reverseNeighbors().size() : a->neighbors().size();
         for (int ni = 0; ni < nNeighbors; ++ni) {
             Area* const na = reverseDirection ? a->reverseNeighbors()[ni] : a->neighbors()[ni].area;
-            if (na->distance[num] != -1) // already labeled
+            if (na->distance[num] != unreachableDistance) // already labeled
                 continue;
             double dist = 1.;
             dist -= na->respawnValue[ myTeam()] * respawnWeight * .5;
@@ -1077,7 +1077,7 @@ ClientControls Robot::MoveToDestination() const throw () {
 
     const Area* const here = myArea();
 
-    if (here->distance[Table_Destination] == -1 || destination == here)
+    if (here->distance[Table_Destination] == unreachableDistance || destination == here)
         return ClientControls();
 
     int bestDistance = here->distance[Table_Destination];
@@ -1526,9 +1526,7 @@ void Robot::TargetNearestBase(int& m_distance, Area*& targetArea, int team) thro
     for (vector<WorldCoords>::const_iterator pi = tflags.begin(); pi != tflags.end(); ++pi) {
         Area* const a = area(*pi);
         distance = a->distance[Table_Main];
-        if (distance == -1)
-            continue;
-        if (distance < m_distance || m_distance == -1) {
+        if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
             destinationType = Dest_Base;
@@ -1554,10 +1552,8 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
 
         Area* const a = area(pl);
         const int distance = a->distance[Table_Main];
-        if (distance == -1)
-            continue;
 
-        if (distance < m_distance || m_distance == -1) {
+        if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
             destinationType = Dest_Team;
@@ -1617,13 +1613,11 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         if (state == 0 && team == myTeam() && !HaveFlag(me))
             a = chooseDefensePosition(a);
         int distance = a->distance[Table_Main];
-        if (distance == -1)
-            continue;
 
         if (state == 1 && team != 2 && distance <= roomToRoomBaseDistance * 3 / 2 && !carry_own_team_flag)
             distance = 0; // prioritize nearby dropped team flags over other targets if they can be returned
 
-        if (distance < m_distance || m_distance == -1) {
+        if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
             destinationType = Dest_Flag;
@@ -1638,7 +1632,7 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
         return base;
 
     BuildDistanceTable(base, 0., true, Table_Def);
-    int nearCarrierDist = INT_MAX, nearBaseDist = INT_MAX;
+    int nearCarrierDist = unreachableDistance, nearBaseDist = unreachableDistance;
     for (int iTeam = 0; iTeam <= 1; ++iTeam) {
         const vector<Flag>& flags = iTeam ? fx.teams[!myTeam()].flags() : fx.wild_flags;
         for (vector<Flag>::const_iterator cfi = flags.begin(); cfi != flags.end(); ++cfi) {
@@ -1647,16 +1641,11 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
             const ClientPlayer& c = fx.player[cfi->carrier()];
             if (!c.used || !myTeam(c))
                 continue;
-            const int dist = area(c)->distance[Table_Def];
-            if (dist < nearCarrierDist && dist >= 0)
-                nearCarrierDist = dist;
+            nearCarrierDist = min(nearCarrierDist, area(c)->distance[Table_Def]);
         }
         const vector<WorldCoords>& bases = iTeam ? fx.map.tinfo[!myTeam()].flags : fx.map.wild_flags;
-        for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi) {
-            const int dist = area(*bi)->distance[Table_Def];
-            if (dist < nearBaseDist && dist >= 0)
-                nearBaseDist = dist;
-        }
+        for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
+            nearBaseDist = min(nearBaseDist, area(*bi)->distance[Table_Def]);
     }
     if (nearCarrierDist >= nearBaseDist)
         return base;
@@ -1730,7 +1719,7 @@ void Robot::TargetNearest(int efb, int efd, int efce, int efcf,
                           int wfb, int wfd, int wfce, int wfcf,
                           int en,  int fr,
                           int eb,  int fb, int wb) throw () {
-    int m_distance = -1;
+    int m_distance = unreachableDistance;
     Area* targetArea = 0;
     const int t = myTeam();
     const int et = 1 - t;

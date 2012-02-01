@@ -210,7 +210,7 @@ ControlledPtr<AreaMap::RoomAreaMap> AreaMap::splitRoom(const Map& map, const Roo
 
 AreaMap::Area::Area(const RoomCoords& room_) throw () : room(room_) {
     for (int i = 0; i < Table_Max; i++)
-        distance[i] = -1;
+        distance[i] = unreachableDistance;
     for (int i = 0; i < 2; ++i)
         respawnFrequency[i] = respawnValue[i] = 0.;
 }
@@ -489,5 +489,5 @@ void AreaMap::initialize(const Map& sourceMap) throw () {
 
 void AreaMap::clearDistanceTable(DistanceTableId num) throw () {
     for (PointerVector<Area>::iterator ai = areas.begin(); ai != areas.end(); ++ai)
-        ai->distance[num] = -1;
+        ai->distance[num] = unreachableDistance;
 }

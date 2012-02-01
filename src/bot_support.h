@@ -36,6 +36,8 @@ enum DistanceTableId {
     Table_Max
 };
 
+static const int unreachableDistance = INT_MAX;
+
 class AreaMap {
     class RoomAreaMap;
     ControlledPtr<RoomAreaMap> splitRoom(const Map& map, const RoomCoords& room) throw ();
