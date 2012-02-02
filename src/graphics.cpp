@@ -1279,6 +1279,15 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, uint32
         if (USE_DEBUG_HIGHLIGHT && debugHighlightMask) {
             if (debugHighlightMask & DH_White || debugHighlightMask == DH_Stop)
                 dcirclefill(drawbuf, x, y, pf_scale(PLAYER_RADIUS * 2), makecol(255, 255, 255));
+            const int rectSize = pf_scale(PLAYER_RADIUS * 1.6);
+            if (debugHighlightMask & DH_Black)
+                rectfill(drawbuf, x - rectSize, y - rectSize, x - 1, y - 1, makecol(0, 0, 0));
+            if (debugHighlightMask & DH_Red)
+                rectfill(drawbuf, x - rectSize, y, x - 1, y + rectSize - 1, makecol(255, 0, 0));
+            if (debugHighlightMask & DH_Blue)
+                rectfill(drawbuf, x, y, x + rectSize - 1, y + rectSize - 1, makecol(0, 0, 255));
+            if (debugHighlightMask & DH_Green)
+                rectfill(drawbuf, x, y - rectSize, x + rectSize - 1, y - 1, makecol(0, 255, 0));
         }
 
         if (sprite) {

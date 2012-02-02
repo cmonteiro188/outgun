@@ -52,7 +52,7 @@ static const bool WATCH_CONNECTION = false;
 static const bool LOG_MESSAGE_TRAFFIC = false;
 
 // Allow players (in practice, bots) to highlight themselves in replays.
-enum DebugHighlightBits { DH_Stop = 1, DH_White = 2 }; // DH_stop pauses replay from fast forward; alone it is also DH_white
+enum DebugHighlightBits { DH_Stop = 1, DH_White = 2, DH_Black = 4, DH_Red = 8, DH_Blue = 0x10, DH_Green = 0x20 }; // DH_stop pauses replay from fast forward; alone it is also DH_white
 static const bool USE_DEBUG_HIGHLIGHT = false;
 
 // What to report over the net in the event of an assertion.
