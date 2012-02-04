@@ -1983,8 +1983,10 @@ ClientControls Robot::getRobotControls() throw () {
 ClientControls Robot::RobotMain() throw () {
     const bool hide_map = !map_ready || gameover_plaque != NEXTMAP_NONE || fx.skipped || me < 0 || me >= maxplayers;
 
-    if (USE_DEBUG_HIGHLIGHT)
+    if (USE_REPLAY_DEBUG_SIGNALS) {
         debugHighlightMask = 0;
+        debugText.clear();
+    }
 
     for (int p = 0; p < maxplayers; ++p)
         if (fx.player[p].dead)
@@ -2068,10 +2070,13 @@ ClientControls Robot::RobotMain() throw () {
         client->send_message(msg);
         botPrevFire = false;
     }
-    if (USE_DEBUG_HIGHLIGHT && debugHighlightMask) {
-        BinaryBuffer<10> msg;
-        msg.U8(data_debug_highlight);
+    if (USE_REPLAY_DEBUG_SIGNALS && (debugHighlightMask || !debugText.empty())) {
+        BinaryBuffer<256> msg;
+        msg.U8(data_replay_debug_signals);
         msg.U32(debugHighlightMask);
+        msg.U8(debugText.size());
+        for (vector<string>::const_iterator ti = debugText.begin(); ti != debugText.end(); ++ti)
+            msg.str(*ti);
         client->send_message(msg);
     }
 

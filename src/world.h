@@ -2,7 +2,7 @@
  *  world.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -591,6 +591,7 @@ private:
 class ClientPlayer : public PlayerBase {
 public:
     ClientPlayer() throw () { clear(false, 0, "", 0); }
+    ~ClientPlayer() throw () { }
 
     bool deathbringer_affected;
     double next_smoke_effect_time;
@@ -605,8 +606,10 @@ public:
     double prevMapPosUpdateFrame; // if fromMinimapUpdate, the last update before posUpdated
     RoomCoords prevMapUpdateRoom;
     int alpha;
-    double debugHighlightFrame;
+    // only used with USE_REPLAY_DEBUG_SIGNALS:
+    double debugSignalsFrame;
     uint32_t debugHighlightMask;
+    std::vector<std::string> debugText;
 
     // for bots:
     bool defending, defendingAfterDeath; // used for human players

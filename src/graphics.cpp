@@ -1276,8 +1276,8 @@ void Graphics::draw_player(const WorldCoords& pos, int team, int colorId, uint32
     while (sc.next()) {
         const int x = sc.x(), y = sc.y();
 
-        if (USE_DEBUG_HIGHLIGHT && debugHighlightMask) {
-            if (debugHighlightMask & DH_White || debugHighlightMask == DH_Stop)
+        if (USE_REPLAY_DEBUG_SIGNALS && debugHighlightMask) {
+            if (debugHighlightMask & DH_White)
                 dcirclefill(drawbuf, x, y, pf_scale(PLAYER_RADIUS * 2), makecol(255, 255, 255));
             const int rectSize = pf_scale(PLAYER_RADIUS * 1.6);
             if (debugHighlightMask & DH_Black)
@@ -1586,6 +1586,17 @@ void Graphics::draw_player_name(const string& name, const WorldCoords& pos, int 
                                  sc.x(),
                                  sc.y() - pf_scale(3 * PLAYER_RADIUS / 2) - text_height(font),
                                  c, teamdcol[team], -1);
+}
+
+void Graphics::draw_player_debug_text(const vector<string>& lines, const WorldCoords& pos, int team) throw () {
+    ScaledCoordSet sc(pos, this);
+    while (sc.next()) {
+        for (unsigned line = 0; line < lines.size(); ++line)
+            print_text_border_centre(lines[line],
+                                     sc.x(),
+                                     sc.y() - pf_scale(3 * PLAYER_RADIUS / 2) + line * text_height(font),
+                                     colour[Colour::name], teamdcol[team], -1);
+    }
 }
 
 void Graphics::draw_rocket(const Rocket& rocket, bool shadow, double time) throw () {

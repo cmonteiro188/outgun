@@ -2,7 +2,7 @@
  *  world.cpp
  *
  *  Copyright (C) 2002, 2004 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -943,7 +943,10 @@ void ClientPlayer::clear(bool enable, int _pid, const string& _name, int team_id
     oldRoom = prevMapUpdateRoom = RoomCoords(0, 0);
     posUpdated = prevMapPosUpdateFrame = -1e10;
     fromMinimapUpdate = false;
-    debugHighlightFrame = -1;
+    if (USE_REPLAY_DEBUG_SIGNALS) {
+        debugSignalsFrame = -1;
+        debugText.clear();
+    }
 
     defending = defendingAfterDeath = false;
 

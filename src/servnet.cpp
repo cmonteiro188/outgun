@@ -1816,12 +1816,13 @@ void ServerNetworking::processMessage(int pid, ConstDataBlockRef data) throw (Cl
     }
     break; case data_set_minimap_player_bandwidth:
         sender.minimapPlayersPerFrame = msg.U8();
-    break; case data_debug_highlight:
-        if (USE_DEBUG_HIGHLIGHT) {
-            BinaryBuffer<10> saved;
-            saved.U8(data_debug_highlight);
+    break; case data_replay_debug_signals:
+        if (USE_REPLAY_DEBUG_SIGNALS) {
+            BinaryBuffer<256> saved;
+            saved.U8(data_replay_debug_signals);
             saved.U8(pid);
-            saved.U32(msg.U32());
+            saved.block(msg.blockUpTo(254));
+            nAssert(!msg.hasMore());
             record_message(saved);
         }
     break; default:

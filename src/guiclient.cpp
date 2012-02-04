@@ -2855,9 +2855,9 @@ void GuiClient::loop(volatile bool* quitFlag, bool firstTimeSplash) throw () {
                 }
                 continue_replay();
             }
-            if (USE_DEBUG_HIGHLIGHT && replay_rate > 1)
+            if (USE_REPLAY_DEBUG_SIGNALS && replay_rate > 1)
                 for (int i = 0; i < maxplayers; ++i)
-                    if (fx.player[i].debugHighlightFrame == fx.frame && (fx.player[i].debugHighlightMask & DH_Stop) && !fx.player[i].dead) {
+                    if (fx.player[i].debugSignalsFrame == fx.frame && (fx.player[i].debugHighlightMask & DH_Stop) && !fx.player[i].dead) {
                         replay_rate = 1;
                         replay_paused = true;
                     }
@@ -3857,6 +3857,11 @@ void GuiClient::draw_playfield() throw () {
                 graphics.draw_player_name(fx.player[i].name, playerPos(i), i / TSIZE, i == me);
         }
 
+    if (USE_REPLAY_DEBUG_SIGNALS && replaying)
+        for (int i = 0; i < maxplayers; ++i)
+            if (!fx.player[i].dead && fx.player[i].debugSignalsFrame == fx.frame && player_on_screen(i))
+                graphics.draw_player_debug_text(fx.player[i].debugText, playerPos(i), i / TSIZE);
+
     graphics.endPlayfieldDraw();
 }
 
@@ -3925,7 +3930,7 @@ void GuiClient::draw_player(int pid, double time, bool live) throw () {
     const int alpha = calculatePlayerAlpha(pid);
     const int flagAlpha = fullyVisible ? 255 : alpha;
     const WorldCoords& pos = playerPos(pid);
-    const int32_t debugHighlights = USE_DEBUG_HIGHLIGHT && fx.player[pid].debugHighlightFrame == fx.frame ? fx.player[pid].debugHighlightMask : 0;
+    const int32_t debugHighlights = USE_REPLAY_DEBUG_SIGNALS && fx.player[pid].debugSignalsFrame == fx.frame ? fx.player[pid].debugHighlightMask : 0;
     // draw flag if player is carrier of a flag
     for (ConstFlagIterator fi(fx); fi; ++fi)
         if (fi->carrier() == pid) {

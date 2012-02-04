@@ -54,7 +54,9 @@ class Robot : public ClientBase, public BotInterface {
     int botId;
     double botReactedFrame;
     bool finished;
+    // only used with USE_REPLAY_DEBUG_SIGNALS:
     mutable uint32_t debugHighlightMask;
+    mutable std::vector<std::string> debugText;
 
     AreaMap areaMap;
     typedef AreaMap::Area Area;

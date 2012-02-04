@@ -2,7 +2,7 @@
  *  graphics.h
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -136,6 +136,7 @@ public:
 
     void draw_player(const WorldCoords& pos, int team, int colorId, uint32_t debugHighlightMask, GunDirection gundir, double hitfx, bool power, int alpha, double time) throw ();
     void draw_player_name(const std::string& name, const WorldCoords& pos, int team, bool highlight = false) throw ();
+    void draw_player_debug_text(const std::vector<std::string>& lines, const WorldCoords& pos, int team) throw ();
     void draw_player_dead(const ClientPlayer& player, double respawn_delay = 0.) throw ();
     void draw_me_highlight(const WorldCoords& pos, double size) throw ();
     void draw_aim(const Room& room, const WorldCoords& pos, GunDirection gundir, int aimDist, int team) throw ();

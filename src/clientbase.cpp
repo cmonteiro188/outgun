@@ -1569,11 +1569,15 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
         addThreadMessage(new TM_Text(msg_warning, _("Warning: This server has extensions enabled that give an advantage over you to players with a supporting Outgun client.")));
         #endif
 
-    break; case data_debug_highlight:
-        if (USE_DEBUG_HIGHLIGHT) {
+    break; case data_replay_debug_signals:
+        if (USE_REPLAY_DEBUG_SIGNALS) {
             const uint8_t pid = read.U8() & 0x1F;
-            fx.player[pid].debugHighlightFrame = fx.frame;
+            fx.player[pid].debugSignalsFrame = fx.frame;
             fx.player[pid].debugHighlightMask = read.U32();
+            fx.player[pid].debugText.clear();
+            const int nLines = read.U8();
+            for (int i = 0; i < nLines; ++i)
+                fx.player[pid].debugText.push_back(read.str());
         }
 
     break; default:
