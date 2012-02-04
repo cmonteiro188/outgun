@@ -29,6 +29,7 @@
 #include <map>
 #include <queue>
 #include <set>
+#include <sstream>
 
 #include "binaryaccess.h"
 #include "leetnet/client.h"
@@ -73,11 +74,14 @@ using std::make_pair;
 using std::map;
 using std::max;
 using std::min;
+using std::ostringstream;
 using std::pair;
 using std::set;
 using std::string;
 using std::priority_queue;
 using std::vector;
+
+const bool USE_ACTION_DEBUG_TEXT = USE_REPLAY_DEBUG_SIGNALS; // can be turned off (only) individually here
 
 const int S_W = plw;
 const int S_H = plh;
@@ -85,6 +89,8 @@ const int FADEOUT = 50;
 
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
+
+string Robot::toString(DestinationType dt) throw () { return string() + "-FBT?"[dt]; }
 
 int Robot::xDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Right) ? +1 : (dir == Area::Neighbor::Left) ? -1 : 0; }
 int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Down ) ? +1 : (dir == Area::Neighbor::Up  ) ? -1 : 0; }
@@ -1103,8 +1109,11 @@ ClientControls Robot::MoveToDestination() const throw () {
         }
     }
 
-    if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination)) // we keep the same destination and wait for the explosion to settle because it won't take long
+    if (oldDestinationFound && dangerousExplosionInNeighbor(*immediateDestination)) { // we keep the same destination and wait for the explosion to settle because it won't take long
+        if (USE_ACTION_DEBUG_TEXT)
+            debugText.push_back("wait exp");
         return ClientControls();
+    }
 
     if (!oldDestinationFound) {
         // select one of the good neighbors, weighted by inverse distance to the door: if distances are d, 2d, 4d, we get probabilities with ratios 4 : 2 : 1
@@ -1119,10 +1128,14 @@ ClientControls Robot::MoveToDestination() const throw () {
         }
     }
 
-    if (immediateDestination && !waitForFriend(*immediateDestination))
-        return MoveToDoor(*immediateDestination, MM_Normal);
-    else
+    if (!immediateDestination)
         return ClientControls();
+    if (waitForFriend(*immediateDestination)) {
+        if (USE_ACTION_DEBUG_TEXT)
+            debugText.push_back("sync");
+        return ClientControls();
+    }
+    return MoveToDoor(*immediateDestination, MM_Normal);
 }
 
 bool Robot::flagsInArea(const Area* a) const {
@@ -1886,6 +1899,8 @@ ClientControls Robot::getRobotControls() throw () {
             fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
             fprintf(stderr, "Escaping rocket.\n");
             #endif
+            if (USE_ACTION_DEBUG_TEXT)
+                actionDebugText = "Roc";
             return EscapeRocket(dangerousRocket);
         }
     }
@@ -1896,6 +1911,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Escaping explosion.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Exp";
         return ctrl;
     }
 
@@ -1905,6 +1922,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Targetting flag.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Flg";
         return ctrl;
     }
 
@@ -1927,6 +1946,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Targetting enemy.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Aim";
         return Aim(last_seen);
     }
 
@@ -1937,6 +1958,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Targetting powerup.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Pup";
         return ctrl;
     }
 
@@ -1946,6 +1969,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Escaping from room.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Esc";
         return ctrl;
     }
 
@@ -1955,6 +1980,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Going to %d,%d (target type %d).\n", destination->room.x, destination->room.y, destinationType);
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Go" + toString(destinationType) + '@' + itoa(myArea()->distance[Table_Destination] / 100);
         return ctrl;
     }
 
@@ -1964,6 +1991,8 @@ ClientControls Robot::getRobotControls() throw () {
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
         fprintf(stderr, "Following a carrier.\n");
         #endif
+        if (USE_ACTION_DEBUG_TEXT)
+            actionDebugText = "Car";
         return ctrl;
     }
 
@@ -1975,8 +2004,16 @@ ClientControls Robot::getRobotControls() throw () {
     if (destinationType == Dest_None)
         fprintf(stderr, "Nothing to do.\n");
     else
-        fprintf(stderr, "Nothing to do, already at target [type %d].\n", destinationType);
+        fprintf(stderr, "Nothing to do, already at target [type %d] or waiting for opportunity.\n", destinationType);
     #endif
+    if (USE_ACTION_DEBUG_TEXT) {
+        if (destinationType == Dest_None)
+            actionDebugText = "--";
+        else if (destination == myArea())
+            actionDebugText = "@" + toString(destinationType);
+        else
+            actionDebugText = "W" + toString(destinationType) + '@' + itoa(myArea()->distance[Table_Destination] / 100);
+    }
     return ctrl;
 }
 
@@ -1985,6 +2022,7 @@ ClientControls Robot::RobotMain() throw () {
 
     if (USE_REPLAY_DEBUG_SIGNALS) {
         debugHighlightMask = 0;
+        actionDebugText.clear();
         debugText.clear();
     }
 
@@ -2069,6 +2107,11 @@ ClientControls Robot::RobotMain() throw () {
         msg.U8(data_fire_off);
         client->send_message(msg);
         botPrevFire = false;
+    }
+    if (USE_ACTION_DEBUG_TEXT) {
+        ostringstream statusLine;
+        statusLine << actionDebugText << ' ' << (shoot ? 'F' : '-') << (ctrl.isRun() ? 'R' : '-') << (ctrl.isStrafe() ? 'S' : '-');
+        debugText.push_back(statusLine.str());
     }
     if (USE_REPLAY_DEBUG_SIGNALS && (debugHighlightMask || !debugText.empty())) {
         BinaryBuffer<256> msg;

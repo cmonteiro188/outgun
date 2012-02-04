@@ -56,6 +56,7 @@ class Robot : public ClientBase, public BotInterface {
     bool finished;
     // only used with USE_REPLAY_DEBUG_SIGNALS:
     mutable uint32_t debugHighlightMask;
+    mutable std::string actionDebugText;
     mutable std::vector<std::string> debugText;
 
     AreaMap areaMap;
@@ -123,6 +124,8 @@ class Robot : public ClientBase, public BotInterface {
 
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
+
+    static std::string toString(DestinationType dt) throw ();
 
     double      predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw ();
     const DeathbringerExplosion* explosionInRoom(const RoomCoords& room) const throw (); // returns the dangerous deathbringer-explosion in the room, if any
