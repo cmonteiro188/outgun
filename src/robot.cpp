@@ -1318,8 +1318,8 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     }
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int maxPlayers = flag.carried() ? GetPlayers(myTeam()) / 2
-                                          : GetPlayers(myTeam()) / nAllFlags;
+    const int maxPlayers = flag.carried() ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags
+                                          :  GetPlayers(myTeam())                  / nAllFlags;
     if (maxPlayers == 0)
         return true;
 
@@ -1329,9 +1329,12 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
         if (!player.used || !myTeam(player) || player.dead || i == me)
             continue;
         const int distance = area(player)->distance[Table_Def];
-        if (distance < myDistance || distance == myDistance && moreDefensive(player))
+        if (distance < myDistance || distance == myDistance && moreDefensive(player)) {
+            if (HaveFlag(i) && flag.carrier() != i)
+                continue; // a player carrying their own flag is defending it more than this flag, and more total defenders are called for
             if (++nearNum >= maxPlayers)
                 return true;
+        }
     }
     return false;
 }
