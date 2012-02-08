@@ -1,7 +1,7 @@
 /*
  *  robot.h
  *
- *  Copyright (C) 2006, 2008, 2009, 2010, 2012 - Niko Ritari
+ *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2006, 2008 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
@@ -156,7 +156,8 @@ class Robot : public ClientBase, public BotInterface {
     std::pair<bool, GunDirection> TryAimFreeTurning(int target) const throw (); // returns (shoot?, direction)
     double      GetHitTime(const GunDirection& dir, int iTarget) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit player iTarget assuming no walls ("big" if no hit)
     double      GetHitTeammateTime(const GunDirection& dir) const throw (); // approximate time until a rocket shot in dir from (mex,mey) would hit first teammate assuming no walls ("big" if no hit, including if friendly fire is off)
-    bool        waitForFriend(const Area::Neighbor& destination) const;
+    bool        waitForFriend(const Area::Neighbor& destination) const throw ();
+    Area*       chooseDefensePosition(Area* base) throw ();
 
     bool        IsBehindWall(const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();
     bool        IsBehindWall(const WorldCoords& startPos, const Vec& delta, double radius, double maxDistanceFromTarget) const throw ();

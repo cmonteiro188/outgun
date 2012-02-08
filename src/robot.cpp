@@ -1142,7 +1142,7 @@ bool Robot::flagsInArea(const Area* a) const {
     return false;
 }
 
-bool Robot::waitForFriend(const Area::Neighbor& destination) const {
+bool Robot::waitForFriend(const Area::Neighbor& destination) const throw () {
     if (fx.player[me].item_deathbringer) // with deathbringer we always want to go first
         return false;
 
@@ -1309,7 +1309,7 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
         int nearEnemyDistance = myDistance, nearFriendDistance = myDistance;
         for (int i = 0; i < maxplayers; ++i) {
             const ClientPlayer& player = fx.player[i];
-            if (!player.used || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h || player.posUpdated < fx.frame - FADEOUT)
+            if (!player.used || player.dead || i == me || player.posUpdated < fx.frame - FADEOUT)
                 continue;
             const int distance = area(player)->distance[Table_Def];
             if (myTeam(player))
@@ -1321,19 +1321,23 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     }
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int maxPlayers = GetPlayers(myTeam()) / (flag.carried() ? 2 : nAllFlags) - extraAttackers;
+    const int maxPlayers = flag.carried() ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags - extraAttackers
+                                          :  GetPlayers(myTeam())                  / nAllFlags - extraAttackers;
     if (maxPlayers == 0)
         return true;
 
     int nearNum = 0;
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& player = fx.player[i];
-        if (!player.used || !myTeam(player) || player.dead || i == me || player.room().x >= fx.map.w || player.room().y >= fx.map.h)
+        if (!player.used || !myTeam(player) || player.dead || i == me)
             continue;
         const int distance = area(player)->distance[Table_Def];
-        if (distance < myDistance || distance == myDistance && moreDefensive(player))
+        if (distance < myDistance || distance == myDistance && moreDefensive(player)) {
+            if (HaveFlag(i) && flag.carrier() != i)
+                continue; // a player carrying their own flag is defending it more than this flag, and more total defenders are called for
             if (++nearNum >= maxPlayers)
                 return true;
+        }
     }
     return false;
 }
@@ -1345,9 +1349,6 @@ bool Robot::EnemyHasUnseenFlags(bool wild) const throw () {
         if (!fi->carried())
             continue;
         const ClientPlayer& pl = fx.player[fi->carrier()];
-
-        if (!pl.used || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
-            return true;
         if (myTeam(pl))
             continue;
         if (pl.posUpdated < max(fx.frame - FADEOUT, fx.map[pl.room()].enemies_seen_frame))
@@ -1543,7 +1544,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
 
     for (int i = 0; i < maxplayers; ++i) {
         const ClientPlayer& pl = fx.player[i];
-        if (i == me || !pl.used || pl.team() != team || pl.dead || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+        if (i == me || !pl.used || pl.team() != team || pl.dead)
             continue;
 
         if (enemy) {
@@ -1594,7 +1595,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         WorldCoords pos;
         if (fi->carried()) {
             const ClientPlayer& pl = fx.player[fi->carrier()];
-            if (pl.team() != carrierTeam || !pl.used || pl.pid == me || pl.room().x >= fx.map.w || pl.room().y >= fx.map.h)
+            if (pl.team() != carrierTeam || !pl.used || pl.pid == me)
                 continue;
             if (state == 3 && !pl.onscreen) { // check if the position is current enough
                 if (fx.frame - pl.posUpdated > FADEOUT) // TODO fadeout
@@ -1614,7 +1615,9 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             pos = fi->position();
         }
 
-        Area* const a = area(pos);
+        Area* a = area(pos);
+        if (state == 0 && team == myTeam() && !HaveFlag(me))
+            a = chooseDefensePosition(a);
         int distance = a->distance[Table_Main];
         if (distance == -1)
             continue;
@@ -1628,6 +1631,64 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
             destinationType = Dest_Flag;
         }
     }
+}
+
+Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
+    // for dead-end bases, move defense up in large maps with carrier approaching
+
+    if (fx.map.w * fx.map.h < 6)
+        return base;
+
+    BuildDistanceTable(base, 0., true, Table_Def);
+    int nearCarrierDist = INT_MAX, nearBaseDist = INT_MAX;
+    for (int iTeam = 0; iTeam <= 1; ++iTeam) {
+        const vector<Flag>& flags = iTeam ? fx.teams[!myTeam()].flags() : fx.wild_flags;
+        for (vector<Flag>::const_iterator cfi = flags.begin(); cfi != flags.end(); ++cfi) {
+            if (!cfi->carried())
+                continue;
+            const ClientPlayer& c = fx.player[cfi->carrier()];
+            if (!c.used || !myTeam(c))
+                continue;
+            const int dist = area(c)->distance[Table_Def];
+            if (dist < nearCarrierDist && dist >= 0)
+                nearCarrierDist = dist;
+        }
+        const vector<WorldCoords>& bases = iTeam ? fx.map.tinfo[!myTeam()].flags : fx.map.wild_flags;
+        for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi) {
+            const int dist = area(*bi)->distance[Table_Def];
+            if (dist < nearBaseDist && dist >= 0)
+                nearBaseDist = dist;
+        }
+    }
+    if (nearCarrierDist >= nearBaseDist)
+        return base;
+
+    nAssert(nearCarrierDist % roomToRoomBaseDistance == 0);
+    nearCarrierDist /= roomToRoomBaseDistance;
+    const int maxMoves = min(nearCarrierDist, 7 - nearCarrierDist); // go further out the nearer they are, but not farther than them (max maxMoves = 3 for ncd = 3 or 4)
+
+    Area* a = base;
+    Area* previous = 0;
+    for (int moves = 0; moves < maxMoves; ++moves) {
+        if (Teams(a, false).enemies)
+            return previous && moves < nearCarrierDist - 1 ? previous : a;
+        Area* next = 0;
+        for (vector<Area::Neighbor>::const_iterator ni = a->neighbors().begin(); ni != a->neighbors().end(); ++ni) {
+            Area* const na = ni->area;
+            if (na == previous)
+                continue;
+            if (na->neighbors().empty() || na->neighbors().size() == 1 && na->neighbors()[0].area == a) // na is a dead-end itself and can be ignored
+                continue;
+            if (next) // multiple branches from a
+                return a;
+            next = na;
+        }
+        if (!next || next->distance[Table_Def] != (moves + 1) * roomToRoomBaseDistance) // can occur with one-way doors
+            return a; // we wouldn't have a way back from next
+        previous = a;
+        a = next;
+    }
+    return a;
 }
 
 void Robot::TargetFog() throw () {
@@ -1942,8 +2003,7 @@ ClientControls Robot::RobotMain() throw () {
         if (fx.player[p].dead)
             fx.player[p].defending = fx.player[p].defendingAfterDeath;
 
-    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1 ||
-                    fx.player[me].room().x >= fx.map.w || fx.player[me].room().y >= fx.map.h) {
+    if (hide_map || !fx.player[me].used || fx.player[me].dead || fx.player[me].team() != 0 && fx.player[me].team() != 1) {
         myGundir = -1;
         freeWalkTarget.x = -1;
         if (botPrevFire) {

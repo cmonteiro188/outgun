@@ -2,7 +2,7 @@
  *  menu.h
  *
  *  Copyright (C) 2004, 2006 - Niko Ritari
- *  Copyright (C) 2004, 2006 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
