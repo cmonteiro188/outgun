@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1029,7 +1029,9 @@ public:
     bool team_shield, team_turbo, team_shadow, team_power, team_weapon, team_health, team_deathbringer;
 
     void reset() throw ();
+    void setAllTeamPups(bool value) throw ();
 
+    bool getAllTeamPups() const throw ();
     Powerup::Pup_type choose_powerup_kind() const throw ();
     int getMinPups(const Map& map) const throw () { return pups_min_percentage ? pups_by_percent(pups_min, map) : pups_min; }
     int getMaxPups(const Map& map) const throw () { return pups_max_percentage ? pups_by_percent(pups_max, map) : pups_max; }

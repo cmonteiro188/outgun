@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2006, 2008, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2006, 2008, 2009, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2006, 2008, 2009, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -223,9 +223,11 @@ class Server : private NoCopying {
         bool trySetMaxplayers(int val) throw ();
         bool setForceIP(const std::string& val) throw ();
         void setRandomMaprot(int val) throw ();
+        void setAllTeamPups(int val) throw () { pupConfig.setAllTeamPups(val); }
         const std::string& getForceIP() const throw ();
         int getMaxplayers() const throw ();
         int getRandomMaprot() const throw ();
+        int getAllTeamPups() const throw () { return pupConfig.getAllTeamPups(); }
 
         void free() throw ();
         void build(bool reload) throw ();

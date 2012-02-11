@@ -2,7 +2,7 @@
  *  server_settings.cpp - implementation of Server::SettingManager
  *
  *  Copyright (C) 2008, 2009, 2011 - Niko Ritari
- *  Copyright (C) 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -140,6 +140,7 @@ void Server::SettingManager::build(bool reload) throw () {
     MFUN1<This,    bool, int> &tryMaxplayer        = *addFn(NMFUN1 ( this,    &   This::trySetMaxplayers      ));
     MFUN1<This,    void, int> &setRandomMaprot     = *addFn(NMFUN1 ( this,    &   This::setRandomMaprot       ));
     MFUN1<Network, void, CSR> &setRelayServer      = *addFn(NMFUN1 (&network, &Network::set_relay_server      ));
+    MFUN1<This,    void, int> &setAllTeamPups      = *addFn(NMFUN1 ( this,    &   This::setAllTeamPups        ));
 
     // getters that require changing of return type from const string& -> string
     STCSR0<         string>   &getForceIP          = *addFn(NSTCSR0(*addFn(NCMFUN0( this,    &   This::getForceIP            ))));
@@ -148,6 +149,7 @@ void Server::SettingManager::build(bool reload) throw () {
     CMFUN0<This,    int>      &getMaxplayers       = *addFn(NCMFUN0( this,    &   This::getMaxplayers         ));
     CMFUN0<This,    int>      &getRandomMaprot     = *addFn(NCMFUN0( this,    &   This::getRandomMaprot       ));
     CMFUN0<Network, string>   &getRelayServer      = *addFn(NCMFUN0(&network, &Network::get_relay_server      ));
+    CMFUN0<This,    int>      &getAllTeamPups      = *addFn(NCMFUN0( this,    &   This::getAllTeamPups        ));
 
     #undef FUN0
     #undef NFUN0
@@ -331,6 +333,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Int       ("pup_start_power",             &pupConfig.start_power, 0, 999));
     cat.add(new GS_Int       ("pup_start_weapon",            &pupConfig.start_weapon, 1, 9));
     cat.add(new GS_Boolean   ("pup_start_deathbringer",      &pupConfig.start_deathbringer));
+    cat.add(new GS_ForwardInt("team_pups",                   setAllTeamPups, getAllTeamPups, 0, 1));
     cat.add(new GS_Boolean   ("pup_team_shield",             &pupConfig.team_shield));
     cat.add(new GS_Boolean   ("pup_team_turbo",              &pupConfig.team_turbo));
     cat.add(new GS_Boolean   ("pup_team_shadow",             &pupConfig.team_shadow));
