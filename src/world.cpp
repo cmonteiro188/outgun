@@ -1561,13 +1561,7 @@ void PowerupSettings::reset() throw () {
     start_weapon = 1;
     start_deathbringer = false;
 
-    team_shield = false;
-    team_turbo = false;
-    team_shadow = false;
-    team_power = false;
-    team_weapon = false;
-    team_health = false;
-    team_deathbringer = false;
+    setAllTeamPups(false);
 }
 
 void PowerupSettings::setAllTeamPups(bool value) throw () {
