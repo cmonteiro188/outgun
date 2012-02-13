@@ -1500,11 +1500,7 @@ void Server::chat(int pid, const string& message) throw () {
         numAssert(pid >= 0, pid);
         //talk flood protection
         world.player[pid].talk_temp += world.player[pid].talk_hotness;
-        world.player[pid].talk_hotness += 1.0;
-        if (world.player[pid].talk_temp > 18.0)
-            world.player[pid].talk_temp = 18.0;
-        if (world.player[pid].talk_hotness > 6.0)
-            world.player[pid].talk_hotness = 6.0;
+        world.player[pid].talk_hotness = min(6., world.player[pid].talk_hotness + 1.);
         if (world.player[pid].talk_temp > 10.0) {
             world.player[pid].talk_temp = 18.0;
             network.send_too_much_talk(pid);
