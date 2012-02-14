@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -600,10 +600,12 @@ bool Server::server_next_map(int reason, const string& currmap_title_override) t
         }
         if (world.teams[0].score() == world.teams[1].score())
             draws++;
-        std::cout << "Games: " << wins[0] << '-' << draws << '-' << wins[1] << "; "
-                  << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": "
-                  << world.teams[0].score() << '-' << world.teams[1].score()
-                  << "; total: " << points[0] << '-' << points[1] << std::endl;
+        ostringstream ost;
+        ost << "Games: " << wins[0] << '-' << draws << '-' << wins[1] << "; "
+            << (currmap_title_override.empty() ? current_map().title : currmap_title_override) << ": "
+            << world.teams[0].score() << '-' << world.teams[1].score()
+            << "; total: " << points[0] << '-' << points[1];
+        std::cout << (utf8_mode ? latin1_to_utf8(ost.str()) : ost.str()) << std::endl;
     }
 
     vector<int> winners;
@@ -1500,11 +1502,7 @@ void Server::chat(int pid, const string& message) throw () {
         numAssert(pid >= 0, pid);
         //talk flood protection
         world.player[pid].talk_temp += world.player[pid].talk_hotness;
-        world.player[pid].talk_hotness += 3.0;
-        if (world.player[pid].talk_temp > 18.0)
-            world.player[pid].talk_temp = 18.0;
-        if (world.player[pid].talk_hotness > 6.0)
-            world.player[pid].talk_hotness = 6.0;
+        world.player[pid].talk_hotness = min(6., world.player[pid].talk_hotness + 1.);
         if (world.player[pid].talk_temp > 10.0) {
             world.player[pid].talk_temp = 18.0;
             network.send_too_much_talk(pid);

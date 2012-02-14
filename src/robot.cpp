@@ -1321,8 +1321,9 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
     }
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
-    const int maxPlayers = flag.carried() ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags - extraAttackers
-                                          :  GetPlayers(myTeam())                  / nAllFlags - extraAttackers;
+    const int maxPlayers = flag.carried() && myDistance <= roomToRoomBaseDistance
+            ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags - extraAttackers
+            :  GetPlayers(myTeam())                  / nAllFlags - extraAttackers;
     if (maxPlayers == 0)
         return true;
 
