@@ -2,7 +2,7 @@
  *  menu.h
  *
  *  Copyright (C) 2004, 2006 - Niko Ritari
- *  Copyright (C) 2004, 2006, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -186,6 +186,7 @@ public:
 
     void setTail(const std::string& text) throw () { tail = text; }
     void limitToCharacters(const std::string& chars) throw () { charset = chars; } // set to empty to accept all printable characters
+    void moveCursor(int pos) { cursor_pos = pos; }
 
     // inherited interface
     virtual bool needsNumberKeys() const throw () { return true; }
