@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -899,8 +899,9 @@ void ClientBase::process_message(ConstDataBlockRef data) throw (ServerDataError)
             addThreadMessage(new TM_MapChange(mapname, crc));
         #ifndef DEDICATED_SERVER_ONLY
         else { // The map is saved with the message
-            stringstream mapStream;
             const ConstDataBlockRef mapData = read.block(read.U32());
+            mapStream.str("");
+            mapStream.clear();
             mapStream.write(static_cast<const char*>(mapData.data()), mapData.size());
             if (!fx.map.parse_file(log, mapStream)) {
                 log("Problem with map data.");

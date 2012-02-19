@@ -2,7 +2,7 @@
  *  client_menus.cpp
  *
  *  Copyright (C) 2004, 2005, 2006, 2008, 2011 - Niko Ritari
- *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1064,4 +1064,19 @@ void Menu_help::addLine(const string& line) throw () {
     BasicComponentAdder add(menu);
     add(&text);
     menu.setSelection(oldSel);
+}
+
+Menu_saveMap::Menu_saveMap() throw () :
+    text    (_("File name"), "", 50),
+
+    menu    (_("Save map to a file"), false)
+{
+    BasicComponentAdder add(menu);
+    add(&text);
+}
+
+void Menu_saveMap::setup(const string& initialText, int cursorPos) throw () {
+    text.set(initialText);
+    if (cursorPos != -1)
+        text.moveCursor(cursorPos);
 }

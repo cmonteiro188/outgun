@@ -2,7 +2,7 @@
  *  client_menus.h
  *
  *  Copyright (C) 2004, 2005, 2006, 2008, 2011 - Niko Ritari
- *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2004, 2005, 2006, 2008, 2009, 2010, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -546,6 +546,16 @@ public:
     Menu menu;
 
     Menu_serverPassword() throw ();
+};
+
+class Menu_saveMap {
+public:
+    Textfield text;
+
+    Menu menu;
+
+    Menu_saveMap() throw ();
+    void setup(const std::string& initialText = std::string(), int cursorPos = -1) throw ();
 };
 
 #endif  // CLIENT_MENUS_H_INC

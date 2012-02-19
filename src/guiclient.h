@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -195,6 +195,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     Menu_serverPassword m_serverPassword;
     Menu_text m_serverInfo;
     Menu_text m_notResponding; // not to be put to openMenus
+    Menu_saveMap m_saveMap;
 
     Menu_language m_initialLanguage; // only for setting the language at startup
 
@@ -248,6 +249,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     unsigned replay_length;
     uint32_t replay_players_present;
     WorldCoords replayTopLeftRoom;
+    std::stringstream saveMapStream;
     double visible_rooms;
 
     Network::TCPSocket spectate_socket;
@@ -375,6 +377,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void MCF_startServer() throw ();
     void MCF_playServer() throw ();
     void MCF_stopServer() throw ();
+    void MCF_saveMap() throw ();
 
     int refreshLanguages(Menu_language& lang_menu) throw ();
     void acceptLanguage(const std::string& lang, bool restart_message) throw ();
@@ -495,6 +498,7 @@ class GuiClient : public ClientBase, public ClientInterface {
     void start_spectating(const std::string& host) throw ();
     void start_spectating(const Network::Address& address) throw ();
     void continue_spectating() throw ();
+    void save_replay_map() throw ();
 
     void read_replay_controls(ConstDataBlockRef data) throw (ServerDataError);
     static void read_replay_player_controls(BinaryDataBlockReader& read, ClientPlayer& player, bool preciseGundir) throw (BinaryReader::ReadError);

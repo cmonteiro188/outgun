@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -2443,6 +2443,9 @@ void GuiClient::handleKeypress(int sc, int ch, bool withControl, bool alt_sequen
                 client->send_message(msg);
             }
         }
+        break; case KEY_F10:
+            if (replaying)
+                save_replay_map();
         break; case KEY_F12:
             graphics.toggle_full_playfield();
         break; default:
@@ -3182,6 +3185,8 @@ void GuiClient::stop_replay() throw () {
     if (spectating)
         spectate_buffer.str("");
 
+    mapStream.str("");
+
     replaying = false;
     spectating = false;
     gameshow = false;
@@ -3282,6 +3287,21 @@ void GuiClient::continue_spectating() throw () {
         openMenus.close(&m_connectProgress.menu);
         spectate_buffer.write(buffer, result);
     }
+}
+
+void GuiClient::save_replay_map() throw () {
+    // Ensure that we save the right map even if another map is loaded
+    // in the background when the save dialog is open.
+    saveMapStream.str("");
+    saveMapStream.clear();
+    saveMapStream << mapStream.str();
+    if (saveMapStream.str().empty())
+        return;
+    string filename = wheregamedir + "maps/";
+    const int cursorPos = filename.length();
+    filename += ".txt";
+    m_saveMap.setup(filename, cursorPos);
+    showMenu(m_saveMap);
 }
 
 void GuiClient::stop() throw () {
@@ -4090,6 +4110,7 @@ void GuiClient::initMenus() throw () {
     m_dialog.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
     m_errors.accept                     .setHook(new MCB::N<Textarea,       &GuiClient::MCF_clearErrors            >(this));   // cancel not used
     m_serverInfo.accept                 .setHook(new MCB::N<Textarea,       &GuiClient::MCF_menuCloser             >(this));   // cancel not used
+    m_saveMap.menu                    .setOkHook(new MCB::N<Menu,           &GuiClient::MCF_saveMap                >(this));
 
     m_errors.menu.setCaption(_("Errors"));
 
@@ -4487,6 +4508,26 @@ void GuiClient::MCF_serverPasswordAccept() throw () {
 void GuiClient::MCF_clearErrors() throw () {
     openMenus.close(&m_errors.menu);
     m_errors.clear();
+}
+
+void GuiClient::MCF_saveMap() throw () {
+    const string& filename = m_saveMap.text();
+    if (file_exists(filename.c_str(), FA_ARCH | FA_DIREC | FA_HIDDEN | FA_RDONLY | FA_SYSTEM, 0)) {
+        m_dialog.clear();
+        m_dialog.addLine(_("A file with that name already exists."));
+        showMenu(m_dialog);
+    }
+    else {
+        ofstream out(filename.c_str());
+        out << saveMapStream.str();
+        if (out)
+            openMenus.close(&m_saveMap.menu);
+        else {
+            m_dialog.clear();
+            m_dialog.addLine(_("Could not save the file."));
+            showMenu(m_dialog);
+        }
+    }
 }
 
 void GuiClient::MCF_prepareServerMenu() throw () {
