@@ -914,6 +914,7 @@ void Menu_replays::reset() throw () {
 
 void Menu_replays::addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
     addHooksRecursively(items.root(), hook);
+    delete hook;
 }
 
 void Menu_replays::expandLatest() throw () {
