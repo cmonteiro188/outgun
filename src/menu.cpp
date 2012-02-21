@@ -1,7 +1,7 @@
 /*
  *  menu.cpp
  *
- *  Copyright (C) 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2004, 2006, 2012 - Niko Ritari
  *  Copyright (C) 2004, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1058,8 +1058,11 @@ bool TreeItem::removeDeep(const string& itemKey) throw () {
             childItems.erase(item);
             return true;
         }
-        else if (item->removeDeep(itemKey))
+        else if (item->removeDeep(itemKey)) {
+            if (!item->hasChildren())
+                childItems.erase(item);
             return true;
+        }
     return false;
 }
 
