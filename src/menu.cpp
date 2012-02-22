@@ -1025,6 +1025,18 @@ void TreeItem::clearSelection() throw () {
     selection = Sel_None;
 }
 
+void TreeItem::deepOpen() throw () {
+    open();
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); ++item)
+        item->deepOpen();
+}
+
+void TreeItem::deepClose() throw () {
+    close();
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); ++item)
+        item->deepClose();
+}
+
 void TreeItem::selectLast() throw () {
     clearSelection();
     if (childItems.empty() || !isOpen())
@@ -1192,6 +1204,7 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
         nAssert(selection < (int)childItems.size());
         return childItems[selection].handleKey(scan, chr);
     }
+    const bool withShift = ::key[KEY_LSHIFT] || ::key[KEY_RSHIFT];
     if (scan == KEY_ENTER || scan == KEY_ENTER_PAD || scan == KEY_SPACE) {
         if (isHooked())
             callHook(*this);
@@ -1202,11 +1215,17 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
         return true;
     }
     else if (scan == KEY_LEFT) {
-        close();
+        if (withShift)
+            deepClose();
+        else
+            close();
         return true;
     }
     else if (scan == KEY_RIGHT) {
-        open();
+        if (withShift)
+            deepOpen();
+        else
+            open();
         return true;
     }
     return false;

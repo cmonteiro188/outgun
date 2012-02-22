@@ -439,7 +439,9 @@ public:
     void setValue(const std::string& val) throw () { value_ = val; }
 
     void open() throw () { opened = true; }
+    void deepOpen() throw ();
     void close() throw () { opened = false; nAssert(selection < 0); }
+    void deepClose() throw ();
     void clearSelection() throw ();
     void selectFirst() throw () { clearSelection(); selection = Sel_Root; }
     void selectLast() throw ();
