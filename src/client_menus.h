@@ -488,8 +488,12 @@ public:
     void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
     void expandLatest() throw ();
 
+    bool hasExpanded() const throw () { return hasBeenExpanded; }
+
 private:
     void addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
+
+    bool hasBeenExpanded;
 };
 
 class Menu_main {

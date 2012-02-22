@@ -851,7 +851,9 @@ Menu_replays::Menu_replays() throw () :
     caption (_("Date - Server - Map")),
     items   (_("Replays")),
 
-    menu    (_("Replays"), false)
+    menu    (_("Replays"), false),
+
+    hasBeenExpanded(false)
 {
     reset();
 }
@@ -927,6 +929,7 @@ void Menu_replays::expandLatest() throw () {
         item->open();
         item = &item->children()[0];
     }
+    hasBeenExpanded = true;
 }
 
 void Menu_replays::addHooksRecursively(TreeItem& item, MenuHookable<TreeItem>::HookFunctionT* hook) throw () {
