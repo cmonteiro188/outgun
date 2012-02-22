@@ -2,7 +2,7 @@
  *  menu.cpp
  *
  *  Copyright (C) 2004, 2006, 2012 - Niko Ritari
- *  Copyright (C) 2004, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2004, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -1249,6 +1249,14 @@ void TextTree::next() throw () {
         root().selectLast();
 }
 
+void TextTree::first() throw () {
+    root().selectFirst();
+}
+
+void TextTree::last() throw () {
+    root().selectLast();
+}
+
 int TextTree::width() const throw () {
     return root().width();
 }
@@ -1267,7 +1275,7 @@ void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colo
     const int h0 = h;
     const int totalCount = root().deepCountOpenItems() + 1;
     const int selectedIndex = root().getSelectionIndex();
-    const int visible_lines = h / line_h();
+    visible_lines = h / line_h();
 
     if (start > totalCount - h / line_h())
         start = totalCount - h / line_h();
@@ -1323,6 +1331,26 @@ bool TextTree::handleKey(char scan, unsigned char chr) throw () {
     }
     else if (scan == KEY_DOWN) {
         next();
+        return true;
+    }
+    else if (scan == KEY_PGUP) {
+        for (int i = 0; i < visible_lines; i++)
+            previous();
+        start -= visible_lines;
+        return true;
+    }
+    else if (scan == KEY_PGDN) {
+        for (int i = 0; i < visible_lines; i++)
+            next();
+        start += visible_lines;
+        return true;
+    }
+    else if (scan == KEY_HOME) {
+        first();
+        return true;
+    }
+    else if (scan == KEY_END) {
+        last();
         return true;
     }
     else

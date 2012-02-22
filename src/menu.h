@@ -501,6 +501,8 @@ public:
 
     void previous() throw ();
     void next() throw ();
+    void first() throw ();
+    void last() throw ();
 
     // inherited interface
     int width() const throw ();
@@ -514,6 +516,7 @@ private:
 
     TreeItem rootItem;
     mutable int start;     // this may change in drawing
+    mutable int visible_lines; // this may change in drawing
 };
 
 // this template does the necessary wrapping of member function references to be given to Components as callbacks
