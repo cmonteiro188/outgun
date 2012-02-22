@@ -904,6 +904,10 @@ void Menu_replays::remove(const string& replayFile) throw () {
     items.root().removeDeep(replayFile);
 }
 
+void Menu_replays::sort() throw () {
+    items.root().deepSort();
+}
+
 void Menu_replays::reset() throw () {
     menu.clear_components();
     items.clear();

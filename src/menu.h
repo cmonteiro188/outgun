@@ -427,8 +427,8 @@ private:
 
 class TreeItem : public MenuHookable<TreeItem> {
 public:
-    TreeItem(const std::string& val = "") throw () : value_(val), opened(), selection(Sel_None) { }
-    TreeItem(const std::string& key_, const std::string& val) throw () : itemKey(key_), value_(val), opened(), selection(Sel_None) { }
+    TreeItem(const std::string& val = "") throw () : sorted(true), value_(val), opened(), selection(Sel_None) { }
+    TreeItem(const std::string& key_, const std::string& val) throw () : sorted(true), itemKey(key_), value_(val), opened(), selection(Sel_None) { }
     ~TreeItem() throw () { }
 
     typedef std::vector<TreeItem> Container;
@@ -445,13 +445,16 @@ public:
     bool selectPrev() throw ();
     bool selectNext() throw ();
 
-    void addChild(const TreeItem& child) throw () { childItems.push_back(child); }
+    void addChild(const TreeItem& child) throw ();
+
+    void deepSort() throw ();
 
     const std::string& key() const throw() { return itemKey; }
     const std::string& value() const throw() { return value_; }
 
     bool isOpen() const throw () { return opened && hasChildren(); }
     bool selected() const throw () { return selection == Sel_Root; }
+    bool containsSelected() const throw () { return selection != Sel_None; }
 
     bool hasChildren() const throw () { return !childItems.empty(); }
     const Container& children() const throw () { return childItems; }
@@ -473,6 +476,7 @@ public:
 
 private:
     Container childItems;
+    bool sorted;
     std::string itemKey;
     std::string value_;
     bool opened;
@@ -480,6 +484,8 @@ private:
     int selection; // one of the Sel_-constants, or >= 0 for indices to childItems
 
     void removeChild(Container::iterator child) throw ();
+
+    static bool sortComparison(const TreeItem& i1, const TreeItem& i2) throw ();
 };
 
 class TextTree : public Component {

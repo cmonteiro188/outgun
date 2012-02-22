@@ -4821,13 +4821,14 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
     delete replay_files;
     log("%lu replays found.", static_cast<long unsigned>(replays.size()));
 
-    sort(replays.begin(), replays.end());
     for (ReplayCache::const_iterator ri = cache.begin(); ri != cache.end(); ri++)
         if (!ri->second.confirmed)
             menu.replays.remove(ri->first);
 
+    sort(replays.begin(), replays.end());
     for (ReplayList::reverse_iterator ri = replays.rbegin(); ri != replays.rend(); ++ri) // const_reverse_iterator does not work in GCC 3.4.2
         menu.replays.add(ri->first, ri->second.description);
+    menu.replays.sort();
 
     typedef MenuCallback<GuiClient> MCB;
     menu.replays.addHooks(new MCB::A<TreeItem, &GuiClient::MCF_replay>(this));

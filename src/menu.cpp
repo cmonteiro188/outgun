@@ -1016,6 +1016,7 @@ void TreeItem::clear() throw () {
     if (selection != Sel_None)
         selection = Sel_Root;
     opened = false;
+    sorted = true;
 }
 
 void TreeItem::selectLast() throw () {
@@ -1064,6 +1065,27 @@ bool TreeItem::selectNext() throw () {
     }
     childItems[selection].selectFirst();
     return true;
+}
+
+void TreeItem::addChild(const TreeItem& child) throw () {
+    if (!childItems.empty() && !sortComparison(childItems.back(), child))
+        sorted = false;
+    childItems.push_back(child);
+}
+
+void TreeItem::deepSort() throw () {
+    if (!sorted) {
+        stable_sort(childItems.begin(), childItems.end(), sortComparison);
+        sorted = true;
+        if (selection >= 0) {
+            selection = 0;
+            for (Container::const_iterator item = childItems.begin(); !item->containsSelected(); ++item, ++selection)
+                { }
+            nAssert(selection < (int)childItems.size());
+        }
+    }
+    for (Container::iterator item = childItems.begin(); item != childItems.end(); ++item)
+        item->deepSort();
 }
 
 size_t TreeItem::deepCount() const throw () {
@@ -1195,6 +1217,10 @@ void TreeItem::removeChild(Container::iterator child) throw () {
             childItems[--selection].selectLast();
     }
     childItems.erase(child);
+}
+
+bool TreeItem::sortComparison(const TreeItem& i1, const TreeItem& i2) throw () {
+    return i1.key() > i2.key(); // reversed
 }
 
 

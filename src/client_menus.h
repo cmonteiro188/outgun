@@ -483,6 +483,7 @@ public:
 
     void add(const std::string& replayFile, const std::string& text) throw ();
     void remove(const std::string& replayFile) throw ();
+    void sort() throw ();
     void reset() throw ();
     void addHooks(MenuHookable<TreeItem>::HookFunctionT* hook) throw ();
     void expandLatest() throw ();
