@@ -4751,7 +4751,7 @@ GuiClient::ReplayCache GuiClient::loadReplayCache() const throw () {
         while (read.hasMore()) {
             const string fileName = read.str();
             const string infoString = read.str();
-            cache.insert(cache.end(), make_pair(fileName, ReplayDescriptor(infoString, true)));
+            cache.insert(cache.end(), make_pair(fileName, ReplayDescriptor(infoString)));
         }
         return cache;
     } catch (BinaryReader::ReadOutside) {
@@ -4769,8 +4769,6 @@ void GuiClient::saveReplayCache(const ReplayList& replays) const throw () {
     ExpandingBinaryBuffer write;
     write.U32(replayCacheVersionIdentifier);
     for (ReplayList::const_iterator ii = replays.begin(); ii != replays.end(); ++ii) {
-        if (!ii->second.final)
-            continue;
         write.str(ii->first);
         write.str(ii->second.description);
         out << write;
@@ -4813,7 +4811,7 @@ void GuiClient::MCF_prepareReplayMenu() throw () {
             text << name << ' ' << server_name << " - " << map_name;
             if (length > 0)
                 text << ' ' << length / 600 << ':' << setw(2) << setfill('0') << length / 10 % 60;
-            replays.push_back(make_pair(name, ReplayDescriptor(text.str(), length > 0)));
+            replays.push_back(make_pair(name, ReplayDescriptor(text.str())));
         } catch (BinaryReader::ReadOutside) {
             log("Replay file %s is invalid.", replay_file.c_str());
         }
