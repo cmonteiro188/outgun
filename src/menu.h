@@ -440,7 +440,8 @@ public:
 
     void open() throw () { opened = true; }
     void close() throw () { opened = false; nAssert(selection < 0); }
-    void selectFirst() throw () { selection = Sel_Root; }
+    void clearSelection() throw ();
+    void selectFirst() throw () { clearSelection(); selection = Sel_Root; }
     void selectLast() throw ();
     bool selectPrev() throw ();
     bool selectNext() throw ();

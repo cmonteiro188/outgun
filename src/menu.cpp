@@ -1019,7 +1019,14 @@ void TreeItem::clear() throw () {
     sorted = true;
 }
 
+void TreeItem::clearSelection() throw () {
+    if (selection >= 0)
+        childItems[selection].clearSelection();
+    selection = Sel_None;
+}
+
 void TreeItem::selectLast() throw () {
+    clearSelection();
     if (childItems.empty() || !isOpen())
         selection = Sel_Root;
     else {
