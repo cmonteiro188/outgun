@@ -1011,6 +1011,61 @@ bool Textobject::handleKey(char scan, unsigned char chr) throw () {
 }
 
 
+void TreeItem::clear() throw () {
+    childItems.clear();
+    if (selection != Sel_None)
+        selection = Sel_Root;
+    opened = false;
+}
+
+void TreeItem::selectLast() throw () {
+    if (childItems.empty() || !isOpen())
+        selection = Sel_Root;
+    else {
+        selection = childItems.size() - 1;
+        childItems.back().selectLast();
+    }
+}
+
+bool TreeItem::selectPrev() throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root) {
+        selection = Sel_None;
+        return false;
+    }
+    nAssert(selection < (int)childItems.size());
+    if (!childItems[selection].selectPrev()) {
+        if (selection == 0)
+            selection = Sel_Root;
+        else
+            childItems[--selection].selectLast();
+    }
+    return true;
+}
+
+bool TreeItem::selectNext() throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root) {
+        if (!isOpen()) {
+            selection = Sel_None;
+            return false;
+        }
+        selection = 0;
+    }
+    else {
+        nAssert(selection < (int)childItems.size());
+        if (childItems[selection].selectNext())
+            return true;
+        ++selection;
+    }
+    if (selection >= (int)childItems.size()) {
+        selection = Sel_None;
+        return false;
+    }
+    childItems[selection].selectFirst();
+    return true;
+}
+
 size_t TreeItem::deepCount() const throw () {
     size_t count = childItems.size();
     for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
@@ -1034,6 +1089,20 @@ size_t TreeItem::deepCountLowestLevelItems() const throw () {
     return count;
 }
 
+size_t TreeItem::getSelectionIndex() const throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root)
+        return 0;
+    nAssert(isOpen());
+    nAssert(selection < (int)childItems.size());
+
+    size_t count = 1; // root
+    Container::const_iterator item = childItems.begin();
+    for (int iChild = 0; iChild < selection; ++iChild, ++item)
+        count += 1 + item->deepCountOpenItems();
+    return count + item->getSelectionIndex();
+}
+
 const TreeItem* TreeItem::findDeep(const string& itemKey) const throw () {
     if (key() == itemKey)
         return this;
@@ -1055,36 +1124,15 @@ TreeItem* TreeItem::findDeep(const string& itemKey) throw () {
 bool TreeItem::removeDeep(const string& itemKey) throw () {
     for (Container::iterator item = childItems.begin(); item != childItems.end(); item++)
         if (item->key() == itemKey) {
-            childItems.erase(item);
+            removeChild(item);
             return true;
         }
         else if (item->removeDeep(itemKey)) {
             if (!item->hasChildren())
-                childItems.erase(item);
+                removeChild(item);
             return true;
         }
     return false;
-}
-
-TreeItem* TreeItem::getByOpenIndex(size_t index) throw () {
-    if (index == 0)
-        return this;
-    if (!isOpen())
-        return 0;
-    for (Container::iterator child = children().begin(); child != children().end(); child++) {
-        index--;
-        if (index == 0)
-            return &(*child);
-        size_t count = child->deepCountOpenItems();
-        if (count >= index) {
-            TreeItem* item = child->getByOpenIndex(index);
-            if (item)
-                return item;
-        }
-        else
-            index -= count;
-    }
-    return 0;
 }
 
 int TreeItem::width(int level) const throw () {
@@ -1106,12 +1154,14 @@ int TreeItem::height() const throw () {
 }
 
 bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
-    if (!selected()) {
-        if (isOpen() && hasChildren())
-            for (TreeItem::Container::iterator item = children().begin(); item != children().end(); item++)
-                if (item->handleKey(scan, chr))
-                    return true;
+    if (selection == Sel_None) {
+        nAssert(0);
         return false;
+    }
+    if (selection != Sel_Root) {
+        nAssert(isOpen());
+        nAssert(selection < (int)childItems.size());
+        return childItems[selection].handleKey(scan, chr);
     }
     if (scan == KEY_ENTER || scan == KEY_ENTER_PAD || scan == KEY_SPACE) {
         if (isHooked())
@@ -1133,24 +1183,37 @@ bool TreeItem::handleKey(char scan, unsigned char chr) throw () {
     return false;
 }
 
+void TreeItem::removeChild(Container::iterator child) throw () {
+    const int idx = child - childItems.begin();
+    nAssert(idx >= 0 && idx < (int)childItems.size());
+    if (selection > idx)
+        --selection;
+    else if (selection == idx) {
+        if (selection == 0)
+            selection = Sel_Root;
+        else
+            childItems[--selection].selectLast();
+    }
+    childItems.erase(child);
+}
+
 
 TextTree::TextTree(const string& caption_) throw () :
     Component(caption_),
-    selectedItem(0),
     start()
 {
     root().setValue(caption_);
-    selectItem(0);
+    root().selectFirst();
 }
 
 void TextTree::previous() throw () {
-    if (selectedIndex == 0)
-        return;
-    selectItem(selectedIndex - 1);
+    if (!root().selectPrev())
+        root().selectFirst();
 }
 
 void TextTree::next() throw () {
-    selectItem(selectedIndex + 1);
+    if (!root().selectNext())
+        root().selectLast();
 }
 
 int TextTree::width() const throw () {
@@ -1170,6 +1233,7 @@ void TextTree::draw(BITMAP* buffer, int x, int y, int h, bool active, const Colo
     const int y0 = y;
     const int h0 = h;
     const int totalCount = root().deepCountOpenItems() + 1;
+    const int selectedIndex = root().getSelectionIndex();
     const int visible_lines = h / line_h();
 
     if (start > totalCount - h / line_h())
@@ -1231,15 +1295,3 @@ bool TextTree::handleKey(char scan, unsigned char chr) throw () {
     else
         return root().handleKey(scan, chr);
 }
-
-void TextTree::selectItem(int index) throw () {
-    TreeItem* newItem = root().getByOpenIndex(index);
-    if (newItem) {
-        if (selectedItem)
-            selectedItem->deselect();
-        selectedIndex = index;
-        selectedItem = newItem;
-        selectedItem->select();
-    }
-}
-

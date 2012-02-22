@@ -1,7 +1,7 @@
 /*
  *  menu.h
  *
- *  Copyright (C) 2004, 2006 - Niko Ritari
+ *  Copyright (C) 2004, 2006, 2012 - Niko Ritari
  *  Copyright (C) 2004, 2006, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -427,21 +427,23 @@ private:
 
 class TreeItem : public MenuHookable<TreeItem> {
 public:
-    TreeItem(const std::string& val = "") throw () : value_(val), opened(), selected_() { }
-    TreeItem(const std::string& key_, const std::string& val) throw () : itemKey(key_), value_(val), opened(), selected_() { }
+    TreeItem(const std::string& val = "") throw () : value_(val), opened(), selection(Sel_None) { }
+    TreeItem(const std::string& key_, const std::string& val) throw () : itemKey(key_), value_(val), opened(), selection(Sel_None) { }
     ~TreeItem() throw () { }
 
     typedef std::vector<TreeItem> Container;
 
-    void clear() throw () { childItems.clear(); }
+    void clear() throw ();
 
     void setKey(const std::string& key_) throw () { itemKey = key_; }
     void setValue(const std::string& val) throw () { value_ = val; }
 
     void open() throw () { opened = true; }
-    void close() throw () { opened = false; }
-    void select() throw () { selected_ = true; }
-    void deselect() throw () { selected_ = false; }
+    void close() throw () { opened = false; nAssert(selection < 0); }
+    void selectFirst() throw () { selection = Sel_Root; }
+    void selectLast() throw ();
+    bool selectPrev() throw ();
+    bool selectNext() throw ();
 
     void addChild(const TreeItem& child) throw () { childItems.push_back(child); }
 
@@ -449,7 +451,7 @@ public:
     const std::string& value() const throw() { return value_; }
 
     bool isOpen() const throw () { return opened && hasChildren(); }
-    bool selected() const throw () { return selected_; }
+    bool selected() const throw () { return selection == Sel_Root; }
 
     bool hasChildren() const throw () { return !childItems.empty(); }
     const Container& children() const throw () { return childItems; }
@@ -458,12 +460,11 @@ public:
     std::size_t deepCount() const throw ();
     std::size_t deepCountOpenItems() const throw ();
     std::size_t deepCountLowestLevelItems() const throw ();
+    std::size_t getSelectionIndex() const throw (); // within the deep count of open items
 
     const TreeItem* findDeep(const std::string& itemKey) const throw ();
     TreeItem* findDeep(const std::string& itemKey) throw ();
     bool removeDeep(const std::string& itemKey) throw ();
-
-    TreeItem* getByOpenIndex(std::size_t index) throw ();
 
     int width(int level = 0) const throw ();
     int height() const throw ();
@@ -475,7 +476,10 @@ private:
     std::string itemKey;
     std::string value_;
     bool opened;
-    bool selected_;
+    static const int Sel_None = -2, Sel_Root = -1;
+    int selection; // one of the Sel_-constants, or >= 0 for indices to childItems
+
+    void removeChild(Container::iterator child) throw ();
 };
 
 class TextTree : public Component {
@@ -483,7 +487,7 @@ public:
     TextTree(const std::string& caption_ = "") throw ();
     ~TextTree() throw () { }
 
-    void clear() throw () { root().clear(); selectItem(0); }
+    void clear() throw () { root().clear(); }
 
     const TreeItem& root() const throw () { return rootItem; }
     TreeItem& root() throw () { return rootItem; }
@@ -499,13 +503,9 @@ public:
     bool handleKey(char scan, unsigned char chr) throw ();
 
 private:
-    void selectItem(int index) throw ();
-
     void drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, int y, int h, bool active, const Colour_manager& col) const throw ();
 
     TreeItem rootItem;
-    int selectedIndex;
-    TreeItem* selectedItem;
     mutable int start;     // this may change in drawing
 };
 
