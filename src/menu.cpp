@@ -1101,6 +1101,27 @@ bool TreeItem::selectNext() throw () {
     return true;
 }
 
+bool TreeItem::selectNextSameLevel() throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root) {
+        selection = Sel_None;
+        return false;
+    }
+    else {
+        nAssert(selection < (int)childItems.size());
+        if (childItems[selection].selectNextSameLevel())
+            return true;
+        ++selection;
+    }
+    if (selection >= (int)childItems.size()) {
+        selection = (int)childItems.size() - 1;
+        childItems[selection].selection = Sel_Root;
+        return true;
+    }
+    childItems[selection].selection = Sel_Root;
+    return true;
+}
+
 bool TreeItem::selectParent() throw () {
     nAssert(selection != Sel_None);
     if (selection == Sel_Root) {
@@ -1300,6 +1321,11 @@ void TextTree::next() throw () {
         root().selectLast();
 }
 
+void TextTree::nextSameLevel() throw () {
+    if (!root().selectNextSameLevel())
+        root().selectFirst();
+}
+
 void TextTree::first() throw () {
     root().selectFirst();
 }
@@ -1389,7 +1415,10 @@ bool TextTree::handleKey(char scan, unsigned char chr) throw () {
         return true;
     }
     else if (scan == KEY_DOWN) {
-        next();
+        if (key[KEY_ALT])
+            nextSameLevel();
+        else
+            next();
         return true;
     }
     else if (scan == KEY_PGUP) {

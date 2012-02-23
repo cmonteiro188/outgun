@@ -448,6 +448,7 @@ public:
     bool selectPrev() throw ();
     bool selectPrevSameLevel() throw ();
     bool selectNext() throw ();
+    bool selectNextSameLevel() throw ();
     bool selectParent() throw ();
 
     void addChild(const TreeItem& child) throw ();
@@ -506,6 +507,7 @@ public:
     void previous() throw ();
     void previousSameLevel() throw ();
     void next() throw ();
+    void nextSameLevel() throw ();
     void first() throw ();
     void last() throw ();
     void up() throw ();
