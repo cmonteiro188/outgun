@@ -1063,6 +1063,21 @@ bool TreeItem::selectPrev() throw () {
     return true;
 }
 
+bool TreeItem::selectPrevSameLevel() throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root) {
+        selection = Sel_None;
+        return false;
+    }
+    nAssert(selection < (int)childItems.size());
+    if (!childItems[selection].selectPrevSameLevel()) {
+        if (selection > 0)
+            --selection;
+        childItems[selection].selection = Sel_Root;
+    }
+    return true;
+}
+
 bool TreeItem::selectNext() throw () {
     nAssert(selection != Sel_None);
     if (selection == Sel_Root) {
@@ -1275,6 +1290,11 @@ void TextTree::previous() throw () {
         root().selectFirst();
 }
 
+void TextTree::previousSameLevel() throw () {
+    if (!root().selectPrevSameLevel())
+        root().selectFirst();
+}
+
 void TextTree::next() throw () {
     if (!root().selectNext())
         root().selectLast();
@@ -1362,7 +1382,10 @@ void TextTree::drawItem(const TreeItem& item, int level, BITMAP* buffer, int x, 
 
 bool TextTree::handleKey(char scan, unsigned char chr) throw () {
     if (scan == KEY_UP) {
-        previous();
+        if (key[KEY_ALT])
+            previousSameLevel();
+        else
+            previous();
         return true;
     }
     else if (scan == KEY_DOWN) {

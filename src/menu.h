@@ -446,6 +446,7 @@ public:
     void selectFirst() throw () { clearSelection(); selection = Sel_Root; }
     void selectLast() throw ();
     bool selectPrev() throw ();
+    bool selectPrevSameLevel() throw ();
     bool selectNext() throw ();
     bool selectParent() throw ();
 
@@ -503,6 +504,7 @@ public:
     TreeItem& root() throw () { return rootItem; }
 
     void previous() throw ();
+    void previousSameLevel() throw ();
     void next() throw ();
     void first() throw ();
     void last() throw ();
