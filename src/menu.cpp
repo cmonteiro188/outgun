@@ -1086,6 +1086,18 @@ bool TreeItem::selectNext() throw () {
     return true;
 }
 
+bool TreeItem::selectParent() throw () {
+    nAssert(selection != Sel_None);
+    if (selection == Sel_Root) {
+        selection = Sel_None;
+        return false;
+    }
+    nAssert(selection < (int)childItems.size());
+    if (!childItems[selection].selectParent())
+        selection = Sel_Root;
+    return true;
+}
+
 void TreeItem::addChild(const TreeItem& child) throw () {
     if (!childItems.empty() && !sortComparison(childItems.back(), child))
         sorted = false;
@@ -1276,6 +1288,11 @@ void TextTree::last() throw () {
     root().selectLast();
 }
 
+void TextTree::up() throw () {
+    if (!root().selectParent())
+        root().selectFirst();
+}
+
 int TextTree::width() const throw () {
     return root().width();
 }
@@ -1370,6 +1387,10 @@ bool TextTree::handleKey(char scan, unsigned char chr) throw () {
     }
     else if (scan == KEY_END) {
         last();
+        return true;
+    }
+    else if (scan == KEY_BACKSPACE) {
+        up();
         return true;
     }
     else

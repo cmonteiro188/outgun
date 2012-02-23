@@ -447,6 +447,7 @@ public:
     void selectLast() throw ();
     bool selectPrev() throw ();
     bool selectNext() throw ();
+    bool selectParent() throw ();
 
     void addChild(const TreeItem& child) throw ();
 
@@ -505,6 +506,7 @@ public:
     void next() throw ();
     void first() throw ();
     void last() throw ();
+    void up() throw ();
 
     // inherited interface
     int width() const throw ();
