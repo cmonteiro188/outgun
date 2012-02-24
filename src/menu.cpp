@@ -1107,18 +1107,12 @@ bool TreeItem::selectNextSameLevel() throw () {
         selection = Sel_None;
         return false;
     }
-    else {
-        nAssert(selection < (int)childItems.size());
-        if (childItems[selection].selectNextSameLevel())
-            return true;
-        ++selection;
-    }
-    if (selection >= (int)childItems.size()) {
-        selection = (int)childItems.size() - 1;
+    nAssert(selection < (int)childItems.size());
+    if (!childItems[selection].selectNextSameLevel()) {
+        if (selection < (int)childItems.size() - 1)
+            ++selection;
         childItems[selection].selection = Sel_Root;
-        return true;
     }
-    childItems[selection].selection = Sel_Root;
     return true;
 }
 
