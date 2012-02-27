@@ -40,12 +40,30 @@ class Robot : public ClientBase, public BotInterface {
     ClientLocalConnection* connectionWrapper; // given to ClientBase to replace leetnet client
     bool connectQueued;
 
-    enum DestinationType {
-        Dest_None,
-        Dest_Flag,
-        Dest_Base,
-        Dest_Team,
-        Dest_Fog
+    class DestinationType {
+        enum Type { None, Flag, Base, Player, Fog };
+        Type type;
+        int team, carrierTeam;
+
+    public:
+        DestinationType() throw () : type(None) { }
+
+        void clear() throw () { type = None; }
+        void setFlag(int team_, int carrierTeam_) throw () { type = Flag; team = team_; carrierTeam = carrierTeam_; }
+        void setBase(int team_) throw () { type = Base; team = team_; }
+        void setPlayer(int team_) throw () { type = Player; team = team_; }
+        void setFog() throw () { type = Fog; }
+
+        bool operator!() const throw () { return type == None; }
+        bool isFlag()    const throw () { return type == Flag; }
+        bool isBase()    const throw () { return type == Base; }
+        bool isPlayer()  const throw () { return type == Player; }
+        bool isFog()     const throw () { return type == Fog; }
+
+        int getTeam() const throw () { nAssert(type == Flag || type == Base || type == Player); return team; }
+        int getCarrierTeam() const throw () { nAssert(type == Flag); return carrierTeam; }
+
+        std::string toString() const throw ();
     };
 
     BotSharedDataHandle sharedDataHandle;
@@ -124,8 +142,6 @@ class Robot : public ClientBase, public BotInterface {
 
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
-
-    static std::string toString(DestinationType dt) throw ();
 
     double      predictDistanceFromRocket(Rocket rocket, const ClientControls& ctrl) const throw ();
     const DeathbringerExplosion* explosionInRoom(const RoomCoords& room) const throw (); // returns the dangerous deathbringer-explosion in the room, if any

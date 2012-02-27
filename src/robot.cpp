@@ -90,7 +90,29 @@ const int FADEOUT = 50;
 inline GunDirection inv_dir(GunDirection dir) throw () { return dir.adjust(4); }
 inline int inv_dir(int dir) throw () { return dir ^ 4; }
 
-string Robot::toString(DestinationType dt) throw () { return string() + "-FBT?"[dt]; }
+string Robot::DestinationType::toString() const throw () {
+    switch (type) {
+        break; case None: return "-";
+        break; case Fog:  return "?";
+        break; case Flag: case Base: case Player: {
+            string result;
+            nAssert(team >= 0 && team <= 2);
+            result += "RBG"[team];
+            if (type == Flag) {
+                result += 'F';
+                nAssert(carrierTeam >= -1 && carrierTeam <= 1);
+                if (carrierTeam != -1) {
+                    result += 'o'; // for 'on'
+                    result += "RB"[carrierTeam];
+                }
+            }
+            else
+                result += type == Base ? 'B' : 'P';
+            return result;
+        }
+        break; default: nAssert(0); return string();
+    }
+}
 
 int Robot::xDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Right) ? +1 : (dir == Area::Neighbor::Left) ? -1 : 0; }
 int Robot::yDelta(Area::Neighbor::Direction dir) throw () { return (dir == Area::Neighbor::Down ) ? +1 : (dir == Area::Neighbor::Up  ) ? -1 : 0; }
@@ -1018,7 +1040,7 @@ void Robot::BuildMap() throw () {
     for (int i = 0; i < Table_Max; i++)
         distanceTable[i].center = 0;
 
-    destinationType = Dest_None;
+    destinationType.clear();
     destination = 0;
     immediateDestination = 0;
     freeWalkTarget.x = -1;
@@ -1078,7 +1100,7 @@ void Robot::setDestination(Area* const target) throw () {
 }
 
 ClientControls Robot::MoveToDestination() const throw () {
-    if (destinationType == Dest_None)
+    if (!destinationType)
         return ClientControls();
 
     const Area* const here = myArea();
@@ -1370,7 +1392,7 @@ bool Robot::EnemyHasUnseenFlags(bool wild) const throw () {
 
 void Robot::ChooseDestination() throw () { // NEED rewrite
     const int flag = HaveFlag(me);
-    destinationType = Dest_None;
+    destinationType.clear();
 
     if (!flag) {
         const bool sef = !lock_team_flags_in_effect; // try to steal enemy flags?
@@ -1382,7 +1404,7 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
                       swf, swf,   1,   1,
                         0,   0,
                       deb,   0,   0); // any flag that makes sense, or enemy base if they have an unseen flag
-        if (destinationType == Dest_None) {
+        if (!destinationType) {
             for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
                 for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
                     *fii = false;
@@ -1403,16 +1425,16 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
                             0,   0,
                           sef,   0, swf); // any flag that makes sense (with ignores relaxed), or an empty base (hopefully getting its flag returned when captured soon)
         }
-        if (destinationType == Dest_None) {
+        if (!destinationType) {
             TargetNearest(  0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,   0,   0,
                             1,   0,
                             0,   0,   0);  // if nothing else, target an enemy
         }
-        if (destinationType == Dest_None)
+        if (!destinationType)
             TargetFog();
-        else if (destinationType == Dest_Base) {
+        else if (destinationType.isBase()) {
             const TeamCounts tc = Teams(destination, true);
             if (tc.friends > tc.enemies) { // if we are going to base where is already our forces, forget it
                 if (destination != myArea() || tc.enemies == 0 && AmILast())
@@ -1445,14 +1467,14 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
                             0,    0,
                             0,    0,   0); // available capture point, or dropped own team flag
         }
-        if (destinationType == Dest_None) {
+        if (!destinationType) {
             TargetNearest(  0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,
                             0, ctf,   0);  // ok, to capture point, even if unavailable
         }
-        if (destinationType == Dest_None) {
+        if (!destinationType) {
             TargetNearest(  0,   0,   0,   0,
                             0,   0,   0,   0,
                             0,   0,   0,   0,
@@ -1540,7 +1562,7 @@ void Robot::TargetNearestBase(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Dest_Base;
+            destinationType.setBase(team);
         }
     }
 }
@@ -1567,7 +1589,7 @@ void Robot::TargetNearestTeam(int& m_distance, Area*& targetArea, int team) thro
         if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Dest_Team;
+            destinationType.setPlayer(team);
         }
     }
 }
@@ -1631,7 +1653,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
         if (distance < m_distance) {
             m_distance = distance;
             targetArea = a;
-            destinationType = Dest_Flag;
+            destinationType.setFlag(team, wantCarried ? carrierTeam : -1);
         }
     }
 }
@@ -1695,7 +1717,7 @@ void Robot::TargetFog() throw () {
     Area* target = 0;
     for (vector<Area::Neighbor>::const_iterator ni = here->neighbors().begin(); ni != here->neighbors().end(); ++ni) {
         Area* const na = ni->area;
-        if (destinationType == Dest_Base && na->distance[Table_Destination] > 3 * roomToRoomBaseDistance)
+        if (destinationType.isBase() && na->distance[Table_Destination] > 3 * roomToRoomBaseDistance)
             continue;
         const TeamCounts tc = Teams(na, false);
         if (tc.friends && !tc.enemies) // our sector
@@ -1709,7 +1731,7 @@ void Robot::TargetFog() throw () {
     if (!target)
         return;
 
-    destinationType = Dest_Fog;
+    destinationType.setFog();
     setDestination(target);
 }
 
@@ -1737,7 +1759,7 @@ void Robot::TargetNearest(int efb, int efd, int efce, int efcf,
 
     BuildDistanceTable(myArea(), myRespawnWeight(), false, Table_Main);
 
-    destinationType = Dest_None;
+    destinationType.clear();
 
     if (efb)  TargetNearestFlag(m_distance, targetArea, et, 0);
     if (efd)  TargetNearestFlag(m_distance, targetArea, et, 1);
@@ -1759,16 +1781,16 @@ void Robot::TargetNearest(int efb, int efd, int efce, int efcf,
 
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    fprintf(stderr, "TargetNearest(%d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %d\n",
+    fprintf(stderr, "TargetNearest(%d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d, %d, %d,   %d, %d,   %d, %d, %d) -> %s\n",
             efb, efd, efce, efcf,
             mfb, mfd, mfce, mfcf,
             wfb, wfd, wfce, wfcf,
             en,  fr,
             eb,  fb, wb,
-            destinationType);
+            destinationType.toString().c_str());
     #endif
 
-    if (destinationType == Dest_None) // nothing todo
+    if (!destinationType) // nothing todo
         return;
 
     nAssert(targetArea);
@@ -1781,7 +1803,7 @@ bool Robot::IsMission() const throw () {
     // if we are looking for flag or going to our base for something
     if (destination == myArea())
         return false;
-    return HaveFlag(me) || destinationType == Dest_Flag || to_home || !to_home && destinationType == Dest_Base;
+    return HaveFlag(me) || destinationType.isFlag() || to_home || !to_home && destinationType.isBase();
 }
 
 void Robot::updateUnknownPosition(ClientPlayer& pl) throw () {
@@ -1976,10 +1998,10 @@ ClientControls Robot::getRobotControls() throw () {
     if (!ctrl.idle()) {
         #ifdef DEBUGSTRATEGY
         fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-        fprintf(stderr, "Going to %d,%d (target type %d).\n", destination->room.x, destination->room.y, destinationType);
+        fprintf(stderr, "Going to %d,%d (target type %s).\n", destination->room.x, destination->room.y, destinationType.toString().c_str());
         #endif
         if (USE_ACTION_DEBUG_TEXT)
-            actionDebugText = "Go" + toString(destinationType) + '@' + itoa(myArea()->distance[Table_Destination] / 100);
+            actionDebugText = "Go" + destinationType.toString() + '@' + itoa(myArea()->distance[Table_Destination] / 100);
         return ctrl;
     }
 
@@ -1999,18 +2021,18 @@ ClientControls Robot::getRobotControls() throw () {
         ctrl.clearRun();
     #ifdef DEBUGSTRATEGY
     fprintf(stderr, "%d %s: ", static_cast<int>(fx.frame / 10) - map_start_time, fx.player[me].name.c_str());
-    if (destinationType == Dest_None)
+    if (!destinationType)
         fprintf(stderr, "Nothing to do.\n");
     else
-        fprintf(stderr, "Nothing to do, already at target [type %d] or waiting for opportunity.\n", destinationType);
+        fprintf(stderr, "Nothing to do, already at target [type %s] or waiting for opportunity.\n", destinationType.toString().c_str());
     #endif
     if (USE_ACTION_DEBUG_TEXT) {
-        if (destinationType == Dest_None)
+        if (!destinationType)
             actionDebugText = "--";
         else if (destination == myArea())
-            actionDebugText = "@" + toString(destinationType);
+            actionDebugText = "@" + destinationType.toString();
         else
-            actionDebugText = "W" + toString(destinationType) + '@' + itoa(myArea()->distance[Table_Destination] / 100);
+            actionDebugText = "W" + destinationType.toString() + '@' + itoa(myArea()->distance[Table_Destination] / 100);
     }
     return ctrl;
 }
