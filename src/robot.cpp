@@ -1410,16 +1410,14 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
                             1,   0,
                             0,   0,   0);  // if nothing else, target an enemy
         }
-        if (destinationType == Dest_None || destinationType == Dest_Base) {
-            if (destinationType == Dest_Base) {
-                const TeamCounts tc = Teams(destination, true);
-                if (tc.friends > tc.enemies) { // if we are going to base where is already our forces, forget it
-                    if (destination != myArea() || tc.enemies == 0 && AmILast())
-                        TargetFog();
-                }
+        if (destinationType == Dest_None)
+            TargetFog();
+        else if (destinationType == Dest_Base) {
+            const TeamCounts tc = Teams(destination, true);
+            if (tc.friends > tc.enemies) { // if we are going to base where is already our forces, forget it
+                if (destination != myArea() || tc.enemies == 0 && AmILast())
+                    TargetFog();
             }
-            else
-                TargetFog();
         }
     }
     else { // i am flagman ;)
