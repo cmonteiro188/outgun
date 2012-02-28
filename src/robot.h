@@ -140,6 +140,10 @@ class Robot : public ClientBase, public BotInterface {
     int         myTeam() const throw () { return fx.player[me].team(); }
     bool        myTeam(const ClientPlayer& p) const throw () { return p.team() == myTeam(); }
 
+    enum FlagStatus { FS_Uncarried = 1, FS_OnFriend = 2, FS_OnEnemy = 4 }; // bit-values to enable mask-generation
+    static const int FS_Carried = FS_OnFriend | FS_OnEnemy, FS_Any = FS_Uncarried | FS_Carried;
+    FlagStatus  flagStatus(const Flag& f) const throw ();
+
     static int  xDelta(Area::Neighbor::Direction dir) throw ();
     static int  yDelta(Area::Neighbor::Direction dir) throw ();
 
@@ -160,7 +164,8 @@ class Robot : public ClientBase, public BotInterface {
     TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
     bool        IsHome(const Area* a, int team) const throw (); // is it base
     bool        IsHome(const Area* a) const throw (); // uses my team
-    bool        flagsInArea(const Area* a) const;
+    bool        isDeadEnd(const Area* a) const throw ();
+    bool        flagsInArea(const Area* a, int statusMask = FS_Any) const throw ();
 
     bool        AmILast() const throw ();
     bool        IsMission() const throw (); // have i mission? (No agression mode)

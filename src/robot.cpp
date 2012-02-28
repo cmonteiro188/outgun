@@ -121,6 +121,13 @@ Coords Robot::predictPos(const ClientPlayer& p) const throw () {
     return Coords(p.pos.local() + (min(fx.frame - p.posUpdated, 5.) + averageLag) * p.vel);
 }
 
+Robot::FlagStatus Robot::flagStatus(const Flag& f) const throw () {
+    if (f.carried())
+        return myTeam(fx.player[f.carrier()]) ? FS_OnFriend : FS_OnEnemy;
+    else
+        return FS_Uncarried;
+}
+
 const DeathbringerExplosion* Robot::explosionInRoom(const RoomCoords& room) const throw () {
     for (list<DeathbringerExplosion>::const_iterator dbi = fx.deathbringerExplosions().begin(); dbi != fx.deathbringerExplosions().end(); ++dbi) {
         const WorldCoords& pos = dbi->position();
@@ -1152,6 +1159,16 @@ ClientControls Robot::MoveToDestination() const throw () {
 
     if (!immediateDestination)
         return ClientControls();
+    if (immediateDestination->area == destination && destinationType.isFlag() && destinationType.getCarrierTeam() == myTeam() &&
+            (IsHome(destination) || isDeadEnd(destination)) && !flagsInArea(destination, ~FS_OnFriend) &&
+            !Teams(destination, false).enemies && fx.map[destination->room].enemies_seen_frame > fx.frame - 10 &&
+            !Teams(here, false).enemies &&
+            distanceFromDoor(*immediateDestination, Coords(myPos.local() + 5 * futureMe.vel)) < 3 * PLAYER_RADIUS)
+    {
+        if (USE_ACTION_DEBUG_TEXT)
+            debugText.push_back("remote def");
+        return ClientControls().setStrafe(); // signal to caller 'do nothing' instead of 'don't care'
+    }
     if (waitForFriend(*immediateDestination)) {
         if (USE_ACTION_DEBUG_TEXT)
             debugText.push_back("sync");
@@ -1160,10 +1177,12 @@ ClientControls Robot::MoveToDestination() const throw () {
     return MoveToDoor(*immediateDestination, MM_Normal);
 }
 
-bool Robot::flagsInArea(const Area* a) const {
+bool Robot::flagsInArea(const Area* a, int statusMask) const throw () {
     for (int team = 0; team <= 2; ++team) {
         const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi) {
+            if (!(statusMask & flagStatus(*fi)))
+                continue;
             if (fi->carried() && fx.player[fi->carrier()].posUpdated < fx.frame - FADEOUT)
                 continue;
             const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
@@ -1604,6 +1623,12 @@ bool Robot::IsHome(const Area* a, int team) const throw () {
         if (area(*pi) == a)
             return true;
     return false;
+}
+
+bool Robot::isDeadEnd(const Area* a) const throw () {
+    if (a->neighbors().size() > 1 || a->reverseNeighbors().size() > 1)
+        return false;
+    return a->neighbors().empty() || a->reverseNeighbors().empty() || a->neighbors().front().area == a->reverseNeighbors().front();
 }
 
 void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int state) throw () {
