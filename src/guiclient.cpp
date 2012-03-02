@@ -1237,7 +1237,10 @@ int GuiClient::process_replay_frame_data(ConstDataBlockRef data) throw (BinaryRe
         if (!(replay_players_present & (1 << i)))
             continue;
         else if (!fx.player[i].used) { // New player
-            fx.player[i].clear(true, i, " ", i / TSIZE);
+            const string name = fx.player[i].name.empty() ? " " : fx.player[i].name; // Not using empty name to avoid fake join messages.
+            const int col = fx.player[i].color();
+            fx.player[i].clear(true, i, name, i / TSIZE);
+            fx.player[i].set_color(col);
             players_sb.push_back(&fx.player[i]);
         }
 
