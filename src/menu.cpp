@@ -1221,6 +1221,8 @@ bool TreeItem::removeDeep(const string& itemKey) throw () {
 int TreeItem::width(int level) const throw () {
     // The width is maximum width of the item and its open child items + indentation + scrollbar.
     int w = text_length(font, string(level * 2, ' ') + value()) + 2 * char_w();
+    if (hasChildren()) // + child count
+        w += text_length(font, " ()") + text_length(font, itoa(deepCountLowestLevelItems()));
     if (isOpen())
         for (Container::const_iterator item = childItems.begin(); item != childItems.end(); item++)
             w = max(w, item->width(level + 1));
