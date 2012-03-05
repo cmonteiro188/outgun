@@ -182,6 +182,8 @@ public:
     void team_captures_next() throw () { ++team_captures_start; }
     void team_captures_prev_page() throw () { team_captures_start -= team_captures_size; }
     void team_captures_next_page() throw () { team_captures_start += team_captures_size; }
+    void team_captures_home() throw () { team_captures_start = 0; }
+    void team_captures_end() throw () { team_captures_start = INT_MAX; }
 
     void draw_player_power(double val) throw ();
     void draw_player_turbo(double val) throw ();

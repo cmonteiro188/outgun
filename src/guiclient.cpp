@@ -2529,6 +2529,10 @@ bool GuiClient::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool 
                 graphics.team_captures_prev_page();
             else if (sc == KEY_PGDN)
                 graphics.team_captures_next_page();
+            else if (sc == KEY_HOME)
+                graphics.team_captures_home();
+            else if (sc == KEY_END)
+                graphics.team_captures_end();
             else
                 return false;
             return true;
