@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2012 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -180,6 +180,8 @@ public:
 
     void team_captures_prev() throw () { --team_captures_start; }
     void team_captures_next() throw () { ++team_captures_start; }
+    void team_captures_prev_page() throw () { team_captures_start -= team_captures_size; }
+    void team_captures_next_page() throw () { team_captures_start += team_captures_size; }
 
     void draw_player_power(double val) throw ();
     void draw_player_turbo(double val) throw ();
@@ -548,6 +550,7 @@ private:
     int map_list_start;
 
     int team_captures_start;
+    int team_captures_size;
 
     std::list<GraphicsEffect> cfx;
 

@@ -2521,10 +2521,14 @@ bool GuiClient::handleInfoScreenKeypress(int sc, int ch, bool withControl, bool 
                 return false;
             return true;
         break; case menu_teams:
-            if (sc == KEY_UP || sc == KEY_PGUP)
+            if (sc == KEY_UP)
                 graphics.team_captures_prev();
-            else if (sc == KEY_DOWN || sc == KEY_PGDN)
+            else if (sc == KEY_DOWN)
                 graphics.team_captures_next();
+            else if (sc == KEY_PGUP)
+                graphics.team_captures_prev_page();
+            else if (sc == KEY_PGDN)
+                graphics.team_captures_next_page();
             else
                 return false;
             return true;

@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011, 2012 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *  Copyright (C) 2010 - Joonas Rivinoja
  *
  *  This file is part of Outgun.
@@ -1969,7 +1969,7 @@ void Graphics::team_statistics(const Team* teams) throw () {
 
     line++;
     const int team_captures_start_y = y1 + line * line_height;
-    const int team_captures_size = (y1 + h - team_captures_start_y) / line_height - 1;
+    team_captures_size = (y1 + h - team_captures_start_y) / line_height - 1;
 
     if (team_captures_start >= total_captures - team_captures_size)
         team_captures_start = total_captures - team_captures_size;
