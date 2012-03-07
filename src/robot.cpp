@@ -1684,7 +1684,7 @@ void Robot::TargetNearestFlag(int& m_distance, Area*& targetArea, int team, int 
 }
 
 Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
-    // for dead-end bases, move defense up in large maps with carrier approaching
+    // for dead-end bases, move defense up in large maps with carrier approaching or if enemies can't respawn in between
 
     if (fx.map.w * fx.map.h < 6)
         return base;
@@ -1705,16 +1705,20 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
         for (vector<WorldCoords>::const_iterator bi = bases.begin(); bi != bases.end(); ++bi)
             nearBaseDist = min(nearBaseDist, area(*bi)->distance[Table_Def]);
     }
-    if (nearCarrierDist >= nearBaseDist)
-        return base;
 
-    nAssert(nearCarrierDist % roomToRoomBaseDistance == 0);
-    nearCarrierDist /= roomToRoomBaseDistance;
-    const int maxMoves = min(nearCarrierDist, 7 - nearCarrierDist); // go further out the nearer they are, but not farther than them (max maxMoves = 3 for ncd = 3 or 4)
+    int maxMovesWithRespawns; // once an enemy respawn area has been found, continue only until this far from the base
+    if (nearCarrierDist >= nearBaseDist)
+        maxMovesWithRespawns = 0;
+    else {
+        nAssert(nearCarrierDist % roomToRoomBaseDistance == 0);
+        nearCarrierDist /= roomToRoomBaseDistance;
+        maxMovesWithRespawns = min(nearCarrierDist, 7 - nearCarrierDist); // go further out the nearer they are, but not farther than them (max maxMoves = 3 for ncd = 3 or 4)
+    }
 
     Area* a = base;
     Area* previous = 0;
-    for (int moves = 0; moves < maxMoves; ++moves) {
+    bool respawnsSeen = fx.map.tinfo[!myTeam()].respawn.empty() || a->respawnFrequency[!myTeam()] != 0.;
+    for (int moves = 0; !respawnsSeen || moves < maxMovesWithRespawns; ++moves) {
         if (Teams(a, false).enemies)
             return previous && moves < nearCarrierDist - 1 ? previous : a;
         Area* next = 0;
@@ -1725,6 +1729,11 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
             if (isDeadEnd(na)) {
                 if (Teams(na, false).enemies)
                     return a;
+                if (na->respawnFrequency[!myTeam()] != 0.) {
+                    if (moves >= maxMovesWithRespawns)
+                        return a;
+                    respawnsSeen = true;
+                }
                 continue; // na can be ignored
             }
             if (next) // multiple branches from a
@@ -1735,6 +1744,8 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
             return a; // we wouldn't have a way back from next
         previous = a;
         a = next;
+        if (a->respawnFrequency[!myTeam()] != 0.)
+            respawnsSeen = true;
     }
     return a;
 }
