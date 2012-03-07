@@ -160,6 +160,7 @@ class Robot : public ClientBase, public BotInterface {
     void        updateUnknownPosition(ClientPlayer& pl) throw ();
 
     bool        EnemyHasUnseenFlags(bool wild) const throw ();
+    bool        teamHasEnoughFlagsForCapture(int team) const throw ();
     int         GetPlayers(int team) const throw (); // get num of players
     TeamCounts  Teams(const Area* a, bool countMe) const throw (); // get num of en and fr for sector
     bool        IsHome(const Area* a, int team) const throw (); // is it base

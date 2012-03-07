@@ -1409,6 +1409,19 @@ bool Robot::EnemyHasUnseenFlags(bool wild) const throw () {
     return false;
 }
 
+bool Robot::teamHasEnoughFlagsForCapture(int team) const throw () {
+    const bool controlOwn  = TeamHasFlags(team,  team) || IsAnyFlagAtBase(team);
+    const bool controlOpp  = TeamHasFlags(team, !team);
+    const bool controlWild = TeamHasFlags(team, 2);
+    if (capture_on_team_flags_in_effect && controlOwn && (controlOpp || controlWild))
+        return true;
+    if (capture_on_wild_flags_in_effect && controlOpp && (controlWild || lock_wild_flags_in_effect))
+        return true;
+    if (!capture_on_wild_flags_in_effect && !capture_on_team_flags_in_effect && controlWild)
+        return true;
+    return false;
+}
+
 void Robot::ChooseDestination() throw () { // NEED rewrite
     const int flag = HaveFlag(me);
     destinationType.clear();
@@ -1427,17 +1440,7 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
             for (int team = 0; team <= 2; ++team) // for lack of better things to do, stop ignoring already crowded targets
                 for (vector<bool>::iterator fii = flagsIgnored[team].begin(); fii != flagsIgnored[team].end(); ++fii)
                     *fii = false;
-            // only defend already defended flags if the team can make a capture with the currently controlled flags
-            const bool controlOwn  = TeamHasFlags(myTeam(),  myTeam()) || IsAnyFlagAtBase(myTeam());
-            const bool controlOpp  = TeamHasFlags(myTeam(), !myTeam());
-            const bool controlWild = TeamHasFlags(myTeam(), 2);
-            bool def = false;
-            if (capture_on_team_flags_in_effect && controlOwn && (controlOpp || controlWild))
-                def = true;
-            if (capture_on_wild_flags_in_effect && controlOpp && (controlWild || lock_wild_flags_in_effect))
-                def = true;
-            if (!capture_on_wild_flags_in_effect && !capture_on_team_flags_in_effect)
-                def = true;
+            const bool def = teamHasEnoughFlagsForCapture(myTeam()); // only defend already defended flags if the team can make a capture with the currently controlled flags
             TargetNearest(sef, sef,   1, def,
                    sef && def,   1,   1, def,
                           swf, swf,   1, def,
