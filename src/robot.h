@@ -36,6 +36,8 @@ class ClientLocalConnection;
 extern BotSharedDataStorage g_botSharedDataStorage;
 
 class Robot : public ClientBase, public BotInterface {
+    enum FlagType { FT_None = 0, FT_Own, FT_Enemy, FT_Wild };
+
     LocalConnection* connection; // owned
     ClientLocalConnection* connectionWrapper; // given to ClientBase to replace leetnet client
     bool connectQueued;
@@ -139,6 +141,7 @@ class Robot : public ClientBase, public BotInterface {
 
     int         myTeam() const throw () { return fx.player[me].team(); }
     bool        myTeam(const ClientPlayer& p) const throw () { return p.team() == myTeam(); }
+    int         flagTeam(FlagType ft, bool acceptNone = false) const throw ();
 
     enum FlagStatus { FS_Uncarried = 1, FS_OnFriend = 2, FS_OnEnemy = 4 }; // bit-values to enable mask-generation
     static const int FS_Carried = FS_OnFriend | FS_OnEnemy, FS_Any = FS_Uncarried | FS_Carried;
@@ -172,7 +175,7 @@ class Robot : public ClientBase, public BotInterface {
     bool        IsMission() const throw (); // have i mission? (No agression mode)
     int         GetEasyEnemy() const throw (); // get easy enemy to kill
     bool        IsMassive() const throw (); // am i berserker? (No rocket avoiding)
-    int         HaveFlag(int n) const throw (); // 0 if n isn't carrying a flag, 1 if n carries an enemy flag, 2 if n carries a wild flag, 3 if n carries an own flag
+    FlagType    HaveFlag(int n) const throw ();
     bool        TeamHasFlags(int team, int flagTeam) const throw ();
     enum FlagBaseTreshold { FBT_SameArea, FBT_Captureable, FBT_Unmoved };
     bool        IsFlagAtBase(const Flag& f, int team, FlagBaseTreshold treshold) const throw ();

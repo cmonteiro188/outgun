@@ -121,6 +121,16 @@ Coords Robot::predictPos(const ClientPlayer& p) const throw () {
     return Coords(p.pos.local() + (min(fx.frame - p.posUpdated, 5.) + averageLag) * p.vel);
 }
 
+int Robot::flagTeam(FlagType ft, bool acceptNone) const throw () {
+    switch (ft) {
+        break; case FT_None:  nAssert(acceptNone); return acceptNone ? -1 : 0;
+        break; case FT_Own:   return myTeam();
+        break; case FT_Enemy: return !myTeam();
+        break; case FT_Wild:  return 2;
+        break; default: nAssert(0); return acceptNone ? -1 : 0;
+    }
+}
+
 Robot::FlagStatus Robot::flagStatus(const Flag& f) const throw () {
     if (f.carried())
         return myTeam(fx.player[f.carrier()]) ? FS_OnFriend : FS_OnEnemy;
@@ -871,12 +881,13 @@ ClientControls Robot::GetPowerup(bool onImportantMission) const throw () {
 }
 
 ClientControls Robot::captureOnFlag(bool carried) const throw () {
-    const int myFlag = HaveFlag(me);
+    const FlagType myFlag = HaveFlag(me);
     nAssert(myFlag);
-    for (int type = 0; type <= 2; ++type) {
-        const int team = type == 0 ? myTeam() : type == 1 ? 2 : !myTeam();
-        const bool captureOnOtherFlag =   type == 0 && capture_on_team_flags_in_effect && myFlag != 3 ||   type == 1 && capture_on_wild_flags_in_effect;
-        const bool captureOnMyFlag    = myFlag == 3 && capture_on_team_flags_in_effect &&   type != 0 || myFlag == 2 && capture_on_wild_flags_in_effect;
+    for (int iType = 0; iType <= 2; ++iType) {
+        const FlagType type = iType == 0 ? FT_Own : iType == 1 ? FT_Wild : FT_Enemy;
+        const int team = flagTeam(type);
+        const bool captureOnOtherFlag =   type == FT_Own && capture_on_team_flags_in_effect && myFlag != FT_Own ||   type == FT_Wild && capture_on_wild_flags_in_effect;
+        const bool captureOnMyFlag    = myFlag == FT_Own && capture_on_team_flags_in_effect &&   type != FT_Own || myFlag == FT_Wild && capture_on_wild_flags_in_effect;
         if (!captureOnOtherFlag && !captureOnMyFlag)
             continue;
         const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
@@ -886,15 +897,16 @@ ClientControls Robot::captureOnFlag(bool carried) const throw () {
             const WorldCoords pos = fi->carried() ? fx.player[fi->carrier()].pos : fi->position();
             if (area(pos) != myArea())
                 continue;
-            if (!carry_own_team_flag && type == 0 || capture_away_from_base || IsFlagAtBase(*fi, team, FBT_Captureable)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
+            if (!carry_own_team_flag && type == FT_Own || capture_away_from_base || IsFlagAtBase(*fi, team, FBT_Captureable)) { // try to capture, or return own flag so that capture is possible; can't return wild flags
                 const Coords lPos = fi->carried() ? predictPos(fx.player[fi->carrier()]) : pos.local();
                 return MoveTo(lPos - myPos.local(), PLAYER_RADIUS + FLAG_RADIUS, MM_Run);
             }
             if (!capture_away_from_base && carried)
-                for (int baseType = 0; baseType <= 1; ++baseType) {
-                    const int baseTeam = baseType == 0 ? myTeam() : 2;
-                    if (baseType == 0 && !(type == 0 && captureOnOtherFlag || myFlag == 3 && captureOnMyFlag) ||
-                        baseType == 1 && !(type == 1 && captureOnOtherFlag || myFlag == 2 && captureOnMyFlag))
+                for (int iBaseType = 0; iBaseType <= 1; ++iBaseType) {
+                    const FlagType baseType = iBaseType == 0 ? FT_Own : FT_Wild;
+                    const int baseTeam = flagTeam(baseType);
+                    if (baseType == FT_Own  && !(type == FT_Own  && captureOnOtherFlag || myFlag == FT_Own  && captureOnMyFlag) ||
+                        baseType == FT_Wild && !(type == FT_Wild && captureOnOtherFlag || myFlag == FT_Wild && captureOnMyFlag))
                     {
                         continue;
                     }
@@ -1423,7 +1435,7 @@ bool Robot::teamHasEnoughFlagsForCapture(int team) const throw () {
 }
 
 void Robot::ChooseDestination() throw () { // NEED rewrite
-    const int flag = HaveFlag(me);
+    const FlagType flag = HaveFlag(me);
     destinationType.clear();
 
     if (!flag) {
@@ -1468,11 +1480,11 @@ void Robot::ChooseDestination() throw () { // NEED rewrite
         const bool ctf = capture_on_team_flags_in_effect;
         const bool cwfe = capture_on_wild_flags_in_effect;
 
-        const bool cwf = flag != 3 && cwfe || flag == 3 && ctf && capture_away_from_base; // (normal or reverse) capture on wild flag?
-        const bool cof = flag != 3 && ctf; // capture on own flag?
+        const bool cwf = flag != FT_Own && cwfe || flag == FT_Own && ctf && capture_away_from_base; // (normal or reverse) capture on wild flag?
+        const bool cof = flag != FT_Own && ctf; // capture on own flag?
         const bool cmwf = capture_away_from_base && cwf; // (normal or reverse) capture on moved wild flag?
         const bool cmof = capture_away_from_base && cof; // capture on moved own flag?
-        const bool cef  = capture_away_from_base && (flag == 3 && ctf || flag == 2 && cwfe); // (reverse) capture on enemy flag?
+        const bool cef  = capture_away_from_base && (flag == FT_Own && ctf || flag == FT_Wild && cwfe); // (reverse) capture on enemy flag?
         //#fix: when to follow carriers when !capture_away_from_base
 
         if (GetPlayers(myTeam()) > 1) {
@@ -1529,14 +1541,14 @@ bool Robot::IsMassive() const throw () {
         return false;
 }
 
-int Robot::HaveFlag(int n) const throw () {
+Robot::FlagType Robot::HaveFlag(int n) const throw () {
     for (int team = 0; team <= 2; ++team) {
         const vector<Flag>& flags = team == 2 ? fx.wild_flags : fx.teams[team].flags();
         for (vector<Flag>::const_iterator fi = flags.begin(); fi != flags.end(); ++fi)
             if (fi->carried() && fi->carrier() == n)
-                return team == fx.player[n].team() ? 3 : team == 2 ? 2 : 1;
+                return team == fx.player[n].team() ? FT_Own : team == 2 ? FT_Wild : FT_Enemy;
     }
-    return 0;
+    return FT_None;
 }
 
 bool Robot::TeamHasFlags(int carrierTeam, int flagTeam) const throw () {
