@@ -1722,8 +1722,11 @@ Robot::Area* Robot::chooseDefensePosition(Area* base) throw () {
             Area* const na = ni->area;
             if (na == previous)
                 continue;
-            if (na->neighbors().empty() || na->neighbors().size() == 1 && na->neighbors()[0].area == a) // na is a dead-end itself and can be ignored
-                continue;
+            if (isDeadEnd(na)) {
+                if (Teams(na, false).enemies)
+                    return a;
+                continue; // na can be ignored
+            }
             if (next) // multiple branches from a
                 return a;
             next = na;
