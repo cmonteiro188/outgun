@@ -1160,7 +1160,7 @@ ClientControls Robot::MoveToDestination() const throw () {
     if (!immediateDestination)
         return ClientControls();
     if (immediateDestination->area == destination && destinationType.isFlag() && destinationType.getCarrierTeam() == myTeam() &&
-            (IsHome(destination) || isDeadEnd(destination)) && !flagsInArea(destination, ~FS_OnFriend) &&
+            (IsHome(destination) || isDeadEnd(destination) || IsHome(here)) && !flagsInArea(destination, ~FS_OnFriend) &&
             !Teams(destination, false).enemies && fx.map[destination->room].enemies_seen_frame > fx.frame - 10 &&
             !Teams(here, false).enemies &&
             distanceFromDoor(*immediateDestination, Coords(myPos.local() + 5 * futureMe.vel)) < 3 * PLAYER_RADIUS)
