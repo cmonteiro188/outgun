@@ -2,7 +2,7 @@
  *  server.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -1968,6 +1968,7 @@ void Server::run_bot_thread() throw () {
             quickSleep();
         else
             platSleep(15);
+        const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
         if (quit_bots)
             break;
         if (check_bots) {
@@ -1978,6 +1979,8 @@ void Server::run_bot_thread() throw () {
             if (threadLock)
                 threadLockMutex.unlock();
         }
+        else if (botTestMode && botReactedFrame == currentFrame)
+            continue;
         g_timeCounter.refresh();
         const bool adjust_pings = bot_ping_changed;
         if (adjust_pings)
@@ -1996,7 +1999,6 @@ void Server::run_bot_thread() throw () {
         }
         if (botTestMode) {
             nAssert(settings.get_bot_ping() % 100 == 0); // this is a user (not code) error, but bot test mode is a dev feature
-            const uint32_t currentFrame = world.frame - 1; // the server nominally moves to the next frame as soon as the previous one is sent
             bool upToDate = true;
             for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); ++bi)
                 if (bi->bot_reacted_frame() != currentFrame - settings.get_bot_ping() / 100 || bi->bot_sent_frame() != world.player[bi->bot_player_id()].lastClientFrame) {
