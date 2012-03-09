@@ -2,6 +2,7 @@
  *  tests/mapgen.cpp
  *
  *  Copyright (C) 2011 - Jani Rivinoja
+ *  Copyright (C) 2012 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -21,30 +22,43 @@
  *
  */
 
+#include <algorithm>
 #include <iostream>
 
 #include "../mapgen.h"
 
+using namespace std;
+
 int main() {
-    const bool verbose = false;
+    const bool verbose = false, showProgress = false;
     std::srand(1313131313);
-    const int repeats = 10;
+    //const int repeats = 15, minGoodPerRepeats = 1;
+    const int repeats = 1, minGoodPerRepeats = 0;
     const int maxSize = 8;
     for (int w = 1; w <= maxSize; w++)
         for (int h = 1; h <= maxSize; h++)
-            for (int bitmask = 0; bitmask < 0x10; bitmask++)
+            for (int bitmask = 0; bitmask < 0x10; bitmask++) {
+                int b = 0;
+                const bool overEdge    = bitmask & (1 << b++);
+                const bool respawnArea = bitmask & (1 << b++);
+                const bool greenFlag   = bitmask & (1 << b++);
+                const bool asymmetric  = bitmask & (1 << b++);
+                int nGood = 0;
                 for (int i = 0; i < repeats; i++) {
-                    int b = 0;
-                    const bool overEdge    = bitmask & (1 << b++);
-                    const bool respawnArea = bitmask & (1 << b++);
-                    const bool greenFlag   = bitmask & (1 << b++);
-                    const bool asymmetric  = bitmask & (1 << b++);
                     MapGenerator generator;
-                    generator.generate(w, h, overEdge, respawnArea, 0.5, greenFlag, asymmetric);
-                    if (verbose)
+                    if (generator.generate(w, h, overEdge, respawnArea, 0.5, greenFlag, asymmetric))
+                        ++nGood;
+                    if (showProgress)
                         std::cout << '.' << std::flush;
-                    bitmask++;
                 }
+                const int s1 = min(w, h), s2 = max(w, h);
+                const bool impossibleCombination = s1 == 1 && s2 % 2 == 0 && greenFlag && !(s2 == 2 && !asymmetric) ||
+                                                   w == 2 && h == 2 && greenFlag && asymmetric;
+                nAssert(!(impossibleCombination && nGood));
+                nAssert(nGood >= minGoodPerRepeats || impossibleCombination);
+                if (nGood && nGood < repeats / 3 && verbose)
+                    std::cout << "Rare combo (" << nGood << "): " << s1 << ' ' << s2 << ' ' << greenFlag << asymmetric << overEdge << respawnArea << '\n' << std::flush;
+            }
     if (verbose)
         std::cout << '\n';
 }
