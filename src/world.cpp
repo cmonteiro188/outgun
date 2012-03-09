@@ -1752,16 +1752,12 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
 
 void ServerWorld::generate_map(const string& mapdir, const string& file_name, const MapInfo& mapInfo) throw () {
     MapGenerator generator;
-    for (int i = 0; i < 50; i++) {
-        const bool good = generator.generate(mapInfo.width, mapInfo.height,
-                                             rand() % 1000 < 1000 * mapInfo.over_edge,
-                                             rand() % 1000 < 1000 * mapInfo.respawn_area,
-                                             mapInfo.repetitive_respawn_area,
-                                             rand() % 1000 < 1000 * mapInfo.wild_flag,
-                                             mapInfo.asymmetric);
-        if (good)
+    const bool over_edge     = rand() % 1000 < 1000 * mapInfo.over_edge;
+    const bool respawn_areas = rand() % 1000 < 1000 * mapInfo.respawn_area;
+    const bool wild_flag     = rand() % 1000 < 1000 * mapInfo.wild_flag;
+    for (int i = 0; i < 50; i++)
+        if (generator.generate(mapInfo.width, mapInfo.height, over_edge, respawn_areas, mapInfo.repetitive_respawn_area, wild_flag, mapInfo.asymmetric))
             break;
-    }
     ofstream out((mapdir + directory_separator + file_name + ".txt").c_str(), ios::binary);
     generator.save_map(out, mapInfo.title, mapInfo.author);
 }
