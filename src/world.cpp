@@ -1753,13 +1753,13 @@ void ServerWorld::printTimeStatus(LineReceiver& printer) throw () {
 void ServerWorld::generate_map(const string& mapdir, const string& file_name, const MapInfo& mapInfo) throw () {
     MapGenerator generator;
     for (int i = 0; i < 50; i++) {
-        const int base_distance = generator.generate(mapInfo.width, mapInfo.height,
-                                                     rand() % 1000 < 1000 * mapInfo.over_edge,
-                                                     rand() % 1000 < 1000 * mapInfo.respawn_area,
-                                                     mapInfo.repetitive_respawn_area,
-                                                     rand() % 1000 < 1000 * mapInfo.wild_flag,
-                                                     mapInfo.asymmetric);
-        if (base_distance > 1 || mapInfo.width <= 2 || mapInfo.height <= 2)
+        const bool good = generator.generate(mapInfo.width, mapInfo.height,
+                                             rand() % 1000 < 1000 * mapInfo.over_edge,
+                                             rand() % 1000 < 1000 * mapInfo.respawn_area,
+                                             mapInfo.repetitive_respawn_area,
+                                             rand() % 1000 < 1000 * mapInfo.wild_flag,
+                                             mapInfo.asymmetric);
+        if (good)
             break;
     }
     ofstream out((mapdir + directory_separator + file_name + ".txt").c_str(), ios::binary);

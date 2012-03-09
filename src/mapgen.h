@@ -67,9 +67,9 @@ class MapGenerator {
     typedef std::pair<DistRoom, DistRoom> BasePair;
 
 public:
-    /** Generate map. Return the distance between the bases.
+    /** Generate map. Return true if "happy" about the result.
      */
-    int generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false, float repetitive_respawn = 0, bool green_flag = false, bool create_asymmetric = false) throw ();
+    bool generate(int w, int h, bool allow_over_edge = false, bool respawn_area = false, float repetitive_respawn = 0, bool green_flag = false, bool create_asymmetric = false) throw ();
 
     void draw(std::ostream& out) const throw ();
     void save_map(std::ostream& out, const std::string& title, const std::string& author) const throw ();

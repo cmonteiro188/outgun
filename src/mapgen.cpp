@@ -53,7 +53,7 @@ void MapGenerator::SimpleRoom::add_respawn(int team) {
         respawn = 2;
 }
 
-int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, float repetitive_respawn, bool green_flag, bool create_asymmetric) throw () {
+bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area, float repetitive_respawn, bool green_flag, bool create_asymmetric) throw () {
     over_edge = allow_over_edge;
     room.clear();
     room.resize(w);
@@ -188,7 +188,7 @@ int MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_area
             room[blue.x][blue.y].add_respawn(1);
         } while (rand() % 1000 < 1000 * repetitive_respawn);
 
-    return dist;
+    return dist > 1 || w <= 2 || h <= 2;
 }
 
 bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) throw () {
