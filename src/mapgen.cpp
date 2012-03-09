@@ -188,7 +188,7 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
             room[blue.x][blue.y].add_respawn(1);
         } while (rand() % 1000 < 1000 * repetitive_respawn);
 
-    return dist > 1 || w <= 2 || h <= 2;
+    return dist > 1 || w <= 2 && h <= 2;
 }
 
 bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) throw () {
