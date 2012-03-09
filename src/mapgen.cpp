@@ -2,7 +2,7 @@
  *  mapgen.cpp
  *
  *  Copyright (C) 2008, 2010, 2011 - Jani Rivinoja
- *  Copyright (C) 2010 - Niko Ritari
+ *  Copyright (C) 2010, 2012 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -154,6 +154,7 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
     else
         flags = 2;
 
+    bool green_flag_failed = false;
     if (green_flag && flags == 2) { // Try to add a green flag.
         DistRoom green;
         if (symmetry == asymmetric)
@@ -173,6 +174,8 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
                 }
             }
         }
+        else
+            green_flag_failed = true;
     }
 
     // respawn areas
@@ -188,7 +191,11 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
             room[blue.x][blue.y].add_respawn(1);
         } while (rand() % 1000 < 1000 * repetitive_respawn);
 
-    return dist > 1 || w <= 2 && h <= 2;
+    if (green_flag_failed)
+        return false;
+    if (dist <= 1 && !(w <= 2 && h <= 2))
+        return false;
+    return true;
 }
 
 bool MapGenerator::remove_wall(int rx, int ry, int dx, int dy, int& visited_rooms, bool mirror) throw () {
