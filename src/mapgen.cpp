@@ -377,7 +377,7 @@ MapGenerator::BasePair MapGenerator::select_asymmetric_bases() const throw () {
     for (int start_y = 0; start_y < height(); start_y++)
         for (int start_x = 0; start_x < width(); start_x++)
             for (int end_y = start_y; end_y < height(); end_y++)
-                for (int end_x = start_x; end_x < width(); end_x++) {
+                for (int end_x = (end_y == start_y ? start_x : 0); end_x < width(); end_x++) {
                     const int dist = distance(start_x, start_y, end_x, end_y);
                     if (dist >= max_dist) {
                         if (dist > max_dist) {
