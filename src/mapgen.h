@@ -2,6 +2,7 @@
  *  mapgen.h
  *
  *  Copyright (C) 2008, 2010, 2011 - Jani Rivinoja
+ *  Copyright (C) 2012 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -91,6 +92,7 @@ private:
 
     int distance(int sx, int sy, int gx, int gy) const throw ();
     const RoomCoords& find_best(const std::vector<std::vector<Node> >& node, const std::vector<RoomCoords>& open) const throw ();
+    std::vector< std::vector<int> > build_distance_table(const RoomCoords& center) const throw ();
 
     int width() const throw () { return room.size(); }
     int height() const throw () { return room.front().size(); }

@@ -32,8 +32,7 @@ using namespace std;
 int main() {
     const bool verbose = false, showProgress = false;
     std::srand(1313131313);
-    //const int repeats = 15, minGoodPerRepeats = 1;
-    const int repeats = 1, minGoodPerRepeats = 0;
+    const int repeats = 15, minGoodPerRepeats = 1;
     const int maxSize = 8;
     for (int w = 1; w <= maxSize; w++)
         for (int h = 1; h <= maxSize; h++)
