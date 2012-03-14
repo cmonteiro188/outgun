@@ -50,12 +50,11 @@ int main() {
                     if (showProgress)
                         std::cout << '.' << std::flush;
                 }
-                const int s1 = min(w, h), s2 = max(w, h);
-                const bool impossibleCombination = s1 == 1 && s2 % 2 == 0 && s2 != 2 && greenFlag && !asymmetric;
-                nAssert(!(impossibleCombination && nGood));
-                nAssert(nGood >= minGoodPerRepeats || impossibleCombination);
-                if (nGood && nGood < repeats / 3 && verbose)
+                nAssert(nGood >= minGoodPerRepeats);
+                if (nGood && nGood < repeats / 3 && verbose) {
+                    const int s1 = min(w, h), s2 = max(w, h);
                     std::cout << "Rare combo (" << nGood << "): " << s1 << ' ' << s2 << ' ' << greenFlag << asymmetric << overEdge << respawnArea << '\n' << std::flush;
+                }
             }
     if (verbose)
         std::cout << '\n';

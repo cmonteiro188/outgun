@@ -186,8 +186,12 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
             room[blue.x][blue.y].add_respawn(1);
         } while (rand() % 1000 < 1000 * repetitive_respawn);
 
-    if (green_flag && !greenBase)
-        return false;
+    if (flags == 1) {
+        // only accept cases where this is the only solution
+        const int s1 = min(w, h), s2 = max(w, h);
+        return s2 == 1 || green_flag && s1 == 1 && (s2 == 2 || symmetry != asymmetric && s2 % 2 == 0);
+    }
+    nAssert(!!greenBase == green_flag);
     if (dist <= 1 && !(w <= 2 && h <= 2))
         return false;
     if (!green_flag && !allow_over_edge && dist < (w - 1 + h - 1) * 3 / 4)
