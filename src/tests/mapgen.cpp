@@ -55,9 +55,9 @@ int main() {
                 nAssert(nGood >= minGoodPerBaseRepeats * repeatMul);
                 if (nGood && nGood < repeats / 3 && verbose) {
                     const int s1 = min(w, h), s2 = max(w, h);
-                    std::cout << "Rare combo (" << nGood << "): " << s1 << ' ' << s2 << ' ' << greenFlag << asymmetric << overEdge << respawnArea << '\n' << std::flush;
+                    std::cout << "Rare combo: " << s1 << ' ' << s2 << ' ' << greenFlag << asymmetric << overEdge << respawnArea << " (" << nGood << ") \n" << std::flush;
                 }
             }
-    if (verbose)
+    if (showProgress)
         std::cout << '\n';
 }
