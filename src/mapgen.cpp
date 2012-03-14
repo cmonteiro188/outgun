@@ -194,7 +194,8 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
     nAssert(!!greenBase == green_flag);
     if (dist <= 1 && !(w <= 2 && h <= 2))
         return false;
-    if (!green_flag && !allow_over_edge && dist < (w - 1 + h - 1) * 3 / 4)
+    if (!allow_over_edge && (green_flag ? dist + greenBase.dist < (w - 1 + h - 1)
+                                        : dist                  < (w - 1 + h - 1) * 3 / 4))
         return false;
     return true;
 }
