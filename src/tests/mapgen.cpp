@@ -51,8 +51,7 @@ int main() {
                         std::cout << '.' << std::flush;
                 }
                 const int s1 = min(w, h), s2 = max(w, h);
-                const bool impossibleCombination = s1 == 1 && s2 % 2 == 0 && greenFlag && !(s2 == 2 && !asymmetric) ||
-                                                   w == 2 && h == 2 && greenFlag && asymmetric;
+                const bool impossibleCombination = s1 == 1 && s2 % 2 == 0 && s2 != 2 && greenFlag && !asymmetric;
                 nAssert(!(impossibleCombination && nGood));
                 nAssert(nGood >= minGoodPerRepeats || impossibleCombination);
                 if (nGood && nGood < repeats / 3 && verbose)

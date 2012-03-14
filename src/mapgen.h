@@ -84,8 +84,7 @@ private:
     DistRoom select_base() const throw ();
     DistRoom select_green_flag_base(const RoomCoords& team_flag) const throw ();
     DistRoom select_base(bool team_base, const RoomCoords& team_flag) const throw ();
-    BasePair select_asymmetric_bases() const throw ();
-    DistRoom select_asymmetric_green_base(const RoomCoords& red_base, const RoomCoords& blue_base) const throw ();
+    BasePair select_asymmetric_bases(DistRoom* greenBaseTarget = 0) const throw ();
 
     RoomCoords select_symmetric_room(const RoomCoords& source) const throw ();
     RoomCoords select_symmetric_room(const RoomCoords& source, int& kdx, int& kdy) const throw ();
