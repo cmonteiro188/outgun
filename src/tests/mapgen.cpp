@@ -32,7 +32,7 @@ using namespace std;
 int main() {
     const bool verbose = false, showProgress = false;
     std::srand(1313131313);
-    const int repeats = 15, minGoodPerRepeats = 1;
+    const int baseRepeats = 10, minGoodPerBaseRepeats = 1;
     const int maxSize = 8;
     for (int w = 1; w <= maxSize; w++)
         for (int h = 1; h <= maxSize; h++)
@@ -43,6 +43,8 @@ int main() {
                 const bool greenFlag   = bitmask & (1 << b++);
                 const bool asymmetric  = bitmask & (1 << b++);
                 int nGood = 0;
+                const int repeatMul = w == 1 || h == 1 ? 4 : 1;
+                const int repeats = baseRepeats * repeatMul;
                 for (int i = 0; i < repeats; i++) {
                     MapGenerator generator;
                     if (generator.generate(w, h, overEdge, respawnArea, 0.5, greenFlag, asymmetric))
@@ -50,7 +52,7 @@ int main() {
                     if (showProgress)
                         std::cout << '.' << std::flush;
                 }
-                nAssert(nGood >= minGoodPerRepeats);
+                nAssert(nGood >= minGoodPerBaseRepeats * repeatMul);
                 if (nGood && nGood < repeats / 3 && verbose) {
                     const int s1 = min(w, h), s2 = max(w, h);
                     std::cout << "Rare combo (" << nGood << "): " << s1 << ' ' << s2 << ' ' << greenFlag << asymmetric << overEdge << respawnArea << '\n' << std::flush;
