@@ -520,7 +520,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             ist >> alpha;
         else
             alpha = 255;
-        if (!ist || !ist.eof() || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
+        if (!ist || !ist.eof() || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
@@ -546,7 +546,7 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             ist >> alpha;
         else
             alpha = 255;
-        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || crx < 0 || cry < 0 || crx >= w || cry >= h || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
+        if (!ist || !ist.eof() || (type != 'W' && type != 'G') || alpha < 0 || alpha > 255 || texid < 0 || texid > 7) {
             log.error(_("Invalid map line: $1", line));
             return false;
         }
