@@ -130,28 +130,23 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
     shift_rooms_if_needed();
 
     // flags
-    int x1, y1, x2, y2;
+    RoomCoords base1, base2;
     int dist;
     if (symmetry == asymmetric) {
         const BasePair bases = select_asymmetric_bases();
-        x1 = bases.first.x;
-        y1 = bases.first.y;
-        x2 = bases.second.x;
-        y2 = bases.second.y;
+        base1 = bases.first;
+        base2 = bases.second;
         dist = bases.first.dist;
     }
     else {
         const DistRoom base = select_base();
-        x1 = base.x;
-        y1 = base.y;
-        const RoomCoords base2 = select_symmetric_room(base);
-        x2 = base2.x;
-        y2 = base2.y;
+        base1 = base;
+        base2 = select_symmetric_room(base);
         dist = base.dist;
     }
-    room[x1][y1].team_flag = true;
-    room[x2][y2].team_flag = true;
-    if (x1 == x2 && y1 == y2)
+    room[base1.x][base1.y].team_flag = true;
+    room[base2.x][base2.y].team_flag = true;
+    if (base1 == base2)
         flags = 1;
     else
         flags = 2;
@@ -160,18 +155,17 @@ bool MapGenerator::generate(int w, int h, bool allow_over_edge, bool respawn_are
     if (green_flag && flags == 2) { // Try to add a green flag.
         DistRoom green;
         if (symmetry == asymmetric)
-            green = select_asymmetric_green_base(RoomCoords(x1, y1), RoomCoords(x2, y2));
+            green = select_asymmetric_green_base(base1, base2);
         else
-            green = select_green_flag_base(x1, y1);
+            green = select_green_flag_base(base1);
         if (green) {
-            SimpleRoom& green_base = room[green.x][green.y];
-            green_base.green_flag = true;
+            room[green.x][green.y].green_flag = true;
             flags++;
             if (symmetry != asymmetric) {
                 // If one green flag is not in a symmetric position, add another green flag to make the map symmetric.
-                const RoomCoords base2 = select_symmetric_room(RoomCoords(green.x, green.y));
-                if (base2 != RoomCoords(green.x, green.y)) {
-                    room[base2.x][base2.y].green_flag = true;
+                const RoomCoords green2 = select_symmetric_room(green);
+                if (green2 != green) {
+                    room[green2.x][green2.y].green_flag = true;
                     flags++;
                 }
             }
@@ -327,31 +321,32 @@ void MapGenerator::draw(ostream& out) const throw () {
 }
 
 MapGenerator::DistRoom MapGenerator::select_base() const throw () {
-    return select_base(true, 0, 0);
+    return select_base(true, RoomCoords());
 }
 
-MapGenerator::DistRoom MapGenerator::select_green_flag_base(int team_flag_x, int team_flag_y) const throw () {
-    return select_base(false, team_flag_x, team_flag_y);
+MapGenerator::DistRoom MapGenerator::select_green_flag_base(const RoomCoords& team_flag) const throw () {
+    return select_base(false, team_flag);
 }
 
-MapGenerator::DistRoom MapGenerator::select_base(bool team_base, int team_flag_x, int team_flag_y) const throw () {
+MapGenerator::DistRoom MapGenerator::select_base(bool team_base, const RoomCoords& team_flag) const throw () {
     vector<DistRoom> candidates;
     int max_dist = 0;
-    const vector< vector<int> > teamFlagDistances = team_base ? vector< vector<int> >() : build_distance_table(RoomCoords(team_flag_x, team_flag_y));
+    const vector< vector<int> > teamFlagDistances = team_base ? vector< vector<int> >() : build_distance_table(team_flag);
     for (int y = 0; y < height(); y++)
         for (int x = 0; x < width(); x++) {
+            const RoomCoords pos(x, y);
             int dist;
             if (team_base) {
-                const RoomCoords target = select_symmetric_room(RoomCoords(x, y));
-                dist = distance(x, y, target.x, target.y);
+                const RoomCoords target = select_symmetric_room(pos);
+                dist = distance(pos, target);
             }
             else {
                 if (room[x][y].team_flag)
                     continue;
                 // Check distance from base to both green flags.
-                const RoomCoords counterPart = select_symmetric_room(RoomCoords(x, y));
+                const RoomCoords counterPart = select_symmetric_room(pos);
                 dist = min(teamFlagDistances[x][y], teamFlagDistances[counterPart.x][counterPart.y]);
-                if (counterPart == RoomCoords(x, y))
+                if (counterPart == pos)
                     dist += 2; // Favour one green flag over two flags.
             }
             DistRoom d(x, y, dist);
@@ -467,17 +462,16 @@ RoomCoords MapGenerator::select_symmetric_room(const RoomCoords& source, int& kd
     return RoomCoords(x, y);
 }
 
-int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
-    if (gx == sx && gy == sy)
+int MapGenerator::distance(const RoomCoords& s, const RoomCoords& target) const throw () {
+    if (target == s)
         return 0;
 
     vector<vector<Node> > node(width(), vector<Node>(height()));
-    node[sx][sy].cost = 0;
-    node[sx][sy].score = node[sx][sy].cost + abs(gx - sx) + abs(gy - sy);
+    node[s.x][s.y].cost = 0;
+    node[s.x][s.y].score = node[s.x][s.y].cost + abs(target.x - s.x) + abs(target.y - s.y);
 
-    const RoomCoords target(gx, gy);
     vector<RoomCoords> open;
-    open.push_back(RoomCoords(sx, sy));
+    open.push_back(s);
     while (!open.empty()) {
         const RoomCoords current = find_best(node, open);
         open.erase(find(open.begin(), open.end(), current));
@@ -512,8 +506,8 @@ int MapGenerator::distance(int sx, int sy, int gx, int gy) const throw () {
             if (cost >= neighbour.cost)     // worse route
                 continue;
             neighbour.cost = cost;
-            int min_dx = abs(gx - nx);
-            int min_dy = abs(gy - ny);
+            int min_dx = abs(target.x - nx);
+            int min_dy = abs(target.y - ny);
             if (over_edge) {
                 if (min_dx > width() / 2)
                     min_dx = width() - min_dx;

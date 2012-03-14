@@ -82,15 +82,15 @@ private:
     void shift_rooms(int x_shift, int y_shift) throw ();
 
     DistRoom select_base() const throw ();
-    DistRoom select_green_flag_base(int team_flag_x, int team_flag_y) const throw ();
-    DistRoom select_base(bool team_base, int team_flag_x, int team_flag_y) const throw ();
+    DistRoom select_green_flag_base(const RoomCoords& team_flag) const throw ();
+    DistRoom select_base(bool team_base, const RoomCoords& team_flag) const throw ();
     BasePair select_asymmetric_bases() const throw ();
     DistRoom select_asymmetric_green_base(const RoomCoords& red_base, const RoomCoords& blue_base) const throw ();
 
     RoomCoords select_symmetric_room(const RoomCoords& source) const throw ();
     RoomCoords select_symmetric_room(const RoomCoords& source, int& kdx, int& kdy) const throw ();
 
-    int distance(int sx, int sy, int gx, int gy) const throw ();
+    int distance(const RoomCoords& s, const RoomCoords& g) const throw ();
     const RoomCoords& find_best(const std::vector<std::vector<Node> >& node, const std::vector<RoomCoords>& open) const throw ();
     std::vector< std::vector<int> > build_distance_table(const RoomCoords& center) const throw ();
 
