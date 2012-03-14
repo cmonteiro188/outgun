@@ -416,7 +416,7 @@ bool Map::load_file(LogSet& log, const string& fileName, string* buffer) throw (
 
 bool Map::parse_file(LogSet& log, istream& in) throw () {
     *this = Map();
-    int crx = 0, cry = 0;
+    int crx = -1, cry = -1;
     double scalex = 1., scaley = 1.;
     vector<pair<string, pair<int, int> > > labels;
     vector<string> file_lines;
@@ -508,7 +508,12 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
     istringstream ist(line);
     string command;
     ist >> command;
+    const string outsideWallErrorText = _("Wall line not allowed outside room or label block: $1", line);
     if (command == "W" || command == "G") { // W x1 y1 x2 y2 [tex [alpha]] : rectangular wall (x1,y1)-(x2,y2) using given texture and alpha ; G : ground texture
+        if (crx < 0 || cry < 0) {
+            log.error(outsideWallErrorText);
+            return false;
+        }
         double x1, y1, x2, y2;
         int texid, alpha;
         ist >> x1 >> y1 >> x2 >> y2;
@@ -534,6 +539,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             rm.addGround(wall);
     }
     else if (command == "T") {  // T (W|G) x1 y1 x2 y2 x3 y3 [tex [alpha]] : triangular wall (W) or ground tex (G) (x1,y1)-(x2,y2)-(x3,y3) using given texture and alpha
+        if (crx < 0 || cry < 0) {
+            log.error(outsideWallErrorText);
+            return false;
+        }
         char type;
         double x1, y1, x2, y2, x3, y3;
         int texid, alpha;
@@ -560,6 +569,10 @@ bool Map::parse_line(LogSet& log, const string& line, const vector<pair<string, 
             rm.addGround(wall);
     }
     else if (command == "C") {  // C (W|G) x y or [ir [a1 a2 [tex [alpha]]]] : circular wall (W) or ground tex (G)
+        if (crx < 0 || cry < 0) {
+            log.error(outsideWallErrorText);
+            return false;
+        }
         char type;
         double x, y, ro, ri, a1, a2;
         int texid, alpha;
