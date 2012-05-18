@@ -51,6 +51,13 @@ bool Server::SettingManager::trySetMaxplayers(int val) throw () {
     return true;
 }
 
+void Server::SettingManager::setBotAcceptOrders(int val) throw () {
+    if (val != botAcceptOrders) {
+        botAcceptOrders = val;
+        server.botAcceptOrdersChanged(botAcceptOrders);
+    }
+}
+
 void Server::SettingManager::processLine(const string& line, LogSet& argLogs, bool interactive, const GamemodAccessDescriptor& access) const throw () {
     string cmd, value;
     istringstream ist(line);
@@ -141,6 +148,7 @@ void Server::SettingManager::build(bool reload) throw () {
     MFUN1<This,    void, int> &setRandomMaprot     = *addFn(NMFUN1 ( this,    &   This::setRandomMaprot       ));
     MFUN1<Network, void, CSR> &setRelayServer      = *addFn(NMFUN1 (&network, &Network::set_relay_server      ));
     MFUN1<This,    void, int> &setAllTeamPups      = *addFn(NMFUN1 ( this,    &   This::setAllTeamPups        ));
+    MFUN1<This,    void, int> &setBotAcceptOrders  = *addFn(NMFUN1 ( this,    &   This::setBotAcceptOrders    ));
 
     // getters that require changing of return type from const string& -> string
     STCSR0<         string>   &getForceIP          = *addFn(NSTCSR0(*addFn(NCMFUN0( this,    &   This::getForceIP            ))));
@@ -150,6 +158,7 @@ void Server::SettingManager::build(bool reload) throw () {
     CMFUN0<This,    int>      &getRandomMaprot     = *addFn(NCMFUN0( this,    &   This::getRandomMaprot       ));
     CMFUN0<Network, string>   &getRelayServer      = *addFn(NCMFUN0(&network, &Network::get_relay_server      ));
     CMFUN0<This,    int>      &getAllTeamPups      = *addFn(NCMFUN0( this,    &   This::getAllTeamPups        ));
+    CMFUN0<This,    int>      &getBotAcceptOrders  = *addFn(NCMFUN0( this,    &   This::getBotAcceptOrders    ));
 
     #undef FUN0
     #undef NFUN0
@@ -229,6 +238,7 @@ void Server::SettingManager::build(bool reload) throw () {
     cat.add(new GS_Boolean   ("balance_bot",                 &balance_bot));
     cat.add(new GS_Int       ("bot_ping",                    &bot_ping, 0, 2000));
     cat.add(new GS_String    ("bot_name_lang",               &bot_name_lang));
+    cat.add(new GS_ForwardInt("bot_accept_orders",           setBotAcceptOrders, getBotAcceptOrders, 0, 1));
     categories.push_back(cat);
 
     cat = Category("bot_name_file", "Bot files"); // Separate category because this settings selects a file from the server and it is reasonable to be restricted more than the other bot settings.
@@ -488,6 +498,7 @@ void Server::SettingManager::reset() throw () {
     bots_fill = 0;
     bot_ping = 300;
     balance_bot = false;
+    botAcceptOrders = false;
 
     server_password.clear();
     hostname = "Anonymous host"; // not translated - a server's language is irrelevant to clients

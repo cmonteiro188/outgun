@@ -2200,7 +2200,7 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
         if (sender.defendingAfterDeath)
             description += " until dead, then defending";
     }
-    else if (!msg.empty() && msg[0] == '+' || msg[0] == '-') {
+    else if (acceptOrders && (!msg.empty() && msg[0] == '+' || msg[0] == '-')) {
         const int playerCount = GetPlayers(myTeam());
         const int defaultAttackers = (playerCount + 1) / 2;
         if (msg.find_first_not_of("+") == string::npos)      // +; increase attackers

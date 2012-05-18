@@ -2,7 +2,7 @@
  *  robot.h
  *
  *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
- *  Copyright (C) 2006, 2008 - Jani Rivinoja
+ *  Copyright (C) 2006, 2008, 2012 - Jani Rivinoja
  *  Copyright (C) 2006 - Peter Kosyh
  *
  *  This file is part of Outgun.
@@ -85,6 +85,8 @@ class Robot : public ClientBase, public BotInterface {
     int         myGundir;
     ClientPlayer futureMe; // extrapolated by averageLag
     WorldCoords myPos; // shortcut to futureMe.pos
+
+    bool acceptOrders; // accept orders from teammates
     int extraAttackers; // number of extra attackers from default in team strategy, can be negative
 
     std::vector<bool> flagsIgnored[3];
@@ -251,6 +253,8 @@ public:
     void set_bot_password(const std::string& pass) throw () { bot_password = pass; }
 
     int team() const throw () { return me / TSIZE; }
+
+    void set_accept_orders(bool val) throw () { acceptOrders = val; }
 };
 
 #endif

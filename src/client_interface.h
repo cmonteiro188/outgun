@@ -2,7 +2,7 @@
  *  client_interface.h
  *
  *  Copyright (C) 2003, 2004, 2005, 2010 - Niko Ritari
- *  Copyright (C) 2003, 2004 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -96,6 +96,8 @@ public:
     virtual void set_bot_password(const std::string& pass) throw () = 0;
 
     virtual int team() const throw () = 0;
+
+    virtual void set_accept_orders(bool val) throw () = 0;
 };
 
 #endif

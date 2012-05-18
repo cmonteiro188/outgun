@@ -929,6 +929,7 @@ void Server::init_bots() throw () {
         BotInterface* const bot = BotInterface::newBot(clientCfg, botNoLog, botErrorLog, conn);
         nAssert(bot);
         bot->set_bot_password(settings.get_server_password());
+        bot->set_accept_orders(settings.getBotAcceptOrders());
         bot->bot_start(address, settings.get_bot_ping(), create_bot_name(), botId++);
         bots.push_back(give_control(bot));
         log("Bot added");
@@ -1018,6 +1019,11 @@ void Server::remove_bot() throw () {
             return;
         }
     nAssert(0); // There should be bots if this function is called.
+}
+
+void Server::botAcceptOrdersChanged(bool accept) throw () {
+    for (PointerVector<BotInterface>::iterator bi = bots.begin(); bi != bots.end(); bi++)
+        bi->set_accept_orders(accept);
 }
 
 //start server

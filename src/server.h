@@ -163,6 +163,7 @@ class Server : private NoCopying {
         bool            balance_bot;
         std::string     bot_name_lang;
         std::string     bot_name_file;
+        bool            botAcceptOrders;
         int             save_stats;
         bool            random_maprot;
         bool            random_first_map;
@@ -234,6 +235,8 @@ class Server : private NoCopying {
         void commit(bool reload) throw ();
         void processLine(const std::string& line, LogSet& argLogs, bool allowGet, const GamemodAccessDescriptor& access) const throw ();
 
+        void setBotAcceptOrders(int val) throw ();
+
     public:
         SettingManager(Server& server_, const ServerExternalSettings& extConfig_) throw () : server(server_), network(server_.network), world(server_.world),
                 extConfig(extConfig_), ipAddress(extConfig.ipAddress), port(extConfig.port), built(false) { }
@@ -290,6 +293,7 @@ class Server : private NoCopying {
         bool get_balance_bot() const throw () { return balance_bot; }
         const std::string& get_bot_name_lang() const throw () { return bot_name_lang; }
         const std::string& get_bot_name_file() const throw () { return bot_name_file; }
+        int getBotAcceptOrders() const throw () { return botAcceptOrders; }
 
         int  get_save_stats() const throw () { return save_stats; }
 
@@ -381,6 +385,7 @@ public:
 
     void remove_bot() throw ();
     void set_check_bots() throw () { check_bots = true; }
+    void botAcceptOrdersChanged(bool accept) throw ();
 
     void logAdminAction(int admin, const std::string& action, int target = pid_none) throw ();
     void logChat(int pid, const std::string& message) throw ();
