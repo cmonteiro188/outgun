@@ -1143,6 +1143,8 @@ class ServerWorld : public WorldBase {
     bool extra_time_and_sudden_death() const throw ();
     bool all_kind_of_flags_exist() const throw ();
 
+    WorldCoords selectRespawnPosition(int pid) throw ();
+
 public:
     uint32_t frame;
     uint32_t map_start_time; // frame #

@@ -1864,62 +1864,59 @@ void ServerWorld::start_game() throw () {
     check_powerup_creation(true);
 }
 
-void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
+WorldCoords ServerWorld::selectRespawnPosition(int pid) throw () {
     const int team = pid / TSIZE;
 
+    if (player[pid].respawn_to_base && !map.tinfo[team].spawn.empty()) {
+        unsigned& spawnIdx = map.tinfo[team].lastspawn;
+        spawnIdx = (spawnIdx + 1) % map.tinfo[team].spawn.size();
+        return map.tinfo[team].spawn[spawnIdx];
+    }
+
+    const int RO_none = 0, RO_friendsOnly = 1, RO_enemies = 2;
+    vector< vector<int> > roomOccupancy(map.w, vector<int>(map.h, RO_none));
+    for (int pi = 0; pi < maxplayers; ++pi) {
+        const ServerPlayer& pl = player[pi];
+        if (pl.used && !pl.dead && pl.room().x >= 0 && pl.room().y >= 0 && pl.room().x < map.w && pl.room().y < map.h) {
+            int& occ = roomOccupancy[pl.room().x][pl.room().y];
+            occ = max(occ, pl.team() == team ? RO_friendsOnly : RO_enemies);
+        }
+    }
+
     WorldCoords pos;
-    if (map.tinfo[team].spawn.empty())
-        player[pid].respawn_to_base = false;
-
-    if (player[pid].respawn_to_base) {
-        //choose a team spawn point
-        if (++map.tinfo[team].lastspawn >= map.tinfo[team].spawn.size())
-            map.tinfo[team].lastspawn = 0;
-        pos = map.tinfo[team].spawn[map.tinfo[team].lastspawn]; // the point
+    for (int sufficientOccupancy = RO_none; sufficientOccupancy <= RO_enemies; ++sufficientOccupancy) {
+        for (int repeat = 0; repeat < 200; ++repeat) { // try to choose a position repeatedly until falling back to less occupancy requirements
+            if (!map.tinfo[team].respawn.empty()) {
+                // choose a team respawn point
+                const WorldRect& area = map.tinfo[team].respawn[rand() % map.tinfo[team].respawn.size()];
+                if (roomOccupancy[area.room.x][area.room.y] > sufficientOccupancy)
+                    continue;
+                pos.room = area.room;
+                do { // since the areas are checked not to contain too much wall, we are sure to find a space soon enough
+                    pos.x = area.x1 + rand() % (static_cast<int>(area.x2 - area.x1) + 1);
+                    pos.y = area.y1 + rand() % (static_cast<int>(area.y2 - area.y1) + 1);
+                } while (map.fall_on_wall(pos, PLAYER_RADIUS));
+                return pos;
+            }
+            else {
+                // generate a random spot for respawn
+                pos.room.x = rand() % map.w;
+                pos.room.y = rand() % map.h;
+                if (roomOccupancy[pos.room.x][pos.room.y] > sufficientOccupancy)
+                    continue;
+                pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
+                pos.y = PLAYER_RADIUS + rand() % (plh - 2 * PLAYER_RADIUS);
+                if (!map.fall_on_wall(pos, PLAYER_RADIUS))
+                    return pos;
+            }
+        }
     }
-    else if (!map.tinfo[team].respawn.empty()) {
-        // choose a team respawn point
-        const WorldRect& area = map.tinfo[team].respawn[rand() % map.tinfo[team].respawn.size()];
-        pos.room = area.room;
-        do { // since the areas are checked not to contain too much wall, we are sure to find a space soon enough
-            pos.x = area.x1 + rand() % (static_cast<int>(area.x2 - area.x1) + 1);
-            pos.y = area.y1 + rand() % (static_cast<int>(area.y2 - area.y1) + 1);
-        } while (map.fall_on_wall(pos, PLAYER_RADIUS));
-    }
-    else {
-        // generate a random spot for respawn:
-        // - unnocupied screen
-        // - away from walls
+    nAssert(map.tinfo[team].respawn.empty());
+    return pos; // an otherwise valid position was generated last, only one that is on a wall
+}
 
-        //calculate room touch matrix
-        vector<bool> roompop(map.w * map.h, false);
-        for (int i = 0; i < maxplayers; i++)
-            if (player[i].used && player[i].room().x >= 0 && player[i].room().y >= 0 && player[i].room().x < map.w && player[i].room().y < map.h)
-                roompop[player[i].room().y * map.w + player[i].room().x] = true;
-
-        int runaway = 400;
-        do {
-            //find screen
-            int ridx;
-            do {
-                ridx = rand() % (map.w * map.h);
-            } while (runaway-- > 200 && roompop[ridx]); //keep trying until unnocupied (==false)
-            pos.room = RoomCoords(ridx % map.w, ridx / map.w);
-
-            //find suitable coordinates
-            pos.x = PLAYER_RADIUS + rand() % (plw - 2 * PLAYER_RADIUS);
-            pos.y = PLAYER_RADIUS + rand() % (plh - 2 * PLAYER_RADIUS);
-
-            //do a check for walls, maybe retrying another screen if hits a wall
-            if (!map.fall_on_wall(pos, PLAYER_RADIUS))
-                break;  //success!
-
-            //fall on wall true, keep trying...
-
-        } while (runaway-- > 0);
-    }
-
-    player[pid].pos = pos;
+void ServerWorld::respawnPlayer(int pid, bool dontInformClients) throw () {
+    player[pid].pos = selectRespawnPosition(pid);
     player[pid].vel = Vec(0, 0);
 
     player[pid].health = config.start_health;
