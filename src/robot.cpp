@@ -3,6 +3,7 @@
  *
  *  Copyright (C) 2006, 2008 - Peter Kosyh
  *  Copyright (C) 2006, 2008, 2009, 2010, 2011, 2012 - Niko Ritari
+ *  Copyright (C) 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -69,6 +70,7 @@ BotInterface* BotInterface::newBot(const ClientExternalSettings& config, Log& cl
 
 #endif
 
+using std::istringstream;
 using std::list;
 using std::make_pair;
 using std::map;
@@ -1385,8 +1387,8 @@ bool Robot::flagIgnored(const Flag& flag, int team) throw () {
 
     const int nAllFlags = fx.map.tinfo[0].flags.size() + fx.map.tinfo[1].flags.size() + fx.map.wild_flags.size();
     const int maxPlayers = flag.carried() && myDistance <= roomToRoomBaseDistance
-            ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags
-            :  GetPlayers(myTeam())                  / nAllFlags;
+            ? (GetPlayers(myTeam()) + nAllFlags - 1) / nAllFlags - extraAttackers
+            :  GetPlayers(myTeam())                  / nAllFlags - extraAttackers;
     if (maxPlayers == 0)
         return true;
 
@@ -2207,7 +2209,8 @@ Robot::Robot(const ClientExternalSettings& config, Log& clientLog, MemoryLog& ex
     connectQueued(false),
     sharedDataHandle(g_botSharedDataStorage),
     finished(false),
-    botPrevFire(false)
+    botPrevFire(false),
+    extraAttackers(0)
 { }
 
 Robot::~Robot() throw () {
@@ -2307,6 +2310,28 @@ void Robot::net_text_message(Message_type type, int sender_team, const string& t
         if (sender.defendingAfterDeath)
             description += " until dead, then defending";
     }
+    else if (acceptOrders && (!msg.empty() && msg[0] == '+' || msg[0] == '-')) {
+        const int playerCount = GetPlayers(myTeam());
+        const int defaultAttackers = (playerCount + 1) / 2;
+        if (msg.find_first_not_of("+") == string::npos)      // +; increase attackers
+            extraAttackers += msg.length();
+        else if (msg.find_first_not_of("-") == string::npos) // -; decrease attackers
+            extraAttackers -= msg.length();
+        else { // +n, -n; set the number of attackers
+            istringstream ist(msg);
+            ist >> extraAttackers;
+            if (!ist || !ist.eof())
+                return;
+        }
+        if (defaultAttackers + extraAttackers > playerCount)
+            extraAttackers = playerCount - defaultAttackers;
+        if (defaultAttackers + extraAttackers < 0)
+            extraAttackers = -defaultAttackers;
+        description = "attack-defence balance ";
+        description += itoa(defaultAttackers + extraAttackers);
+        description += "-";
+        description += itoa(playerCount - defaultAttackers - extraAttackers);
+    }
     else
         return;
     if (firstBotInTeam()) {
@@ -2394,6 +2419,7 @@ void Robot::bot_loop() throw () {
     if (mapChanged) {
         mapChanged = false;
         BuildMap();
+        extraAttackers = 0;
     }
 
     fx.cleanOldDeathbringerExplosions();
