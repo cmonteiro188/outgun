@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
  *  Copyright (C) 2003, 2004, 2006 - Niko Ritari
- *  Copyright (C) 2003, 2004, 2005 - Jani Rivinoja
+ *  Copyright (C) 2003, 2004, 2005, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -36,14 +36,11 @@ using std::vector;
 
 Sounds::Sounds(LogSet logs) throw () :
     log(logs),
+    sample(NUM_OF_SAMPLES),
     enabled(false),
     allegroSoundInitialized(false),
     volume(255)
-{
-    //no samples loaded -- important so unload_samples don't crash
-    for (int i = 0; i < NUM_OF_SAMPLES; i++)
-        sample[i] = 0;
-}
+{ }
 
 Sounds::~Sounds() throw () {
     unload_samples();
@@ -173,42 +170,38 @@ void Sounds::load_samples(const string& path) throw () {
     load_outgun_sample(path, "spree", SAMPLE_KILLING_SPREE);
 }
 
-SAMPLE* Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) throw () {
+void Sounds::load_outgun_sample(const string& path, const string& fname, int slot, bool try_redirect) throw () {
     const string fileName = path + fname + ".wav";
 
-    SAMPLE* ret = sample[slot] = load_sample(fileName.c_str());
+    SAMPLE* ret = load_sample(fileName.c_str());
 
-    if (try_redirect && ret == 0) { // if not found, look for .txt redirect
+    if (ret != 0)
+        sample[slot].push_back(ret);
+    else if (try_redirect) { // if not found, look for .txt redirect
         const string textName = path + fname + ".txt";
-
         ifstream in(textName.c_str());
-        if (in) {
-            string redir_name;
-            getline_skip_comments(in, redir_name);
-            in.close();
-
-            return load_outgun_sample(path, redir_name.c_str(), slot, false);   // no more redirections (avoid endless loops)
-        }
+        string redir_name;
+        while (getline_skip_comments(in, redir_name))
+            load_outgun_sample(path, redir_name.c_str(), slot, false);   // no more redirections (avoid endless loops)
     }
-
-    return ret;
 }
 
 void Sounds::unload_samples() throw () {
     if (!allegroSoundInitialized)
         return;
-    for (int i = 0; i < NUM_OF_SAMPLES; i++)
-        if (sample[i]) {
-            destroy_sample(sample[i]);
-            sample[i] = 0;
-        }
+    for (vector<vector<SAMPLE*> >::const_iterator sli = sample.begin(); sli != sample.end(); sli++)
+        for (vector<SAMPLE*>::const_iterator si = sli->begin(); si != sli->end(); si++)
+            if (*si)
+                destroy_sample(*si);
+    sample = vector<vector<SAMPLE*> >(NUM_OF_SAMPLES);
 }
 
 void Sounds::play(int s, int f) const throw () {
     nAssert(s >= 0 && s < NUM_OF_SAMPLES);
-    if (enabled && sample[s]) {
+    if (enabled && sampleExists(s)) {
         nAssert(allegroSoundInitialized);
-        stop_sample(sample[s]); // kill any voice playing that sample
-        play_sample(sample[s], volume, 127, f, false);   // regular play
+        const SAMPLE* const smp = sample[s][rand() % sample[s].size()];
+        stop_sample(smp); // kill any voice playing that sample
+        play_sample(smp, volume, 127, f, false);   // regular play
     }
 }

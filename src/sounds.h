@@ -2,7 +2,7 @@
  *  sounds.h
  *
  *  Copyright (C) 2004 - Niko Ritari
- *  Copyright (C) 2004 - Jani Rivinoja
+ *  Copyright (C) 2004, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
  *
@@ -38,7 +38,7 @@ public:
 
     void play(int s, int f) const throw ();
 
-    bool sampleExists(int s) const throw () { return sample[s] != 0; }
+    bool sampleExists(int s) const throw () { return !sample[s].empty(); }
 
     void search_themes(LineReceiver& dst) const throw ();
     void select_theme(const std::string& dir) throw ();
@@ -50,11 +50,11 @@ private:
     bool try_init() throw ();
 
     void load_samples(const std::string& path) throw ();
-    SAMPLE* load_outgun_sample(const std::string& path, const std::string& fname, int slot, bool try_redirect = true) throw ();
+    void load_outgun_sample(const std::string& path, const std::string& fname, int slot, bool try_redirect = true) throw ();
     void unload_samples() throw ();
 
     mutable LogSet log;
-    SAMPLE* sample[NUM_OF_SAMPLES];
+    std::vector<std::vector<SAMPLE*> > sample;
 
     std::string themedir;
     std::string themename;
