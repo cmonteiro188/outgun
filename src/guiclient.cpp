@@ -400,6 +400,7 @@ GuiClient::GuiClient(const ClientExternalSettings& config, const ServerExternalS
     current_map(-1),
     map_vote(-1),
     want_change_teams(false),
+    menusel(menu_none),
     player_stats_page(0),
     lastAltEnterTime(0),
     FPS(0),
@@ -427,8 +428,6 @@ bool GuiClient::start() throw () {
     extConfig.statusOutput(_("Outgun client"));
     initMenus();
     showMenu(menu);
-
-    menusel = menu_none;
 
     framecount = 0;
 
