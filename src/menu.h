@@ -77,7 +77,7 @@ class KeyHookable {
     // can't privately inherit KeyHookable from Hookable3 because the compiler still makes ambiguities of the functions when inheriting from KeyHookable!
     class Helper : public Hookable3<bool, CallerT&, char, unsigned char> {
     public:
-        bool callHook_helper(CallerT& a1, char a2, unsigned char a3) throw () { return callHook(a1, a2, a3); }
+        bool callHook_helper(CallerT& a1, char a2, unsigned char a3) throw () { return this->callHook(a1, a2, a3); }
     };
     Helper helper;
 
@@ -217,7 +217,7 @@ public:
     // the public interface is entirely defined in TextfieldBase
 
 private:
-    void virtualCallHook() throw () { callHook(*this); }
+    void virtualCallHook() throw () { this->callHook(*this); }
     bool virtualCallKeyHook(char scan, unsigned char chr) throw () { return callKeyHook(*this, scan, chr); }
 };
 
@@ -240,7 +240,7 @@ private:
 
     void updateTail() throw ();
 
-    void virtualCallHook() throw () { callHook(*this); }
+    void virtualCallHook() throw () { this->callHook(*this); }
     bool virtualCallKeyHook(char scan, unsigned char chr) throw () { return callKeyHook(*this, scan, chr); }
 };
 
@@ -281,7 +281,7 @@ public:
     const ValueT& operator()() const throw () { return values[selected]; }
 
 private:
-    void virtualCallHook() throw () { callHook(*this); }
+    void virtualCallHook() throw () { this->callHook(*this); }
     std::vector<ValueT> values; // should always be in sync with options
 };
 

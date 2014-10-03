@@ -131,8 +131,8 @@ void binaryBufferTest() throw () {
         }
     }
     {
-        static const  int32_t tests[] = { 0, 1, 119, 120, 1535, 1536, 0x7FFFFFFF, -1, -120, -121, -1536, -1537, -(0x80000000) };
-        static const unsigned sizes[] = { 1, 1,   1,   2,    2,    3,          5,  1,    1,    2,     2,     3,             5, 99 };
+        static const  int32_t tests[] = { 0, 1, 119, 120, 1535, 1536, 0x7FFFFFFF, -1, -120, -121, -1536, -1537, numeric_limits<int32_t>::min() };
+        static const unsigned sizes[] = { 1, 1,   1,   2,    2,    3,          5,  1,    1,    2,     2,     3,                              5, 99 };
         for (unsigned i = 0; sizes[i] != 99; ++i) {
             b1.clear();
             b1.S32dyn8(tests[i]);

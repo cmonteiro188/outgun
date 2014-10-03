@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <ctime>
 #include <sstream>
+#include <unistd.h> // usleep
 
 using std::string;
 
