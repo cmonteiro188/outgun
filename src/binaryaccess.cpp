@@ -351,6 +351,8 @@ void BinaryStreamReader::setPosition(unsigned position) throw () {
 }
 
 unsigned BinaryStreamReader::getPosition() const throw () {
+    stream.clear(stream.rdstate() & ~std::ios::eofbit); // with eofbit, tellg() sets failbit and returns -1
+    nAssert(stream.good());
     return stream.tellg();
 }
 
