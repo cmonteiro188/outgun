@@ -1887,7 +1887,7 @@ void Graphics::draw_scoreboard(const vector<ClientPlayer*>& players, const Team*
 
 void Graphics::draw_scoreboard_name(const FONT* sbfont, const string& name, int x, int y, int pcol, bool underline) throw () {
     if (underline)
-        hline(drawbuf, x, y + text_height(font), x + text_length(font, name) - 2, pcol);
+        hline(drawbuf, x, y + text_height(sbfont), x + text_length(sbfont, name) - 2, pcol);
     textout_ex(drawbuf, sbfont, name.c_str(), x, y, pcol, -1);
 }
 
