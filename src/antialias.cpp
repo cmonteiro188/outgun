@@ -1,7 +1,7 @@
 /*
  *  antialias.cpp
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2014 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -444,12 +444,12 @@ void YSegment::simplify() throw () { // removes double borders from build list (
 
 void YSegment::moveElements(int texid) throw () {    // moves all borders from build list to final list (use only when the final list is empty)
     nAssert(final.empty());
-    for (BorderListT::iterator bi = build.begin(); bi != build.end(); ) {
+    for (BorderListT::const_iterator bi = build.begin(); bi != build.end(); ) {
         final.push_back(TexBorder(*bi, texid));
-        bi = build.erase(bi);
+        ++bi;
         nAssert(bi != build.end());
         final.push_back(TexBorder(*bi, -1));
-        bi = build.erase(bi);
+        ++bi;
     }
     build.clear();
 }
@@ -468,7 +468,7 @@ void YSegment::moveElements(int texid) throw () {    // moves all borders from b
 void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // moves all borders from build list to final list overlapping the old walls (or overlay)
     nAssert((build.size() & 1) == 0);
     BorderCompare bcmp(y0, y1);
-    for (BorderListT::iterator sbi = build.begin(); sbi != build.end(); ) {
+    for (BorderListT::const_iterator sbi = build.begin(); sbi != build.end(); ) {
         #ifdef DEBUG_OVERLAP
         debug(true);
         cerr << '\n';
@@ -491,7 +491,7 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // 
             dbi->addTex(texid);
             ++dbi;  // point dbi to the same item as before
 
-            sbi = build.erase(sbi); // the ending border
+            ++sbi; // the ending border
             nAssert(sbi != build.end());
 
             while (dbi != final.end()) {
@@ -518,7 +518,7 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // 
                 ++dbi;  // point dbi to the same item as before
             }
 
-            sbi = build.erase(sbi); // the ending border
+            ++sbi; // the ending border
             nAssert(sbi != build.end());
 
             while (dbi != final.end()) {
@@ -531,8 +531,9 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // 
             if (texid != prevTex.front() || prevTex.size() > 1) // note: new prevTex
                 final.insert(dbi, TexBorder(*sbi, prevTex));
         }
-        sbi = build.erase(sbi); // the next beginning border (if any)
+        ++sbi; // the next beginning border (if any)
     }
+    build.clear();
     #ifdef DEBUG_OVERLAP
     debug(true);
     cerr << "\n\n";
