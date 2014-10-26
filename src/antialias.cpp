@@ -21,6 +21,10 @@
  *
  */
 
+/** @file
+ * Implementation of the full-scene antialiasing system.
+ */
+
 #include <algorithm>
 #include <cmath>
 #include "incalleg.h"
@@ -43,7 +47,7 @@ double CurveFunction::operator()(double y) const throw () {
 
 ChangePoints CurveFunction::getChangePoints(double x) const throw () {
     ChangePoints ret;
-    if ((x - cx) * sideMul < 0) {   // x is on the undefined side
+    if ((x - cx) * sideMul < 0) { // x is on the undefined side
         ret.startSide = sideMul>0 ? ChangePoints::S_Right : ChangePoints::S_Left;
         ret.points[0] = 1e99;
     }
@@ -88,7 +92,7 @@ void CurveFunction::debug() const throw () {
 }
 
 double LineFunction::operator()(double y) const throw () {
-    if (py1 == py2) {   // in this case, ratio is invalid
+    if (py1 == py2) { // in this case, ratio is invalid
         nAssert(y == py1);
         return px1;
     }
@@ -98,8 +102,8 @@ double LineFunction::operator()(double y) const throw () {
 ChangePoints LineFunction::getChangePoints(double x) const throw () {
     ChangePoints ret;
     // change point is where x = px1 + (px2 - px1)*(y - py1)/(py2 - py1) ; y = py1 + (py2 - py1)*(x - px1)/(px2 - px1)
-    if (py1 == py2) {   // in this case, ratio is invalid
-        ret.startSide = ChangePoints::S_Left;   // arbitrary
+    if (py1 == py2) { // in this case, ratio is invalid
+        ret.startSide = ChangePoints::S_Left; // arbitrary
         ret.points[0] = 1e99;
     }
     else if (ratio == 0) {
@@ -116,7 +120,7 @@ ChangePoints LineFunction::getChangePoints(double x) const throw () {
 
 double LineFunction::spanLeftSideIntegral(double x0, double y0, double y1) const throw () {
     // this function computes the integral from y0 to y1 of (x(y) - x0)dy ; derive the expression yourself ;)
-    if (py1 == py2) {   // in this case, ratio is invalid
+    if (py1 == py2) { // in this case, ratio is invalid
         nAssert(y0 == y1 && y0 == py1);
         return 0;
     }
@@ -140,10 +144,19 @@ void LineFunction::debug() const throw () {
     #endif
 }
 
-// swap used by pixelLeftSideIntegral (and elsewhere) ; ideally s = !s;
+/// Flip the Side in-place, basically s = !s;
 void swap(ChangePoints::Side& s) throw () { s = (s == ChangePoints::S_Left) ? ChangePoints::S_Right : ChangePoints::S_Left; }
 
+/** Calculate the area to the left of @a fn within the given y-range of a pixel.
+ * Calculate the area within  x0 < x < x0 + 1  and  y0 < y < y1  where  fn(y) >= x.
+ */
 double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFunctionBase& fn) throw () {
+    /* The area is calculated as the sum of:
+     * - where      fn(y) <= x0: 0
+     * - where x0 < fn(y) <  x1: the integral of fn(y) - x0
+     * - where      fn(y) >= x1: the integral of 1
+     * over the given range of y.
+     */
     const ChangePoints lc = fn.getChangePoints(x0 + X_EXTREMECUT), rc = fn.getChangePoints(x0 + 1. - X_EXTREMECUT); // leave outer edges off to make sure the result is within [0,1]
     ChangePoints::Side ls = lc.startSide, rs = rc.startSide;
     const double* lcpi = lc.points, * rcpi = rc.points;
@@ -153,7 +166,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
     while (*lcpi <= y) { swap(ls); ++lcpi; }
     while (*rcpi <= y) { swap(rs); ++rcpi; }
     for (;;) {
-        if (ls == ChangePoints::S_Left) {   // out on the left side (until *lcpi)
+        if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
             if (*lcpi >= y1)
                 return totalPixel;
             y = *lcpi++; swap(ls);
@@ -166,13 +179,13 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
             y = *rcpi++; swap(rs);
             while (*lcpi <= y) { swap(ls); ++lcpi; }
         }
-        else if (*lcpi < *rcpi) {   // within the clipping region until *lcpi
+        else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
             if (*lcpi >= y1)
                 return totalPixel + fn.spanLeftSideIntegral(x0, y, y1);
             totalPixel += fn.spanLeftSideIntegral(x0, y, *lcpi);
             y = *lcpi++; swap(ls);
         }
-        else {  // within the clipping region until *rcpi
+        else { // within the clipping region until *rcpi
             if (*rcpi >= y1)
                 return totalPixel + fn.spanLeftSideIntegral(x0, y, y1);
             totalPixel += fn.spanLeftSideIntegral(x0, y, *rcpi);
@@ -182,6 +195,9 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
     }
 }
 
+/** Render between border functions within a single line of pixels.
+ * Texturizer must be set on the correct line by caller.
+ */
 template<class Texturizer>
 void renderLine(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) throw () {
     double minxl = min(fl(y0), fl(y1)), minxr = min(fr(y0), fr(y1));
@@ -204,18 +220,19 @@ void renderLine(double y0, double y1, const BorderFunctionBase& fl, const Border
             tex.putPix(pixelLeftSideIntegral(x, y0, y1, fr) - pixelLeftSideIntegral(x, y0, y1, fl));
         swap(r0, l1);
     }
-    if (l0 < l1) {  // optimization: don't do the quite costly startPixSpan unnecessarily; also empty spans aren't tolerated
+    if (l0 < l1) { // optimization: don't do the quite costly startPixSpan unnecessarily; also empty spans aren't tolerated
         tex.startPixSpan(l0);
         for (int lx = l0; lx < l1; ++lx)
             tex.putPix((y1 - y0) - pixelLeftSideIntegral(lx, y0, y1, fl));
     }
-    if (r0 < r1) {  // optimization: see above
+    if (r0 < r1) { // optimization: see above
         tex.startPixSpan(r0);
         for (int rx = r0; rx < r1; ++rx)
             tex.putPix(pixelLeftSideIntegral(rx, y0, y1, fr));
     }
 }
 
+/// Render between border functions within a given y-range.
 template<class Texturizer>
 void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) throw () {
     tex.setLine(static_cast<int>(floor(y0)));
@@ -277,13 +294,19 @@ void YSegment::debug(bool verbose) const throw () {
     #endif
 }
 
+/** Get the first intersection between given border functions.
+ * @return Value of y where the border functions intersect, or a huge value if they don't.
+ */
 double getIntersection(LineFunction* f1, LineFunction* f2) throw () {
     // f1->px1 + (y - f1->py1) * f1->ratio = f2->px1 + (y - f2->py1) * f2->ratio
     if (f2->ratio == f1->ratio)
-        return 1e99;    // no intersection
+        return 1e99; // no intersection
     return (f1->px1 - f2->px1 - f1->py1 * f1->ratio + f2->py1 * f2->ratio) / (f2->ratio - f1->ratio);
 }
 
+/** Get the first intersection between given border functions.
+ * @return Lowest value of y where the border functions intersect "above" miny, or a huge value if they don't.
+ */
 double getIntersection(LineFunction* f1, CurveFunction* f2, double miny) throw () {
     // | f1->(px1,py1) + t * f1->(px2-px1,py2-py1) - f2->(cx,cy) |^2 = f2->r2
     // (x - f2->cx) * f2->sideMul > 0
@@ -296,26 +319,29 @@ double getIntersection(LineFunction* f1, CurveFunction* f2, double miny) throw (
     const double d2 = dx*dx + dy*dy;
     double disc = mdotd*mdotd - m2*(d2-r2);
     if (disc <= 0)
-        return 1e99;    // no intersection
+        return 1e99; // no intersection
     disc = sqrt(disc);
     double t = (mdotd - disc) / m2; // smaller t
     double besty = 1e99;
     double y = f1->py1 + t * my;
     if (y >= miny) {
         const double xside = t * mx - dx;
-        if (xside * f2->sideMul > 0)    // same sign -> is on the 'active' side of the circle
+        if (xside * f2->sideMul > 0) // same sign -> is on the 'active' side of the circle
             besty = y;
     }
-    t = (mdotd + disc) / m2;    // larger t
+    t = (mdotd + disc) / m2; // larger t
     y = f1->py1 + t * my;
     if (y >= miny && y < besty) {
         const double xside = t * mx - dx;
-        if (xside * f2->sideMul > 0)    // same sign -> is on the 'active' side of the circle
+        if (xside * f2->sideMul > 0) // same sign -> is on the 'active' side of the circle
             besty = y;
     }
     return besty;
 }
 
+/** Get the first intersection between given border functions.
+ * @return Lowest value of y where the border functions intersect "above" miny, or a huge value if they don't.
+ */
 double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw () {
     // | (x,y) - f1->(cx,cy) |^2 = f1->r2
     // | (x,y) - f2->(cx,cy) |^2 = f2->r2
@@ -324,13 +350,13 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw 
     const double dy = f2->cy - f1->cy;
     const double sr2 = dx*dx + dy*dy;
     if (sr2 == 0)
-        return 1e99;    // no intersection
+        return 1e99; // no intersection
     const double t = .5 * (sr2 + f1->r2 - f2->r2);
     const double xb = f1->cx + dx * t / sr2;
     const double yb = f1->cy + dy * t / sr2;
     const double srt = f1->r2 - t*t/sr2;
     if (srt <= 0)
-        return 1e99;    // no intersection
+        return 1e99; // no intersection
     const double sr = sqrt(sr2);
     const double mul = sqrt(srt) / sr;
     // now the points are (xb +- dy*mul , yb -+ dx*mul)
@@ -362,8 +388,6 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw 
     return besty;
 }
 
-// getFirstIntersection gets the first y coordinate within the segment, with an intersection between bfn and a border in the final list
-// extreme values of y (that might [would the math be exact] actually be at the extreme coordinate or even outside the segment) are ignored
 bool YSegment::getFirstIntersection(BorderFunctionBase* bfn, double* splity) throw () {
     *splity = 1e99;
     const double miny = y0 + INTERSECTION_TRESHOLD;
@@ -416,12 +440,12 @@ YSegment YSegment::split(double midy) throw () {
     return ret;
 }
 
-void YSegment::sort() throw () { // sorts the build list borders in increasing x-order
+void YSegment::sort() throw () {
     nAssert((build.size() & 1) == 0);
     std::sort(build.begin(), build.end(), BorderCompare(y0, y1));
 }
 
-void YSegment::simplify() throw () { // removes double borders from build list (assuming it's sorted)
+void YSegment::simplify() throw () {
     nAssert((build.size() & 1) == 0);
     if (build.empty())
         return;
@@ -442,7 +466,7 @@ void YSegment::simplify() throw () { // removes double borders from build list (
     }
 }
 
-void YSegment::moveElements(int texid) throw () {    // moves all borders from build list to final list (use only when the final list is empty)
+void YSegment::moveElements(int texid) throw () {
     nAssert(final.empty());
     for (BorderListT::const_iterator bi = build.begin(); bi != build.end(); ) {
         final.push_back(TexBorder(*bi, texid));
@@ -463,18 +487,19 @@ void YSegment::moveElements(int texid) throw () {    // moves all borders from b
  * taking one wall element (pair of borders) at a time from the build list, the final list is modified so the new wall overlaps old ones:
  * - search on while an old border is to the left left from the new left border
  * - add the new left border
- * - remove old borders while they are left from the new right border
+ * - remove old borders while they are left from the new right border (if !overlay, else simply update them)
+ * - add the new right border
  */
-void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // moves all borders from build list to final list overlapping the old walls (or overlay)
+void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {
     nAssert((build.size() & 1) == 0);
     BorderCompare bcmp(y0, y1);
-    for (BorderListT::const_iterator sbi = build.begin(); sbi != build.end(); ) {
+    for (BorderListT::const_iterator sbi = build.begin(); sbi != build.end(); ) { // a pair of borders per iteration
         #ifdef DEBUG_OVERLAP
         debug(true);
         cerr << '\n';
         #endif
         TexBorderListT::iterator dbi = final.begin();
-        for (; dbi != final.end(); ++dbi)   //#opt: skipped entries are skipped on the next round too
+        for (; dbi != final.end(); ++dbi) //#opt: skipped entries are skipped on the next round too
             if (!bcmp(dbi->getFn(), *sbi))
                 break;
         // dbi points to the first border that will be overwritten
@@ -489,7 +514,7 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // 
 
             dbi = final.insert(dbi, TexBorder(*sbi, prevTex));
             dbi->addTex(texid);
-            ++dbi;  // point dbi to the same item as before
+            ++dbi; // point dbi to the same item as before
 
             ++sbi; // the ending border
             nAssert(sbi != build.end());
@@ -515,7 +540,7 @@ void YSegment::moveElementsWithOverlap(int texid, bool overlay) throw () {   // 
 
             if (texid != prevTex.front() || prevTex.size() > 1) {
                 dbi = final.insert(dbi, TexBorder(*sbi, texid));
-                ++dbi;  // point dbi to the same item as before
+                ++dbi; // point dbi to the same item as before
             }
 
             ++sbi; // the ending border
@@ -558,12 +583,17 @@ void YSegment::extractDrawElements(list<DrawElement>& dst) const throw () {
     }
 }
 
-// splitOnIntersect splits *si (which must be part of list "segs") to two parts if bfn intersects some of the borders in si's final array
-// the split is done in the first intersection y-wise, and to handle multiple intersections, splitOnIntersect must also be called on the new segment
-// returns true if si was split
+/** Split YSegment if the border function intersects something within.
+ * Check if @a bfn intersects any borders already in the final list of @a *si.
+ * If it does, split @a *si into two segments around the intersection and insert
+ * the new segment after @a si in @a segs. The new segment will have to be
+ * checked and possibly split again.
+ * @param si Segment to be examined, must point within @a segs.
+ * @return true if *si was split.
+ */
 bool splitOnIntersect(SegListT::iterator si, BorderFunctionBase* bfn, SegListT& segs) throw () {
     double splity;
-    if (!si->getFirstIntersection(bfn, &splity))    // relies on getFirstIntersection not to return an intersection at the segment's extremes
+    if (!si->getFirstIntersection(bfn, &splity)) // relies on getFirstIntersection not to return an intersection at the segment's extremes
         return false;
     nAssert(splity > si->getY0() && splity < si->getY1());
     SegListT::iterator insPos = si;
@@ -571,9 +601,20 @@ bool splitOnIntersect(SegListT::iterator si, BorderFunctionBase* bfn, SegListT& 
     return true;
 }
 
+/** Insert given border segments into pre-existing YSegment s splitting where necessary.
+ *
+ * All given @a borders are inserted to the build lists of relevant segments in
+ * @a segDest. Where a border ends in the middle of a segment or would intersect
+ * a border already in a segment, the segment is split into two segments until
+ * all such problems are eliminated.
+ *
+ * @param segDest Ordered non-overlapping list of segments already covering the whole range
+ *                of possible y-coordinates. One empty segment from -1e99 to 1e99 is enough.
+ *                List is split and the segments inserted into by the function.
+ */
 void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDest) throw () {
-    nAssert(!segDest.empty());  // it must be pre-filled with (possibly empty) segments that cover all possible y's (one seg from -1e99 to 1e99 is good)
-//  nAssert(borders.size() >= 2);   // using clipping with objects wholly outside the clip area (or otherwise invisible) will violate this; disable this line if that's possible
+    nAssert(!segDest.empty()); // it must be pre-filled with (possibly empty) segments that cover all possible y's (one seg from -1e99 to 1e99 is good)
+//  nAssert(borders.size() >= 2); // using clipping with objects wholly outside the clip area (or otherwise invisible) will violate this; disable this line if that's possible
 
     #ifdef DEBUG_SPLIT
     cerr << '\n';
@@ -591,20 +632,20 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         for (si = segDest.begin(); nAssert(si != segDest.end()), si->getY1() <= bi->y0; ++si) { }
 
         // si points to first segment whose y1 > bi->y0
-        if (si->getY1() < bi->y0 + SPLIT_TRESHOLD) {    // in this case, this segment is ignored (too little of bi is in this segment)
-            if (bi->y0 - si->getY0() < SPLIT_TRESHOLD)  // bi->y0 is the new si->y1; this test also matches when bi->y0 < si->getY0()
+        if (si->getY1() < bi->y0 + SPLIT_TRESHOLD) { // in this case, this segment is ignored (too little of bi is in this segment)
+            if (bi->y0 - si->getY0() < SPLIT_TRESHOLD) // bi->y0 is the new si->y1; this test also matches when bi->y0 < si->getY0()
                 si = segDest.erase(si);
             else {
                 si->setY1(bi->y0);
                 ++si;
             }
         }
-        else if (si->getY0() < bi->y0 - SPLIT_TRESHOLD) {   // in this case, the segment must be split (too much of the segment is outside bi)
+        else if (si->getY0() < bi->y0 - SPLIT_TRESHOLD) { // in this case, the segment must be split (too much of the segment is outside bi)
             SegListT::iterator insPos = si;
             ++insPos;
             si = segDest.insert(insPos, si->split(bi->y0));
         }
-        else if (si->getY0() < bi->y0) {    // in this case, the segment fits bi nicely and is only trimmed
+        else if (si->getY0() < bi->y0) { // in this case, the segment fits bi nicely and is only trimmed
             si->setY0(bi->y0);
             if (si->height() < SPLIT_TRESHOLD)
                 si = segDest.erase(si);
@@ -614,7 +655,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 
         for (; si->getY1() <= bi->y1; ) {
             nAssert(si != segDest.end());
-            if (splitOnIntersect(si, bi->fn, segDest) && si->height() < SPLIT_TRESHOLD)  // the next round will handle the newly created segment if any
+            if (splitOnIntersect(si, bi->fn, segDest) && si->height() < SPLIT_TRESHOLD) // the next round will handle the newly created segment if any
                 si = segDest.erase(si);
             else {
                 si->add(bi->fn);
@@ -623,21 +664,21 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         }
 
         // si points to first segment whose y1 > bi->y1
-        if (si->getY0() > bi->y1 - SPLIT_TRESHOLD) {    // in this case, the segment is ignored (too little of bi is in this segment)
+        if (si->getY0() > bi->y1 - SPLIT_TRESHOLD) { // in this case, the segment is ignored (too little of bi is in this segment)
             if (si->getY0() < bi->y1) {
                 si->setY0(bi->y1);
                 if (si->height() < SPLIT_TRESHOLD)
                     segDest.erase(si);
             }
-            continue;   // nothing more to do - this border fully inserted
+            continue; // nothing more to do - this border fully inserted
         }
-        if (si->getY1() > bi->y1 + SPLIT_TRESHOLD) {    // in this case, the segment must be split (too much of the segment is outside bi)
+        if (si->getY1() > bi->y1 + SPLIT_TRESHOLD) { // in this case, the segment must be split (too much of the segment is outside bi)
             SegListT::iterator insPos = si;
             ++insPos;
-            segDest.insert(insPos, si->split(bi->y1));  // the new, inserted part is not modified from here on, it's outside bi; from previous ifs, we know that both parts are larger than SPLIT_TRESHOLD, so no deletions needed
+            segDest.insert(insPos, si->split(bi->y1)); // the new, inserted part is not modified from here on, it's outside bi; from previous ifs, we know that both parts are larger than SPLIT_TRESHOLD, so no deletions needed
         }
-        else    // in this case, the segment fits bi nicely and is only trimmed
-            si->setY1(bi->y1);  // from first if, we know that si still is larger than SPLIT_TRESHOLD, so no deletions needed
+        else // in this case, the segment fits bi nicely and is only trimmed
+            si->setY1(bi->y1); // from first if, we know that si still is larger than SPLIT_TRESHOLD, so no deletions needed
         // now, the border only needs to be inserted to all of si and we're done
         si->add(bi->fn);
         for (;;) {
@@ -659,12 +700,15 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
     #endif
 }
 
+/** Simplify a list of draw elements by joining pairs of elements where possible.
+ * Expensive, O(N²).
+ */
 void joinElements(list<DrawElement>& els) throw () {
     for (list<DrawElement>::iterator i1 = els.begin(); i1 != els.end(); ++i1) {
         list<DrawElement>::iterator i2 = i1;
         ++i2;
-        for (; i2 != els.end(); ) {    // i2.y0 >= i1.y0 because of the ordering
-            if (i2->getY0() > i1->getY1() + JOIN_TRESHOLD)  // all elements from i2 on have a greater y0, so no point in continuing
+        for (; i2 != els.end(); ) { // i2.y0 >= i1.y0 because of the ordering
+            if (i2->getY0() > i1->getY1() + JOIN_TRESHOLD) // all elements from i2 on have a greater y0, so no point in continuing
                 break;
             if (i1->isJoinable(*i2)) {
                 i1->extendDown(i2->getY1());
@@ -678,7 +722,7 @@ void joinElements(list<DrawElement>& els) throw () {
 
 list<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int texid) throw () {
     SegListT segs;
-    segs.push_back(YSegment(-1e99, 1e99));  // this makes the splitting routine simpler, since the new borders will always be within an existing segment
+    segs.push_back(YSegment(-1e99, 1e99)); // this makes the splitting routine simpler, since the new borders will always be within an existing segment
 
     // split borders into segs
     assembleSegments(borders, segs);
@@ -697,9 +741,10 @@ list<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int tex
     return ret;
 }
 
+/// Assemble a list of objects with overlap as a scene and extract draw elements.
 list<DrawElement> assembleScene(const vector<ObjectSource>& objects) throw () {
     SegListT segs;
-    segs.push_back(YSegment(-1e99, 1e99));  // this makes the splitting routine simpler, since the new borders will always be within an existing segment
+    segs.push_back(YSegment(-1e99, 1e99)); // this makes the splitting routine simpler, since the new borders will always be within an existing segment
 
     // finalize segments
     for (vector<ObjectSource>::const_iterator oi = objects.begin(); oi != objects.end(); ++oi) {
@@ -764,13 +809,13 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) thr
 }
 
 inline void Texturizer::setLine(int y) throw () {
-    nAssert(y >= 0 && y < buf->h);  // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
+    nAssert(y >= 0 && y < buf->h); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
     by = by0 + y;
 }
 
 inline void Texturizer::nextLine() throw () {
     ++by;
-    nAssert(by < buf->h);   // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
+    nAssert(by < buf->h); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
 }
 
 void Texturizer::startPixSpan(int x) throw () {
@@ -786,7 +831,7 @@ void Texturizer::startPixSpan(int x) throw () {
         spanIndex = x - si->x0();
         if (spanIndex < 0) {
             const int nextStart = si->x0();
-            partSpan = &(*row.insert(si, PartialPixelSegment(x)));  // keep them sorted
+            partSpan = &(*row.insert(si, PartialPixelSegment(x))); // keep them sorted
             spanEnd = nextStart - partSpan->x0();
             spanIndex = 0;
             break;
@@ -847,8 +892,8 @@ void SolidTexturizer::putPix(double alpha) throw () {
     putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
 }
 
-void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () { // fills the range [x0,x1[
-    nAssert(x0 < x1);   // empty spans aren't tolerated
+void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () {
+    nAssert(x0 < x1); // empty spans aren't tolerated
     if (alpha >= .999)
         hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, color);
     else {
@@ -890,8 +935,8 @@ void TextureTexturizer::nextLine() throw () {
         ty = 0;
 }
 
-void TextureTexturizer::putSpan(int x0, int x1, double alpha) throw () {   // fills the range [x0,x1[
-    nAssert(x0 < x1);   // empty spans aren't tolerated
+void TextureTexturizer::putSpan(int x0, int x1, double alpha) throw () {
+    nAssert(x0 < x1); // empty spans aren't tolerated
     if (alpha >= .999) {
         drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
         hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, 0);
@@ -968,7 +1013,7 @@ void MultiLayerTexturizer::nextLine() throw () {
         (*li)->nextLine();
 }
 
-void MultiLayerTexturizer::putSpan(int x0, int x1, double alpha) throw () {  // fills the range [x0,x1[
+void MultiLayerTexturizer::putSpan(int x0, int x1, double alpha) throw () {
     startPixSpan(x0);
     for (int x = x0; x < x1; ++x)
         putPix(alpha);
@@ -980,7 +1025,7 @@ void MultiLayerTexturizer::startPixSpan(int x) throw () {
         (*li)->startPixSpan(x);
 }
 
-void MultiLayerTexturizer::putPix(double alpha) throw () {   // draws at current x coord and increases it
+void MultiLayerTexturizer::putPix(double alpha) throw () {
     vector<PixelSource*>::iterator li = layers.begin();
     const int color1 = (*li)->getPixel().first;
     int r = getr(color1), g = getg(color1), b = getb(color1);
@@ -1001,7 +1046,7 @@ SceneAntialiaser::~SceneAntialiaser() throw () {
         delete *bi;
 }
 
-void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) throw () {  // call before add*
+void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) throw () {
     x0 = x0_;
     y0 = y0_;
     scale = scale_;
@@ -1070,7 +1115,7 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
         borders.push_back(WallBorderSegment(bfns.back(), cy - ro, cy + ro));
         bfns.push_back(new CurveFunction(cx, cy, ro, true));
         borders.push_back(WallBorderSegment(bfns.back(), cy - ro, cy + ro));
-        if (ri > 0) {   // a ring
+        if (ri > 0) { // a ring
             bfns.push_back(new CurveFunction(cx, cy, ri, false));
             borders.push_back(WallBorderSegment(bfns.back(), cy - ri, cy + ri));
             bfns.push_back(new CurveFunction(cx, cy, ri, true));
@@ -1090,17 +1135,17 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
     nAssert(ar[1] >= ar[0]);
     nAssert(ar[0] >= 0.);
 
-    const double yeo = cy - ro * va2.y;    // - belongs to va2.y
-    const double yei = cy - ri * va2.y;    // - belongs to va2.y
+    const double yeo = cy - ro * va2.y; // - belongs to va2.y
+    const double yei = cy - ri * va2.y; // - belongs to va2.y
     double ang = ar[0];
     const int pi_i = static_cast<int>(ang / N_PI) + 1;
     bool rightSide = (pi_i & 1) != 0;
     double npi = N_PI * pi_i;
 
     for (;;) {
-        const double yao = cy - ro * cos(ang);  // - belongs to cos
-        const double yai = cy - ri * cos(ang);  // - belongs to cos
-        if (npi < ar[1]) {  // draw from ang to npi
+        const double yao = cy - ro * cos(ang); // - belongs to cos
+        const double yai = cy - ri * cos(ang); // - belongs to cos
+        if (npi < ar[1]) { // draw from ang to npi
             bfns.push_back(new CurveFunction(cx, cy, ro, rightSide));
             if (rightSide)
                 borders.push_back(WallBorderSegment(bfns.back(), yao, cy + ro));
@@ -1136,16 +1181,16 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
 
     double x1 = cx + va1.x * ri, y1 = cy - va1.y * ri; // - belongs to va1.y
     double x2 = cx + va1.x * ro, y2 = cy - va1.y * ro; // - belongs to va1.y
-    if (va1.y > 0) {   // this is reversed, too
+    if (va1.y > 0) { // this is reversed, too
         swap(x1, x2);
         swap(y1, y2);
     }
     bfns.push_back(new LineFunction(x1, y1, x2, y2));
     borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
 
-    x1 = cx + va2.x * ri; y1 = cy - va2.y * ri;    // - belongs to va2.y
-    x2 = cx + va2.x * ro; y2 = cy - va2.y * ro;    // - belongs to va2.y
-    if (va2.y > 0) {   // this is reversed, too
+    x1 = cx + va2.x * ri; y1 = cy - va2.y * ri; // - belongs to va2.y
+    x2 = cx + va2.x * ro; y2 = cy - va2.y * ro; // - belongs to va2.y
+    if (va2.y > 0) { // this is reversed, too
         swap(x1, x2);
         swap(y1, y2);
     }
@@ -1216,7 +1261,7 @@ void SceneAntialiaser::clip(int i0) throw () {
             while (*lcpi <= y) { swap(ls); ++lcpi; }
             while (*rcpi <= y) { swap(rs); ++rcpi; }
             for (;;) {
-                if (ls == ChangePoints::S_Left) {   // out on the left side (until *lcpi)
+                if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
                     createClipFns();
                     if (*lcpi >= border->y1) {
                         border->fn = clipLeft;
@@ -1226,7 +1271,7 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->fn = clipLeft;
                     border->y1 = *lcpi;
                     object->borders.push_back(newSeg);
-                    border = &object->borders.back();   // continue splitting with this new segment
+                    border = &object->borders.back(); // continue splitting with this new segment
                     y = *lcpi++; swap(ls);
                     while (*rcpi <= y) { swap(rs); ++rcpi; }
                 }
@@ -1240,26 +1285,26 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->fn = clipRight;
                     border->y1 = *rcpi;
                     object->borders.push_back(newSeg);
-                    border = &object->borders.back();   // continue splitting with this new segment
+                    border = &object->borders.back(); // continue splitting with this new segment
                     y = *rcpi++; swap(rs);
                     while (*lcpi <= y) { swap(ls); ++lcpi; }
                 }
-                else if (*lcpi < *rcpi) {   // within the clipping region until *lcpi
+                else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
                     if (*lcpi >= border->y1)
                         break;
                     const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
                     border->y1 = *lcpi;
                     object->borders.push_back(newSeg);
-                    border = &object->borders.back();   // continue splitting with this new segment
+                    border = &object->borders.back(); // continue splitting with this new segment
                     y = *lcpi++; swap(ls);
                 }
-                else {  // within the clipping region until *rcpi
+                else { // within the clipping region until *rcpi
                     if (*rcpi >= border->y1)
                         break;
                     const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
                     border->y1 = *rcpi;
                     object->borders.push_back(newSeg);
-                    border = &object->borders.back();   // continue splitting with this new segment
+                    border = &object->borders.back(); // continue splitting with this new segment
                     y = *rcpi++; swap(rs);
                 }
             }

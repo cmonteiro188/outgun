@@ -1,7 +1,7 @@
 /*
  *  antialias_internal.h
  *
- *  Copyright (C) 2004 - Niko Ritari
+ *  Copyright (C) 2004, 2014 - Niko Ritari
  *
  *  This file is part of Outgun.
  *
@@ -19,6 +19,10 @@
  *  along with Outgun; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  *
+ */
+
+/** @file
+ * Internal definitions of the antialiasing system.
  */
 
 #ifndef ANTIALIAS_INTERNAL_H_INC
@@ -52,33 +56,50 @@ const double FINAL_EXTREMECUT      = .000001;
 const double X_EXTREMECUT          = .000001;
 const double JOIN_TRESHOLD         = .001;
 
+/** The relative position of a function to a line for every value.
+ *
+ * Contains the starting side compared to the (externally defined) line and an
+ * ordered list of parameter values where that side changes, i.e. where the
+ * function crosses the line.
+ */
 struct ChangePoints {
-    enum Side { S_Left, S_Right };  // tells on which side of the given line the function currently is
+    /// On which side of the given line the function is at a given value of y.
+    enum Side { S_Left, S_Right };
 
-    Side startSide;
-    double points[3];   // 3 is the logical maximum of points used; increase if more are needed by complex functions
-                        // convention: has one extra item at the end that is big; set at 1e99
+    Side startSide; ///< Side when y < points[0]
+    double points[3]; ///< List of y-values where the side changes, terminated with a huge value (set at 1e99).
+    // 3 is the logical maximum of points used; increase if more are needed by complex functions
     // the C array is an optimization: using a vector would significantly slow things down and wouldn't help at all
 };
 
+/** A function defining a continuous curve, used as a border of drawable elements.
+ * - The curve is specified as a function of y, and so can have at most one point
+ *   at each y-coordinate.
+ * - The shape is restricted: there can be at most one y-coordinate where the
+ *   function changes from increasing to decreasing or vice versa. (can be relaxed)
+ * - The range of valid or in-use values must be tracked by the user.
+ * - Intersections between any pairs of functions are calculated separately, using
+ *   dynamic_cast and friend functions.
+ */
 class BorderFunctionBase {
 protected:
     BorderFunctionBase() throw () { }
 
 public:
     virtual ~BorderFunctionBase() throw () { }
-    virtual double operator()(double y) const throw () = 0;
-    virtual ChangePoints getChangePoints(double x) const throw () = 0;
-    virtual double spanLeftSideIntegral(double x0, double y0, double y1) const throw () = 0;
-    virtual bool centerExtremes() const throw () = 0;    // must return true if the extreme X coordinate of some y-interval is not at either of the borders
-    virtual double extremeY() const throw () = 0;    // if centerExtremes() is true, must return the Y coordinate at which the extreme X is
-    virtual double extremeX() const throw () = 0;    // if centerExtremes() is true, must return the extreme X coordinate
+    virtual double operator()(double y) const throw () = 0; ///< Get the x-coordinate at y (which must be in valid range)
+    virtual ChangePoints getChangePoints(double x) const throw () = 0; ///< Get the value's side from the given x-coordinate at each y
+    virtual double spanLeftSideIntegral(double x0, double y0, double y1) const throw () = 0; ///< Calculate the integral with y from y0 to y1 of f(y) - x0
+    virtual bool centerExtremes() const throw () = 0; ///< Return true if the function is not monotonic. I.e. if an extreme x coordinate of any y-interval might not be at either of the borders.
+    virtual double extremeY() const throw () = 0; ///< If centerExtremes() is true, return the y coordinate at the point of non-monotonicity
+    virtual double extremeX() const throw () = 0; ///< If centerExtremes() is true, return the x coordinate at the point of non-monotonicity (f.extremeX() == f(f.extremeY()) except for FP inaccuracies)
     virtual bool operator==(const BorderFunctionBase& o) throw () = 0;
     virtual void debug() const throw () { }
 };
 
 class LineFunction;
 
+/// A half-circle defined by center, radius and left/right side.
 class CurveFunction : public BorderFunctionBase {
     double cx, cy, r, r2;
     double sideMul;
@@ -98,6 +119,7 @@ public:
     void debug() const throw ();
 };
 
+/// A line defined by two points on it.
 class LineFunction : public BorderFunctionBase {
     double px1, py1, px2, py2;
     double ratio;
@@ -117,6 +139,15 @@ public:
     void debug() const throw ();
 };
 
+/** A simple drawable element.
+ *
+ * Defined by its borders and the textures to be applied to the area within.
+ * The left and right border are given by border functions. For top and bottom,
+ * y-coordinates are given that either are parts of the borders as straight
+ * lines, or the left and right borders meet there.
+ *
+ * Must hold: fLeft(y) <= fRight(y) for all y0 <= y <= y1
+ */
 class DrawElement {
     BorderFunctionBase* fLeft, * fRight;    // these are not owned: the object pointed to must live as long as this DrawElement is used, and must be manually deleted
     double y0, y1;
@@ -131,10 +162,25 @@ public:
     double getY1() const throw () { return y1; }
     int getBaseTex() const throw () { return texid.front(); }
     const std::vector<int>& getAllTextures() const throw () { return texid; }
-    bool isJoinable(const DrawElement& o) const throw ();
+    bool isJoinable(const DrawElement& o) const throw (); ///< Return true if the elements share their border functions and textures, and @a o immediately follows *this y-wise.
 };
 
+/** A simple segment of y-axis used to build draw elements.
+ *
+ * Represents a segment of y-axis where all draw elements span the whole height
+ * and their border functions don't intersect.
+ *
+ * Contains both the completed elements, and a growing list of borders that
+ * represents an object of a single texture being built. When finished, this
+ * object is added "on top" of the existing elements with a moveElements
+ * function.
+ *
+ * Finally, a list of draw elements can be extracted.
+ */
 class YSegment {
+    /** A left border of a draw element.
+     * The right border is the next TexBorder in the list.
+     */
     class TexBorder {
         BorderFunctionBase* bfp;
         std::vector<int> texid;
@@ -156,6 +202,13 @@ class YSegment {
     BorderListT build;
     TexBorderListT final;
 
+    /** Positional comparison for border functions within the segment.
+     *
+     * The functions can't fully intersect within the segment but they can get
+     * very close. Floating point inaccuracies can make them equal, so 3
+     * different y are used if necessary. Extreme values of y are avoided
+     * because the functions can meet at edges of the segment.
+     */
     class BorderCompare {
         double my1, my2, my3;
 
@@ -169,33 +222,50 @@ public:
     double getY0() const throw () { return y0; }
     double getY1() const throw () { return y1; }
     double height() const throw () { nAssert(y1 >= y0); return y1 - y0; }
-    void setY0(double y) throw () { nAssert(y >= y0); nAssert(y1 >= y); y0 = y; }    // only allow shrinking the segment
-    void setY1(double y) throw () { nAssert(y <= y1); nAssert(y >= y0); y1 = y; }
-    void add(BorderFunctionBase* border) throw () { build.push_back(border); }   // ownership of the pointed object is not transferred!
+    void setY0(double y) throw () { nAssert(y >= y0); nAssert(y1 >= y); y0 = y; } ///< Shrink (only) the segment from the top.
+    void setY1(double y) throw () { nAssert(y <= y1); nAssert(y >= y0); y1 = y; } ///< Shrink (only) the segment from the bottom.
+    void add(BorderFunctionBase* border) throw () { build.push_back(border); } ///< Add a border to the object being built. Must not intersect other borders, final or being built. Ownership not transferred.
+    /** Find intersection between @a bfn and an existing border.
+     *
+     * Find the first (lowest) y-coordinate within the segment, where @a bfn
+     * intersects an existing border in the FINAL list.
+     * Extreme values of y (that might, would the math be exact, actually be at
+     * the extreme coordinate or even outside the segment) are ignored.
+     * Returns false if no such intersections exist, else sets @a *splity.
+     */
     bool getFirstIntersection(BorderFunctionBase* bfn, double* splity) throw ();
-    YSegment split(double midy) throw ();    // the segment starting with midy is the returned one
-    void sort() throw ();    // sorts the build list borders in increasing x-order
-    void simplify() throw ();    // removes double borders from build list (assuming it's sorted)
-    void moveElements(int texid) throw ();   // moves all borders from build list to final list (use only when the final list is empty)
-    void moveElementsWithOverlap(int texid, bool overlay) throw ();  // moves all borders from build list to final list overlapping the old walls
-    void extractDrawElements(std::list<DrawElement>& dst) const throw ();
+    YSegment split(double midy) throw (); ///< Split the segment somewhere in the middle. *this is shrunk and a new YSegment representing the bottom side is returned.
+    void sort() throw (); ///< Sort the build list borders in increasing x-order.
+    void simplify() throw (); ///< Remove duplicate borders from build list (assumed sorted).
+    void moveElements(int texid) throw (); ///< Move the borders of the built object to the final list (must be empty).
+    /** Move the borders of the built object to the final list, over the old elements.
+     * If @a overlay is set, @a texid is added to the textures already in the area,
+     * else old (parts of) elements falling below the new object are hidden (removed).
+     */
+    void moveElementsWithOverlap(int texid, bool overlay) throw ();
+    void extractDrawElements(std::list<DrawElement>& dst) const throw (); ///< Turn the final element border list into actual DrawElements.
     void debug(bool verbose = false) const throw ();
 };
 
 typedef std::list<YSegment> SegListT;
 
-class PixelSource : private NoCopying { // base class
-protected:
-    PixelSource() throw () { }
-
+/** Base class for data sources used as textures.
+ *
+ * Provides color and alpha values for individual pixels on a span basis keeping
+ * track of the position itself.
+ *
+ * Positions given are target pixels.
+ */
+class PixelSource : private NoCopying {
 public:
     virtual ~PixelSource() throw () { }
-    virtual void setLine(int y) throw () = 0;
-    virtual void nextLine() throw () = 0;
-    virtual void startPixSpan(int x) throw () = 0;
-    virtual std::pair<int, int> getPixel() throw () = 0;  // returns (color, alpha) of the current x coord and increases it
+    virtual void setLine(int y) throw () = 0; ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
+    virtual void nextLine() throw () = 0; ///< Increase target line by one. Invalidates x-coordinate.
+    virtual void startPixSpan(int x) throw () = 0; ///< Set x-coordinate where the next span will start (next pixel drawn).
+    virtual std::pair<int, int> getPixel() throw () = 0; ///< Get (color, alpha) to draw at the current position and increase x by one.
 };
 
+/// Source for a constant color and alpha value everywhere.
 class SolidPixelSource : public PixelSource {
     int color, alpha;
 
@@ -207,6 +277,12 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
+/** Span texturizer locked to a single texture (solid).
+ *
+ * Provides the span texturizer interface (for template use) for drawing a
+ * single solid color texture. "Inlines" the operations of SolidPixelSource
+ * without concerns for alpha. (lesser alpha only happens with multiple textures)
+ */
 class SolidTexturizer { // includes inlined the same operations as SolidPixelSource
     Texturizer& host;
     int color;
@@ -216,15 +292,16 @@ class SolidTexturizer { // includes inlined the same operations as SolidPixelSou
 public:
     SolidTexturizer(Texturizer& host_, const SolidTexdata& td) throw () : host(host_), color(td.color) { nAssert(td.alpha == 256); }
 
-    void setLine(int y) throw () { host.setLine(y); }
-    void nextLine() throw () { host.nextLine(); }
-    void putSpan(int x0, int x1, double alpha) throw ();   // fills the range [x0,x1[
-    void startPixSpan(int x) throw () { host.startPixSpan(x); }
-    void putPix(double alpha) throw ();  // draws at current x coord and increases it
+    void setLine(int y) throw () { host.setLine(y); } ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
+    void nextLine() throw () { host.nextLine(); } ///< Increase target line by one. Invalidates x-coordinate.
+    void putSpan(int x0, int x1, double alpha) throw (); ///< Draw the range [x0,x1[ with given fractional alpha (in [0,1]).
+    void startPixSpan(int x) throw () { host.startPixSpan(x); } ///< Set x-coordinate where the next individual pixels will be drawn. Semi-expensive.
+    void putPix(double alpha) throw (); ///< Draw at the current position with given fractional alpha, and increase x by one.
 };
 
+/// Source for pixels read from a texture. See TextureData for details.
 class TexturePixelSource : public PixelSource {
-    BITMAP* tex;    // can't set const because it can be fed to Allegro
+    BITMAP* tex;
     int alpha;
     int tx0, ty0;
     int tx, ty; // active pixel in tex
@@ -238,9 +315,10 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
+/// Span texturizer locked to a single texture (bitmap). See SolidTexturizer for method documentation.
 class TextureTexturizer { // includes inlined the same operations as TexturePixelSource
     Texturizer& host;
-    BITMAP* tex;    // can't set const because it can be fed to Allegro
+    BITMAP* tex;
     int tx0, ty0;
     int tx, ty; // active pixel in tex
 
@@ -251,11 +329,12 @@ public:
 
     void setLine(int y) throw ();
     void nextLine() throw ();
-    void putSpan(int x0, int x1, double alpha) throw ();   // fills the range [x0,x1[
+    void putSpan(int x0, int x1, double alpha) throw ();
     void startPixSpan(int x) throw ();
-    void putPix(double alpha) throw ();  // draws at current x coord and increases it
+    void putPix(double alpha) throw ();
 };
 
+/// Source for flag marker pixels.
 class FlagmarkerPixelSource : public PixelSource {
     int color;
     double markRadius;
@@ -273,6 +352,13 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
+/** Generic span texturizer for any number of textures.
+ *
+ * Provides the span texturizer interface (for template use) for drawing a
+ * stack of textures provided by PixelSources.
+ *
+ * See SolidTexturizer for method documentation.
+ */
 class MultiLayerTexturizer {
     Texturizer& host;
     std::vector<PixelSource*> layers;
@@ -280,14 +366,17 @@ class MultiLayerTexturizer {
 public:
     MultiLayerTexturizer(Texturizer& host_, int layersReserve = 2) throw () : host(host_) { layers.reserve(layersReserve); }
     ~MultiLayerTexturizer() throw ();
-    void addLayer(PixelSource* layerSource) throw () { layers.push_back(layerSource); }  // ownership is transferred
-    // at least one layer is assumed, don't try to draw without calling addLayer first
+    /** Initialization: add a texture layer to the stack.
+     * Must be called at least once before trying to draw.
+     * Ownership of @a layerSource is transferred.
+     */
+    void addLayer(PixelSource* layerSource) throw () { layers.push_back(layerSource); }
 
     void setLine(int y) throw ();
     void nextLine() throw ();
-    void putSpan(int x0, int x1, double alpha) throw ();   // fills the range [x0,x1[
+    void putSpan(int x0, int x1, double alpha) throw ();
     void startPixSpan(int x) throw ();
-    void putPix(double alpha) throw ();  // draws at current x coord and increases it
+    void putPix(double alpha) throw ();
 };
 
 #endif
