@@ -180,9 +180,6 @@ public:
     void moveElementsWithOverlap(int texid, bool overlay) throw ();  // moves all borders from build list to final list overlapping the old walls
     void extractDrawElements(std::list<DrawElement>& dst) const throw ();
     void debug(bool verbose = false) const throw ();
-
-    YSegment(const YSegment& o) throw () { *this = o; }
-    YSegment& operator=(const YSegment& o) throw () { y0 = o.y0; y1 = o.y1; build = o.build; final = o.final; return *this; }
 };
 
 typedef std::list<YSegment> SegListT;
