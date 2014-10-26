@@ -606,7 +606,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         }
         else if (si->getY0() < bi->y0) {    // in this case, the segment fits bi nicely and is only trimmed
             si->setY0(bi->y0);
-            if (si->width() < SPLIT_TRESHOLD)
+            if (si->height() < SPLIT_TRESHOLD)
                 si = segDest.erase(si);
         }
         nAssert(si != segDest.end());
@@ -614,7 +614,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
 
         for (; si->getY1() <= bi->y1; ) {
             nAssert(si != segDest.end());
-            if (splitOnIntersect(si, bi->fn, segDest) && si->width() < SPLIT_TRESHOLD)  // the next round will handle the newly created segment if any
+            if (splitOnIntersect(si, bi->fn, segDest) && si->height() < SPLIT_TRESHOLD)  // the next round will handle the newly created segment if any
                 si = segDest.erase(si);
             else {
                 si->add(bi->fn);
@@ -626,7 +626,7 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         if (si->getY0() > bi->y1 - SPLIT_TRESHOLD) {    // in this case, the segment is ignored (too little of bi is in this segment)
             if (si->getY0() < bi->y1) {
                 si->setY0(bi->y1);
-                if (si->width() < SPLIT_TRESHOLD)
+                if (si->height() < SPLIT_TRESHOLD)
                     segDest.erase(si);
             }
             continue;   // nothing more to do - this border fully inserted
@@ -643,13 +643,13 @@ void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDes
         for (;;) {
             if (!splitOnIntersect(si, bi->fn, segDest))
                 break;
-            if (si->width() < SPLIT_TRESHOLD)
+            if (si->height() < SPLIT_TRESHOLD)
                 si = segDest.erase(si);
             else
                 ++si;
             nAssert(si != segDest.end());
         }
-        if (si->width() < SPLIT_TRESHOLD)
+        if (si->height() < SPLIT_TRESHOLD)
             segDest.erase(si);
     }
     #ifdef DEBUG_SPLIT
