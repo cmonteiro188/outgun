@@ -196,7 +196,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
 }
 
 /** Render between border functions within a single line of pixels.
- * Texturizer must be set on the correct line by caller.
+ * @a tex must already be set on the correct line by caller.
  */
 template<class Texturizer>
 void renderLine(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) throw () {
@@ -779,7 +779,7 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) thr
 
 inline void Texturizer::setLine(int y) throw () {
     nAssert(y >= 0 && y < buf->h); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
-    by = by0 + y;
+    by = y;
 }
 
 inline void Texturizer::nextLine() throw () {
@@ -788,7 +788,7 @@ inline void Texturizer::nextLine() throw () {
 }
 
 void Texturizer::startPixSpan(int x) throw () {
-    bx = bx0 + x;
+    bx = x;
     list<PartialPixelSegment>& row = partials[by];
     for (list<PartialPixelSegment>::iterator si = row.begin();; ++si) {
         if (si == row.end()) {
@@ -830,7 +830,7 @@ inline void Texturizer::putPix(int color, int alpha) throw () {
             partSpan->extend(color, alpha);
         else {
             nAssert(spanIndex == spanEnd);
-            startPixSpan(bx - bx0);
+            startPixSpan(bx);
             nAssert(spanIndex == 0);
             nAssert(partSpan->len() > 0);
             partSpan->add(0, color, alpha); // this opt. is the main reason empty spans aren't tolerated
@@ -864,7 +864,7 @@ void SolidTexturizer::putPix(double alpha) throw () {
 void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () {
     nAssert(x0 < x1); // empty spans aren't tolerated
     if (alpha >= .999)
-        hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, color);
+        hline(host.getBuf(), x0, host.getby(), x1 - 1, color);
     else {
         startPixSpan(x0);
         const int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
@@ -908,7 +908,7 @@ void TextureTexturizer::putSpan(int x0, int x1, double alpha) throw () {
     nAssert(x0 < x1); // empty spans aren't tolerated
     if (alpha >= .999) {
         drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
-        hline(host.getBuf(), x0 + host.getbx0(), host.getby(), x1 + host.getbx0() - 1, 0);
+        hline(host.getBuf(), x0, host.getby(), x1 - 1, 0);
         solid_mode();
     }
     else {

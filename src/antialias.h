@@ -258,8 +258,8 @@ public:
  */
 class Texturizer {
 public:
-    Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<PixelSource*>& textures) throw () ///< References to @a buffer and @a textures are saved for the lifetime.
-        : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
+    Texturizer(BITMAP* buffer, const std::vector<PixelSource*>& textures) throw () ///< References to @a buffer and @a textures are saved for the lifetime.
+        : buf(buffer), texTab(textures), partials(buffer->h) { }
 
     /** Render a single draw element.
      * @param textures Used textures as indices to the texture table, in layer order.
@@ -277,13 +277,10 @@ public:
     inline BITMAP* getBuf() throw () { return buf; }
     inline int getbx() const throw () { return bx; }
     inline int getby() const throw () { return by; }
-    inline int getbx0() const throw () { return bx0; }
-    inline int getby0() const throw () { return by0; }
 
 private:
     BITMAP* buf;
     int bx, by; ///< Active pixel in buf.
-    int bx0, by0; ///< Buffer pixel offset. Pixel (0,0) is drawn at (bx0,by0) in buf.
 
     const std::vector<PixelSource*>& texTab;
 
@@ -299,9 +296,8 @@ private:
  * thereof), and renders them using a Texturizer.
  *
  * When rendering, every fraction of a pixel must fit the buffer given to
- * Texturizer after scaling, clipping, and offsetting by the origin given to
- * Texturizer. Whole pixels with no content are not drawn, partial pixels are
- * completed with black.
+ * Texturizer after scaling and clipping. Whole pixels with no content are not
+ * drawn, partial pixels are completed with black.
  *
  * Texture numbers given to the add methods are incides and must correspond to
  * entries in the TextureData vector given to Texturizer.
@@ -314,8 +310,7 @@ public:
     /** Set scaling applied to future adds and setClipping.
      *
      * All coordinates of added objects will be first multiplied by scale, then
-     * translated so that (0,0) is drawn to (x0,y0). (further translated when
-     * rendered by the origin coords given to Texturizer)
+     * translated so that (0,0) is drawn to (x0,y0).
      *
      * Must be called at least once before the first add or setClipping. The
      * same scaling applies to all adds and calls to setClipping until
