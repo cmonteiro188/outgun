@@ -19,6 +19,7 @@
 /src/bin/
 /src/dep/
 /src/generated/
+/src/html/
 /src/Makefile
 /src/makestatus
 /src/obj/
