@@ -1032,11 +1032,8 @@ void SceneAntialiaser::makeRectangleBorders(vector<WallBorderSegment>& borders, 
     x2 = x0 + x2 * scale;
     y2 = y0 + y2 * scale;
 
-    bfns.push_back(new LineFunction(x1, y1, x1, y2));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
-
-    bfns.push_back(new LineFunction(x2, y1, x2, y2));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x1, y2)), y1, y2));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x2, y1, x2, y2)), y1, y2));
 }
 
 void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const TriWall& wall) throw () {
@@ -1047,14 +1044,9 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Tri
     const double x3 = x0 + wall.point3().x * scale;
     const double y3 = y0 + wall.point3().y * scale;
 
-    bfns.push_back(new LineFunction(x1, y1, x2, y2));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
-
-    bfns.push_back(new LineFunction(x1, y1, x3, y3));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y3));
-
-    bfns.push_back(new LineFunction(x2, y2, x3, y3));
-    borders.push_back(WallBorderSegment(bfns.back(), y2, y3));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x3, y3)), y1, y3));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x2, y2, x3, y3)), y2, y3));
 }
 
 void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const CircWall& wall) throw () {
@@ -1063,15 +1055,11 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
     const double ri = wall.radius_in() * scale;
 
     if (wall.angles()[0] == wall.angles()[1]) { // a whole circle/ring
-        bfns.push_back(new CurveFunction(cx, cy, ro, false));
-        borders.push_back(WallBorderSegment(bfns.back(), cy - ro, cy + ro));
-        bfns.push_back(new CurveFunction(cx, cy, ro, true));
-        borders.push_back(WallBorderSegment(bfns.back(), cy - ro, cy + ro));
+        borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, false)), cy - ro, cy + ro));
+        borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, true )), cy - ro, cy + ro));
         if (ri > 0) { // a ring
-            bfns.push_back(new CurveFunction(cx, cy, ri, false));
-            borders.push_back(WallBorderSegment(bfns.back(), cy - ri, cy + ri));
-            bfns.push_back(new CurveFunction(cx, cy, ri, true));
-            borders.push_back(WallBorderSegment(bfns.back(), cy - ri, cy + ri));
+            borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, false)), cy - ri, cy + ri));
+            borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, true )), cy - ri, cy + ri));
         }
         return;
     }
@@ -1098,31 +1086,27 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         const double yao = cy - ro * cos(ang); // - belongs to cos
         const double yai = cy - ri * cos(ang); // - belongs to cos
         if (npi < ar[1]) { // draw from ang to npi
-            bfns.push_back(new CurveFunction(cx, cy, ro, rightSide));
             if (rightSide)
-                borders.push_back(WallBorderSegment(bfns.back(), yao, cy + ro));
+                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, cy + ro));
             else
-                borders.push_back(WallBorderSegment(bfns.back(), cy - ro, yao));
+                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), cy - ro, yao));
             if (ri > 0) {
-                bfns.push_back(new CurveFunction(cx, cy, ri, rightSide));
                 if (rightSide)
-                    borders.push_back(WallBorderSegment(bfns.back(), yai, cy + ri));
+                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, cy + ri));
                 else
-                    borders.push_back(WallBorderSegment(bfns.back(), cy - ri, yai));
+                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), cy - ri, yai));
             }
         }
         else {
-            bfns.push_back(new CurveFunction(cx, cy, ro, rightSide));
             if (rightSide)
-                borders.push_back(WallBorderSegment(bfns.back(), yao, yeo));
+                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, yeo));
             else
-                borders.push_back(WallBorderSegment(bfns.back(), yeo, yao));
+                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yeo, yao));
             if (ri > 0) {
-                bfns.push_back(new CurveFunction(cx, cy, ri, rightSide));
                 if (rightSide)
-                    borders.push_back(WallBorderSegment(bfns.back(), yai, yei));
+                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, yei));
                 else
-                    borders.push_back(WallBorderSegment(bfns.back(), yei, yai));
+                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yei, yai));
             }
             break;
         }
@@ -1137,8 +1121,7 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         swap(x1, x2);
         swap(y1, y2);
     }
-    bfns.push_back(new LineFunction(x1, y1, x2, y2));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
 
     x1 = cx + va2.x * ri; y1 = cy - va2.y * ri; // - belongs to va2.y
     x2 = cx + va2.x * ro; y2 = cy - va2.y * ro; // - belongs to va2.y
@@ -1146,8 +1129,7 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         swap(x1, x2);
         swap(y1, y2);
     }
-    bfns.push_back(new LineFunction(x1, y1, x2, y2));
-    borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
+    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
 }
 
 void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) throw () {
@@ -1176,10 +1158,8 @@ void SceneAntialiaser::setClipping(double x1, double y1, double x2, double y2) t
 
 void SceneAntialiaser::createClipFns() throw () {
     if (!clipFunctionsValid) {
-        clipLeft = new LineFunction(clipx1, clipy1, clipx1, clipy2);
-        clipRight = new LineFunction(clipx2, clipy1, clipx2, clipy2);
-        bfns.push_back(clipLeft);
-        bfns.push_back(clipRight);
+        clipLeft  = addBfn(new LineFunction(clipx1, clipy1, clipx1, clipy2));
+        clipRight = addBfn(new LineFunction(clipx2, clipy1, clipx2, clipy2));
         clipFunctionsValid = true;
     }
 }

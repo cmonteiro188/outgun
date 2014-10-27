@@ -224,6 +224,7 @@ private:
     void makeRectangleBorders(std::vector<WallBorderSegment>& borders, double x1, double y1, double x2, double y2) throw ();
     void makeBorders(std::vector<WallBorderSegment>& borders, const TriWall& wall) throw ();
     void makeBorders(std::vector<WallBorderSegment>& borders, const CircWall& wall) throw ();
+    template<class Fn> Fn* addBfn(Fn* fn) { bfns.push_back(fn); return fn; }
 
     void createClipFns() throw ();
     void clip(ObjectSource& object) throw ();
