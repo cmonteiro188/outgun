@@ -345,11 +345,8 @@ public:
     Texturizer(BITMAP* buffer, const std::vector<PixelSource*>& textures) throw () /// References to @a buffer and @a textures are saved for the lifetime.
         : buf(buffer), texTab(textures), partials(buffer->h) { }
 
-    /** Render a single draw element.
-     * @param textures Used textures as indices to the texture table, in layer order.
-     * @param elp      Element to draw. Its textures are overridden by @a textures.
-     */
-    void render(const std::vector<int>& textures, const DrawElement* elp) throw ();
+    /// Render a single draw element.
+    void render(const DrawElement& el) throw ();
     void finalize() throw (); ///< Draw all buffered pixels. Use exactly once at the end, before destroying.
 
 // semi-private: for use by rendering functions called by render() only

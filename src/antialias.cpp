@@ -752,18 +752,19 @@ void PartialPixelSegment::draw(BITMAP* buf, int y) const throw () {
             putpixel(buf, startx + i, y, pixels[i].flexColor());
 }
 
-void Texturizer::render(const vector<int>& textures, const DrawElement* elp) throw () {
+void Texturizer::render(const DrawElement& el) throw () {
+    const vector<int>& textures = el.getAllTextures();
     if (textures.size() == 1) {
         const int texid = textures[0];
         numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
         if (SolidPixelSource* sps = dynamic_cast<SolidPixelSource*>(texTab[texid])) {
             SolidTexturizer tex(*this, *sps);
-            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+            renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
             return;
         }
         else if (TexturePixelSource* tps = dynamic_cast<TexturePixelSource*>(texTab[texid])) {
             TextureTexturizer tex(*this, *tps);
-            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+            renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
             return;
         }
     }
@@ -774,7 +775,7 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) thr
         numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
         tex.addLayer(texTab[texid]);
     }
-    renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+    renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
 }
 
 inline void Texturizer::setLine(int y) throw () {
@@ -1317,6 +1318,6 @@ void SceneAntialiaser::render(BITMAP* buffer, const std::vector<PixelSource*>& t
     #endif
     Texturizer tex(buffer, textures);
     for (list<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei)
-        tex.render(ei->getAllTextures(), &*ei);
+        tex.render(*ei);
     tex.finalize();
 }
