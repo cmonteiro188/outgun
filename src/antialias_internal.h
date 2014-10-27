@@ -262,7 +262,7 @@ class SolidTexturizer { // includes inlined the same operations as SolidPixelSou
     void putPixI(int alpha) throw () { host.putPix(color, alpha); }
 
 public:
-    SolidTexturizer(Texturizer& host_, const SolidTexdata& td) throw () : host(host_), color(td.color) { nAssert(td.alpha == 256); }
+    SolidTexturizer(Texturizer& host_, const SolidPixelSource& ps) throw () : host(host_), color(ps.color) { nAssert(ps.alpha == 256); }
 
     void setLine(int y) throw () { host.setLine(y); } ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
     void nextLine() throw () { host.nextLine(); } ///< Increase target line by one. Invalidates x-coordinate.
@@ -281,7 +281,7 @@ class TextureTexturizer { // includes inlined the same operations as TexturePixe
     void putPixI(int alpha) throw ();
 
 public:
-    TextureTexturizer(Texturizer& host_, const TextureTexdata& td) throw () : host(host_), tex(td.image), tx0(td.x0), ty0(td.y0) { nAssert(td.alpha == 256); }
+    TextureTexturizer(Texturizer& host_, const TexturePixelSource& ps) throw () : host(host_), tex(ps.tex), tx0(ps.tx0), ty0(ps.ty0) { nAssert(ps.alpha == 256); }
 
     void setLine(int y) throw ();
     void nextLine() throw ();

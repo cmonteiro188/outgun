@@ -2,7 +2,7 @@
  *  graphics.cpp
  *
  *  Copyright (C) 2002 - Fabio Reis Cecin
- *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011, 2012 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2011, 2012, 2014 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2005, 2006, 2008, 2009, 2010, 2011, 2012 - Jani Rivinoja
  *  Copyright (C) 2010 - Joonas Rivinoja
  *
@@ -504,7 +504,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         const double x0 = (roombg->w - scale * plw) / 2., y0 = (roombg->h - scale * plh) / 2.;
 
         SceneAntialiaser scene;
-        vector<TextureData> textures;
+        TextureTable textures;
 
         // add ground/floor
         scene.setScaling(x0, y0, scale);
@@ -512,15 +512,14 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         for (vector<WallBase*>::const_iterator wi = room.readGround().begin(); wi != room.readGround().end(); ++wi)
             scene.addWall(*wi, (*wi)->texture());
 
-        TextureData backupTexture;
-        TextureData td;
-        if (floor_texture.front())
-            backupTexture.setTexture(floor_texture.front(), texOffsetBaseX, texOffsetBaseY);
-        else
-            backupTexture.setSolid(groundCol);
+        const int backupFloorIdx = floor_texture.front() ?
+                textures.storeOwned(new TexturePixelSource(floor_texture.front(), texOffsetBaseX, texOffsetBaseY)) :
+                textures.storeOwned(new SolidPixelSource(groundCol));
         for (vector<Bitmap>::const_iterator ti = floor_texture.begin(); ti != floor_texture.end(); ++ti) {
-            if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
-            else textures.push_back(backupTexture);
+            if (*ti)
+                textures.addOwned(new TexturePixelSource(*ti, texOffsetBaseX, texOffsetBaseY));
+            else
+                textures.addStored(backupFloorIdx);
         }
 
         // add respawn areas as overlays
@@ -529,9 +528,8 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
                 for (vector<WorldRect>::const_iterator ri = map.tinfo[team].respawn.begin(); ri != map.tinfo[team].respawn.end(); ++ri)
                     if (ri->room == RoomCoords(roomx, roomy))
                         scene.addRectangle(ri->x1 - PLAYER_RADIUS, ri->y1 - PLAYER_RADIUS,
-                                           ri->x2 + PLAYER_RADIUS, ri->y2 + PLAYER_RADIUS, textures.size(), true);
-                td.setSolid(teamcol[team], 120);
-                textures.push_back(td);
+                                           ri->x2 + PLAYER_RADIUS, ri->y2 + PLAYER_RADIUS, textures.nextIndex(), true);
+                textures.addOwned(new SolidPixelSource(teamcol[team], 120));
             }
         }
 
@@ -542,12 +540,11 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
             for (vector<WorldCoords>::const_iterator fi = tflags.begin(); fi != tflags.end(); ++fi) {
                 if (fi->room != RoomCoords(roomx, roomy))
                     continue;
-                scene.addRectangle(fi->x - fr, fi->y - fr, fi->x + fr, fi->y + fr, textures.size(), true);
-                td.setFlagmarker(teamcol[team],
-                                 x0 + fi->x * scale,
-                                 y0 + fi->y * scale,
-                                 flagpos_radius * scale);
-                textures.push_back(td);
+                scene.addRectangle(fi->x - fr, fi->y - fr, fi->x + fr, fi->y + fr, textures.nextIndex(), true);
+                textures.addOwned(new FlagmarkerPixelSource(teamcol[team],
+                                                            x0 + fi->x * scale,
+                                                            y0 + fi->y * scale,
+                                                            flagpos_radius * scale));
             }
         }
 
@@ -556,26 +553,26 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         {
             const double x0 = 0, x1 = roombg->w, y0 = 0, y1 = roombg->h;
             const double bw = .5; // boundary width in pixels
-            scene.addRectangle(x0     , y0     , x1     , x0 + bw, textures.size());
-            scene.addRectangle(x0     , y1 - bw, x1     , y1     , textures.size());
-            scene.addRectangle(x0     , y0     , x0 + bw, y1     , textures.size());
-            scene.addRectangle(x1 - bw, y0     , x1     , y1     , textures.size());
+            scene.addRectangle(x0     , y0     , x1     , x0 + bw, textures.nextIndex());
+            scene.addRectangle(x0     , y1 - bw, x1     , y1     , textures.nextIndex());
+            scene.addRectangle(x0     , y0     , x0 + bw, y1     , textures.nextIndex());
+            scene.addRectangle(x1 - bw, y0     , x1     , y1     , textures.nextIndex());
         }
-        td.setSolid(colour[Colour::room_border]);
-        textures.push_back(td);
+        textures.addOwned(new SolidPixelSource(colour[Colour::room_border]));
 
         // add walls
         scene.setScaling(x0, y0, scale);
         for (vector<WallBase*>::const_iterator wi = room.readWalls().begin(); wi != room.readWalls().end(); ++wi)
-            scene.addWall(*wi, (*wi)->texture() + textures.size());
+            scene.addWall(*wi, (*wi)->texture() + textures.nextIndex());
 
-        if (wall_texture.front())
-            backupTexture.setTexture(wall_texture.front(), texOffsetBaseX, texOffsetBaseY);
-        else
-            backupTexture.setSolid(wallCol);
+        const int backupWallIdx = wall_texture.front() ?
+                textures.storeOwned(new TexturePixelSource(wall_texture.front(), texOffsetBaseX, texOffsetBaseY)) :
+                textures.storeOwned(new SolidPixelSource(wallCol));
         for (vector<Bitmap>::const_iterator ti = wall_texture.begin(); ti != wall_texture.end(); ++ti) {
-            if (*ti) { td.setTexture(*ti, texOffsetBaseX, texOffsetBaseY); textures.push_back(td); }
-            else textures.push_back(backupTexture);
+            if (*ti)
+                textures.addOwned(new TexturePixelSource(*ti, texOffsetBaseX, texOffsetBaseY));
+            else
+                textures.addStored(backupWallIdx);
         }
 
         // clip
@@ -584,7 +581,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         scene.clipAll();
 
         // draw
-        Texturizer tex(roombg, 0, 0, textures);
+        Texturizer tex(roombg, 0, 0, textures.read());
         scene.render(tex);
         tex.finalize();
     }
@@ -1098,12 +1095,11 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
 
     // draw
     const int room_border_col = save_map_pic ? colour[Colour::map_pic_room_border] : colour[Colour::map_room_border];
-    vector<TextureData> colors;
-    TextureData td;
-    td.setSolid(colour[Colour::map_ground]); colors.push_back(td);   // ground
-    td.setSolid(colour[Colour::map_wall]);   colors.push_back(td);   // walls
-    td.setSolid(room_border_col);            colors.push_back(td);   // room boundaries
-    Texturizer tex(buffer, 0, 0, colors);
+    TextureTable colors;
+    colors.addOwned(new SolidPixelSource(colour[Colour::map_ground]));
+    colors.addOwned(new SolidPixelSource(colour[Colour::map_wall]));
+    colors.addOwned(new SolidPixelSource(room_border_col));
+    Texturizer tex(buffer, 0, 0, colors.read());
     scene.render(tex);
     tex.finalize();
 

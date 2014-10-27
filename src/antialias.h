@@ -149,47 +149,6 @@ struct ObjectSource {
     std::vector<WallBorderSegment> borders;
 };
 
-/// Data describing a constant color & alpha.
-struct SolidTexdata {
-    int color;
-    int alpha; ///< Translucency, range [0,256] where 256 is opaque and 0 invisible (useless).
-
-    void set(int color_, int alpha_ = 256) throw () { color = color_; alpha = alpha_; }
-};
-
-/** Data describing texturization by tiling with a bitmap.
- *
- * Because of Allegro's limitations, if alpha == 256 (much faster), the width
- * and height of the image must be (possibly different) powers of two. This is
- * not checked!
- *
- * A conceptual "master copy" of the image is anchored by its top left corner to
- * (x0,y0) on screen. Other copies are placed elsewhere starting immediately to
- * the right and down from the master copy, tiling the screen.
- *
- * A texture can not be used in areas where x < tex.x0 || y < tex.y0. This can
- * be circumvented by selecting x0 and y0 < 0.
- */
-struct TextureTexdata {
-    BITMAP* image; // not const because fed to Allegro
-    int x0, y0; ///< Screen position corresponding to the possible copy of the top-left corner of the image. Can be negative.
-    int alpha; ///< Translucency, range [0,256] where 256 is opaque and 0 invisible (useless).
-
-    void set(BITMAP* texture, int x0_ = 0, int y0_ = 0, int alpha_ = 256) throw () { image = texture; alpha = alpha_; x0 = x0_; y0 = y0_; }
-};
-
-/** Data describing texturization with a flag marker.
- *
- * Describes a specific variably translucent circular pattern stretched to the given radius.
- */
-struct FlagmarkerTexdata {
-    int color;
-    double cx, cy;
-    double radius;
-
-    void set(int color_, double cx_, double cy_, double r) throw () { color = color_; cx = cx_; cy = cy_; radius = r; }
-};
-
 // // // // public interface
 
 /** Base class for data sources used as textures.
@@ -211,24 +170,39 @@ public:
 /// Source for a constant color and alpha value everywhere.
 class SolidPixelSource : public PixelSource {
     int color, alpha;
+    friend class SolidTexturizer;
 
 public:
-    SolidPixelSource(const SolidTexdata& td) throw () : color(td.color), alpha(td.alpha) { }
+    SolidPixelSource(int color_,
+                     int alpha_ = 256 ///< Translucency, range [0,256] where 256 is opaque and 0 invisible (useless).
+                     ) throw () : color(color_), alpha(alpha_) { }
     void setLine(int) throw () { }
     void nextLine() throw () { }
     void startPixSpan(int) throw () { }
     std::pair<int, int> getPixel() throw ();
 };
 
-/// Source for pixels read from a texture. See TextureData for details.
+/// Source for pixels read from a bitmap tiled on screen.
 class TexturePixelSource : public PixelSource {
-    BITMAP* tex;
+    BITMAP* tex; // not const because fed to Allegro
     int alpha;
     int tx0, ty0;
-    int tx, ty; // active pixel in tex
+    int tx, ty; ///< active pixel in tex
+    friend class TextureTexturizer;
 
 public:
-    TexturePixelSource(const TextureTexdata& td) throw () : tex(td.image), alpha(td.alpha), tx0(td.x0), ty0(td.y0) { }
+    TexturePixelSource(BITMAP* texture, ///< Source bitmap. If alpha == 256 (much faster), the width and height must be (possibly different) powers of two. This is not checked!
+                       int x0 = 0,
+                       int y0 = 0, /**< Target buffer coordinates for the top left corner of a conceptual "master copy" of @a texture.
+                                    *
+                                    * Other copies are placed elsewhere starting immediately to the right and down
+                                    * from the master copy, tiling the screen.
+                                    *
+                                    * A texture can not be used in areas where x < tex.x0 || y < tex.y0. This can
+                                    * be circumvented by selecting x0 and y0 < 0.
+                                    */
+                       int alpha_ = 256 ///< Translucency, range [0,256] where 256 is opaque and 0 invisible (useless).
+                       ) throw () : tex(texture), alpha(alpha_), tx0(x0), ty0(y0) { }
 
     void setLine(int y) throw ();
     void nextLine() throw ();
@@ -236,7 +210,9 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
-/// Source for flag marker pixels.
+/** Source for flag marker pixels.
+ * Produces a variably translucent circular pattern stretched to the given radius.
+ */
 class FlagmarkerPixelSource : public PixelSource {
     int color;
     double markRadius;
@@ -246,7 +222,7 @@ class FlagmarkerPixelSource : public PixelSource {
     double dx;
 
 public:
-    FlagmarkerPixelSource(const FlagmarkerTexdata& td) throw ();
+    FlagmarkerPixelSource(int color_, double cx_, double cy_, double r) throw ();
 
     void setLine(int y) throw ();
     void nextLine() throw ();
@@ -254,32 +230,25 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
-/** Description of a single texture used to fill elements on screen.
- *
- * A texture can be more generally any source that produces color/alpha values
- * for pixels on screen.
- *
- * Screen is not literal but the target bitmap whatever it is.
+/** Helper for creating a table of textures for Texturizer and freeing it.
+ * Can contain both pointers with ownership and those without.
  */
-class TextureData {
+class TextureTable {
+    std::vector<PixelSource*> table, owned;
+
 public:
-    void setSolid(int color, int alpha = 256) throw () { t = T_solid; d.s.set(color, alpha); } ///< See SolidTexdata
-    void setTexture(BITMAP* texture, int x0 = 0, int y0 = 0, int alpha = 256) throw () { t = T_texture; d.t.set(texture, x0, y0, alpha); } ///< See TextureTexdata
-    void setFlagmarker(int color, double cx, double cy, double r) throw () { t = T_flagmarker; d.f.set(color, cx, cy, r); } ///< See FlagmarkerTexdata
+    ~TextureTable() { for (int i = 0; i < (int)owned.size(); ++i) delete owned[i]; }
 
-    enum TexType { T_solid, T_texture, T_flagmarker };
-    typedef union {
-        SolidTexdata s;
-        TextureTexdata t;
-        FlagmarkerTexdata f;
-    } TexdataUnion;
+    int nextIndex() const { return table.size(); } ///< Get the texture index of the next texture to be added. First is 0, last added is nextIndex() - 1, etc.
+    void addOwned(PixelSource* tex) { table.push_back(tex); owned.push_back(tex); } ///< Add a texture and transfer ownership. Calling addOwned(new ...(...)) is common.
+    void addExternal(PixelSource* tex) { table.push_back(tex); } ///< Add a texture without transferring ownership.
+    /** Store a texture without adding to table, but transfer ownership.
+     * @return Index that can be passed to addStored to refer to this texture. Sequential calls to storeOwned (only) return sequential indices.
+     */
+    int storeOwned(PixelSource* tex) { owned.push_back(tex); return owned.size() - 1; }
+    void addStored(int index) { table.push_back(owned[index]); } ///< Add a texture previously stored with storeOwned.
 
-    TexType type() const throw () { return t; }
-    const TexdataUnion& data() const throw () { return d; }
-
-private:
-    TexType t;
-    TexdataUnion d;
+    const std::vector<PixelSource*>& read() const { return table; }
 };
 
 /** Handler of the target buffer and source texture data.
@@ -289,8 +258,8 @@ private:
  */
 class Texturizer {
 public:
-    Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures) throw ();
-    ~Texturizer() throw ();
+    Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<PixelSource*>& textures) throw () ///< References to @a buffer and @a textures are saved for the lifetime.
+        : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
 
     /** Render a single draw element.
      * @param textures Used textures as indices to the texture table, in layer order.
@@ -316,8 +285,7 @@ private:
     int bx, by; ///< Active pixel in buf.
     int bx0, by0; ///< Buffer pixel offset. Pixel (0,0) is drawn at (bx0,by0) in buf.
 
-    const std::vector<TextureData>& texTab;
-    std::vector<PixelSource*> texPixelSources; //< a PixelSource corresponding to each entry in texTab
+    const std::vector<PixelSource*>& texTab;
 
     std::vector< std::list<PartialPixelSegment> > partials;
     PartialPixelSegment* partSpan; ///< Active span in partials.

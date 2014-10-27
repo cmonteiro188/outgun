@@ -752,51 +752,29 @@ void PartialPixelSegment::draw(BITMAP* buf, int y) const throw () {
             putpixel(buf, startx + i, y, pixels[i].flexColor());
 }
 
-Texturizer::Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures) throw () :
-    buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h)
-{
-    for (vector<TextureData>::const_iterator ti = texTab.begin(); ti != texTab.end(); ++ti) {
-        switch (ti->type()) {
-        /*break;*/ case TextureData::T_solid:      texPixelSources.push_back(new SolidPixelSource     (ti->data().s));
-            break; case TextureData::T_texture:    texPixelSources.push_back(new TexturePixelSource   (ti->data().t));
-            break; case TextureData::T_flagmarker: texPixelSources.push_back(new FlagmarkerPixelSource(ti->data().f));
-            break; default: nAssert(0);
-        }
-    }
-}
-
-Texturizer::~Texturizer() throw () {
-    for (int i = 0; i < (int)texPixelSources.size(); ++i)
-        delete texPixelSources[i];
-}
-
 void Texturizer::render(const vector<int>& textures, const DrawElement* elp) throw () {
     if (textures.size() == 1) {
         const int texid = textures[0];
         numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
-        const TextureData::TexdataUnion& data = texTab[texid].data();
-        switch (texTab[texid].type()) {
-        /*break;*/ case TextureData::T_solid: {
-                SolidTexturizer tex(*this, data.s);
-                renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
-            }
-            break; case TextureData::T_texture: {
-                TextureTexturizer tex(*this, data.t);
-                renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
-            }
-            break; case TextureData::T_flagmarker: default: nAssert(0);
+        if (SolidPixelSource* sps = dynamic_cast<SolidPixelSource*>(texTab[texid])) {
+            SolidTexturizer tex(*this, *sps);
+            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+            return;
+        }
+        else if (TexturePixelSource* tps = dynamic_cast<TexturePixelSource*>(texTab[texid])) {
+            TextureTexturizer tex(*this, *tps);
+            renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+            return;
         }
     }
-    else {
-        nAssert(textures.size() > 1);
-        MultiLayerTexturizer tex(*this, textures.size());
-        for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
-            const int texid = *ti;
-            numAssert2(texid >= 0 && texid < (int)texPixelSources.size(), texid, texPixelSources.size());
-            tex.addLayer(texPixelSources[texid]);
-        }
-        renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
+    nAssert(!textures.empty());
+    MultiLayerTexturizer tex(*this, textures.size());
+    for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
+        const int texid = *ti;
+        numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
+        tex.addLayer(texTab[texid]);
     }
+    renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
 }
 
 inline void Texturizer::setLine(int y) throw () {
@@ -956,12 +934,12 @@ void TextureTexturizer::putPixI(int alpha) throw () {
         tx = 0;
 }
 
-FlagmarkerPixelSource::FlagmarkerPixelSource(const FlagmarkerTexdata& td) throw () :
-    color(td.color),
-    markRadius(td.radius),
-    intensityMul(300 / td.radius),
-    cx(td.cx),
-    cy(td.cy)
+FlagmarkerPixelSource::FlagmarkerPixelSource(int color_, double cx_, double cy_, double r) throw () :
+    color(color_),
+    markRadius(r),
+    intensityMul(300 / r),
+    cx(cx_),
+    cy(cy_)
 { }
 
 void FlagmarkerPixelSource::setLine(int y) throw () {
