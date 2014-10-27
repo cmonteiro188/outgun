@@ -720,27 +720,6 @@ void joinElements(list<DrawElement>& els) throw () {
     }
 }
 
-list<DrawElement> assembleWall(const vector<WallBorderSegment>& borders, int texid) throw () {
-    SegListT segs;
-    segs.push_back(YSegment(-1e99, 1e99)); // this makes the splitting routine simpler, since the new borders will always be within an existing segment
-
-    // split borders into segs
-    assembleSegments(borders, segs);
-
-    // finalize segments and extract a DrawElement list
-    list<DrawElement> ret;
-    for (SegListT::iterator si = segs.begin(); si != segs.end(); ++si) {
-        si->sort();
-        si->simplify();
-        si->moveElements(texid);
-        si->extractDrawElements(ret);
-    }
-
-    // finalize the DrawElement list by joining y-neighboring elements with same border functions
-    joinElements(ret);
-    return ret;
-}
-
 /// Assemble a list of objects with overlap as a scene and extract draw elements.
 list<DrawElement> assembleScene(const vector<ObjectSource>& objects) throw () {
     SegListT segs;
