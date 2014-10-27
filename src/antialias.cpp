@@ -1299,7 +1299,7 @@ void SceneAntialiaser::addWallClipped    (const WallBase* wall, int texture) thr
     clip(objects.back());
 }
 
-void SceneAntialiaser::render(Texturizer& tex) const throw () {
+void SceneAntialiaser::render(BITMAP* buffer, const std::vector<PixelSource*>& textures) const throw () {
     const list<DrawElement> drawEls = assembleScene(objects);
     #ifdef DEBUG_RENDER
     if (drawEls.size() < 50) {
@@ -1315,6 +1315,8 @@ void SceneAntialiaser::render(Texturizer& tex) const throw () {
         }
     }
     #endif
+    Texturizer tex(buffer, textures);
     for (list<DrawElement>::const_iterator ei = drawEls.begin(); ei != drawEls.end(); ++ei)
         tex.render(ei->getAllTextures(), &*ei);
+    tex.finalize();
 }

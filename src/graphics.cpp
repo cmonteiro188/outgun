@@ -581,9 +581,7 @@ void Graphics::drawRoomBackground(BITMAP* roombg, const Map& map, int roomx, int
         scene.clipAll();
 
         // draw
-        Texturizer tex(roombg, textures.read());
-        scene.render(tex);
-        tex.finalize();
+        scene.render(roombg, textures.read());
     }
     else {
         const double fillingScaleX = double(roombg->w) / plw;
@@ -1099,9 +1097,7 @@ void Graphics::update_minimap_background(BITMAP* buffer, const Map& map, bool sa
     colors.addOwned(new SolidPixelSource(colour[Colour::map_ground]));
     colors.addOwned(new SolidPixelSource(colour[Colour::map_wall]));
     colors.addOwned(new SolidPixelSource(room_border_col));
-    Texturizer tex(buffer, colors.read());
-    scene.render(tex);
-    tex.finalize();
+    scene.render(buffer, colors.read());
 
     // colorize bases
     MinimapHelper helper(buffer, startx, starty, plw, plh, scale);

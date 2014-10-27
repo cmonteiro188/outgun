@@ -36,92 +36,6 @@
 
 // // // // internal definitions
 
-/** A continuous span of partially rendered pixels.
- *
- * "Alpha" values are actually fractions of a full pixel, not a measure of
- * translucency as such, and must be scaled so that a full pixel is
- * 1 << scale (constant).
- *
- * A less than fully filled pixel is completed with black when drawn.
- */
-class PartialPixelSegment {
-public:
-    enum { scale = 20 /**< Alphas are scaled by 1 << scale: (1 << scale) / 2 equals half transparent.*/ };
-
-    PartialPixelSegment(int x0) throw () : startx(x0) { }
-    int x0() const throw () { return startx; }
-    int len() const throw () { return pixels.size(); }
-    void add(int index, int color, int alpha) throw () { pixels[index].add(color, alpha); }
-    void extend(int color, int alpha) throw () { pixels.push_back(PartPix(color, alpha)); }
-    void draw(BITMAP* buf, int y) const throw ();
-
-private:
-    /// A single partially rendered pixel.
-    class PartPix {
-        int r, g, b, alphaTotal; ///< all scaled
-        enum { scale = PartialPixelSegment::scale, scaleVal = 1 << PartialPixelSegment::scale };
-
-    public:
-        PartPix(int color, int alpha) throw () :
-            r(getr(color) * alpha),
-            g(getg(color) * alpha),
-            b(getb(color) * alpha),
-            alphaTotal(alpha)
-        { }
-        void add(int color, int alpha) throw () {
-            r += getr(color) * alpha;
-            g += getg(color) * alpha;
-            b += getb(color) * alpha;
-            alphaTotal += alpha;
-        }
-        bool draw() const throw () { return alphaTotal >= scaleVal / 100; }
-        int color() const throw () {
-            // this ensures that only whole pixels are written; enable if that's true:  numAssert(alphaTotal >= .999, alphaTotal * 10000.);
-            numAssert(alphaTotal <= scaleVal * 1.001, alphaTotal);
-            return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
-        }
-        /** Get color value where more than a full pixel may have been added.
-         * If the pixel is more than full, the color is the average color over
-         * that larger area and the extra area is ignored.
-         */
-        int flexColor() const throw () {
-            #if 1
-            int rc, gc, bc;
-            if (alphaTotal > scaleVal * 1.001) {
-                rc = (r + scaleVal / 2) / alphaTotal;
-                gc = (g + scaleVal / 2) / alphaTotal;
-                bc = (b + scaleVal / 2) / alphaTotal;
-            }
-            else {
-                rc = (r + scaleVal / 2) >> scale;
-                gc = (g + scaleVal / 2) >> scale;
-                bc = (b + scaleVal / 2) >> scale;
-            }
-            #elif 1
-            // alternative cutting method: use the extra intensity as much as possible, possibly distorting the color
-            int rc = std::min(255, (r + scaleVal / 2) >> scale);
-            int gc = std::min(255, (g + scaleVal / 2) >> scale);
-            int bc = std::min(255, (b + scaleVal / 2) >> scale);
-            #elif 1
-            // alternative cutting method: use the extra intensity but dim all components (subtract constant) if nonrepresentable
-            int rc = (r + scaleVal / 2) >> scale;
-            int gc = (g + scaleVal / 2) >> scale;
-            int bc = (b + scaleVal / 2) >> scale;
-            if (alphaTotal >= scaleVal && (rc > 255 || gc > 255 || bc > 255)) { // the alphaTotal check is an optimization
-                int cut = max(max(rc, gc), bc) - 255;
-                rc = std::max(0, rc - cut);
-                gc = std::max(0, gc - cut);
-                bc = std::max(0, bc - cut);
-            }
-            #endif
-            return makecol(rc, gc, bc);
-        }
-    };
-
-    int startx;
-    std::vector<PartPix> pixels;
-};
-
 class RectWall;
 class TriWall;
 class CircWall;
@@ -230,7 +144,7 @@ public:
     std::pair<int, int> getPixel() throw ();
 };
 
-/** Helper for creating a table of textures for Texturizer and freeing it.
+/** Helper for creating a table of textures and freeing it.
  * Can contain both pointers with ownership and those without.
  */
 class TextureTable {
@@ -251,56 +165,13 @@ public:
     const std::vector<PixelSource*>& read() const { return table; }
 };
 
-/** Handler of the target buffer and source texture data.
- *
- * Used by SceneAntialiaser to render one draw element at a time. Half-written
- * pixels are stored separately and only drawn in the buffer at once in the end.
- */
-class Texturizer {
-public:
-    Texturizer(BITMAP* buffer, const std::vector<PixelSource*>& textures) throw () ///< References to @a buffer and @a textures are saved for the lifetime.
-        : buf(buffer), texTab(textures), partials(buffer->h) { }
-
-    /** Render a single draw element.
-     * @param textures Used textures as indices to the texture table, in layer order.
-     * @param elp      Element to draw. Its textures are overridden by @a textures.
-     */
-    void render(const std::vector<int>& textures, const DrawElement* elp) throw ();
-    void finalize() throw (); ///< Draw all buffered pixels. Use exactly once at the end, before destroying.
-
-// semi-private: for use by rendering functions called by render() only
-    void setLine(int y) throw (); ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
-    void nextLine() throw (); ///< Increase target line by one. Invalidates x-coordinate.
-    inline void startPixSpan(int x) throw (); ///< Set x-coordinate where the next span will start (next pixel drawn). Semi-expensive.
-    inline void putPix(int color, int alpha) throw (); ///< Draw pixel at the current position and increase x by one.
-
-    inline BITMAP* getBuf() throw () { return buf; }
-    inline int getbx() const throw () { return bx; }
-    inline int getby() const throw () { return by; }
-
-private:
-    BITMAP* buf;
-    int bx, by; ///< Active pixel in buf.
-
-    const std::vector<PixelSource*>& texTab;
-
-    std::vector< std::list<PartialPixelSegment> > partials;
-    PartialPixelSegment* partSpan; ///< Active span in partials.
-    int spanIndex; ///< Active index in *partSpan. partSpan->pixels[spanIndex] corresponds to (bx,by) in buf.
-    int spanEnd; ///< Maximal size of *partSpan, when we must move to the next segment to continue adding pixels.
-};
-
-/** Full scene antialiasing, together with Texturizer.
+/** Full scene antialiasing.
  *
  * Collects drawn objects, scales and clips them to fit the viewport (or subset
- * thereof), and renders them using a Texturizer.
+ * thereof), and finally renders them all at once.
  *
- * When rendering, every fraction of a pixel must fit the buffer given to
- * Texturizer after scaling and clipping. Whole pixels with no content are not
- * drawn, partial pixels are completed with black.
- *
- * Texture numbers given to the add methods are incides and must correspond to
- * entries in the TextureData vector given to Texturizer.
+ * Texture numbers given to add methods are indices and must correspond to
+ * @a textures given to render.
  */
 class SceneAntialiaser : private NoCopying {
 public:
@@ -342,7 +213,17 @@ public:
     void addCircWallClipped(const CircWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
     void addWallClipped    (const WallBase* wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
 
-    void render(Texturizer& tex) const throw (); ///< Render all objects using @a tex.
+    /** Render all objects.
+     *
+     * Every fraction of a pixel must fit the buffer after the scaling and
+     * clipping that has been applied. Whole pixels with no content are not
+     * drawn, partial pixels are completed with black.
+     *
+     * @param buffer    Target bitmap large enough to contain all added objects.
+     * @param textures  A pixel source for every texture id previously passed to add methods.
+     *                  If not fully opaque, overlay must have been set when adding.
+     */
+    void render(BITMAP* buffer, const std::vector<PixelSource*>& textures) const throw ();
 
 private:
     void createClipFns() throw ();
