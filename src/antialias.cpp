@@ -1017,13 +1017,15 @@ void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) throw (
     scale = scale_;
 }
 
-void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) throw () {
-    numAssert2(y1 <= y2, y1 * 10., y2 * 10.);
-
+vector<WallBorderSegment>& SceneAntialiaser::addEmptyObject(int texture, bool overlay) throw () {
     objects.push_back(ObjectSource());
     objects.back().texid = texture;
     objects.back().overlay = overlay;
-    vector<WallBorderSegment>& borders = objects.back().borders;
+    return objects.back().borders;
+}
+
+void SceneAntialiaser::makeRectangleBorders(vector<WallBorderSegment>& borders, double x1, double y1, double x2, double y2) throw () {
+    numAssert2(y1 <= y2, y1 * 10., y2 * 10.);
 
     x1 = x0 + x1 * scale;
     y1 = y0 + y1 * scale;
@@ -1037,17 +1039,7 @@ void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, 
     borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
 }
 
-void SceneAntialiaser::addRectWall(const RectWall& wall, int texture) throw () {
-    numAssert2(wall.y1() <= wall.y2(), wall.y1() * 10., wall.y2() * 10.);
-    addRectangle(wall.x1(), wall.y1(), wall.x2(), wall.y2(), texture);
-}
-
-void SceneAntialiaser::addTriWall (const  TriWall& wall, int texture) throw () {
-    objects.push_back(ObjectSource());
-    objects.back().texid = texture;
-    objects.back().overlay = false;
-    vector<WallBorderSegment>& borders = objects.back().borders;
-
+void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const TriWall& wall) throw () {
     const double x1 = x0 + wall.point1().x * scale;
     const double y1 = y0 + wall.point1().y * scale;
     const double x2 = x0 + wall.point2().x * scale;
@@ -1065,12 +1057,7 @@ void SceneAntialiaser::addTriWall (const  TriWall& wall, int texture) throw () {
     borders.push_back(WallBorderSegment(bfns.back(), y2, y3));
 }
 
-void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
-    objects.push_back(ObjectSource());
-    objects.back().texid = texture;
-    objects.back().overlay = false;
-    vector<WallBorderSegment>& borders = objects.back().borders;
-
+void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const CircWall& wall) throw () {
     const double cx = x0 + wall.center().x * scale, cy = y0 + wall.center().y * scale;
     const double ro = wall.radius() * scale;
     const double ri = wall.radius_in() * scale;
@@ -1163,20 +1150,19 @@ void SceneAntialiaser::addCircWall(const CircWall& wall, int texture) throw () {
     borders.push_back(WallBorderSegment(bfns.back(), y1, y2));
 }
 
+void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) throw () {
+    makeRectangleBorders(addEmptyObject(texture, overlay), x1, y1, x2, y2);
+}
+
 void SceneAntialiaser::addWall(const WallBase* wall, int texture) throw () {
-    const RectWall* rwp = dynamic_cast<const RectWall*>(wall);
-    if (rwp) {
-        addRectWall(*rwp, texture);
-        return;
-    }
-    const TriWall*  twp = dynamic_cast<const TriWall *>(wall);
-    if (twp) {
-        addTriWall (*twp, texture);
-        return;
-    }
-    const CircWall* cwp = dynamic_cast<const CircWall*>(wall);
-    nAssert(cwp);
-    addCircWall    (*cwp, texture);
+    if      (const RectWall* rwp = dynamic_cast<const RectWall*>(wall))
+        addRectangle(rwp->x1(), rwp->y1(), rwp->x2(), rwp->y2(), texture);
+    else if (const TriWall*  twp = dynamic_cast<const TriWall *>(wall))
+        makeBorders(addEmptyObject(texture), *twp);
+    else if (const CircWall* cwp = dynamic_cast<const CircWall*>(wall))
+        makeBorders(addEmptyObject(texture), *cwp);
+    else
+        nAssert(0);
 }
 
 void SceneAntialiaser::setClipping(double x1, double y1, double x2, double y2) throw () {
@@ -1280,22 +1266,7 @@ void SceneAntialiaser::clip(ObjectSource& object) throw () {
     }
 }
 
-void SceneAntialiaser::addRectWallClipped(const RectWall& wall, int texture) throw () {
-    addRectWall(wall, texture);
-    clip(objects.back());
-}
-
-void SceneAntialiaser::addTriWallClipped (const  TriWall& wall, int texture) throw () {
-    addTriWall (wall, texture);
-    clip(objects.back());
-}
-
-void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) throw () {
-    addCircWall(wall, texture);
-    clip(objects.back());
-}
-
-void SceneAntialiaser::addWallClipped    (const WallBase* wall, int texture) throw () {
+void SceneAntialiaser::addWallClipped(const WallBase* wall, int texture) throw () {
     addWall(wall, texture);
     clip(objects.back());
 }

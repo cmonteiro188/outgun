@@ -190,9 +190,6 @@ public:
     void setScaling(double x0_ = 0, double y0_ = 0, double scale_ = 1.) throw ();
 
     void addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay = false) throw (); ///< Add given rectangle. Overlay must be set iff the texture is not opaque (alpha!=256).
-    void addRectWall(const RectWall& wall, int texture) throw (); ///< Add given wall. Texture must be opaque (alpha=256).
-    void addTriWall (const  TriWall& wall, int texture) throw (); ///< Add given wall. Texture must be opaque (alpha=256).
-    void addCircWall(const CircWall& wall, int texture) throw (); ///< Add given wall. Texture must be opaque (alpha=256).
     void addWall    (const WallBase* wall, int texture) throw (); ///< Add given wall. Texture must be opaque (alpha=256).
 
     /** Set clipping rectangle applied to future addClippeds and clips.
@@ -208,10 +205,7 @@ public:
     int getClipPos() const throw () { return objects.size(); } ///< Get position for calling clipFrom later.
     void clipFrom(int base) throw (); ///< Clip all objects added after getClipPos() returned @a base, and before this call.
 
-    void addRectWallClipped(const RectWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
-    void addTriWallClipped (const  TriWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
-    void addCircWallClipped(const CircWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
-    void addWallClipped    (const WallBase* wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
+    void addWallClipped(const WallBase* wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
 
     /** Render all objects.
      *
@@ -226,6 +220,11 @@ public:
     void render(BITMAP* buffer, const std::vector<PixelSource*>& textures) const throw ();
 
 private:
+    std::vector<WallBorderSegment>& addEmptyObject(int texture, bool overlay = false) throw ();
+    void makeRectangleBorders(std::vector<WallBorderSegment>& borders, double x1, double y1, double x2, double y2) throw ();
+    void makeBorders(std::vector<WallBorderSegment>& borders, const TriWall& wall) throw ();
+    void makeBorders(std::vector<WallBorderSegment>& borders, const CircWall& wall) throw ();
+
     void createClipFns() throw ();
     void clip(ObjectSource& object) throw ();
 
