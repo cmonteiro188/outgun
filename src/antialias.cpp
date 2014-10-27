@@ -612,14 +612,14 @@ bool splitOnIntersect(SegListT::iterator si, BorderFunctionBase* bfn, SegListT& 
  *                of possible y-coordinates. One empty segment from -1e99 to 1e99 is enough.
  *                List is split and the segments inserted into by the function.
  */
-void assembleSegments(const vector<WallBorderSegment>& borders, SegListT& segDest) throw () {
+void assembleSegments(const vector<BorderSegment>& borders, SegListT& segDest) throw () {
     nAssert(!segDest.empty()); // it must be pre-filled with (possibly empty) segments that cover all possible y's (one seg from -1e99 to 1e99 is good)
 //  nAssert(borders.size() >= 2); // using clipping with objects wholly outside the clip area (or otherwise invisible) will violate this; disable this line if that's possible
 
     #ifdef DEBUG_SPLIT
     cerr << '\n';
     #endif
-    for (vector<WallBorderSegment>::const_iterator bi = borders.begin(); bi != borders.end(); ++bi) {
+    for (vector<BorderSegment>::const_iterator bi = borders.begin(); bi != borders.end(); ++bi) {
         #ifdef DEBUG_SPLIT
         cerr.precision(25);
         cerr << bi->y0 << " -> " << bi->y1 << '\n';
@@ -1017,14 +1017,14 @@ void SceneAntialiaser::setScaling(double x0_, double y0_, double scale_) throw (
     scale = scale_;
 }
 
-vector<WallBorderSegment>& SceneAntialiaser::addEmptyObject(int texture, bool overlay) throw () {
+vector<BorderSegment>& SceneAntialiaser::addEmptyObject(int texture, bool overlay) throw () {
     objects.push_back(ObjectSource());
     objects.back().texid = texture;
     objects.back().overlay = overlay;
     return objects.back().borders;
 }
 
-void SceneAntialiaser::makeRectangleBorders(vector<WallBorderSegment>& borders, double x1, double y1, double x2, double y2) throw () {
+void SceneAntialiaser::makeRectangleBorders(vector<BorderSegment>& borders, double x1, double y1, double x2, double y2) throw () {
     numAssert2(y1 <= y2, y1 * 10., y2 * 10.);
 
     x1 = x0 + x1 * scale;
@@ -1032,11 +1032,11 @@ void SceneAntialiaser::makeRectangleBorders(vector<WallBorderSegment>& borders, 
     x2 = x0 + x2 * scale;
     y2 = y0 + y2 * scale;
 
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x1, y2)), y1, y2));
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x2, y1, x2, y2)), y1, y2));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x1, y1, x1, y2)), y1, y2));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x2, y1, x2, y2)), y1, y2));
 }
 
-void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const TriWall& wall) throw () {
+void SceneAntialiaser::makeBorders(vector<BorderSegment>& borders, const TriWall& wall) throw () {
     const double x1 = x0 + wall.point1().x * scale;
     const double y1 = y0 + wall.point1().y * scale;
     const double x2 = x0 + wall.point2().x * scale;
@@ -1044,22 +1044,22 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Tri
     const double x3 = x0 + wall.point3().x * scale;
     const double y3 = y0 + wall.point3().y * scale;
 
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x3, y3)), y1, y3));
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x2, y2, x3, y3)), y2, y3));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x1, y1, x3, y3)), y1, y3));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x2, y2, x3, y3)), y2, y3));
 }
 
-void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const CircWall& wall) throw () {
+void SceneAntialiaser::makeBorders(vector<BorderSegment>& borders, const CircWall& wall) throw () {
     const double cx = x0 + wall.center().x * scale, cy = y0 + wall.center().y * scale;
     const double ro = wall.radius() * scale;
     const double ri = wall.radius_in() * scale;
 
     if (wall.angles()[0] == wall.angles()[1]) { // a whole circle/ring
-        borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, false)), cy - ro, cy + ro));
-        borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, true )), cy - ro, cy + ro));
+        borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, false)), cy - ro, cy + ro));
+        borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, true )), cy - ro, cy + ro));
         if (ri > 0) { // a ring
-            borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, false)), cy - ri, cy + ri));
-            borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, true )), cy - ri, cy + ri));
+            borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, false)), cy - ri, cy + ri));
+            borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, true )), cy - ri, cy + ri));
         }
         return;
     }
@@ -1087,26 +1087,26 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         const double yai = cy - ri * cos(ang); // - belongs to cos
         if (npi < ar[1]) { // draw from ang to npi
             if (rightSide)
-                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, cy + ro));
+                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, cy + ro));
             else
-                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), cy - ro, yao));
+                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), cy - ro, yao));
             if (ri > 0) {
                 if (rightSide)
-                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, cy + ri));
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, cy + ri));
                 else
-                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), cy - ri, yai));
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), cy - ri, yai));
             }
         }
         else {
             if (rightSide)
-                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, yeo));
+                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, yeo));
             else
-                borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yeo, yao));
+                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yeo, yao));
             if (ri > 0) {
                 if (rightSide)
-                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, yei));
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, yei));
                 else
-                    borders.push_back(WallBorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yei, yai));
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yei, yai));
             }
             break;
         }
@@ -1121,7 +1121,7 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         swap(x1, x2);
         swap(y1, y2);
     }
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
 
     x1 = cx + va2.x * ri; y1 = cy - va2.y * ri; // - belongs to va2.y
     x2 = cx + va2.x * ro; y2 = cy - va2.y * ro; // - belongs to va2.y
@@ -1129,7 +1129,7 @@ void SceneAntialiaser::makeBorders(vector<WallBorderSegment>& borders, const Cir
         swap(x1, x2);
         swap(y1, y2);
     }
-    borders.push_back(WallBorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
+    borders.push_back(BorderSegment(addBfn(new LineFunction(x1, y1, x2, y2)), y1, y2));
 }
 
 void SceneAntialiaser::addRectangle(double x1, double y1, double x2, double y2, int texture, bool overlay) throw () {
@@ -1172,7 +1172,7 @@ void SceneAntialiaser::clipFrom(int base) throw () {
 void SceneAntialiaser::clip(ObjectSource& object) throw () {
     int handleBorders = object.borders.size(); // must save this since new borders may be added that don't need clipping
     for (int bi = 0; bi < handleBorders; ++bi) {
-        WallBorderSegment* border = &object.borders[bi];
+        BorderSegment* border = &object.borders[bi];
 
         // clip y direction
         if (border->y0 < clipy1)
@@ -1202,7 +1202,7 @@ void SceneAntialiaser::clip(ObjectSource& object) throw () {
                     border->fn = clipLeft;
                     break;
                 }
-                const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+                const BorderSegment newSeg(border->fn, *lcpi, border->y1);
                 border->fn = clipLeft;
                 border->y1 = *lcpi;
                 object.borders.push_back(newSeg);
@@ -1216,7 +1216,7 @@ void SceneAntialiaser::clip(ObjectSource& object) throw () {
                     border->fn = clipRight;
                     break;
                 }
-                const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+                const BorderSegment newSeg(border->fn, *rcpi, border->y1);
                 border->fn = clipRight;
                 border->y1 = *rcpi;
                 object.borders.push_back(newSeg);
@@ -1227,7 +1227,7 @@ void SceneAntialiaser::clip(ObjectSource& object) throw () {
             else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
                 if (*lcpi >= border->y1)
                     break;
-                const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+                const BorderSegment newSeg(border->fn, *lcpi, border->y1);
                 border->y1 = *lcpi;
                 object.borders.push_back(newSeg);
                 border = &object.borders.back(); // continue splitting with this new segment
@@ -1236,7 +1236,7 @@ void SceneAntialiaser::clip(ObjectSource& object) throw () {
             else { // within the clipping region until *rcpi
                 if (*rcpi >= border->y1)
                     break;
-                const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+                const BorderSegment newSeg(border->fn, *rcpi, border->y1);
                 border->y1 = *rcpi;
                 object.borders.push_back(newSeg);
                 border = &object.borders.back(); // continue splitting with this new segment

@@ -45,11 +45,11 @@ class LineFunction;
 class DrawElement;
 
 /// A segment of the border of an object defined by an f(y) and the range of y.
-struct WallBorderSegment {
+struct BorderSegment {
     BorderFunctionBase* fn;
     double y0, y1;
-    WallBorderSegment() throw () { }
-    WallBorderSegment(BorderFunctionBase* fn_, double y0_, double y1_) throw () : fn(fn_), y0(y0_), y1(y1_) { }
+    BorderSegment() throw () { }
+    BorderSegment(BorderFunctionBase* fn_, double y0_, double y1_) throw () : fn(fn_), y0(y0_), y1(y1_) { }
 };
 
 /** The definition of a drawable object.
@@ -60,7 +60,7 @@ struct WallBorderSegment {
 struct ObjectSource {
     int texid;
     bool overlay; ///< Set if the texture is not fully opaque.
-    std::vector<WallBorderSegment> borders;
+    std::vector<BorderSegment> borders;
 };
 
 // // // // public interface
@@ -220,10 +220,10 @@ public:
     void render(BITMAP* buffer, const std::vector<PixelSource*>& textures) const throw ();
 
 private:
-    std::vector<WallBorderSegment>& addEmptyObject(int texture, bool overlay = false) throw ();
-    void makeRectangleBorders(std::vector<WallBorderSegment>& borders, double x1, double y1, double x2, double y2) throw ();
-    void makeBorders(std::vector<WallBorderSegment>& borders, const TriWall& wall) throw ();
-    void makeBorders(std::vector<WallBorderSegment>& borders, const CircWall& wall) throw ();
+    std::vector<BorderSegment>& addEmptyObject(int texture, bool overlay = false) throw ();
+    void makeRectangleBorders(std::vector<BorderSegment>& borders, double x1, double y1, double x2, double y2) throw ();
+    void makeBorders(std::vector<BorderSegment>& borders, const TriWall& wall) throw ();
+    void makeBorders(std::vector<BorderSegment>& borders, const CircWall& wall) throw ();
     template<class Fn> Fn* addBfn(Fn* fn) { bfns.push_back(fn); return fn; }
 
     void createClipFns() throw ();
