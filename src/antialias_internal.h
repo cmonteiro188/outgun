@@ -365,10 +365,8 @@ class MultiLayerTexturizer {
 
 public:
     MultiLayerTexturizer(Texturizer& host_, int layersReserve = 2) throw () : host(host_) { layers.reserve(layersReserve); }
-    ~MultiLayerTexturizer() throw ();
     /** Initialization: add a texture layer to the stack.
-     * Must be called at least once before trying to draw.
-     * Ownership of @a layerSource is transferred.
+     * Must be called at least once before trying to draw. Ownership not transferred.
      */
     void addLayer(PixelSource* layerSource) throw () { layers.push_back(layerSource); }
 

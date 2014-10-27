@@ -129,6 +129,7 @@ class WallBase;
 class BorderFunctionBase;
 class LineFunction;
 class DrawElement;
+class PixelSource;
 
 /// A segment of the border of an object defined by an f(y) and the range of y.
 struct WallBorderSegment {
@@ -227,8 +228,8 @@ private:
  */
 class Texturizer {
 public:
-    Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures) throw ()
-                    : buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h) { }
+    Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures) throw ();
+    ~Texturizer() throw ();
 
     /** Render a single draw element.
      * @param textures Used textures as indices to the texture table, in layer order.
@@ -255,6 +256,7 @@ private:
     int bx0, by0; ///< Buffer pixel offset. Pixel (0,0) is drawn at (bx0,by0) in buf.
 
     const std::vector<TextureData>& texTab;
+    std::vector<PixelSource*> texPixelSources; //< a PixelSource corresponding to each entry in texTab
 
     std::vector< std::list<PartialPixelSegment> > partials;
     PartialPixelSegment* partSpan; ///< Active span in partials.

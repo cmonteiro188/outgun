@@ -752,6 +752,24 @@ void PartialPixelSegment::draw(BITMAP* buf, int y) const throw () {
             putpixel(buf, startx + i, y, pixels[i].flexColor());
 }
 
+Texturizer::Texturizer(BITMAP* buffer, int x0, int y0, const std::vector<TextureData>& textures) throw () :
+    buf(buffer), bx0(x0), by0(y0), texTab(textures), partials(buffer->h)
+{
+    for (vector<TextureData>::const_iterator ti = texTab.begin(); ti != texTab.end(); ++ti) {
+        switch (ti->type()) {
+        /*break;*/ case TextureData::T_solid:      texPixelSources.push_back(new SolidPixelSource     (ti->data().s));
+            break; case TextureData::T_texture:    texPixelSources.push_back(new TexturePixelSource   (ti->data().t));
+            break; case TextureData::T_flagmarker: texPixelSources.push_back(new FlagmarkerPixelSource(ti->data().f));
+            break; default: nAssert(0);
+        }
+    }
+}
+
+Texturizer::~Texturizer() throw () {
+    for (int i = 0; i < (int)texPixelSources.size(); ++i)
+        delete texPixelSources[i];
+}
+
 void Texturizer::render(const vector<int>& textures, const DrawElement* elp) throw () {
     if (textures.size() == 1) {
         const int texid = textures[0];
@@ -774,14 +792,8 @@ void Texturizer::render(const vector<int>& textures, const DrawElement* elp) thr
         MultiLayerTexturizer tex(*this, textures.size());
         for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
             const int texid = *ti;
-            numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
-            const TextureData::TexdataUnion& data = texTab[texid].data();
-            switch (texTab[texid].type()) {
-            /*break;*/ case TextureData::T_solid:      tex.addLayer(new SolidPixelSource(data.s));
-                break; case TextureData::T_texture:    tex.addLayer(new TexturePixelSource(data.t));
-                break; case TextureData::T_flagmarker: tex.addLayer(new FlagmarkerPixelSource(data.f));
-                break; default: nAssert(0);
-            }
+            numAssert2(texid >= 0 && texid < (int)texPixelSources.size(), texid, texPixelSources.size());
+            tex.addLayer(texPixelSources[texid]);
         }
         renderBlock(elp->getY0(), elp->getY1(), elp->getLeft(), elp->getRight(), tex);
     }
@@ -973,11 +985,6 @@ pair<int, int> FlagmarkerPixelSource::getPixel() throw () {
         return pair<int, int>(0, 0);
     else
         return pair<int, int>(color, min(256, static_cast<int>(intensity * intensityMul)));
-}
-
-MultiLayerTexturizer::~MultiLayerTexturizer() throw () {
-    for (vector<PixelSource*>::iterator li = layers.begin(); li != layers.end(); ++li)
-        delete *li;
 }
 
 void MultiLayerTexturizer::setLine(int y) throw () {
