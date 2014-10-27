@@ -249,34 +249,6 @@ public:
 
 typedef std::list<YSegment> SegListT;
 
-/** Base class for data sources used as textures.
- *
- * Provides color and alpha values for individual pixels on a span basis keeping
- * track of the position itself.
- *
- * Positions given are target pixels.
- */
-class PixelSource : private NoCopying {
-public:
-    virtual ~PixelSource() throw () { }
-    virtual void setLine(int y) throw () = 0; ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
-    virtual void nextLine() throw () = 0; ///< Increase target line by one. Invalidates x-coordinate.
-    virtual void startPixSpan(int x) throw () = 0; ///< Set x-coordinate where the next span will start (next pixel drawn).
-    virtual std::pair<int, int> getPixel() throw () = 0; ///< Get (color, alpha) to draw at the current position and increase x by one.
-};
-
-/// Source for a constant color and alpha value everywhere.
-class SolidPixelSource : public PixelSource {
-    int color, alpha;
-
-public:
-    SolidPixelSource(const SolidTexdata& td) throw () : color(td.color), alpha(td.alpha) { }
-    void setLine(int) throw () { }
-    void nextLine() throw () { }
-    void startPixSpan(int) throw () { }
-    std::pair<int, int> getPixel() throw ();
-};
-
 /** Span texturizer locked to a single texture (solid).
  *
  * Provides the span texturizer interface (for template use) for drawing a
@@ -299,22 +271,6 @@ public:
     void putPix(double alpha) throw (); ///< Draw at the current position with given fractional alpha, and increase x by one.
 };
 
-/// Source for pixels read from a texture. See TextureData for details.
-class TexturePixelSource : public PixelSource {
-    BITMAP* tex;
-    int alpha;
-    int tx0, ty0;
-    int tx, ty; // active pixel in tex
-
-public:
-    TexturePixelSource(const TextureTexdata& td) throw () : tex(td.image), alpha(td.alpha), tx0(td.x0), ty0(td.y0) { }
-
-    void setLine(int y) throw ();
-    void nextLine() throw ();
-    void startPixSpan(int x) throw ();
-    std::pair<int, int> getPixel() throw ();
-};
-
 /// Span texturizer locked to a single texture (bitmap). See SolidTexturizer for method documentation.
 class TextureTexturizer { // includes inlined the same operations as TexturePixelSource
     Texturizer& host;
@@ -332,24 +288,6 @@ public:
     void putSpan(int x0, int x1, double alpha) throw ();
     void startPixSpan(int x) throw ();
     void putPix(double alpha) throw ();
-};
-
-/// Source for flag marker pixels.
-class FlagmarkerPixelSource : public PixelSource {
-    int color;
-    double markRadius;
-    double intensityMul;
-    double cx, cy;
-    double dy, dy2;
-    double dx;
-
-public:
-    FlagmarkerPixelSource(const FlagmarkerTexdata& td) throw ();
-
-    void setLine(int y) throw ();
-    void nextLine() throw ();
-    void startPixSpan(int x) throw ();
-    std::pair<int, int> getPixel() throw ();
 };
 
 /** Generic span texturizer for any number of textures.
