@@ -145,7 +145,7 @@ void LineFunction::debug() const throw () {
 }
 
 /// Flip the Side in-place, basically s = !s;
-void swap(ChangePoints::Side& s) throw () { s = (s == ChangePoints::S_Left) ? ChangePoints::S_Right : ChangePoints::S_Left; }
+void flip(ChangePoints::Side& s) throw () { s = (s == ChangePoints::S_Left) ? ChangePoints::S_Right : ChangePoints::S_Left; }
 
 /** Calculate the area to the left of @a fn within the given y-range of a pixel.
  * Calculate the area within  x0 < x < x0 + 1  and  y0 < y < y1  where  fn(y) >= x.
@@ -163,33 +163,33 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
     double totalPixel = 0;
     double y = y0;
     // update border markers to the status around the current y
-    while (*lcpi <= y) { swap(ls); ++lcpi; }
-    while (*rcpi <= y) { swap(rs); ++rcpi; }
+    while (*lcpi <= y) { flip(ls); ++lcpi; }
+    while (*rcpi <= y) { flip(rs); ++rcpi; }
     for (;;) {
         if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
             if (*lcpi >= y1)
                 return totalPixel;
-            y = *lcpi++; swap(ls);
-            while (*rcpi <= y) { swap(rs); ++rcpi; }
+            y = *lcpi++; flip(ls);
+            while (*rcpi <= y) { flip(rs); ++rcpi; }
         }
         else if (rs == ChangePoints::S_Right) { // out on the right side (until *rcpi)
             if (*rcpi >= y1)
                 return totalPixel + 1. * (y1 - y);
             totalPixel += 1. * (*rcpi - y);
-            y = *rcpi++; swap(rs);
-            while (*lcpi <= y) { swap(ls); ++lcpi; }
+            y = *rcpi++; flip(rs);
+            while (*lcpi <= y) { flip(ls); ++lcpi; }
         }
         else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
             if (*lcpi >= y1)
                 return totalPixel + fn.spanLeftSideIntegral(x0, y, y1);
             totalPixel += fn.spanLeftSideIntegral(x0, y, *lcpi);
-            y = *lcpi++; swap(ls);
+            y = *lcpi++; flip(ls);
         }
         else { // within the clipping region until *rcpi
             if (*rcpi >= y1)
                 return totalPixel + fn.spanLeftSideIntegral(x0, y, y1);
             totalPixel += fn.spanLeftSideIntegral(x0, y, *rcpi);
-            y = *rcpi++; swap(rs);
+            y = *rcpi++; flip(rs);
         }
         numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, totalPixel * 100000.);
     }
@@ -1258,8 +1258,8 @@ void SceneAntialiaser::clip(int i0) throw () {
             const double* lcpi = lc.points, * rcpi = rc.points;
             double y = border->y0;
             // update border markers to the status around the current y
-            while (*lcpi <= y) { swap(ls); ++lcpi; }
-            while (*rcpi <= y) { swap(rs); ++rcpi; }
+            while (*lcpi <= y) { flip(ls); ++lcpi; }
+            while (*rcpi <= y) { flip(rs); ++rcpi; }
             for (;;) {
                 if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
                     createClipFns();
@@ -1272,8 +1272,8 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->y1 = *lcpi;
                     object->borders.push_back(newSeg);
                     border = &object->borders.back(); // continue splitting with this new segment
-                    y = *lcpi++; swap(ls);
-                    while (*rcpi <= y) { swap(rs); ++rcpi; }
+                    y = *lcpi++; flip(ls);
+                    while (*rcpi <= y) { flip(rs); ++rcpi; }
                 }
                 else if (rs == ChangePoints::S_Right) { // out on the right side (until *rcpi)
                     createClipFns();
@@ -1286,8 +1286,8 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->y1 = *rcpi;
                     object->borders.push_back(newSeg);
                     border = &object->borders.back(); // continue splitting with this new segment
-                    y = *rcpi++; swap(rs);
-                    while (*lcpi <= y) { swap(ls); ++lcpi; }
+                    y = *rcpi++; flip(rs);
+                    while (*lcpi <= y) { flip(ls); ++lcpi; }
                 }
                 else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
                     if (*lcpi >= border->y1)
@@ -1296,7 +1296,7 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->y1 = *lcpi;
                     object->borders.push_back(newSeg);
                     border = &object->borders.back(); // continue splitting with this new segment
-                    y = *lcpi++; swap(ls);
+                    y = *lcpi++; flip(ls);
                 }
                 else { // within the clipping region until *rcpi
                     if (*rcpi >= border->y1)
@@ -1305,7 +1305,7 @@ void SceneAntialiaser::clip(int i0) throw () {
                     border->y1 = *rcpi;
                     object->borders.push_back(newSeg);
                     border = &object->borders.back(); // continue splitting with this new segment
-                    y = *rcpi++; swap(rs);
+                    y = *rcpi++; flip(rs);
                 }
             }
         }
