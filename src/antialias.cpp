@@ -749,7 +749,7 @@ list<DrawElement> assembleScene(const vector<ObjectSource>& objects) throw () {
 void PartialPixelSegment::draw(BITMAP* buf, int y) const throw () {
     for (size_t i = 0; i < pixels.size(); ++i)
         if (pixels[i].draw())
-            putpixel(buf, startx + i, y, pixels[i].flexColor());
+            putpixel(buf, startx + i, y, pixels[i].color());
 }
 
 void Texturizer::render(const DrawElement& el) throw () {
