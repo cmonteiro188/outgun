@@ -1233,107 +1233,106 @@ void SceneAntialiaser::createClipFns() throw () {
     }
 }
 
-void SceneAntialiaser::clip(int i0) throw () {
-    for (vector<ObjectSource>::iterator object = objects.begin() + i0; object != objects.end(); ++object) {
-        int handleBorders = object->borders.size(); // must save this since new borders may be added that don't need clipping
-        for (int bi = 0; bi < handleBorders; ++bi) {
-            WallBorderSegment* border = &object->borders[bi];
+void SceneAntialiaser::clipFrom(int base) throw () {
+    for (vector<ObjectSource>::iterator object = objects.begin() + base; object != objects.end(); ++object)
+        clip(*object);
+}
 
-            // clip y direction
-            if (border->y0 < clipy1)
-                border->y0 = clipy1;
-            if (border->y1 > clipy2)
-                border->y1 = clipy2;
-            if (border->y1 <= border->y0) { // nothing is visible after clipping
-                object->borders.erase(object->borders.begin() + bi);
-                --handleBorders;
-                --bi;
-                continue;
-            }
+void SceneAntialiaser::clip(ObjectSource& object) throw () {
+    int handleBorders = object.borders.size(); // must save this since new borders may be added that don't need clipping
+    for (int bi = 0; bi < handleBorders; ++bi) {
+        WallBorderSegment* border = &object.borders[bi];
 
-            // clip x direction
-            // note: the code from here on is highly of the same structure as pixelLeftSideIntegral
-            const ChangePoints lc = border->fn->getChangePoints(clipx1), rc = border->fn->getChangePoints(clipx2);
-            ChangePoints::Side ls = lc.startSide, rs = rc.startSide;
-            const double* lcpi = lc.points, * rcpi = rc.points;
-            double y = border->y0;
-            // update border markers to the status around the current y
-            while (*lcpi <= y) { flip(ls); ++lcpi; }
-            while (*rcpi <= y) { flip(rs); ++rcpi; }
-            for (;;) {
-                if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
-                    createClipFns();
-                    if (*lcpi >= border->y1) {
-                        border->fn = clipLeft;
-                        break;
-                    }
-                    const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+        // clip y direction
+        if (border->y0 < clipy1)
+            border->y0 = clipy1;
+        if (border->y1 > clipy2)
+            border->y1 = clipy2;
+        if (border->y1 <= border->y0) { // nothing is visible after clipping
+            object.borders.erase(object.borders.begin() + bi);
+            --handleBorders;
+            --bi;
+            continue;
+        }
+
+        // clip x direction
+        // note: the code from here on is highly of the same structure as pixelLeftSideIntegral
+        const ChangePoints lc = border->fn->getChangePoints(clipx1), rc = border->fn->getChangePoints(clipx2);
+        ChangePoints::Side ls = lc.startSide, rs = rc.startSide;
+        const double* lcpi = lc.points, * rcpi = rc.points;
+        double y = border->y0;
+        // update border markers to the status around the current y
+        while (*lcpi <= y) { flip(ls); ++lcpi; }
+        while (*rcpi <= y) { flip(rs); ++rcpi; }
+        for (;;) {
+            if (ls == ChangePoints::S_Left) { // out on the left side (until *lcpi)
+                createClipFns();
+                if (*lcpi >= border->y1) {
                     border->fn = clipLeft;
-                    border->y1 = *lcpi;
-                    object->borders.push_back(newSeg);
-                    border = &object->borders.back(); // continue splitting with this new segment
-                    y = *lcpi++; flip(ls);
-                    while (*rcpi <= y) { flip(rs); ++rcpi; }
+                    break;
                 }
-                else if (rs == ChangePoints::S_Right) { // out on the right side (until *rcpi)
-                    createClipFns();
-                    if (*rcpi >= border->y1) {
-                        border->fn = clipRight;
-                        break;
-                    }
-                    const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+                const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+                border->fn = clipLeft;
+                border->y1 = *lcpi;
+                object.borders.push_back(newSeg);
+                border = &object.borders.back(); // continue splitting with this new segment
+                y = *lcpi++; flip(ls);
+                while (*rcpi <= y) { flip(rs); ++rcpi; }
+            }
+            else if (rs == ChangePoints::S_Right) { // out on the right side (until *rcpi)
+                createClipFns();
+                if (*rcpi >= border->y1) {
                     border->fn = clipRight;
-                    border->y1 = *rcpi;
-                    object->borders.push_back(newSeg);
-                    border = &object->borders.back(); // continue splitting with this new segment
-                    y = *rcpi++; flip(rs);
-                    while (*lcpi <= y) { flip(ls); ++lcpi; }
+                    break;
                 }
-                else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
-                    if (*lcpi >= border->y1)
-                        break;
-                    const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
-                    border->y1 = *lcpi;
-                    object->borders.push_back(newSeg);
-                    border = &object->borders.back(); // continue splitting with this new segment
-                    y = *lcpi++; flip(ls);
-                }
-                else { // within the clipping region until *rcpi
-                    if (*rcpi >= border->y1)
-                        break;
-                    const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
-                    border->y1 = *rcpi;
-                    object->borders.push_back(newSeg);
-                    border = &object->borders.back(); // continue splitting with this new segment
-                    y = *rcpi++; flip(rs);
-                }
+                const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+                border->fn = clipRight;
+                border->y1 = *rcpi;
+                object.borders.push_back(newSeg);
+                border = &object.borders.back(); // continue splitting with this new segment
+                y = *rcpi++; flip(rs);
+                while (*lcpi <= y) { flip(ls); ++lcpi; }
+            }
+            else if (*lcpi < *rcpi) { // within the clipping region until *lcpi
+                if (*lcpi >= border->y1)
+                    break;
+                const WallBorderSegment newSeg(border->fn, *lcpi, border->y1);
+                border->y1 = *lcpi;
+                object.borders.push_back(newSeg);
+                border = &object.borders.back(); // continue splitting with this new segment
+                y = *lcpi++; flip(ls);
+            }
+            else { // within the clipping region until *rcpi
+                if (*rcpi >= border->y1)
+                    break;
+                const WallBorderSegment newSeg(border->fn, *rcpi, border->y1);
+                border->y1 = *rcpi;
+                object.borders.push_back(newSeg);
+                border = &object.borders.back(); // continue splitting with this new segment
+                y = *rcpi++; flip(rs);
             }
         }
     }
 }
 
 void SceneAntialiaser::addRectWallClipped(const RectWall& wall, int texture) throw () {
-    const int startNew = objects.size();
     addRectWall(wall, texture);
-    clip(startNew);
+    clip(objects.back());
 }
 
 void SceneAntialiaser::addTriWallClipped (const  TriWall& wall, int texture) throw () {
-    const int startNew = objects.size();
     addTriWall (wall, texture);
-    clip(startNew);
+    clip(objects.back());
 }
 
 void SceneAntialiaser::addCircWallClipped(const CircWall& wall, int texture) throw () {
-    const int startNew = objects.size();
     addCircWall(wall, texture);
-    clip(startNew);
+    clip(objects.back());
 }
 
 void SceneAntialiaser::addWallClipped    (const WallBase* wall, int texture) throw () {
-    const int startNew = objects.size();
     addWall(wall, texture);
-    clip(startNew);
+    clip(objects.back());
 }
 
 void SceneAntialiaser::render(Texturizer& tex) const throw () {

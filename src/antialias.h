@@ -306,10 +306,10 @@ public:
      * setScaling(x,y,s) with appropriate parameters after.
      */
     void setClipping(double x1, double y1, double x2, double y2) throw ();
-    void clipAll() throw () { clip(0); } ///< Clip all already added objects to the current clipping rectangle.
+    void clipAll() throw () { clipFrom(0); } ///< Clip all already added objects to the current clipping rectangle.
 
     int getClipPos() const throw () { return objects.size(); } ///< Get position for calling clipFrom later.
-    void clipFrom(int base) throw () { clip(base); } ///< Clip all objects added after getClipPos() returned @a base, and before this call.
+    void clipFrom(int base) throw (); ///< Clip all objects added after getClipPos() returned @a base, and before this call.
 
     void addRectWallClipped(const RectWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
     void addTriWallClipped (const  TriWall& wall, int texture) throw (); ///< Add and clip given wall. Texture must be opaque (alpha=256).
@@ -320,7 +320,7 @@ public:
 
 private:
     void createClipFns() throw ();
-    void clip(int i0) throw ();
+    void clip(ObjectSource& object) throw ();
 
     std::vector<BorderFunctionBase*> bfns;
     std::vector<ObjectSource> objects;
