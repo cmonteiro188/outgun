@@ -77,7 +77,7 @@ double CurveFunction::spanLeftSideIntegral(double x0, double y0, double y1) cons
     return val;
 }
 
-bool CurveFunction::operator==(const BorderFunctionBase& o) throw () {
+bool CurveFunction::operator==(const BorderFunction& o) throw () {
     const CurveFunction* cfp = dynamic_cast<const CurveFunction*>(&o);
     if (!cfp)
         return false;
@@ -129,7 +129,7 @@ double LineFunction::spanLeftSideIntegral(double x0, double y0, double y1) const
     return val;
 }
 
-bool LineFunction::operator==(const BorderFunctionBase& o) throw () {
+bool LineFunction::operator==(const BorderFunction& o) throw () {
     if (!dynamic_cast<const LineFunction*>(&o))
         return false;
     if (fabs(px1 - o(py1)) > .0001 || fabs(px2 - o(py2)) > .0001)
@@ -150,7 +150,7 @@ void flip(ChangePoints::Side& s) throw () { s = (s == ChangePoints::S_Left) ? Ch
 /** Calculate the area to the left of @a fn within the given y-range of a pixel.
  * Calculate the area within  x0 < x < x0 + 1  and  y0 < y < y1  where  fn(y) >= x.
  */
-double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFunctionBase& fn) throw () {
+double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFunction& fn) throw () {
     /* The area is calculated as the sum of:
      * - where      fn(y) <= x0: 0
      * - where x0 < fn(y) <  x1: the integral of fn(y) - x0
@@ -199,7 +199,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
  * @a tex must already be set on the correct line by caller.
  */
 template<class Texturizer>
-void renderLine(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) throw () {
+void renderLine(double y0, double y1, const BorderFunction& fl, const BorderFunction& fr, Texturizer& tex) throw () {
     double minxl = min(fl(y0), fl(y1)), minxr = min(fr(y0), fr(y1));
     double maxxl = max(fl(y0), fl(y1)), maxxr = max(fr(y0), fr(y1));
     if (fl.centerExtremes() && fl.extremeY() > y0 && fl.extremeY() < y1) {
@@ -234,7 +234,7 @@ void renderLine(double y0, double y1, const BorderFunctionBase& fl, const Border
 
 /// Render between border functions within a given y-range.
 template<class Texturizer>
-void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const BorderFunctionBase& fr, Texturizer& tex) throw () {
+void renderBlock(double y0, double y1, const BorderFunction& fl, const BorderFunction& fr, Texturizer& tex) throw () {
     tex.setLine(static_cast<int>(floor(y0)));
     if (ceil(y0) >= y1) {
         if (y1 > y0)
@@ -251,7 +251,7 @@ void renderBlock(double y0, double y1, const BorderFunctionBase& fl, const Borde
     renderLine(y1f, y1, fl, fr, tex);
 }
 
-DrawElement::DrawElement(BorderFunctionBase* flp, BorderFunctionBase* frp, double y0_, double y1_, vector<int> tex) throw () :
+DrawElement::DrawElement(BorderFunction* flp, BorderFunction* frp, double y0_, double y1_, vector<int> tex) throw () :
     fLeft(flp),
     fRight(frp),
     y0(y0_),
@@ -265,7 +265,7 @@ bool DrawElement::isJoinable(const DrawElement& o) const throw () {
     return o.y0 > y0 && fabs(y1 - o.y0) < JOIN_TRESHOLD && *fLeft == *o.fLeft && *fRight == *o.fRight && texid == o.texid;
 }
 
-bool YSegment::BorderCompare::operator()(const BorderFunctionBase* o1, const BorderFunctionBase* o2) throw () {
+bool YSegment::BorderCompare::operator()(const BorderFunction* o1, const BorderFunction* o2) throw () {
     double c = (*o1)(my1) - (*o2)(my1);
     if (c != 0.)
         return c < 0;
@@ -388,7 +388,7 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw 
     return besty;
 }
 
-bool YSegment::getFirstIntersection(BorderFunctionBase* bfn, double* splity) throw () {
+bool YSegment::getFirstIntersection(BorderFunction* bfn, double* splity) throw () {
     *splity = 1e99;
     const double miny = y0 + INTERSECTION_TRESHOLD;
     LineFunction* lfp1 = dynamic_cast<LineFunction*>(bfn);
@@ -591,7 +591,7 @@ void YSegment::extractDrawElements(list<DrawElement>& dst) const throw () {
  * @param si Segment to be examined, must point within @a segs.
  * @return true if *si was split.
  */
-bool splitOnIntersect(SegListT::iterator si, BorderFunctionBase* bfn, SegListT& segs) throw () {
+bool splitOnIntersect(SegListT::iterator si, BorderFunction* bfn, SegListT& segs) throw () {
     double splity;
     if (!si->getFirstIntersection(bfn, &splity)) // relies on getFirstIntersection not to return an intersection at the segment's extremes
         return false;
@@ -1007,7 +1007,7 @@ void MultiLayerTexturizer::putPix(double alpha) throw () {
 }
 
 SceneAntialiaser::~SceneAntialiaser() throw () {
-    for (vector<BorderFunctionBase*>::iterator bi = bfns.begin(); bi != bfns.end(); ++bi)
+    for (vector<BorderFunction*>::iterator bi = bfns.begin(); bi != bfns.end(); ++bi)
         delete *bi;
 }
 

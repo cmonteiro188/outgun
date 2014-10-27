@@ -81,26 +81,26 @@ struct ChangePoints {
  * - Intersections between any pairs of functions are calculated separately, using
  *   dynamic_cast and friend functions.
  */
-class BorderFunctionBase {
+class BorderFunction {
 protected:
-    BorderFunctionBase() throw () { }
+    BorderFunction() throw () { }
 
 public:
-    virtual ~BorderFunctionBase() throw () { }
+    virtual ~BorderFunction() throw () { }
     virtual double operator()(double y) const throw () = 0; ///< Get the x-coordinate at y (which must be in valid range)
     virtual ChangePoints getChangePoints(double x) const throw () = 0; ///< Get the value's side from the given x-coordinate at each y
     virtual double spanLeftSideIntegral(double x0, double y0, double y1) const throw () = 0; ///< Calculate the integral with y from y0 to y1 of f(y) - x0
     virtual bool centerExtremes() const throw () = 0; ///< Return true if the function is not monotonic. I.e. if an extreme x coordinate of any y-interval might not be at either of the borders.
     virtual double extremeY() const throw () = 0; ///< If centerExtremes() is true, return the y coordinate at the point of non-monotonicity
     virtual double extremeX() const throw () = 0; ///< If centerExtremes() is true, return the x coordinate at the point of non-monotonicity (f.extremeX() == f(f.extremeY()) except for FP inaccuracies)
-    virtual bool operator==(const BorderFunctionBase& o) throw () = 0;
+    virtual bool operator==(const BorderFunction& o) throw () = 0;
     virtual void debug() const throw () { }
 };
 
 class LineFunction;
 
 /// A half-circle defined by center, radius and left/right side.
-class CurveFunction : public BorderFunctionBase {
+class CurveFunction : public BorderFunction {
     double cx, cy, r, r2;
     double sideMul;
 
@@ -115,12 +115,12 @@ public:
     bool centerExtremes() const throw () { return true; }
     double extremeY() const throw () { return cy; }
     double extremeX() const throw () { return cx + sideMul * r; }
-    bool operator==(const BorderFunctionBase& o) throw ();
+    bool operator==(const BorderFunction& o) throw ();
     void debug() const throw ();
 };
 
 /// A line defined by two points on it.
-class LineFunction : public BorderFunctionBase {
+class LineFunction : public BorderFunction {
     double px1, py1, px2, py2;
     double ratio;
 
@@ -135,7 +135,7 @@ public:
     bool centerExtremes() const throw () { return false; }
     double extremeY() const throw () { nAssert(0); return 0; }
     double extremeX() const throw () { nAssert(0); return 0; }
-    bool operator==(const BorderFunctionBase& o) throw ();
+    bool operator==(const BorderFunction& o) throw ();
     void debug() const throw ();
 };
 
@@ -149,15 +149,15 @@ public:
  * Must hold: fLeft(y) <= fRight(y) for all y0 <= y <= y1
  */
 class DrawElement {
-    BorderFunctionBase* fLeft, * fRight;    // these are not owned: the object pointed to must live as long as this DrawElement is used, and must be manually deleted
+    BorderFunction* fLeft, * fRight;    // these are not owned: the object pointed to must live as long as this DrawElement is used, and must be manually deleted
     double y0, y1;
     std::vector<int> texid;
 
 public:
-    DrawElement(BorderFunctionBase* flp, BorderFunctionBase* frp, double y0_, double y1_, std::vector<int> tex) throw ();
+    DrawElement(BorderFunction* flp, BorderFunction* frp, double y0_, double y1_, std::vector<int> tex) throw ();
     void extendDown(double y1_) throw () { nAssert(y1_ > y1); y1 = y1_; }
-    const BorderFunctionBase& getLeft() const throw () { return *fLeft; }
-    const BorderFunctionBase& getRight() const throw () { return *fRight; }
+    const BorderFunction& getLeft() const throw () { return *fLeft; }
+    const BorderFunction& getRight() const throw () { return *fRight; }
     double getY0() const throw () { return y0; }
     double getY1() const throw () { return y1; }
     int getBaseTex() const throw () { return texid.front(); }
@@ -182,20 +182,20 @@ class YSegment {
      * The right border is the next TexBorder in the list.
      */
     class TexBorder {
-        BorderFunctionBase* bfp;
+        BorderFunction* bfp;
         std::vector<int> texid;
 
     public:
-        TexBorder(BorderFunctionBase* bf, int tex) throw () : bfp(bf), texid(1, tex) { }
-        TexBorder(BorderFunctionBase* bf, std::vector<int> tex) throw () : bfp(bf), texid(tex) { }
-        BorderFunctionBase* getFn() const throw () { return bfp; }
+        TexBorder(BorderFunction* bf, int tex) throw () : bfp(bf), texid(1, tex) { }
+        TexBorder(BorderFunction* bf, std::vector<int> tex) throw () : bfp(bf), texid(tex) { }
+        BorderFunction* getFn() const throw () { return bfp; }
         int getBaseTex() const throw () { return texid.front(); }
         const std::vector<int>& getAllTextures() const throw () { return texid; }
         void setTex(int tex) throw () { texid.clear(); texid.push_back(tex); }
         void addTex(int tex) throw () { texid.push_back(tex); }
     };
 
-    typedef std::vector<BorderFunctionBase*> BorderListT;
+    typedef std::vector<BorderFunction*> BorderListT;
     typedef std::list<TexBorder> TexBorderListT;
 
     double y0, y1;
@@ -214,7 +214,7 @@ class YSegment {
 
     public:
         BorderCompare(double y0, double y1) throw () : my1(y0*.8 + y1*.2), my2(y0*.5 + y1*.5), my3(y0*.2 + y1*.8) { nAssert(fabs(my3-my1)>SPLIT_TRESHOLD*.1); }
-        bool operator()(const BorderFunctionBase* o1, const BorderFunctionBase* o2) throw ();
+        bool operator()(const BorderFunction* o1, const BorderFunction* o2) throw ();
     };
 
 public:
@@ -224,7 +224,7 @@ public:
     double height() const throw () { nAssert(y1 >= y0); return y1 - y0; }
     void setY0(double y) throw () { nAssert(y >= y0); nAssert(y1 >= y); y0 = y; } ///< Shrink (only) the segment from the top.
     void setY1(double y) throw () { nAssert(y <= y1); nAssert(y >= y0); y1 = y; } ///< Shrink (only) the segment from the bottom.
-    void add(BorderFunctionBase* border) throw () { build.push_back(border); } ///< Add a border to the object being built. Must not intersect other borders, final or being built. Ownership not transferred.
+    void add(BorderFunction* border) throw () { build.push_back(border); } ///< Add a border to the object being built. Must not intersect other borders, final or being built. Ownership not transferred.
     /** Find intersection between @a bfn and an existing border.
      *
      * Find the first (lowest) y-coordinate within the segment, where @a bfn
@@ -233,7 +233,7 @@ public:
      * the extreme coordinate or even outside the segment) are ignored.
      * Returns false if no such intersections exist, else sets @a *splity.
      */
-    bool getFirstIntersection(BorderFunctionBase* bfn, double* splity) throw ();
+    bool getFirstIntersection(BorderFunction* bfn, double* splity) throw ();
     YSegment split(double midy) throw (); ///< Split the segment somewhere in the middle. *this is shrunk and a new YSegment representing the bottom side is returned.
     void sort() throw (); ///< Sort the build list borders in increasing x-order.
     void simplify() throw (); ///< Remove duplicate borders from build list (assumed sorted).

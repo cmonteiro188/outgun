@@ -40,16 +40,16 @@ class RectWall;
 class TriWall;
 class CircWall;
 class WallBase;
-class BorderFunctionBase;
+class BorderFunction;
 class LineFunction;
 class DrawElement;
 
 /// A segment of the border of an object defined by an f(y) and the range of y.
 struct BorderSegment {
-    BorderFunctionBase* fn;
+    BorderFunction* fn;
     double y0, y1;
     BorderSegment() throw () { }
-    BorderSegment(BorderFunctionBase* fn_, double y0_, double y1_) throw () : fn(fn_), y0(y0_), y1(y1_) { }
+    BorderSegment(BorderFunction* fn_, double y0_, double y1_) throw () : fn(fn_), y0(y0_), y1(y1_) { }
 };
 
 /** The definition of a drawable object.
@@ -229,7 +229,7 @@ private:
     void createClipFns() throw ();
     void clip(ObjectSource& object) throw ();
 
-    std::vector<BorderFunctionBase*> bfns;
+    std::vector<BorderFunction*> bfns;
     std::vector<ObjectSource> objects;
     LineFunction* clipLeft, * clipRight;
     bool clipFunctionsValid;
