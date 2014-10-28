@@ -105,18 +105,15 @@ class TexturePixelSource : public PixelSource {
     friend class TextureTexturizer;
 
 public:
-    TexturePixelSource(BITMAP* texture, ///< Source bitmap. If alpha == 256 (much faster), the width and height must be (possibly different) powers of two. This is not checked!
+    TexturePixelSource(BITMAP* texture, ///< Source bitmap. If alpha == 256 (much faster), the width and height must be (possibly different) powers of two.
                        int x0 = 0,
-                       int y0 = 0, /**< Target buffer coordinates for the top left corner of a conceptual "master copy" of @a texture.
+                       int y0 = 0, /**< Target buffer coordinates for the top left corner of one conceptual "copy" of @a texture.
                                     *
-                                    * Other copies are placed elsewhere starting immediately to the right and down
-                                    * from the master copy, tiling the screen.
-                                    *
-                                    * A texture can not be used in areas where x < tex.x0 || y < tex.y0. This can
-                                    * be circumvented by selecting x0 and y0 < 0.
+                                    * Other copies are placed immediately next to it in all directions, tiling the screen.
+                                    * Can be negative.
                                     */
                        int alpha_ = 256 ///< Translucency, range [0,256] where 256 is opaque and 0 invisible (useless).
-                       ) throw () : tex(texture), alpha(alpha_), tx0(x0), ty0(y0) { }
+                       ) throw ();
 
     void setLine(int y) throw ();
     void nextLine() throw ();

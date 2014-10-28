@@ -874,6 +874,18 @@ void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () {
     }
 }
 
+TexturePixelSource::TexturePixelSource(BITMAP* texture, int x0, int y0, int alpha_) throw () :
+    tex(texture), alpha(alpha_), tx0(x0), ty0(y0)
+{
+    nAssert(tex->w > 0 && tex->h > 0);
+    nAssert(alpha >= 0 && alpha <= 256);
+    nAssert(alpha < 256 || (tex->w & tex->w - 1) == 0 && (tex->h & tex->h - 1) == 0);
+    if (x0 > 0)
+        x0 -= tex->w * (x0 / tex->w + 1);
+    if (y0 > 0)
+        y0 -= tex->h * (y0 / tex->h + 1);
+}
+
 void TexturePixelSource::setLine(int y) throw () {
     ty = (y - ty0) % tex->h;
 }
