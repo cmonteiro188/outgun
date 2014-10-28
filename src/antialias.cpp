@@ -41,7 +41,7 @@ using std::pair;
 using std::swap;
 
 double CurveFunction::operator()(double y) const throw () {
-    numAssert3(r2 - (y - cy)*(y - cy) >= 0, r2 * 1000., y * 1000., cy * 1000.);
+    SLOW_CHECK(numAssert3(r2 - (y - cy)*(y - cy) >= 0, r2 * 1000., y * 1000., cy * 1000.));
     return cx + sqrt(r2 - (y - cy)*(y - cy)) * sideMul;
 }
 
@@ -70,10 +70,10 @@ ChangePoints CurveFunction::getChangePoints(double x) const throw () {
 double CurveFunction::spanLeftSideIntegral(double x0, double y0, double y1) const throw () {
     // this function computes the integral from y0 to y1 of (x(y) - x0)dy ; derive the expression yourself ;)
     y0 -= cy; y1 -= cy;
-    numAssert3(fabs(y0) <= r, y0, r, (y0 - r) * 1e20);
-    numAssert3(fabs(y1) <= r, y1, r, (y1 - r) * 1e20);
+    SLOW_CHECK(numAssert3(fabs(y0) <= r, y0, r, (y0 - r) * 1e20));
+    SLOW_CHECK(numAssert3(fabs(y1) <= r, y1, r, (y1 - r) * 1e20));
     const double val = (y1 - y0)*(cx - x0) + .5*sideMul*( y1*sqrt(r2 - y1*y1) - y0*sqrt(r2 - y0*y0) + r2*(asin(y1/r) - asin(y0/r)) );
-    numAssert(val >= -.00001 && val <= 1.00001, val * 10000.);
+    SLOW_CHECK(numAssert(val >= -.00001 && val <= 1.00001, val * 10000.));
     return val;
 }
 
@@ -125,7 +125,7 @@ double LineFunction::spanLeftSideIntegral(double x0, double y0, double y1) const
         return 0;
     }
     const double val = (y1 - y0)*(px1 - x0 - py1 * ratio) + .5*(y1*y1 - y0*y0)*ratio;
-    numAssert(val >= -.0001 && val <= 1.00001, val * 1000000.);
+    SLOW_CHECK(numAssert(val >= -.0001 && val <= 1.00001, val * 1000000.));
     return val;
 }
 
@@ -191,7 +191,7 @@ double pixelLeftSideIntegral(double x0, double y0, double y1, const BorderFuncti
             totalPixel += fn.spanLeftSideIntegral(x0, y, *rcpi);
             y = *rcpi++; flip(rs);
         }
-        numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, totalPixel * 100000.);
+        SLOW_CHECK(numAssert(totalPixel >= -.0001 && totalPixel <= 1.0001, totalPixel * 100000.));
     }
 }
 
@@ -365,7 +365,7 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw 
     if (y1 >= miny) {
         const double x1 = xb + dy*mul;
         const double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
-        #ifndef NDEBUG
+        #ifdef EXTRA_DEBUG
         const double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
         nAssert(fabs(dx1*dx1 + dy1*dy1 - f1->r2) < .00001);
         nAssert(fabs(dx2*dx2 + dy2*dy2 - f2->r2) < .00001);
@@ -377,7 +377,7 @@ double getIntersection(CurveFunction* f1, CurveFunction* f2, double miny) throw 
     if (y1 >= miny && y1 < besty) {
         const double x1 = xb - dy*mul;
         const double dx1 = x1 - f1->cx, dx2 = x1 - f2->cx;
-        #ifndef NDEBUG
+        #ifdef EXTRA_DEBUG
         const double dy1 = y1 - f1->cy, dy2 = y1 - f2->cy;
         nAssert(fabs(dx1*dx1 + dy1*dy1 - f1->r2) < .00001);
         nAssert(fabs(dx2*dx2 + dy2*dy2 - f2->r2) < .00001);
@@ -779,13 +779,13 @@ void Texturizer::render(const DrawElement& el) throw () {
 }
 
 inline void Texturizer::setLine(int y) throw () {
-    nAssert(y >= 0 && y < buf->h); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
+    SLOW_CHECK(nAssert(y >= 0 && y < buf->h)); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
     by = y;
 }
 
 inline void Texturizer::nextLine() throw () {
     ++by;
-    nAssert(by < buf->h); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
+    SLOW_CHECK(nAssert(by < buf->h)); // can't rely on Allegro's clipping since PartialPixelSegment-containers are only allocated for on-screen rows
 }
 
 void Texturizer::startPixSpan(int x) throw () {
@@ -838,7 +838,7 @@ inline void Texturizer::putPix(int color, int alpha) throw () {
         }
     }
     else {
-        nAssert(spanIndex >= 0 && spanIndex < partSpan->len());
+        SLOW_CHECK(nAssert(spanIndex >= 0 && spanIndex < partSpan->len()));
         partSpan->add(spanIndex, color, alpha);
     }
     ++spanIndex;
@@ -863,7 +863,7 @@ void SolidTexturizer::putPix(double alpha) throw () {
 }
 
 void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () {
-    nAssert(x0 < x1); // empty spans aren't tolerated
+    SLOW_CHECK(nAssert(x0 < x1)); // empty spans aren't tolerated
     if (alpha >= .999)
         hline(host.getBuf(), x0, host.getby(), x1 - 1, color);
     else {
@@ -918,7 +918,7 @@ void TextureTexturizer::nextLine() throw () {
 }
 
 void TextureTexturizer::putSpan(int x0, int x1, double alpha) throw () {
-    nAssert(x0 < x1); // empty spans aren't tolerated
+    SLOW_CHECK(nAssert(x0 < x1)); // empty spans aren't tolerated
     if (alpha >= .999) {
         drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
         hline(host.getBuf(), x0, host.getby(), x1 - 1, 0);

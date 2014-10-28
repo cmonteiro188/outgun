@@ -32,6 +32,12 @@
 #include <list>
 #include "antialias.h"
 
+#ifdef EXTRA_DEBUG
+ #define SLOW_CHECK(chk) chk
+#else
+ #define SLOW_CHECK(chk)
+#endif
+
 //#define DEBUG_SPLIT
 //#define DEBUG_OVERLAP
 //#define DEBUG_RENDER
@@ -155,7 +161,7 @@ class DrawElement {
 
 public:
     DrawElement(BorderFunction* flp, BorderFunction* frp, double y0_, double y1_, std::vector<int> tex) throw ();
-    void extendDown(double y1_) throw () { nAssert(y1_ > y1); y1 = y1_; }
+    void extendDown(double y1_) throw () { SLOW_CHECK(nAssert(y1_ > y1)); y1 = y1_; }
     const BorderFunction& getLeft() const throw () { return *fLeft; }
     const BorderFunction& getRight() const throw () { return *fRight; }
     double getY0() const throw () { return y0; }
@@ -213,7 +219,7 @@ class YSegment {
         double my1, my2, my3;
 
     public:
-        BorderCompare(double y0, double y1) throw () : my1(y0*.8 + y1*.2), my2(y0*.5 + y1*.5), my3(y0*.2 + y1*.8) { nAssert(fabs(my3-my1)>SPLIT_TRESHOLD*.1); }
+        BorderCompare(double y0, double y1) throw () : my1(y0*.8 + y1*.2), my2(y0*.5 + y1*.5), my3(y0*.2 + y1*.8) { SLOW_CHECK(nAssert(fabs(my3-my1)>SPLIT_TRESHOLD*.1)); }
         bool operator()(const BorderFunction* o1, const BorderFunction* o2) throw ();
     };
 
@@ -289,8 +295,8 @@ private:
         }
         bool draw() const throw () { return alphaTotal >= scaleVal / 100; }
         int color() const throw () {
-            // this ensures that only whole pixels are written; enable if that's true:  numAssert(alphaTotal >= .999, alphaTotal * 10000.);
-            numAssert(alphaTotal <= scaleVal * 1.001, alphaTotal);
+            // this ensures that only whole pixels are written; enable if that's true:  SLOW_CHECK(numAssert(alphaTotal >= .999, alphaTotal * 10000.));
+            SLOW_CHECK(numAssert(alphaTotal <= scaleVal * 1.001, alphaTotal));
             return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
         }
         /** Get color value where more than a full pixel may have been added.
