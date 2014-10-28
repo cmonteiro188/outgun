@@ -1079,25 +1079,39 @@ void SceneAntialiaser::makeBorders(vector<BorderSegment>& borders, const CircWal
     const Vec& va1 = wall.angle_vector_1();
     const Vec& va2 = wall.angle_vector_2();
 
-    double ar[2];
-    for (int i = 0; i < 2; ++i)
-        ar[i] = wall.angles()[i] * N_PI / 180.;
-    if (ar[1] < ar[0])
-        ar[1] += 2. * N_PI;
-    nAssert(ar[1] >= ar[0]);
-    nAssert(ar[0] >= 0.);
+    { // draw curved parts
+        double ar[2];
+        for (int i = 0; i < 2; ++i)
+            ar[i] = wall.angles()[i] * N_PI / 180.;
+        if (ar[1] < ar[0])
+            ar[1] += 2. * N_PI;
+        nAssert(ar[1] >= ar[0]);
+        nAssert(ar[0] >= 0.);
 
-    const double yeo = cy - ro * va2.y; // - belongs to va2.y
-    const double yei = cy - ri * va2.y; // - belongs to va2.y
-    double ang = ar[0];
-    const int pi_i = static_cast<int>(ang / N_PI) + 1;
-    bool rightSide = (pi_i & 1) != 0;
-    double npi = N_PI * pi_i;
+        const double yeo = cy - ro * va2.y; // - belongs to va2.y
+        const double yei = cy - ri * va2.y; // - belongs to va2.y
+        double ang = ar[0];
+        const int pi_i = static_cast<int>(ang / N_PI) + 1;
+        bool rightSide = (pi_i & 1) != 0;
+        double npi = N_PI * pi_i; // next multiple of pi
 
-    for (;;) {
-        const double yao = cy - ro * cos(ang); // - belongs to cos
-        const double yai = cy - ri * cos(ang); // - belongs to cos
-        if (npi < ar[1]) { // draw from ang to npi
+        for (;;) {
+            const double yao = cy - ro * cos(ang); // - belongs to cos
+            const double yai = cy - ri * cos(ang); // - belongs to cos
+            if (ar[1] <= npi) { // draw from ang to ar[1] and we're done
+                if (rightSide)
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, yeo));
+                else
+                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yeo, yao));
+                if (ri > 0) {
+                    if (rightSide)
+                        borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, yei));
+                    else
+                        borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yei, yai));
+                }
+                break;
+            }
+            // draw from ang to npi
             if (rightSide)
                 borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, cy + ro));
             else
@@ -1108,25 +1122,13 @@ void SceneAntialiaser::makeBorders(vector<BorderSegment>& borders, const CircWal
                 else
                     borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), cy - ri, yai));
             }
+            ang = npi;
+            npi += N_PI;
+            rightSide = !rightSide;
         }
-        else {
-            if (rightSide)
-                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yao, yeo));
-            else
-                borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ro, rightSide)), yeo, yao));
-            if (ri > 0) {
-                if (rightSide)
-                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yai, yei));
-                else
-                    borders.push_back(BorderSegment(addBfn(new CurveFunction(cx, cy, ri, rightSide)), yei, yai));
-            }
-            break;
-        }
-        ang = npi;
-        npi += N_PI;
-        rightSide = !rightSide;
     }
 
+    // draw straight parts
     double x1 = cx + va1.x * ri, y1 = cy - va1.y * ri; // - belongs to va1.y
     double x2 = cx + va1.x * ro, y2 = cy - va1.y * ro; // - belongs to va1.y
     if (va1.y > 0) { // this is reversed, too
