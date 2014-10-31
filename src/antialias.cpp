@@ -752,6 +752,59 @@ void PartialPixelSegment::draw(BITMAP* buf, int y) const throw () {
             putpixel(buf, startx + i, y, pixels[i].color());
 }
 
+PartialPixelSegment::PartPix::PartPix(int color, PixelFraction area) throw () :
+    r(getr(color) * area.scaled()),
+    g(getg(color) * area.scaled()),
+    b(getb(color) * area.scaled()),
+    areaTotal(area.scaled())
+{ }
+
+void PartialPixelSegment::PartPix::add(int color, PixelFraction area) throw () {
+    r += getr(color) * area.scaled();
+    g += getg(color) * area.scaled();
+    b += getb(color) * area.scaled();
+    areaTotal += area.scaled();
+}
+
+int PartialPixelSegment::PartPix::color() const throw () {
+    // this ensures that only whole pixels are written; enable if that's true:  SLOW_CHECK(numAssert(areaTotal >= one * .999, areaTotal));
+    SLOW_CHECK(numAssert(areaTotal <= one * 1.001, areaTotal));
+    return makecol((r + one / 2) >> scaleBits, (g + one / 2) >> scaleBits, (b + one / 2) >> scaleBits);
+}
+
+int PartialPixelSegment::PartPix::flexColor() const throw () {
+    #if 1
+    int rc, gc, bc;
+    if (areaTotal > one * 1.001) {
+        rc = (r + one / 2) / areaTotal;
+        gc = (g + one / 2) / areaTotal;
+        bc = (b + one / 2) / areaTotal;
+    }
+    else {
+        rc = (r + one / 2) >> scaleBits;
+        gc = (g + one / 2) >> scaleBits;
+        bc = (b + one / 2) >> scaleBits;
+    }
+    #elif 1
+    // alternative cutting method: use the extra intensity as much as possible, possibly distorting the color
+    int rc = std::min(255, (r + one / 2) >> scaleBits);
+    int gc = std::min(255, (g + one / 2) >> scaleBits);
+    int bc = std::min(255, (b + one / 2) >> scaleBits);
+    #elif 1
+    // alternative cutting method: use the extra intensity but dim all components (subtract constant) if nonrepresentable
+    int rc = (r + one / 2) >> scaleBits;
+    int gc = (g + one / 2) >> scaleBits;
+    int bc = (b + one / 2) >> scaleBits;
+    if (areaTotal >= one && (rc > 255 || gc > 255 || bc > 255)) { // the areaTotal check is an optimization
+        int cut = max(max(rc, gc), bc) - 255;
+        rc = std::max(0, rc - cut);
+        gc = std::max(0, gc - cut);
+        bc = std::max(0, bc - cut);
+    }
+    #endif
+    return makecol(rc, gc, bc);
+}
+
 void Texturizer::render(const DrawElement& el) throw () {
     const vector<int>& textures = el.getAllTextures();
     if (textures.size() == 1) {

@@ -294,60 +294,17 @@ private:
         enum { scaleBits = PixelFraction::scaleBits, one = PixelFraction::fullPixel };
 
     public:
-        PartPix(int color, PixelFraction area) throw () :
-            r(getr(color) * area.scaled()),
-            g(getg(color) * area.scaled()),
-            b(getb(color) * area.scaled()),
-            areaTotal(area.scaled())
-        { }
-        void add(int color, PixelFraction area) throw () {
-            r += getr(color) * area.scaled();
-            g += getg(color) * area.scaled();
-            b += getb(color) * area.scaled();
-            areaTotal += area.scaled();
-        }
+        PartPix(int color, PixelFraction area) throw ();
+        void add(int color, PixelFraction area) throw ();
+
         bool draw() const throw () { return areaTotal >= one / 100; }
-        int color() const throw () {
-            // this ensures that only whole pixels are written; enable if that's true:  SLOW_CHECK(numAssert(areaTotal >= one * .999, areaTotal));
-            SLOW_CHECK(numAssert(areaTotal <= one * 1.001, areaTotal));
-            return makecol((r + one / 2) >> scaleBits, (g + one / 2) >> scaleBits, (b + one / 2) >> scaleBits);
-        }
+
+        int color() const throw ();
         /** Get color value where more than a full pixel may have been added.
          * If the pixel is more than full, the color is the average color over
          * that larger area and the extra area is ignored.
          */
-        int flexColor() const throw () {
-            #if 1
-            int rc, gc, bc;
-            if (areaTotal > one * 1.001) {
-                rc = (r + one / 2) / areaTotal;
-                gc = (g + one / 2) / areaTotal;
-                bc = (b + one / 2) / areaTotal;
-            }
-            else {
-                rc = (r + one / 2) >> scaleBits;
-                gc = (g + one / 2) >> scaleBits;
-                bc = (b + one / 2) >> scaleBits;
-            }
-            #elif 1
-            // alternative cutting method: use the extra intensity as much as possible, possibly distorting the color
-            int rc = std::min(255, (r + one / 2) >> scaleBits);
-            int gc = std::min(255, (g + one / 2) >> scaleBits);
-            int bc = std::min(255, (b + one / 2) >> scaleBits);
-            #elif 1
-            // alternative cutting method: use the extra intensity but dim all components (subtract constant) if nonrepresentable
-            int rc = (r + one / 2) >> scaleBits;
-            int gc = (g + one / 2) >> scaleBits;
-            int bc = (b + one / 2) >> scaleBits;
-            if (areaTotal >= one && (rc > 255 || gc > 255 || bc > 255)) { // the areaTotal check is an optimization
-                int cut = max(max(rc, gc), bc) - 255;
-                rc = std::max(0, rc - cut);
-                gc = std::max(0, gc - cut);
-                bc = std::max(0, bc - cut);
-            }
-            #endif
-            return makecol(rc, gc, bc);
-        }
+        int flexColor() const throw ();
     };
 
     int startx;
