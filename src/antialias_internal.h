@@ -255,49 +255,62 @@ public:
 
 typedef std::list<YSegment> SegListT;
 
+/** A measure of sub-pixel area as a fraction of a pixel.
+ * Fixed-point representation with 20-bit precision, allowing multiplication with +-2047 while still fitting 32 bits.
+ */
+class PixelFraction {
+    int val;
+
+    void check() { SLOW_CHECK(nAssert(val >= 0 && val <= fullPixel)); }
+
+public:
+    enum { scaleBits = 20, ///< Fractional values are multiplied by `1 << scaleBits` to get fixed-point representation.
+           fullPixel = 1 << scaleBits
+    };
+
+    explicit PixelFraction(double fract) : val(ldexp(fract, scaleBits)) { check(); }
+    explicit PixelFraction(int scaledFract) : val(scaledFract) { check(); }
+
+    int scaled() const { return val; } ///< Get the fixed-point value (fraction multiplied by fullPixel).
+};
+
 /** A continuous span of partially rendered pixels.
- *
- * "Alpha" values are actually fractions of a full pixel, not a measure of
- * translucency as such, and must be scaled so that a full pixel is
- * 1 << scale (constant).
- *
  * A less than fully filled pixel is completed with black when drawn.
  */
 class PartialPixelSegment {
 public:
-    enum { scale = 20 /**< Alphas are scaled by 1 << scale: (1 << scale) / 2 equals half transparent.*/ };
 
     PartialPixelSegment(int x0) throw () : startx(x0) { }
     int x0() const throw () { return startx; }
     int len() const throw () { return pixels.size(); }
-    void add(int index, int color, int alpha) throw () { pixels[index].add(color, alpha); }
-    void extend(int color, int alpha) throw () { pixels.push_back(PartPix(color, alpha)); }
+    void add(int index, int color, PixelFraction area) throw () { pixels[index].add(color, area); }
+    void extend(int color, PixelFraction area) throw () { pixels.push_back(PartPix(color, area)); }
     void draw(BITMAP* buf, int y) const throw ();
 
 private:
     /// A single partially rendered pixel.
     class PartPix {
-        int r, g, b, alphaTotal; ///< all scaled
-        enum { scale = PartialPixelSegment::scale, scaleVal = 1 << PartialPixelSegment::scale };
+        int r, g, b, areaTotal; ///< all scaled (multiplied by *one*)
+        enum { scaleBits = PixelFraction::scaleBits, one = PixelFraction::fullPixel };
 
     public:
-        PartPix(int color, int alpha) throw () :
-            r(getr(color) * alpha),
-            g(getg(color) * alpha),
-            b(getb(color) * alpha),
-            alphaTotal(alpha)
+        PartPix(int color, PixelFraction area) throw () :
+            r(getr(color) * area.scaled()),
+            g(getg(color) * area.scaled()),
+            b(getb(color) * area.scaled()),
+            areaTotal(area.scaled())
         { }
-        void add(int color, int alpha) throw () {
-            r += getr(color) * alpha;
-            g += getg(color) * alpha;
-            b += getb(color) * alpha;
-            alphaTotal += alpha;
+        void add(int color, PixelFraction area) throw () {
+            r += getr(color) * area.scaled();
+            g += getg(color) * area.scaled();
+            b += getb(color) * area.scaled();
+            areaTotal += area.scaled();
         }
-        bool draw() const throw () { return alphaTotal >= scaleVal / 100; }
+        bool draw() const throw () { return areaTotal >= one / 100; }
         int color() const throw () {
-            // this ensures that only whole pixels are written; enable if that's true:  SLOW_CHECK(numAssert(alphaTotal >= .999, alphaTotal * 10000.));
-            SLOW_CHECK(numAssert(alphaTotal <= scaleVal * 1.001, alphaTotal));
-            return makecol((r + scaleVal / 2) >> scale, (g + scaleVal / 2) >> scale, (b + scaleVal / 2) >> scale);
+            // this ensures that only whole pixels are written; enable if that's true:  SLOW_CHECK(numAssert(areaTotal >= one * .999, areaTotal));
+            SLOW_CHECK(numAssert(areaTotal <= one * 1.001, areaTotal));
+            return makecol((r + one / 2) >> scaleBits, (g + one / 2) >> scaleBits, (b + one / 2) >> scaleBits);
         }
         /** Get color value where more than a full pixel may have been added.
          * If the pixel is more than full, the color is the average color over
@@ -306,27 +319,27 @@ private:
         int flexColor() const throw () {
             #if 1
             int rc, gc, bc;
-            if (alphaTotal > scaleVal * 1.001) {
-                rc = (r + scaleVal / 2) / alphaTotal;
-                gc = (g + scaleVal / 2) / alphaTotal;
-                bc = (b + scaleVal / 2) / alphaTotal;
+            if (areaTotal > one * 1.001) {
+                rc = (r + one / 2) / areaTotal;
+                gc = (g + one / 2) / areaTotal;
+                bc = (b + one / 2) / areaTotal;
             }
             else {
-                rc = (r + scaleVal / 2) >> scale;
-                gc = (g + scaleVal / 2) >> scale;
-                bc = (b + scaleVal / 2) >> scale;
+                rc = (r + one / 2) >> scaleBits;
+                gc = (g + one / 2) >> scaleBits;
+                bc = (b + one / 2) >> scaleBits;
             }
             #elif 1
             // alternative cutting method: use the extra intensity as much as possible, possibly distorting the color
-            int rc = std::min(255, (r + scaleVal / 2) >> scale);
-            int gc = std::min(255, (g + scaleVal / 2) >> scale);
-            int bc = std::min(255, (b + scaleVal / 2) >> scale);
+            int rc = std::min(255, (r + one / 2) >> scaleBits);
+            int gc = std::min(255, (g + one / 2) >> scaleBits);
+            int bc = std::min(255, (b + one / 2) >> scaleBits);
             #elif 1
             // alternative cutting method: use the extra intensity but dim all components (subtract constant) if nonrepresentable
-            int rc = (r + scaleVal / 2) >> scale;
-            int gc = (g + scaleVal / 2) >> scale;
-            int bc = (b + scaleVal / 2) >> scale;
-            if (alphaTotal >= scaleVal && (rc > 255 || gc > 255 || bc > 255)) { // the alphaTotal check is an optimization
+            int rc = (r + one / 2) >> scaleBits;
+            int gc = (g + one / 2) >> scaleBits;
+            int bc = (b + one / 2) >> scaleBits;
+            if (areaTotal >= one && (rc > 255 || gc > 255 || bc > 255)) { // the areaTotal check is an optimization
                 int cut = max(max(rc, gc), bc) - 255;
                 rc = std::max(0, rc - cut);
                 gc = std::max(0, gc - cut);
@@ -359,7 +372,7 @@ public:
     void setLine(int y) throw (); ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
     void nextLine() throw (); ///< Increase target line by one. Invalidates x-coordinate.
     inline void startPixSpan(int x) throw (); ///< Set x-coordinate where the next span will start (next pixel drawn). Semi-expensive.
-    inline void putPix(int color, int alpha) throw (); ///< Draw pixel at the current position and increase x by one.
+    inline void putPix(int color, PixelFraction area) throw (); ///< Draw (partial) pixel at the current position and increase x by one.
 
     inline BITMAP* getBuf() throw () { return buf; }
     inline int getbx() const throw () { return bx; }
@@ -387,16 +400,14 @@ class SolidTexturizer { // includes inlined the same operations as SolidPixelSou
     Texturizer& host;
     int color;
 
-    void putPixI(int alpha) throw () { host.putPix(color, alpha); }
-
 public:
     SolidTexturizer(Texturizer& host_, const SolidPixelSource& ps) throw () : host(host_), color(ps.color) { nAssert(ps.alpha == 256); }
 
     void setLine(int y) throw () { host.setLine(y); } ///< Set line where the next pixels will be drawn. Invalidates x-coordinate.
     void nextLine() throw () { host.nextLine(); } ///< Increase target line by one. Invalidates x-coordinate.
-    void putSpan(int x0, int x1, double alpha) throw (); ///< Draw the range [x0,x1[ with given fractional alpha (in [0,1]).
+    void putSpan(int x0, int x1, PixelFraction area) throw (); ///< Draw the range [x0,x1[ with @a area covered in every pixel.
     void startPixSpan(int x) throw () { host.startPixSpan(x); } ///< Set x-coordinate where the next individual pixels will be drawn. Semi-expensive.
-    void putPix(double alpha) throw (); ///< Draw at the current position with given fractional alpha, and increase x by one.
+    void putPix(PixelFraction area) throw () { host.putPix(color, area); } ///< Draw the given fraction of a pixel at the current position, and increase x by one.
 };
 
 /// Span texturizer locked to a single texture (bitmap). See SolidTexturizer for method documentation.
@@ -406,16 +417,14 @@ class TextureTexturizer { // includes inlined the same operations as TexturePixe
     int tx0, ty0;
     int tx, ty; // active pixel in tex
 
-    void putPixI(int alpha) throw ();
-
 public:
     TextureTexturizer(Texturizer& host_, const TexturePixelSource& ps) throw () : host(host_), tex(ps.tex), tx0(ps.tx0), ty0(ps.ty0) { nAssert(ps.alpha == 256); }
 
     void setLine(int y) throw ();
     void nextLine() throw ();
-    void putSpan(int x0, int x1, double alpha) throw ();
+    void putSpan(int x0, int x1, PixelFraction area) throw ();
     void startPixSpan(int x) throw ();
-    void putPix(double alpha) throw ();
+    void putPix(PixelFraction area) throw ();
 };
 
 /** Generic span texturizer for any number of textures.
@@ -438,9 +447,9 @@ public:
 
     void setLine(int y) throw ();
     void nextLine() throw ();
-    void putSpan(int x0, int x1, double alpha) throw ();
+    void putSpan(int x0, int x1, PixelFraction area) throw ();
     void startPixSpan(int x) throw ();
-    void putPix(double alpha) throw ();
+    void putPix(PixelFraction area) throw ();
 };
 
 #endif

@@ -213,22 +213,22 @@ void renderLine(double y0, double y1, const BorderFunction& fl, const BorderFunc
     int l0 = static_cast<int>(floor(minxl)), l1 = static_cast<int>(ceil(maxxl));
     int r0 = static_cast<int>(floor(minxr)), r1 = static_cast<int>(ceil(maxxr));
     if (l1 < r0)
-        tex.putSpan(l1, r0, 1. * (y1 - y0));
+        tex.putSpan(l1, r0, PixelFraction(1. * (y1 - y0)));
     else if (r0 < l1) {
         tex.startPixSpan(r0);
         for (int x = r0; x < l1; ++x)
-            tex.putPix(pixelLeftSideIntegral(x, y0, y1, fr) - pixelLeftSideIntegral(x, y0, y1, fl));
+            tex.putPix(PixelFraction(pixelLeftSideIntegral(x, y0, y1, fr) - pixelLeftSideIntegral(x, y0, y1, fl)));
         swap(r0, l1);
     }
     if (l0 < l1) { // optimization: don't do the quite costly startPixSpan unnecessarily; also empty spans aren't tolerated
         tex.startPixSpan(l0);
         for (int lx = l0; lx < l1; ++lx)
-            tex.putPix((y1 - y0) - pixelLeftSideIntegral(lx, y0, y1, fl));
+            tex.putPix(PixelFraction((y1 - y0) - pixelLeftSideIntegral(lx, y0, y1, fl)));
     }
     if (r0 < r1) { // optimization: see above
         tex.startPixSpan(r0);
         for (int rx = r0; rx < r1; ++rx)
-            tex.putPix(pixelLeftSideIntegral(rx, y0, y1, fr));
+            tex.putPix(PixelFraction(pixelLeftSideIntegral(rx, y0, y1, fr)));
     }
 }
 
@@ -825,21 +825,21 @@ void Texturizer::startPixSpan(int x) throw () {
     }
 }
 
-inline void Texturizer::putPix(int color, int alpha) throw () {
+inline void Texturizer::putPix(int color, PixelFraction area) throw () {
     if (spanIndex == partSpan->len()) {
         if (spanIndex < spanEnd)
-            partSpan->extend(color, alpha);
+            partSpan->extend(color, area);
         else {
             nAssert(spanIndex == spanEnd);
             startPixSpan(bx);
             nAssert(spanIndex == 0);
             nAssert(partSpan->len() > 0);
-            partSpan->add(0, color, alpha); // this opt. is the main reason empty spans aren't tolerated
+            partSpan->add(0, color, area); // this opt. is the main reason empty spans aren't tolerated
         }
     }
     else {
         SLOW_CHECK(nAssert(spanIndex >= 0 && spanIndex < partSpan->len()));
-        partSpan->add(spanIndex, color, alpha);
+        partSpan->add(spanIndex, color, area);
     }
     ++spanIndex;
     ++bx;
@@ -858,19 +858,14 @@ pair<int, int> SolidPixelSource::getPixel() throw () {
     return pair<int, int>(color, alpha);
 }
 
-void SolidTexturizer::putPix(double alpha) throw () {
-    putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
-}
-
-void SolidTexturizer::putSpan(int x0, int x1, double alpha) throw () {
+void SolidTexturizer::putSpan(int x0, int x1, PixelFraction area) throw () {
     SLOW_CHECK(nAssert(x0 < x1)); // empty spans aren't tolerated
-    if (alpha >= .999)
+    if (area.scaled() >= PixelFraction::fullPixel * 999 / 1000)
         hline(host.getBuf(), x0, host.getby(), x1 - 1, color);
     else {
         startPixSpan(x0);
-        const int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
         for (int x = x0; x < x1; ++x)
-            putPixI(iAlpha);
+            putPix(area);
     }
 }
 
@@ -917,18 +912,17 @@ void TextureTexturizer::nextLine() throw () {
         ty = 0;
 }
 
-void TextureTexturizer::putSpan(int x0, int x1, double alpha) throw () {
+void TextureTexturizer::putSpan(int x0, int x1, PixelFraction area) throw () {
     SLOW_CHECK(nAssert(x0 < x1)); // empty spans aren't tolerated
-    if (alpha >= .999) {
+    if (area.scaled() >= PixelFraction::fullPixel * 999 / 1000) {
         drawing_mode(DRAW_MODE_COPY_PATTERN, tex, tx0, ty0);
         hline(host.getBuf(), x0, host.getby(), x1 - 1, 0);
         solid_mode();
     }
     else {
         startPixSpan(x0);
-        const int iAlpha = static_cast<int>(ldexp(alpha, PartialPixelSegment::scale));
         for (int x = x0; x < x1; ++x)
-            putPixI(iAlpha);
+            putPix(area);
     }
 }
 
@@ -937,12 +931,8 @@ void TextureTexturizer::startPixSpan(int x) throw () {
     tx = (x - tx0) % tex->w;
 }
 
-void TextureTexturizer::putPix(double alpha) throw () {
-    putPixI(static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
-}
-
-void TextureTexturizer::putPixI(int alpha) throw () {
-    host.putPix(getpixel(tex, tx, ty), alpha);
+void TextureTexturizer::putPix(PixelFraction area) throw () {
+    host.putPix(getpixel(tex, tx, ty), area);
     if (++tx == tex->w)
         tx = 0;
 }
@@ -990,10 +980,10 @@ void MultiLayerTexturizer::nextLine() throw () {
         (*li)->nextLine();
 }
 
-void MultiLayerTexturizer::putSpan(int x0, int x1, double alpha) throw () {
+void MultiLayerTexturizer::putSpan(int x0, int x1, PixelFraction area) throw () {
     startPixSpan(x0);
     for (int x = x0; x < x1; ++x)
-        putPix(alpha);
+        putPix(area);
 }
 
 void MultiLayerTexturizer::startPixSpan(int x) throw () {
@@ -1002,7 +992,7 @@ void MultiLayerTexturizer::startPixSpan(int x) throw () {
         (*li)->startPixSpan(x);
 }
 
-void MultiLayerTexturizer::putPix(double alpha) throw () {
+void MultiLayerTexturizer::putPix(PixelFraction area) throw () {
     vector<PixelSource*>::iterator li = layers.begin();
     const int color1 = (*li)->getPixel().first;
     int r = getr(color1), g = getg(color1), b = getb(color1);
@@ -1015,7 +1005,7 @@ void MultiLayerTexturizer::putPix(double alpha) throw () {
         g = (g * oldAlpha + getg(newColor) * newAlpha + 127) / 256;
         b = (b * oldAlpha + getb(newColor) * newAlpha + 127) / 256;
     }
-    host.putPix(makecol(r, g, b), static_cast<int>(ldexp(alpha, PartialPixelSegment::scale)));
+    host.putPix(makecol(r, g, b), area);
 }
 
 SceneAntialiaser::~SceneAntialiaser() throw () {
