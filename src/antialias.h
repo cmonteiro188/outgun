@@ -81,6 +81,19 @@ public:
     virtual std::pair<int, int> getPixel() throw () = 0; ///< Get (color, alpha) to draw at the current position and increase x by one.
 };
 
+/// Helper base class for pixel sources with no optimizations for drawing sequential pixels.
+class UnoptimizedPixelSource : public PixelSource {
+    int x, y;
+
+    void setLine(int y_) throw () { y = y_; }
+    void nextLine() throw () { ++y; }
+    void startPixSpan(int x_) throw () { x = x_; }
+    std::pair<int, int> getPixel() throw () { return getPixel(x++, y); }
+
+public:
+    virtual std::pair<int, int> getPixel(int x, int y) throw () = 0; ///< Get (color, alpha) to draw at (x, y).
+};
+
 /// Source for a constant color and alpha value everywhere.
 class SolidPixelSource : public PixelSource {
     int color, alpha;
