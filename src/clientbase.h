@@ -38,7 +38,6 @@
 
 class ClientBase;
 class client_c; // of leetnet
-class client_runes_t;
 
 /* ThreadMessage represents a class of actions that can't be performed by callbacks within a network thread in a thread-safe way.
  * These are queued for the main thread to execute.

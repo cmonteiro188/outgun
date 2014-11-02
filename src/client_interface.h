@@ -1,7 +1,7 @@
 /*
  *  client_interface.h
  *
- *  Copyright (C) 2003, 2004, 2005, 2010 - Niko Ritari
+ *  Copyright (C) 2003, 2004, 2005, 2010, 2014 - Niko Ritari
  *  Copyright (C) 2003, 2004, 2012 - Jani Rivinoja
  *
  *  This file is part of Outgun.
@@ -46,6 +46,7 @@ public:
     int targetfps;      // target (MAX) frames-per-second ; -1 = undefined
     int lowerPriority, priority, networkPriority;   // lower is used for non-timecritical background threads
     int minLocalPort, maxLocalPort; // set to 0 0 to use any available port
+    bool forgetSettings; // don't save settings? (these AND ones changed in the client) (-forget)
 
     std::string autoPlay;
     std::string autoReplay;
@@ -54,7 +55,7 @@ public:
     typedef FunctionHolder1<void, const std::string&> StatusOutputFnT;
     StatusOutputFnT statusOutput;
 
-    ClientExternalSettings() throw () : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), statusOutput(0) { }
+    ClientExternalSettings() throw () : winclient(-1), trypageflip(-1), forceDefaultGfxMode(false), nosound(false), targetfps(-1), minLocalPort(0), maxLocalPort(0), forgetSettings(false), statusOutput(0) { }
 };
 
 class ClientInterface {

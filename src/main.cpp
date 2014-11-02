@@ -290,7 +290,9 @@ static void innerMain(int argc, const char* argv[], LogSet& log, MemoryLog& memo
 
     // check args
     for (int i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "-ded"))
+        if (!strcmp(argv[i], "-forget"))
+            clientCfg.forgetSettings = true;
+        else if (!strcmp(argv[i], "-ded"))
             serverCfg.dedserver = true;
         else if (!strcmp(argv[i], "-text") || !strcmp(argv[i], "-nowindow"))
             textserver = true;

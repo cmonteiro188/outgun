@@ -4879,6 +4879,9 @@ void GuiClient::load_fav_maps() throw () {
 }
 
 void GuiClient::saveSettings() const throw () {
+    if (extConfig.forgetSettings)
+        return;
+
     //save configuration file
     const string fileName = wheregamedir + "config" + directory_separator + "client.cfg";
     log("Saving client configuration in %s", fileName.c_str());
