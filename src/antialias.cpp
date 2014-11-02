@@ -813,22 +813,26 @@ void Texturizer::render(const DrawElement& el) throw () {
         if (SolidPixelSource* sps = dynamic_cast<SolidPixelSource*>(texTab[texid])) {
             SolidTexturizer tex(*this, *sps);
             renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
-            return;
         }
         else if (TexturePixelSource* tps = dynamic_cast<TexturePixelSource*>(texTab[texid])) {
             TextureTexturizer tex(*this, *tps);
             renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
-            return;
+        }
+        else {
+            GenericSingleTexturizer tex(*this, texTab[texid]);
+            renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
         }
     }
-    nAssert(!textures.empty());
-    MultiLayerTexturizer tex(*this, textures.size());
-    for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
-        const int texid = *ti;
-        numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
-        tex.addLayer(texTab[texid]);
+    else {
+        nAssert(!textures.empty());
+        MultiLayerTexturizer tex(*this, textures.size());
+        for (vector<int>::const_iterator ti = textures.begin(); ti != textures.end(); ++ti) {
+            const int texid = *ti;
+            numAssert2(texid >= 0 && texid < (int)texTab.size(), texid, texTab.size());
+            tex.addLayer(texTab[texid]);
+        }
+        renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
     }
-    renderBlock(el.getY0(), el.getY1(), el.getLeft(), el.getRight(), tex);
 }
 
 inline void Texturizer::setLine(int y) throw () {
@@ -1059,6 +1063,31 @@ void MultiLayerTexturizer::putPix(PixelFraction area) throw () {
         b = (b * oldAlpha + getb(newColor) * newAlpha + 127) / 256;
     }
     host.putPix(makecol(r, g, b), area);
+}
+
+void GenericSingleTexturizer::setLine(int y) throw () {
+    host.setLine(y);
+    source->setLine(y);
+}
+
+void GenericSingleTexturizer::nextLine() throw () {
+    host.nextLine();
+    source->nextLine();
+}
+
+void GenericSingleTexturizer::putSpan(int x0, int x1, PixelFraction area) throw () {
+    startPixSpan(x0);
+    for (int x = x0; x < x1; ++x)
+        putPix(area);
+}
+
+void GenericSingleTexturizer::startPixSpan(int x) throw () {
+    host.startPixSpan(x);
+    source->startPixSpan(x);
+}
+
+void GenericSingleTexturizer::putPix(PixelFraction area) throw () {
+    host.putPix(source->getPixel().first, area);
 }
 
 SceneAntialiaser::~SceneAntialiaser() throw () {

@@ -409,4 +409,25 @@ public:
     void putPix(PixelFraction area) throw ();
 };
 
+/** Generic span texturizer for a single texture.
+ *
+ * Provides the span texturizer interface (for template use) for drawing a
+ * single texture provided by any PixelSource.
+ *
+ * See SolidTexturizer for method documentation.
+ */
+class GenericSingleTexturizer {
+    Texturizer& host;
+    PixelSource* source;
+
+public:
+    GenericSingleTexturizer(Texturizer& host_, PixelSource* s) throw () : host(host_), source(s) { }
+
+    void setLine(int y) throw ();
+    void nextLine() throw ();
+    void putSpan(int x0, int x1, PixelFraction area) throw ();
+    void startPixSpan(int x) throw ();
+    void putPix(PixelFraction area) throw ();
+};
+
 #endif
