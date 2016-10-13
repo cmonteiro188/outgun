@@ -645,8 +645,7 @@ void GuiClient::language_selection_start(volatile bool* quitFlag) throw () {
             openMenus.handleKeypress(sc, ch);
         }
 
-        // give other threads a chance (otherwise we're trying to run all the time if the FPS limit is not lower than what the machine can do)
-        sched_yield();
+        platSleep(33); // 30 fps should be fine
 
         graphics.startDraw();
         graphics.draw_background(false);
