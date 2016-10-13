@@ -222,6 +222,11 @@ static int wrappedMain(int argc, const char* argv[]) throw () {
 
     platInitAfterAllegro();
 
+    if (!platIsDirectory(wheregamedir + "config")) {
+        messageBox("Error", "The directory 'config' was not found in " + wheregamedir);
+        return 1;
+    }
+
     NoLog noLog;
     LogSet noLogSet(&noLog, &noLog, &noLog);
     if (!check_dir("log", noLogSet)) {
