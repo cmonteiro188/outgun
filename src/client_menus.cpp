@@ -242,7 +242,7 @@ void Menu_player::initialize(MenuHookable<Menu>::HookFunctionT* opener, SettingC
 Menu_game::Menu_game() throw () :
     lagPrediction       (_("Lag prediction"), false),
     lagPredictionAmount (_("Lag prediction amount"), true, 0, 10, 10),
-    minimapBandwidth    (_("Bandwidth for out-of-room players (cps)"), false, 0, 640, 80, 20, true),
+    minimapBandwidth    (_("Bandwidth for out-of-room players (cps)"), false, 0, 640, 640, 20, true),
 
     messageLogging      (_("Save game messages")),
     showFlagMessages    (_("Show flag messages"), true),
@@ -332,6 +332,7 @@ Menu_controls::Menu_controls() throw () :
     aimMode.addOption(_("keyboard (smooth turning)"), AM_Turn);
     aimMode.addOption(_("mouse (turning)"), AM_MouseTurn);
     aimMode.addOption(_("mouse (targeting)"), AM_MousePos);
+    aimMode.set(AM_MouseTurn);
     moveRelativity.addOption(_("room (up = up)"), AM_World);
     moveRelativity.addOption(_("aim (up = forward)"), AM_Gun);
 
@@ -441,7 +442,7 @@ void Menu_screenMode::init(const Graphics& gfx) throw () { // call just once, be
         colorDepth.addOption(_("$1-bit", "16"), 16);  // this will force Graphics to use a hope-this-works resolution
     colorDepth.set(desktop_color_depth());  // may fail (although it's unlikely); ignore
     reloadChoices(gfx);
-    resolution.set(ScreenMode(640, 480));   // default resolution
+    resolution.set(ScreenMode(800, 600));   // default resolution
 }
 
 void Menu_screenMode::update(const Graphics& gfx) throw () {   // tries to keep the selected resolution
@@ -514,7 +515,7 @@ void Menu_theme::update(const Graphics& gfx) throw () { // tries to keep the sel
 
 Menu_graphics::Menu_graphics() throw () :
     showNames            (_("Show player names")),
-    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 2),
+    visibleRoomsPlay     (_("Rooms on screen in each direction in game"), false, 1, 20, 3),
     visibleRoomsReplay   (_("Rooms on screen in each direction in replay"), false, 1, 20, 20),
     scroll               (_("Scrolling"), true),
 
@@ -525,7 +526,7 @@ Menu_graphics::Menu_graphics() throw () :
     minimapSmoothMovement(_("Smooth player movement on minimap"), true),
     highlightReturnedFlag(_("Highlight returned and dropped flags"), true),
     emphasizeFlags       (_("Make flags extra-visible")),
-    oldFlagPositions     (_("Show flag disappearance positions"), false),
+    oldFlagPositions     (_("Show flag disappearance positions"), true),
     spawnHighlight       (_("Highlight self after spawn"), true),
     neighborMarkersPlay  (_("Markers for nearby players and flags in game")),
     neighborMarkersReplay(_("Markers for nearby players and flags in replay")),
@@ -543,12 +544,14 @@ Menu_graphics::Menu_graphics() throw () :
     showNames.addOption(_("never"), N_Never);
     showNames.addOption(_("in same room"), N_SameRoom);
     showNames.addOption(_("always"), N_Always);
+    showNames.set(N_SameRoom);
     minimapPlayers.addOption(_("fade out"  ), MP_Fade);
     minimapPlayers.addOption(_("hide early"), MP_EarlyCut);
     minimapPlayers.addOption(_("hide late" ), MP_LateCut);
     emphasizeFlags.addOption(_("never"       ), FE_Never);
     emphasizeFlags.addOption(_("multi-roomed"), FE_MultiRoom);
     emphasizeFlags.addOption(_("always"      ), FE_Always);
+    emphasizeFlags.set(FE_MultiRoom);
     neighborMarkersPlay.addOption(_("never"        ), NM_Never);
     neighborMarkersPlay.addOption(_("single-roomed"), NM_OneRoom);
     neighborMarkersPlay.addOption(_("always"       ), NM_Always);
