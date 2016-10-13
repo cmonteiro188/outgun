@@ -31,7 +31,7 @@
 #endif
 
 // stack guard is a magic number that should be somewhere on the stack to prevent the stack dump from going further and making a page fault
-// you should have a local variable uint32_t stackGuard = STACK_GUARD; in main() and all thread entry functions
+// you should have a local variable uint32_t stackGuard = STACK_GUARD; in main() and all thread entry functions (Thread does this for you)
 static const uint32_t STACK_GUARD = 0x39D1209E;
 extern uint32_t* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to make sure the stackGuard variable isn't optimized away
 
@@ -66,6 +66,6 @@ extern uint32_t* stackGuardHackPtr;    // set stackGuardHackPtr = &stackGuard to
 
 template<bool> class STATIC_ASSERTION_FAILURE;
 template<> class STATIC_ASSERTION_FAILURE<true> { };
-#define STATIC_ASSERT(test) typedef int STATIC_ASSERT_hack[sizeof(STATIC_ASSERTION_FAILURE<test>)]
+#define STATIC_ASSERT(test) typedef int STATIC_ASSERT_hack[sizeof(STATIC_ASSERTION_FAILURE<test>)] __attribute__((unused))
 
 #endif
