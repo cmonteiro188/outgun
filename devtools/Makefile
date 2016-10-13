@@ -1,6 +1,12 @@
 CFLAGS = -O2 -W -Wall
-
 NLLIBS = -lNL
+
+# this is only needed if nl.h is not already in the include path
+HAWKNL_INCLUDE_DIR = /usr/include/hawknl
+# the above is from a Fedora RPM install; try 'locate /nl.h'
+ifeq ($(wildcard $(HAWKNL_INCLUDE_DIR)),$(HAWKNL_INCLUDE_DIR))
+ CFLAGS += -I $(HAWKNL_INCLUDE_DIR)
+endif
 
 .PHONY: all
 
