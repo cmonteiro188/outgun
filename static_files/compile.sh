@@ -189,7 +189,7 @@ echo "Compiling test program. . ."
 g++ hawk.check.cpp -o hawk.check.bin -lNL -pthread
 
 if ! [ -f "./hawk.check.bin" ]; then {
-	downandinstall "HawkNL" "make -f makefile.linux" "true" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*"
+	downandinstall "HawkNL" "make -f makefile.linux" "true" "make -f makefile.linux install" "http://www.hawksoft.com/hawknl/" "http://outgun.mbnet.fi/dependencies/outgun_1.0_hawknl_src.tar.gz" "./outgun_1.0_hawknl_src.tar.gz" "./hawknl*"
 	exit 0
 } fi
 
@@ -227,7 +227,7 @@ echo "Compiling test program. . ."
 g++ allegro.check.cpp -o allegro.check.bin `allegro-config --libs`
 
 if ! [ -f "./allegro.check.bin" ]; then {
-	downandinstall "Allegro" "./configure" "make" "make install" "http://alleg.sf.net/" "http://koti.mbnet.fi/outgun/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*"
+	downandinstall "Allegro" "./configure" "make" "make install" "http://alleg.sf.net/" "http://outgun.mbnet.fi/dependencies/outgun_1.0_allegro_src.tar.gz" "./outgun_1.0_allegro_src.tar.gz" "./allegro-*"
 	exit 0
 } fi
 

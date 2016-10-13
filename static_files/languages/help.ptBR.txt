@@ -1,7 +1,7 @@
 Para mais informações acesse as fontes:
  Documentação do jogo         diretório 'doc' (em Inglês)
  Site Brasileiro do Outgun    http://outgun.sf.net/
- Site do Outgun               http://koti.mbnet.fi/outgun/
+ Site do Outgun               http://outgun.mbnet.fi/
  
 Controles
  

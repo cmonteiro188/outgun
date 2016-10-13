@@ -376,7 +376,7 @@ const char* Map::load085(FILE* src) throw () {
 void Map::write050(FILE* dst) const throw () {
     const bool uniformScale = roomw > 0;
     fprintf(dst, "; This map has been automatically converted from 0.8.5 format\n");
-    fprintf(dst, "; with Mapconv (http://koti.mbnet.fi/outgun/tools/mapconv.html)\n");
+    fprintf(dst, "; with Mapconv (http://outgun.mbnet.fi/tools/mapconv.html)\n");
     fprintf(dst, "\n");
     fprintf(dst, "P title %s\n", name.c_str());
     fprintf(dst, "P width %d\n", width);

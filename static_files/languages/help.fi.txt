@@ -1,6 +1,6 @@
 Lisätietoa saa näistä paikoista:
  Pelin dokumentaatio         hakemisto "doc"
- Outgun-sivusto              http://koti.mbnet.fi/outgun/
+ Outgun-sivusto              http://outgun.mbnet.fi/
  Brasilian Outgun-sivusto    http://outgun.sf.net/
  
 Pelaajan ohjaus

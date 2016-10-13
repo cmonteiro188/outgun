@@ -1,6 +1,6 @@
 Per maggiori informazioni accedere a queste risorse:
  Documentazione gioco        directory 'doc'
- Outgun website              http://koti.mbnet.fi/outgun/
+ Outgun website              http://outgun.mbnet.fi/
  Outgun website Brasiliano   http://outgun.sf.net/
  
 Controlli

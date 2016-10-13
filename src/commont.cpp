@@ -280,11 +280,11 @@ bool RegisterMouseClicks::wasClicked(int button) throw () {
 #endif // DEDICATED_SERVER_ONLY
 
 void MasterSettings::load(LogSet& log) throw () {
-    static const char* defaultName = "koti.mbnet.fi";
-    static const char* defaultIP = "194.100.161.5";
+    static const char* defaultName = "outgun.mbnet.fi";
+    static const char* defaultIP = "77.240.20.102";
     static const int defaultPort = 80;
-    static const char* defaultQueryScript = "/outgun/servers/";
-    static const char* defaultSubmitScript = "/outgun/servers/submit.php";
+    static const char* defaultQueryScript = "/servers/";
+    static const char* defaultSubmitScript = "/servers/submit.php";
 
     static const char* defaultRankName = "outgun.com.br";
     static const char* defaultRankIP = "216.12.206.117";

@@ -169,12 +169,12 @@ void Relay::load_master_settings() throw () {
     ifstream in("config/master.txt");
     string line;
     if (!getline(in, master_name))
-        master_name = "koti.mbnet.fi";
+        master_name = "outgun.mbnet.fi";
     //master_name = "127.0.0.1"; // test
     getline(in, line);
     getline(in, line);
     if (!getline(in, master_submit))
-        master_submit = "/outgun/servers/submit.php";
+        master_submit = "/servers/submit.php";
 }
 
 void Relay::listen() throw () {

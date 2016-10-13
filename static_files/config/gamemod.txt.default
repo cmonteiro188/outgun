@@ -77,7 +77,7 @@ bot_name_lang classic
 ;  SERVER WEB SITE
 ; -----------------
 
-; See http://koti.mbnet.fi/outgun/documentation/script.html for instructions to
+; See http://outgun.mbnet.fi/documentation/script.html for instructions to
 ; configuring your website and these settings to work together.
 
 ; server_website: a valid URL, default: none 
