@@ -57,7 +57,7 @@ GITVERSION ?= git describe --match "v[0-9]*" --dirty="-M"
 DEPDIR ?= dep
 OBJDIR ?= obj
 BINDIR ?= bin
-TARGETBINDIR ?= ..
+TARGETBINDIR ?= ../build
 # TARGETBINDIR is for end-user binaries, BINDIR for others.
 STATUSDIR ?= makestatus
 # The parent directories of each directory must already exist, but the directories themselves are automatically created.
@@ -253,7 +253,7 @@ OBJ_SUBDIRS = $(patsubst %,$(OBJDIR)/%,$(OBJ_SUBDIR_NAMES))
 OBJ_GUI_SUBDIRS = $(patsubst %,$(OBJDIR)/gui/%,$(OBJ_GUI_SUBDIR_NAMES))
 OBJ_TEXT_SUBDIRS = $(patsubst %,$(OBJDIR)/text/%,$(OBJ_TEXT_SUBDIR_NAMES))
 
-GENERATED_DIRS = generated $(BINDIR) $(BIN_SUBDIRS) $(DEPDIR) $(DEP_SUBDIRS) $(OBJDIR) $(OBJ_SUBDIRS) $(OBJ_GUI_SUBDIRS) $(OBJ_TEXT_SUBDIRS) $(STATUSDIR)
+GENERATED_DIRS = generated $(TARGETBINDIR) $(BINDIR) $(BIN_SUBDIRS) $(DEPDIR) $(DEP_SUBDIRS) $(OBJDIR) $(OBJ_SUBDIRS) $(OBJ_GUI_SUBDIRS) $(OBJ_TEXT_SUBDIRS) $(STATUSDIR)
 
 $(GENERATED_DIRS):
 	-$(MKDIR) $@

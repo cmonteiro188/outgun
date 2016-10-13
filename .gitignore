@@ -16,6 +16,8 @@
 /srvmonit
 /watchserver
 
+/build/
+
 /src/bin/
 /src/dep/
 /src/generated/
