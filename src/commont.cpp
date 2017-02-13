@@ -287,7 +287,7 @@ void MasterSettings::load(LogSet& log) throw () {
     static const char* defaultSubmitScript = "/servers/submit.php";
 
     static const char* defaultRankName = "outgun.com.br";
-    static const char* defaultRankIP = "216.12.206.117";
+    static const char* defaultRankIP = "-";
     static const int defaultRankPort = 80;
     static const char* defaultRankDataScript = "/rank.php";
     static const char* defaultRankTokenScript = "/update_token.php";
@@ -296,7 +296,7 @@ void MasterSettings::load(LogSet& log) throw () {
     static const char* defaultBugIP = "-";
     static const int defaultBugPort = 24900;
 
-    static const uint16_t defaultConfigCRC = 62113;
+    static const uint16_t defaultConfigCRC = 53941;
     // defaultConfigCRC should correspond to the file the master is sending that contains the above settings, so that downloading is not needed on a fresh install.
     // If instead downloading in that case is preferred, use 0 which is guaranteed not to be used by a legitimate master.txt.
 
